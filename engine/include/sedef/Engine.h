@@ -84,7 +84,16 @@ private:
     SpscRing<float> analysisRing_ { 1 << 16 };
     std::atomic<bool> analysisEnabled_ { false };
     std::atomic<bool> metronomeAllowed_ { false };
-    std::atomic<std::uint32_t> metronomePattern_ { 0 }; // 13 steps x 2 bits, one atomic word
+    // 13 steps x 2 bits in one atomic word. Default: accented downbeat, every other step normal
+    // (Metronome::StepState 2 and 1), the same as the plugin's default pattern.
+    static constexpr std::uint32_t defaultMetronomePattern() noexcept
+    {
+        std::uint32_t packed = 2u;
+        for (std::uint32_t i = 1; i < 13; ++i)
+            packed |= 1u << (2 * i);
+        return packed;
+    }
+    std::atomic<std::uint32_t> metronomePattern_ { defaultMetronomePattern() };
 
     std::atomic<double> sampleRate_ { 48000.0 };
     std::atomic<int> maxBlockSize_ { 512 };

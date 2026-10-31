@@ -256,6 +256,10 @@ void SedefProcessor::setStateInformation (const void* data, int size)
     juce::MessageManager::callAsync ([safe = juce::WeakReference<SedefProcessor> (this), irs] {
         if (auto* p = safe.get())
         {
+            // The restored state is the whole truth: slots it doesn't mention are empty.
+            for (int m = 0; m < IrLibrary::kMics; ++m)
+                for (int c = 0; c < IrLibrary::kCabs; ++c)
+                    p->irs_.clear (m, c);
             for (const auto& slot : irs)
             {
                 const juce::File f (slot.getProperty ("path").toString());

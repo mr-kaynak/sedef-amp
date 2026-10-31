@@ -420,6 +420,7 @@ void Engine::prepare (double sampleRate, int maxBlockSize, int numInputs, int nu
     d.mute.reset (sampleRate, 0.01);
     d.modeFade.reset (sampleRate, 0.01);
     d.modeFade.setCurrentAndTarget (1.0f);
+    d.dual = false; // a re-prepare may drop the second input; the mode is re-evaluated per chunk
 
     for (auto* group : { &d.post, &d.chainR })
         for (auto& b : *group)
@@ -574,14 +575,26 @@ void Engine::process (const float* const* inputs, float* const* outputs, int num
         }
 
         if (analysis)
-            analysisRing_.push (chainIn, static_cast<size_t> (n));
+        {
+            // The tuner hears the instrument: the summed input in Dual mode too.
+            if (d.dual && in1 != nullptr)
+            {
+                for (int i = 0; i < n; ++i)
+                    d.monoIn[static_cast<size_t> (i)] = 0.5f * (in0[i] + in1[i]);
+                analysisRing_.push (d.monoIn.data(), static_cast<size_t> (n));
+            }
+            else
+            {
+                analysisRing_.push (chainIn, static_cast<size_t> (n));
+            }
+        }
 
         std::array<float*, 2> postPtrs { d.post[0].data(), d.post[1].data() };
         const AudioView post (postPtrs.data(), 2, n);
 
         d.chains[0].process (chainIn, post, chain);
         inPeaks[0] = std::max (inPeaks[0], d.chains[0].inputPeak);
-        if (d.dual)
+        if (d.dual && in1 != nullptr)
         {
             std::array<float*, 2> rPtrs { d.chainR[0].data(), d.chainR[1].data() };
             const AudioView right (rPtrs.data(), 2, n);

@@ -219,3 +219,27 @@ TEST_CASE ("Telemetry reports levels", "[engine]")
     CHECK (t.inputPeak[0].load() > 0.2f);
     CHECK (t.outputPeak[0].load() > 0.0f);
 }
+
+TEST_CASE ("Re-preparing with fewer inputs while in Dual mode is safe", "[engine]")
+{
+    Engine engine;
+    engine.prepare (48000.0, 128, 2, 2);
+    test::Buffer in (2, 128), out (2, 128);
+    test::fillNoise (in[0], 0.2f, 1);
+    test::fillNoise (in[1], 0.2f, 2);
+    auto p = ParamSnapshot::defaults();
+    p[ParamId::stereoMode] = 1.0f;
+    Transport t;
+    std::array<const float*, 2> ip { in.ptrs[0], in.ptrs[1] };
+    for (int i = 0; i < 50; ++i) // long enough for the mode fade to complete
+        engine.process (ip.data(), out.ptrs.data(), 128, p, t);
+
+    engine.prepare (44100.0, 256, 1, 2);
+    test::Buffer in1 (1, 256), out1 (2, 256);
+    test::fillNoise (in1[0], 0.2f, 3);
+    std::array<const float*, 2> ip1 { in1.ptrs[0], nullptr };
+    for (int i = 0; i < 20; ++i)
+        engine.process (ip1.data(), out1.ptrs.data(), 256, p, t);
+    CHECK (test::allFinite (out1[0]));
+    CHECK (test::allFinite (out1[1]));
+}

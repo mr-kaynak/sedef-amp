@@ -45,7 +45,7 @@ juce::String IrLibrary::load (int mic, int cab, const juce::File& file)
         std::min<juce::int64> (reader->lengthInSamples,
                                static_cast<juce::int64> (reader->sampleRate * kMaxSeconds)));
     juce::AudioBuffer<float> buffer (static_cast<int> (reader->numChannels), length);
-    reader->read (&buffer, 0, length, 0, true, true);
+    reader->read (buffer.getArrayOfWritePointers(), buffer.getNumChannels(), 0, length);
 
     // Stereo IRs are folded to mono; Sedef pans each mic itself.
     Slot slot;

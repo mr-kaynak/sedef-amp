@@ -43,10 +43,11 @@ std::optional<std::map<std::string, float>> readPresetParameters (const std::str
     if (start == std::string::npos)
         return std::nullopt;
     const auto open = text.find ('{', start);
-    const auto close = text.find ('}', open);
-    if (open == std::string::npos || close == std::string::npos)
+    const auto close = open == std::string::npos ? std::string::npos : text.find ('}', open);
+    if (close == std::string::npos)
         return std::nullopt;
 
+    // "parameters" is a flat object of "id": number pairs; anything else is a malformed preset.
     std::map<std::string, float> values;
     std::size_t pos = open + 1;
     while (pos < close)
@@ -55,11 +56,15 @@ std::optional<std::map<std::string, float>> readPresetParameters (const std::str
         if (q1 == std::string::npos || q1 > close)
             break;
         const auto q2 = text.find ('"', q1 + 1);
-        const auto colon = text.find (':', q2);
-        const std::string key = text.substr (q1 + 1, q2 - q1 - 1);
+        const auto colon = q2 == std::string::npos ? std::string::npos : text.find (':', q2);
+        if (colon == std::string::npos || colon > close)
+            return std::nullopt;
+        const char* numberStart = text.c_str() + colon + 1;
         char* end = nullptr;
-        const float v = std::strtof (text.c_str() + colon + 1, &end);
-        values[key] = v;
+        const float v = std::strtof (numberStart, &end);
+        if (end == numberStart)
+            return std::nullopt;
+        values[text.substr (q1 + 1, q2 - q1 - 1)] = v;
         pos = static_cast<std::size_t> (end - text.c_str());
     }
     return values;

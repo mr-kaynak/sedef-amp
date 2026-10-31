@@ -16,7 +16,7 @@ cascaded linear-phase half-band FIR stages (2× per stage), Kaiser-windowed,
 
 ## Consequences
 
-About 0.5 ms of added latency at 48 kHz with 4×. Linear phase keeps the
+37 samples (0.77 ms) of added latency at 48 kHz with 4×, 31 samples at 2×. Linear phase keeps the
 amp's transient shape and avoids pre-ringing artefacts being phase-smeared
 across the chain. A minimum-phase option can be added later for low-latency
 live use.

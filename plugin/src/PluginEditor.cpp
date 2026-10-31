@@ -45,7 +45,7 @@ class SedefEditor::Browser final : public juce::WebBrowserComponent
 public:
     using WebBrowserComponent::WebBrowserComponent;
 
-    /// Only our own UI may load inside the editor; links open in the system browser.
+    /// Only our own UI may load inside the editor. External links go through sedef_openUrl.
     bool pageAboutToLoad (const juce::String& url) override
     {
         const auto dev = devServerUrl();

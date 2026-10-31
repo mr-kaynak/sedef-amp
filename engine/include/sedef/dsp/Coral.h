@@ -2,6 +2,12 @@
 #pragma once
 
 #include "sedef/core/AudioView.h"
+#include "sedef/core/Biquad.h"
+#include "sedef/core/Oversampler.h"
+#include "sedef/core/Smoothed.h"
+#include "sedef/dsp/detail/Adaa.h"
+
+#include <array>
 
 namespace sedef::dsp
 {
@@ -23,6 +29,28 @@ public:
     void setSettings (const Settings& s) noexcept;
     void process (const AudioView& io) noexcept;
     int latencySamples() const noexcept;
+
+private:
+    void processBlock (const AudioView& io) noexcept;
+    void applySettings (bool snap) noexcept;
+    void updateDriveBandwidth (float gain) noexcept;
+    void updateCut (float cut) noexcept;
+
+    double sampleRate_ = 48000.0;
+    int numChannels_ = 0;
+    int maxBlockSize_ = 0;
+    Settings settings_;
+    bool primed_ = false;
+
+    Oversampler oversampler_;
+    std::array<detail::Adaa1, kMaxChannels> clipper_;
+
+    LinearSmoothed driveGain_;
+    LinearSmoothed outputGain_;
+    ExpSmoothed gainKnob_, cut_;
+
+    Biquad inputHp_, emphasis_, driveLp_; // before the clipper
+    Biquad dcBlock_, cutLp_, fizzLp_;     // after the clipper
 };
 
 } // namespace sedef::dsp

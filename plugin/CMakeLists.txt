@@ -32,11 +32,16 @@ if(SEDEF_BUILD_UI)
         DEPENDS ${SEDEF_UI_DIR}/package.json ${SEDEF_UI_DIR}/pnpm-lock.yaml
         COMMENT "Installing web UI dependencies"
         VERBATIM)
+    # GLOB_RECURSE matches a pattern in every subfolder, so the top-level files get a plain GLOB
+    # (otherwise ui/dist/index.html would depend on itself).
     file(GLOB_RECURSE SEDEF_UI_SOURCES CONFIGURE_DEPENDS
         ${SEDEF_UI_DIR}/src/*
-        ${SEDEF_UI_DIR}/public/*
+        ${SEDEF_UI_DIR}/public/*)
+    file(GLOB SEDEF_UI_TOP_LEVEL CONFIGURE_DEPENDS
         ${SEDEF_UI_DIR}/index.html
-        ${SEDEF_UI_DIR}/vite.config.*)
+        ${SEDEF_UI_DIR}/vite.config.*
+        ${SEDEF_UI_DIR}/tsconfig*.json)
+    list(APPEND SEDEF_UI_SOURCES ${SEDEF_UI_TOP_LEVEL})
     add_custom_command(
         OUTPUT "${SEDEF_UI_DIST}/index.html"
         COMMAND ${PNPM_EXECUTABLE} run build

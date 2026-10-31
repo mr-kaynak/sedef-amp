@@ -4,6 +4,8 @@
 #include "sedef/dsp/cab/CabSim.h"
 #include "sedef/dsp/cab/ConvolutionKernel.h"
 
+#include <juce_events/juce_events.h>
+
 namespace sedef::plugin
 {
 namespace
@@ -24,9 +26,9 @@ IrLibrary::~IrLibrary()
 void IrLibrary::loadAsync (int mic, int cab, const juce::File& file,
                            std::function<void (const juce::String&)> onDone)
 {
-    worker_.addJob ([this, mic, cab, file, onDone = std::move (onDone)] {
+    worker_.addJob ([this, mic, cab, file, done = std::move (onDone)] {
         const auto error = load (mic, cab, file);
-        juce::MessageManager::callAsync ([onDone, error] { onDone (error); });
+        juce::MessageManager::callAsync ([done, error] { done (error); });
     });
 }
 

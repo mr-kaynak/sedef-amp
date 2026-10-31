@@ -70,7 +70,8 @@ cmake --build --preset release
 ```
 
 Requirements: CMake ≥ 3.25, Ninja, a C++20 compiler, Node 22+ and pnpm (for the UI). JUCE and the
-other dependencies are fetched automatically. Linux needs the usual JUCE packages plus
+other dependencies are fetched automatically (set `CPM_SOURCE_CACHE=~/.cache/CPM` to share the
+downloads between build folders). Linux needs the usual JUCE packages plus
 `libwebkit2gtk-4.1-dev` (see [.github/workflows/ci.yml](.github/workflows/ci.yml)).
 
 DSP-only builds skip JUCE entirely and run the test suite in seconds:

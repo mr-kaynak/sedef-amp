@@ -37,7 +37,9 @@ UI development inside the real plugin: run `pnpm dev`, then launch the standalon
 - One topic per PR, with tests. DSP changes need tests that assert behaviour (frequency response,
   levels, timing), not just "it runs".
 - New DSP modules get a page in `docs/dsp/` listing their references.
-- `clang-format` (config in the repo) and `pnpm lint` must pass. CI runs both.
+- `clang-format` (config in the repo) and `pnpm lint` must pass. CI runs both. CI pins
+  clang-format 23.1.3; to get exactly the same output locally, run
+  `uvx --from clang-format==23.1.3 clang-format -i <files>` (or `pip install clang-format==23.1.3`).
 - Explain *why* in the PR description; link issues.
 
 ## Review checklist (real-time code)

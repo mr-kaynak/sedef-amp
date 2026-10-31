@@ -7,6 +7,8 @@ import './styles/global.css';
 import { App } from './app/App';
 import { connect, createBackend } from './app/connect';
 import { readDemoFlags } from './app/demo';
+import { installDemoHook } from './app/demoHook';
+import { MockBackend } from './bridge/mockBackend';
 import { uiActions } from './state/uiStore';
 
 async function main() {
@@ -15,6 +17,11 @@ async function main() {
   await connect(backend);
   if (flags.section) uiActions.setSection(flags.section);
   if (flags.overlay) uiActions.openOverlay(flags.overlay);
+  if (backend instanceof MockBackend) {
+    if (flags.freeze) backend.publishStill();
+    if (flags.demo) installDemoHook();
+  }
+  if (!flags.grain) document.documentElement.dataset.grain = 'off';
 
   const root = document.getElementById('root');
   if (!root) throw new Error('Missing #root element');

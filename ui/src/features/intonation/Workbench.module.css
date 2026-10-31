@@ -424,7 +424,7 @@ li[data-state='done'] > .trailDot {
 .hold {
   width: 300px;
   height: 4px;
-  margin-top: 6px;
+  margin-top: 22px;
   border-radius: 2px;
   background: var(--ink-0);
   overflow: hidden;

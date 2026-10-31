@@ -14,7 +14,9 @@ describe('MockBackend', () => {
     expect(hello.protocol).toBe(PROTOCOL_VERSION);
     expect(hello.schema).toHaveLength(137);
     expect(Object.keys(hello.values)).toHaveLength(137);
-    expect(hello.presets.currentName).toBe('Low Tide Crunch');
+    expect(hello.presets.currentName).toBe('Nacre');
+    expect(hello.presets.currentId).toBe('factory:nacre');
+    expect(hello.presets.items.filter((p) => p.category === 'Factory')).toHaveLength(13);
     expect(hello.presets.dirty).toBe(false);
     expect(hello.ir.slots).toHaveLength(6);
   });
@@ -22,6 +24,34 @@ describe('MockBackend', () => {
   it('rejects a mismatched protocol', async () => {
     mock = new MockBackend();
     await expect(mock.call('sedef_hello', 99)).rejects.toThrow();
+  });
+
+  it('follows the plugin preset rules: globals never dirty, reverting clears dirty', async () => {
+    mock = new MockBackend();
+    await mock.call('sedef_setParam', 'inputGain', 6);
+    await mock.call('sedef_setParam', 'tempo', 90);
+    expect((await mock.call('sedef_presets_list')).dirty).toBe(false);
+    await mock.call('sedef_setParam', 'lagoonVolume', 0.8);
+    expect((await mock.call('sedef_presets_list')).dirty).toBe(true);
+    await mock.call('sedef_setParam', 'lagoonVolume', 0.45); // Nacre's stored value
+    expect((await mock.call('sedef_presets_list')).dirty).toBe(false);
+  });
+
+  it('keeps global parameters when loading a preset', async () => {
+    mock = new MockBackend();
+    await mock.call('sedef_setParam', 'outputGain', -6);
+    await mock.call('sedef_presets_load', 'factory:brine');
+    expect(mock.value('outputGain')).toBe(-6);
+    expect(mock.value('reefVoice')).toBe(2);
+    // Missing parameters fall back to the schema default.
+    expect(mock.value('lagoonVolume')).toBe(0.5);
+  });
+
+  it('applies demo overrides as part of the initial preset', async () => {
+    mock = new MockBackend({ overrides: { pearlEnabled: 1, pearlGain: 0.8 } });
+    const hello = await mock.hello();
+    expect(hello.values.pearlGain).toBe(0.8);
+    expect(hello.presets.dirty).toBe(false);
   });
 
   it('stores values in real units, snapped and clamped', async () => {
@@ -49,8 +79,8 @@ describe('MockBackend', () => {
     const params = vi.fn();
     mock.on('sedef:params', params);
 
-    let state = await mock.call('sedef_presets_load', 'factory:abyssal-lead');
-    expect(state.currentName).toBe('Abyssal Lead');
+    let state = await mock.call('sedef_presets_load', 'factory:riptide');
+    expect(state.currentName).toBe('Riptide');
     expect(mock.value('ampModel')).toBe(2);
     await flush();
     expect(params).toHaveBeenCalled();
@@ -71,8 +101,8 @@ describe('MockBackend', () => {
     expect(state.items.find((p) => p.id === saved!.id)).toBeUndefined();
 
     // Factory presets cannot be deleted.
-    state = await mock.call('sedef_presets_delete', 'factory:glass-shore');
-    expect(state.items.some((p) => p.id === 'factory:glass-shore')).toBe(true);
+    state = await mock.call('sedef_presets_delete', 'factory:glass-pocket');
+    expect(state.items.some((p) => p.id === 'factory:glass-pocket')).toBe(true);
   });
 
   it('steps through presets and wraps around', async () => {

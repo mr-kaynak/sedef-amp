@@ -19,6 +19,7 @@ pnpm lint         # ESLint (flat config), zero warnings allowed
 pnpm typecheck    # tsc, strict
 pnpm format       # Prettier
 pnpm screenshots  # renders docs/images/*.png from dist/ (needs a build first)
+pnpm captures     # trailer stills (3x) + brand assets into ../media/trailer/assets
 ```
 
 `pnpm screenshots` drives headless Chromium through Playwright and fails on any console error or
@@ -31,8 +32,12 @@ chromium-headless-shell`.
 | --- | --- |
 | `?section=pedals\|amp\|eq\|cab\|fx` | open a section |
 | `?overlay=tuner\|intonation` | open the tuner or the intonation workbench |
-| `?preset=night-swim` | start from a factory preset (slug) |
-| `?host=plugin` | behave like a plugin (no metronome) instead of the standalone app |
+| `?preset=soft-focus` | start from a factory preset (slug; default `nacre`) |
+| `?set=pearlEnabled:1,pearlGain:0.4` | parameter values applied as part of that preset (no dirty dot) |
+| `?freeze` | no simulation: static meters, pitch only from the demo hook |
+| `?demo` | expose `window.__sedefDemo` (`pitch`, `silence`, `intonation`, `set`) for scripted frames |
+| `?grain=0` | hide the lacquer grain (much smaller PNGs) |
+| `?host=plugin\|standalone` | present as a plugin (no metronome) or as the standalone app instead of the browser preview |
 | `?errors=3.6,-2.4,1.1` | 12th-fret errors in cents that the simulated guitar produces, per string |
 | `?fresh` | ignore UI state saved by earlier browser sessions |
 
@@ -124,9 +129,14 @@ validates everything, because state may come from an older build.
 
 ## The mock backend
 
-`MockBackend` holds values for all 137 parameters (from `src/generated/parameters.json`), six
-factory presets and one user preset with full save/rename/delete/favourite/step semantics, IR
-slots, UI state (in `localStorage` when running in a browser), tap tempo, and simulators:
+`MockBackend` holds values for all 137 parameters (from `src/generated/parameters.json`), the real
+factory presets (`presets/factory/*.sedefpreset`, bundled at build time with `import.meta.glob`)
+plus one user preset, IR slots, UI state (in `localStorage` when running in a browser), tap tempo,
+and simulators. Preset handling mirrors `plugin/src/PresetManager.cpp`: ids are
+`factory:<slug>` with the same slugify, global parameters (gains, transpose, stereo mode, tempo,
+tuner, metronome, preset stepping) are never stored, loaded or counted as changes, missing values
+fall back to the schema default, and "dirty" compares against the loaded preset with the same
+tolerance. The mock starts on Nacre.
 
 - **Telemetry**: a player strumming every couple of seconds, shaped by input/output gain, the gate
   threshold and the compressor; metronome steps at the current tempo and signature; the effective
@@ -139,6 +149,15 @@ slots, UI state (in `localStorage` when running in a browser), tap tempo, and si
 
 Tests construct the mock with `autoStart: false` and drive time with `tickTelemetry()` /
 `tickPitch()`, so they are deterministic.
+
+## Trailer captures and brand assets
+
+`pnpm build && pnpm captures` renders still frames of real UI states at 3x (3600 × 2280) into
+`media/trailer/assets/shots/` (or `--out <dir>`), using `?freeze&demo&grain=0&host=standalone`
+so frames in a sequence differ only in what the sequence animates. It also writes, from the same
+sources the UI uses, `logo.svg` (the star mark), `wordmark.svg` and `lockup.svg` (outlined with
+fontkit from the exact variable-font instances), and `fonts/` (the bundled woff2 files, their OFL
+licences and a `fonts.css`). `node scripts/brand-assets.mjs [dir]` regenerates only the assets.
 
 ## Screens
 
@@ -155,7 +174,7 @@ browser the canvas fits the window. Everything is vector or text, so it stays cr
 | EQ | the current amp's bank: 9 faders on a log axis under a live response curve, low/high cut, on/off, flatten |
 | Cab | cab picker (shows the link), speaker with draggable Mic A/B markers (sideways = position, up/down = distance ring), per-mic type for the current cab, level, pan, phase, room, custom IR load/clear |
 | FX | Drift (heads, Free/Host/Tap sync with tap button, time or note value, the effective time from telemetry, tape controls), Fathom (plate/hall with an envelope sketch), Doubler |
-| Tuner | needle + strobe, note and octave, cents, Hz, reference 420–460 Hz, mute |
+| Tuner | needle + strobe, note and octave, cents, Hz, reference 420–460 Hz, mute; in tune within ±1 cent |
 | Intonation | instrument → measure each string (tune open, capture 12th fret, result with saddle diagram) → summary with copy as text |
 | Metronome | play/stop, tempo knob + tap, signature, sound, volume, step grid (off/normal/accent/soft), live beat |
 
@@ -211,4 +230,5 @@ something is alive.
 - The window-size setting only resizes inside the plugin; in a browser the canvas always fits.
 - Intonation keeps one instrument profile (with its results), not a library of named guitars.
 - The mock has no host transport; Drift's Host sync assumes 120 bpm.
+- No factory preset sets EQ values yet, so the EQ screenshot shapes its curve with `?set=`.
 - Screenshots are full-fidelity PNGs (the lacquer grain does not compress well).

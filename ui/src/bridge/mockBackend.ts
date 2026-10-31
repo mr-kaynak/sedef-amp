@@ -18,7 +18,13 @@ import {
 } from './protocol';
 import { bundledSchema, defaultValues, indexSchema } from '../params/schema';
 import { snapValue } from '../params/normalise';
-import { FACTORY_PRESETS, USER_PRESETS, type MockPreset } from './mock/factoryPresets';
+import { isGlobalParam, sameValue } from '../params/presetScope';
+import {
+  DEFAULT_PRESET_ID,
+  FACTORY_PRESETS,
+  USER_PRESETS,
+  type MockPreset,
+} from './mock/factoryPresets';
 import { PitchSimulator } from './mock/pitchSim';
 import { TelemetrySimulator } from './mock/telemetrySim';
 
@@ -32,21 +38,28 @@ export interface MockOptions {
   uiState?: UiState | null;
   /** localStorage key used to keep UI state across reloads in the browser; null disables. */
   persistKey?: string | null;
+  /** Preset loaded at startup; null starts from Init. Defaults to Nacre. */
   initialPresetId?: string | null;
+  /**
+   * Values applied on top of the initial preset as if they were part of it (no dirty dot).
+   * Used by demo URLs and trailer captures.
+   */
+  overrides?: ParamValues;
 }
-
-/** Groups that are session settings rather than tone, so they never make a preset dirty. */
-const NON_PRESET_GROUPS = new Set(['Tuner', 'Metronome', 'Preset']);
 const TELEMETRY_HZ = 30;
 const PITCH_HZ = 50;
 const IR_NAMES = ['Tight room, close.wav', 'Back porch, far.wav', 'Small hall, edge.wav'];
 
 type Handlers = { [K in NativeName]: (...args: NativeArgs<K>) => NativeResult<K> };
 
+const natural = (a: string, b: string) =>
+  a.localeCompare(b, 'en', { numeric: true, sensitivity: 'base' });
+
+/** Factory first, then folder, then name (PresetManager::scan). */
 function sortPresets(items: PresetInfo[]): PresetInfo[] {
   const cat = (p: PresetInfo) => (p.category === 'Factory' ? 0 : 1);
   return [...items].sort(
-    (a, b) => cat(a) - cat(b) || a.folder.localeCompare(b.folder) || a.name.localeCompare(b.name),
+    (a, b) => cat(a) - cat(b) || natural(a.folder, b.folder) || natural(a.name, b.name),
   );
 }
 
@@ -56,6 +69,8 @@ export class MockBackend implements Backend {
   private readonly specs = indexSchema(bundledSchema);
   private readonly emitter = new Emitter();
   private values: ParamValues = defaultValues(bundledSchema);
+  /** Reference values for the dirty check: the loaded or last saved preset. */
+  private loaded: ParamValues = defaultValues(bundledSchema);
   private presets: MockPreset[] = [...FACTORY_PRESETS, ...USER_PRESETS].map((p) => ({
     info: { ...p.info },
     values: { ...p.values },
@@ -96,8 +111,16 @@ export class MockBackend implements Backend {
     );
     this.refreshPresetItems();
     const initial =
-      options.initialPresetId === undefined ? 'factory:low-tide' : options.initialPresetId;
+      options.initialPresetId === undefined ? DEFAULT_PRESET_ID : options.initialPresetId;
     if (initial) this.loadPreset(initial, false);
+    for (const [id, value] of Object.entries(options.overrides ?? {})) {
+      const spec = this.specs[id];
+      if (!spec) continue;
+      const v = snapValue(spec, value);
+      this.values[id] = v;
+      if (!isGlobalParam(id)) this.loaded[id] = v;
+    }
+    this.refreshPresetItems();
     if (options.autoStart) this.start();
   }
 
@@ -142,6 +165,22 @@ export class MockBackend implements Backend {
 
   tickPitch(dt = 1 / PITCH_HZ): void {
     if (this.tunerActive) this.emitter.emit('sedef:pitch', this.pitchSim.step(dt));
+  }
+
+  /** Publishes one fixed telemetry frame (static meters for screenshots). */
+  publishStill(): void {
+    const t = this.telemetrySim.step(0);
+    this.emitter.emit('sedef:telemetry', {
+      ...t,
+      inputDb: [-17],
+      outputDb: [-13, -14],
+      inputClip: false,
+      outputClip: false,
+      gateOpen: true,
+      gateReductionDb: 0,
+      tideReductionDb: this.value('tideEnabled') >= 0.5 ? -3.5 : 0,
+      cpu: 0.064,
+    });
   }
 
   isTunerActive(): boolean {
@@ -201,14 +240,14 @@ export class MockBackend implements Backend {
       const existing = this.presets.find(
         (p) => p.info.category === 'User' && p.info.name.toLowerCase() === trimmed.toLowerCase(),
       );
-      const values = this.tonalValues();
+      const values = this.presetValues();
       if (existing) {
         existing.values = values;
         existing.info.folder = folder;
       } else {
         this.presets.push({
           info: {
-            id: `user:${folder ? `${folder}/` : ''}${trimmed}.json`,
+            id: `user:${folder ? `${folder}/` : ''}${trimmed}.sedefpreset`,
             name: trimmed,
             category: 'User',
             folder,
@@ -220,11 +259,12 @@ export class MockBackend implements Backend {
         });
       }
       const saved = existing ?? this.presets[this.presets.length - 1];
+      // The saved state is the new reference for "dirty".
+      this.loaded = { ...this.values };
       this.presetState = {
         ...this.presetState,
         currentId: saved?.info.id ?? null,
         currentName: trimmed,
-        dirty: false,
       };
       return this.publishPresets();
     },
@@ -233,7 +273,7 @@ export class MockBackend implements Backend {
       if (!preset || preset.info.category !== 'User') return this.snapshotPresets();
       this.presets = this.presets.filter((p) => p !== preset);
       if (this.presetState.currentId === id) {
-        this.presetState = { ...this.presetState, currentId: null, dirty: true };
+        this.presetState = { ...this.presetState, currentId: null };
       }
       return this.publishPresets();
     },
@@ -268,17 +308,8 @@ export class MockBackend implements Backend {
       return this.snapshotPresets();
     },
     sedef_presets_init: () => {
-      const defaults = defaultValues(this.schema);
-      for (const spec of this.schema) {
-        if (!NON_PRESET_GROUPS.has(spec.group))
-          this.values[spec.id] = defaults[spec.id] ?? spec.default;
-      }
-      this.presetState = {
-        ...this.presetState,
-        currentId: null,
-        currentName: 'Init',
-        dirty: false,
-      };
+      this.applyPresetValues({});
+      this.presetState = { ...this.presetState, currentId: null, currentName: 'Init' };
       this.emit('sedef:params', { values: { ...this.values } });
       return this.publishPresets();
     },
@@ -346,37 +377,48 @@ export class MockBackend implements Backend {
     const next = snapValue(spec, value);
     if (this.values[id] === next) return;
     this.values[id] = next;
-    if (!NON_PRESET_GROUPS.has(spec.group) && !this.presetState.dirty) {
-      this.presetState = { ...this.presetState, dirty: true };
+    if (isGlobalParam(id)) return;
+    const dirty = this.isDirty();
+    if (dirty !== this.presetState.dirty) {
+      this.presetState = { ...this.presetState, dirty };
       this.publishPresets();
+    }
+  }
+
+  /** Mirrors PresetManager::isDirty: any preset parameter away from the loaded reference. */
+  private isDirty(): boolean {
+    return this.schema.some(
+      (spec) =>
+        !isGlobalParam(spec.id) &&
+        !sameValue(this.value(spec.id), this.loaded[spec.id] ?? spec.default, spec.min, spec.max),
+    );
+  }
+
+  /** Loads preset values: stored ones snapped to range, missing ones default; globals untouched. */
+  private applyPresetValues(stored: ParamValues): void {
+    for (const spec of this.schema) {
+      if (isGlobalParam(spec.id)) continue;
+      const raw = stored[spec.id];
+      const value = raw === undefined ? spec.default : snapValue(spec, raw);
+      this.values[spec.id] = value;
+      this.loaded[spec.id] = value;
     }
   }
 
   private loadPreset(id: string, notify: boolean): void {
     const preset = this.presets.find((p) => p.info.id === id);
     if (!preset) return;
-    const defaults = defaultValues(this.schema);
-    for (const spec of this.schema) {
-      if (NON_PRESET_GROUPS.has(spec.group)) continue;
-      this.values[spec.id] = preset.values[spec.id] ?? defaults[spec.id] ?? spec.default;
-    }
-    this.presetState = {
-      ...this.presetState,
-      currentId: id,
-      currentName: preset.info.name,
-      dirty: false,
-    };
+    this.applyPresetValues(preset.values);
+    this.presetState = { ...this.presetState, currentId: id, currentName: preset.info.name };
     if (notify) {
       this.emit('sedef:params', { values: { ...this.values } });
       this.publishPresets();
     }
   }
 
-  private tonalValues(): ParamValues {
+  private presetValues(): ParamValues {
     return Object.fromEntries(
-      this.schema
-        .filter((s) => !NON_PRESET_GROUPS.has(s.group))
-        .map((s) => [s.id, this.value(s.id)]),
+      this.schema.filter((s) => !isGlobalParam(s.id)).map((s) => [s.id, this.value(s.id)]),
     );
   }
 
@@ -384,6 +426,7 @@ export class MockBackend implements Backend {
     this.presetState = {
       ...this.presetState,
       items: sortPresets(this.presets.map((p) => ({ ...p.info }))),
+      dirty: this.isDirty(),
     };
   }
 

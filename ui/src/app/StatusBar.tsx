@@ -12,7 +12,7 @@ export function StatusBar() {
       <span>{(session.sampleRate / 1000).toFixed(1).replace(/\.0$/, '')} kHz</span>
       <span>{latencyMs.toFixed(1)} ms latency</span>
       {session.layout && <span>{session.layout}</span>}
-      {session.backend === 'mock' && (
+      {session.wrapperType === 'Browser' && (
         <span className={styles.sim}>Simulated audio, browser preview</span>
       )}
       <span className={styles.spacer} />

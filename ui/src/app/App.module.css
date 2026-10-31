@@ -22,6 +22,10 @@
   z-index: 0;
 }
 
+:global(:root[data-grain='off']) .app::before {
+  display: none;
+}
+
 .app > * {
   position: relative;
   z-index: 1;

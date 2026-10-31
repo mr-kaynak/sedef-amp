@@ -59,11 +59,12 @@ describe('preset actions against the mock', () => {
   afterEach(() => h.dispose());
 
   it('loads a preset and applies its values', async () => {
-    await presetActions.load('factory:glass-shore');
+    await presetActions.load('factory:tidewater');
     await flush();
-    expect(usePresetStore.getState().state.currentName).toBe('Glass Shore');
+    expect(usePresetStore.getState().state.currentName).toBe('Tidewater');
     expect(getValue('ampModel')).toBe(0);
     expect(getValue('rippleEnabled')).toBe(1);
+    expect(getValue('rippleSpeed')).toBe(4.6);
   });
 
   it('saves the current sound as a user preset', async () => {

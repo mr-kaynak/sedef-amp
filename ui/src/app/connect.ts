@@ -16,12 +16,14 @@ import { hydrateUiState, startPersistence } from './persistence';
 export async function createBackend(flags: DemoFlags): Promise<Backend> {
   if (isInsideJuce()) return JuceBackend.create();
   return new MockBackend({
-    autoStart: true,
-    wrapperType: flags.plugin ? 'VST3' : 'Browser',
-    isStandalone: !flags.plugin,
+    autoStart: !flags.freeze,
+    wrapperType:
+      flags.host === 'plugin' ? 'VST3' : flags.host === 'standalone' ? 'Standalone' : 'Browser',
+    isStandalone: flags.host !== 'plugin',
     intonationErrors: flags.errors,
-    persistKey: flags.fresh ? null : 'sedef-mock-ui-state',
+    persistKey: flags.fresh || flags.freeze ? null : 'sedef-mock-ui-state',
     ...(flags.preset ? { initialPresetId: `factory:${flags.preset}` } : {}),
+    overrides: flags.overrides,
   });
 }
 

@@ -4,3 +4,4 @@ node_modules/
 renders/*.mp4
 !renders/.gitkeep
 .hyperframes/
+assets/shots/

@@ -10,7 +10,8 @@ import { formatCents } from '../intonation/math';
 import styles from './TunerGauge.module.css';
 
 const SWEEP_DEG = 52;
-const IN_TUNE_CENTS = 2;
+/** Matches the workbench's tuning window: a precision tuner, not a forgiving one. */
+const IN_TUNE_CENTS = 1;
 const W = 560;
 const H = 250;
 const CX = W / 2;

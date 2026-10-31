@@ -17,7 +17,7 @@ describe('App', () => {
     render(<App />);
     const expectations: [string, RegExp][] = [
       ['1', /Tide Compressor/],
-      ['2', /Reef amp controls/],
+      ['2', /Lagoon amp controls/],
       ['3', /EQ frequency response/],
       ['4', /Mic A/],
       ['5', /Drift Tape echo/],
@@ -52,8 +52,8 @@ describe('App', () => {
   it('loads a preset from the browser', async () => {
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: /Open preset browser/ }));
-    fireEvent.click(screen.getByRole('button', { name: /^Glass Shore/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^Glass Pocket/ }));
     await act(flush);
-    expect(screen.getByRole('button', { name: /Preset: Glass Shore/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Preset: Glass Pocket/ })).toBeInTheDocument();
   });
 });

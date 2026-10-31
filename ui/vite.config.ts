@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
+
+const here = fileURLToPath(new URL('.', import.meta.url));
+// The mock backend bundles the real factory presets from the repository.
+const presetsDir = fileURLToPath(new URL('../presets', import.meta.url));
 
 // The plugin serves dist/ from a zip embedded in the binary by relative path, so every asset
 // URL must be relative (base './') and nothing may be fetched from the network.
@@ -15,7 +20,7 @@ export default defineConfig({
     assetsInlineLimit: 0,
     sourcemap: false,
   },
-  server: { port: 5173, strictPort: false },
+  server: { port: 5173, strictPort: false, fs: { allow: [here, presetsDir] } },
   test: {
     environment: 'jsdom',
     globals: true,

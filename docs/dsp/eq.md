@@ -62,9 +62,12 @@ The UI mirror must apply the same rules:
   the dry signal over 20 ms, then glides to the target. Turning it off glides to
   the extreme first, then fades it out. Once the fade completes the section
   leaves the signal path.
-- A band that reaches 0 dB is the identity filter, and its state settles to
-  exactly zero, so it leaves the path. Flat settings are bit-exact
-  transparent.
+- A band that glides to 0 dB becomes the identity filter, but its state still
+  holds the ringing of the last boost or cut. That ringing decays at the
+  section's own pole rate whatever the input, so the band keeps running until
+  it is 120 dB down (about 0.1 s for the 65 Hz band), then leaves the path.
+  Dropping it earlier steps the output by the leftover state. Flat settings
+  are bit-exact transparent.
 - The first `setSettings` after `prepare`/`reset` snaps instead of gliding.
 
 ## Implementation notes
@@ -73,6 +76,8 @@ Sections are designed with `design::*`. They run on a small TDF-II kernel
 inside the module that keeps state in registers for the whole block and runs
 the two channels as independent chains. With all 11 sections active this
 measured about 2.5× faster than calling `Biquad::processSample` per sample.
+The state is flushed to zero below 1e-15 at the end of every block, so
+silence decays to exact zeros instead of into denormals.
 
 ## References
 

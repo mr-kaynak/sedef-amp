@@ -179,13 +179,11 @@ void Drift::reset() noexcept
         t.reset();
     for (Biquad* f : { &emphasis_, &deEmphasis_, &hfLoss_, &playbackTone_, &feedbackTone_ })
         f->reset();
-    mod_ = 0.0f;
-    modStep_ = 0.0f;
-    tickCountdown_ = 0;
     silentSamples_ = 0;
     snapDelay_ = true;
     idle_ = !settings_.enabled;
     applyTargets (true);
+    snapModulation();
     snapNext_ = true;
 }
 
@@ -297,6 +295,7 @@ void Drift::wake() noexcept
         l.setCurrentAndTarget (l.target());
     updateTone();
     updateDrive();
+    snapModulation();
 }
 
 void Drift::goIdle() noexcept
@@ -304,6 +303,25 @@ void Drift::goIdle() noexcept
     idle_ = true;
     for (Biquad* f : { &emphasis_, &deEmphasis_, &hfLoss_, &playbackTone_, &feedbackTone_ })
         f->reset();
+}
+
+float Drift::nextModulation() noexcept
+{
+    wow_.advance (kControlBlock);
+    flutter_.advance (kControlBlock);
+    const float wow = 0.8f * Lfo::sine (wow_.phase()) + 0.35f * wowDrift_.next();
+    const float flutter = 0.6f * Lfo::sine (flutter_.phase()) + 0.6f * flutterNoise_.next();
+    return modAmount_.current() * (wowSamples_ * wow + flutterSamples_ * flutter);
+}
+
+void Drift::snapModulation() noexcept
+{
+    // Restart the tick grid from where wow and flutter are now. Starting from zero (or from the
+    // value left before idling) would slew the read head by up to the full wow depth within the
+    // first tick, far outside the 0.25x..2x speed range.
+    mod_ = nextModulation();
+    modStep_ = 0.0f;
+    tickCountdown_ = 0;
 }
 
 void Drift::controlTick() noexcept
@@ -320,13 +338,7 @@ void Drift::controlTick() noexcept
         updateDrive();
     }
     modAmount_.skip (kControlBlock);
-
-    wow_.advance (kControlBlock);
-    flutter_.advance (kControlBlock);
-    const float wow = 0.8f * Lfo::sine (wow_.phase()) + 0.35f * wowDrift_.next();
-    const float flutter = 0.6f * Lfo::sine (flutter_.phase()) + 0.6f * flutterNoise_.next();
-    const float next = modAmount_.current() * (wowSamples_ * wow + flutterSamples_ * flutter);
-    modStep_ = (next - mod_) / static_cast<float> (kControlBlock);
+    modStep_ = (nextModulation() - mod_) / static_cast<float> (kControlBlock);
 
     for (Biquad* f : { &emphasis_, &deEmphasis_, &hfLoss_, &playbackTone_, &feedbackTone_ })
         f->snapToZero();

@@ -83,6 +83,15 @@ float GraphicEq::responseDb (const Settings& settings, double sampleRate, float 
 void GraphicEq::prepare (const ProcessSpec& spec)
 {
     sampleRate_ = spec.sampleRate;
+    for (size_t b = 0; b < settleSamples_.size(); ++b)
+    {
+        // At 0 dB the section is the identity, but its state still rings at the poles' rate:
+        // radius sqrt(a2). Allow 120 dB of decay (capped at one second) before dropping it.
+        const double a2 = std::clamp (static_cast<double> (bandCoeffs (sampleRate_, b, 0.0).a2),
+                                      1.0e-12, 1.0 - 1.0e-12);
+        const double samples = std::log (1.0e6) / (-0.5 * std::log (a2));
+        settleSamples_[b] = static_cast<int> (std::ceil (std::min (samples, sampleRate_)));
+    }
     for (auto& g : bandDb_)
         g.reset (sampleRate_, kGlideSeconds);
     for (Cut* cut : { &lowCut_, &highCut_ })
@@ -161,6 +170,8 @@ void GraphicEq::applyTarget (bool snap) noexcept
 
 bool GraphicEq::isSmoothing() const noexcept
 {
+    if (bandsSettling_)
+        return true;
     for (const auto& g : bandDb_)
         if (g.isSmoothing())
             return true;
@@ -173,20 +184,39 @@ bool GraphicEq::isSmoothing() const noexcept
 void GraphicEq::updateBands (int advance) noexcept
 {
     numActiveBands_ = 0;
+    bandsSettling_ = false;
     for (size_t b = 0; b < bandDb_.size(); ++b)
     {
         auto& gain = bandDb_[b];
-        if (gain.isSmoothing())
+        auto& band = bands_[b];
+        const bool wasGliding = gain.isSmoothing();
+        if (wasGliding)
         {
             gain.skip (advance);
-            bands_[b].retarget (bandCoeffs (sampleRate_, b, gain.current()));
+            band.retarget (bandCoeffs (sampleRate_, b, gain.current()));
         }
-        // A 0 dB peaking filter is the identity and its state settles to exactly zero, so a band
-        // that has reached 0 dB can drop out without a discontinuity.
         if (gain.current() != 0.0f || gain.isSmoothing())
+        {
+            band.settleLeft = 0;
             activeBands_[static_cast<size_t> (numActiveBands_++)] = static_cast<int> (b);
+            continue;
+        }
+        // At 0 dB the section is the identity (b == a), yet its state still holds the ringing of
+        // the last boost or cut, and that decays only at the section's own rate, whatever the
+        // input. A band that just got here runs its final ramp, then keeps running until the
+        // ringing is 120 dB down; dropping it earlier steps the output by the leftover state.
+        if (wasGliding)
+            band.settleLeft = settleSamples_[b];
+        if (band.settleLeft > 0)
+        {
+            band.settleLeft -= advance;
+            bandsSettling_ = true;
+            activeBands_[static_cast<size_t> (numActiveBands_++)] = static_cast<int> (b);
+        }
         else
-            bands_[b].reset();
+        {
+            band.reset();
+        }
     }
 }
 
@@ -228,8 +258,9 @@ void GraphicEq::Section::run (const AudioView& io, int start, int length,
                 l[i] = yl;
                 r[i] = yr;
             }
-            state[0] = { l1, l2 };
-            state[1] = { r1, r2 };
+            // Feedback state: flushed so silence decays to zero instead of into denormals.
+            state[0] = { flushToZero (l1), flushToZero (l2) };
+            state[1] = { flushToZero (r1), flushToZero (r2) };
             ch = 2;
         }
         for (; ch < channels; ++ch)
@@ -245,7 +276,7 @@ void GraphicEq::Section::run (const AudioView& io, int start, int length,
                 z2 = b2 * x - a2 * y;
                 d[i] = y;
             }
-            z = { z1, z2 };
+            z = { flushToZero (z1), flushToZero (z2) };
         }
         return;
     }
@@ -271,7 +302,7 @@ void GraphicEq::Section::run (const AudioView& io, int start, int length,
             z2 = k.b2 * x - k.a2 * y;
             d[i] = fade != nullptr ? x + fade[i] * (y - x) : y;
         }
-        z = { z1, z2 };
+        z = { flushToZero (z1), flushToZero (z2) };
     }
     // Land exactly on the target (lerp at t = 1 may be an ulp off; a band reaching 0 dB must be
     // the exact identity to drop out cleanly).

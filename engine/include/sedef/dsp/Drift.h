@@ -61,6 +61,8 @@ private:
     void applyTargets (bool snap) noexcept;
     void updateTone() noexcept;
     void updateDrive() noexcept;
+    float nextModulation() noexcept;
+    void snapModulation() noexcept;
     void controlTick() noexcept;
     void processSamples (const AudioView& io, int start, int length) noexcept;
     void wake() noexcept;

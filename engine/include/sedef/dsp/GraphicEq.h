@@ -53,8 +53,13 @@ private:
         BiquadCoeffs coeffs, from, to;
         std::array<std::array<float, 2>, kMaxChannels> state {};
         bool ramping = false;
+        int settleLeft = 0; ///< samples a band at 0 dB keeps running while its state rings out
 
-        void reset() noexcept { state = {}; }
+        void reset() noexcept
+        {
+            state = {};
+            settleLeft = 0;
+        }
         void snap (const BiquadCoeffs& c) noexcept
         {
             coeffs = c;
@@ -96,6 +101,8 @@ private:
     std::array<LinearSmoothed, kNumBands> bandDb_;
     std::array<int, kNumBands> activeBands_ {};
     int numActiveBands_ = 0;
+    bool bandsSettling_ = false;
+    std::array<int, kNumBands> settleSamples_ {}; ///< per band: 120 dB of decay at 0 dB
     Cut lowCut_, highCut_;
     // Per-sample fade gains for one control block.
     std::array<float, kControlBlock> lowMix_ {}, highMix_ {};

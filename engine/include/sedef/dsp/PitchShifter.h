@@ -3,6 +3,8 @@
 
 #include "sedef/core/AudioView.h"
 
+#include <memory>
+
 namespace sedef::dsp
 {
 
@@ -22,6 +24,15 @@ public:
     void setSettings (const Settings& s) noexcept;
     /// Mono or stereo in place.
     void process (const AudioView& io) noexcept;
+
+private:
+    struct Impl;
+    struct ImplDeleter
+    {
+        void operator() (Impl* impl) const noexcept;
+    };
+    std::unique_ptr<Impl, ImplDeleter> impl_;
+    Settings settings_;
 };
 
 } // namespace sedef::dsp

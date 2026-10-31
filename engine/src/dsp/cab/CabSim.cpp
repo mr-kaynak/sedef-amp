@@ -222,7 +222,30 @@ struct CabSim::Impl
         reset();
     }
 
+    /// Public reset: clears state and makes the next setSettings() start in its final state, as
+    /// every module does after prepare/reset (no crossfade from the default settings).
     void reset() noexcept
+    {
+        resetState();
+        snapNext = true;
+    }
+
+    /// Settings arrive once per block just before process(). The first ones after a reset snap;
+    /// if audio was processed before them (on the defaults), they glide instead of cutting.
+    void setSettings (const Settings& s) noexcept
+    {
+        settings = s;
+        applyTargets();
+        if (snapNext)
+        {
+            snapNext = false;
+            resetState();
+        }
+    }
+
+    /// Clears all state and snaps voices and smoothers to the current targets. Does not re-arm
+    /// snapNext, so setSettings() can use it without snapping every block.
+    void resetState() noexcept
     {
         if (!prepared)
             return;
@@ -404,12 +427,16 @@ struct CabSim::Impl
         v.level = v.nextLevel;
     }
 
-    /// Brings an idle mic back: no crossfade, the voice starts clean on the current target.
+    /// Brings an idle mic back: no crossfade, the voice starts clean on the current target. While
+    /// idle, processMic() did not advance the smoothers, so they snap too; that is inaudible
+    /// because both switches sit at exactly 0 until they ramp in.
     void wake (int m) noexcept
     {
         Mic& mic = mics[static_cast<size_t> (m)];
         mic.position.setCurrentAndTarget (mic.position.target());
         mic.distance.setCurrentAndTarget (mic.distance.target());
+        for (auto* g : { &mic.gainL, &mic.gainR, &mic.roomL, &mic.roomR })
+            g->setCurrentAndTarget (g->target());
         mic.appliedPosition = mic.position.current();
         mic.appliedDistance = mic.distance.current();
         release (mic.voices[0]);
@@ -609,6 +636,7 @@ struct CabSim::Impl
             out.clear();
             return;
         }
+        snapNext = false; // already running on the current settings: changes glide from here
 
         pollKernels();
 
@@ -664,6 +692,7 @@ struct CabSim::Impl
 
     double fs = 48000.0;
     bool prepared = false;
+    bool snapNext = true; // the first setSettings() after prepare/reset snaps
     Settings settings;
     std::array<Mic, kNumMics> mics;
     std::array<Slot, kNumSlots> slots;
@@ -701,8 +730,7 @@ void CabSim::reset() noexcept
 
 void CabSim::setSettings (const Settings& s) noexcept
 {
-    impl_->settings = s;
-    impl_->applyTargets();
+    impl_->setSettings (s);
 }
 
 void CabSim::process (const float* in, const AudioView& out) noexcept

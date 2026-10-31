@@ -1,0 +1,100 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+.section {
+  display: grid;
+  grid-template-columns: 236px 420px 1fr;
+  gap: 22px;
+  height: 100%;
+  padding: 16px 24px;
+  align-items: center;
+}
+
+.heading {
+  margin: 0 0 10px;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: var(--t-24);
+  font-weight: 500;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cab {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 74px;
+  padding: 8px 12px;
+  border: none;
+  border-radius: var(--r-panel);
+  background: rgb(6 17 25 / 0.45);
+  box-shadow: inset 0 0 0 1px var(--line);
+  text-align: left;
+}
+
+.cab:hover {
+  background: rgb(6 17 25 / 0.7);
+}
+
+.cab[aria-checked='true'] {
+  background: rgb(205 238 238 / 0.06);
+  box-shadow: inset 0 0 0 1px rgb(205 238 238 / 0.35);
+}
+
+.glyph {
+  flex: none;
+  width: 64px;
+}
+
+.box {
+  fill: #0f1a21;
+  stroke: rgb(237 230 214 / 0.25);
+}
+
+.speaker {
+  fill: #1b2a33;
+  stroke: rgb(237 230 214 / 0.2);
+}
+
+.miked {
+  fill: #1b2a33;
+  stroke: var(--nacre-aqua);
+  stroke-width: 1.4;
+}
+
+.cabText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cabName {
+  color: var(--bone);
+  font-size: var(--t-14);
+  font-weight: 560;
+}
+
+.cabNote {
+  color: var(--bone-3);
+  font-size: var(--t-11);
+}
+
+.link {
+  margin-top: 16px;
+}
+
+.note {
+  margin: 8px 0 0;
+  color: var(--bone-3);
+  font-size: var(--t-11);
+  line-height: 1.45;
+}
+
+.mics {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}

@@ -1,0 +1,167 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+.knob {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: calc(var(--knob) + 12px);
+}
+
+.dial {
+  position: relative;
+  width: var(--knob);
+  height: var(--knob);
+  border-radius: 50%;
+  cursor: ns-resize;
+  touch-action: none;
+}
+
+.dial[aria-disabled='true'] {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.dial:focus-visible {
+  box-shadow: none;
+}
+
+.dial:focus-visible .skirt {
+  box-shadow:
+    0 0 0 2px var(--plate, var(--ink-1)),
+    0 0 0 3.5px var(--nacre-aqua),
+    0 6px 10px -4px rgb(0 0 0 / 0.6);
+}
+
+.scale {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+}
+
+.ticks line {
+  stroke: var(--legend-dim, var(--bone-4));
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.track {
+  fill: none;
+  stroke: transparent;
+}
+
+.fill {
+  fill: none;
+  stroke: var(--legend, var(--bone-2));
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+  opacity: 0.85;
+}
+
+.dial[data-active] .fill {
+  stroke: var(--nacre-aqua);
+  opacity: 1;
+}
+
+/* Knurled lacquer skirt. */
+.skirt {
+  position: absolute;
+  inset: 15%;
+  border-radius: 50%;
+  background:
+    repeating-conic-gradient(from 0deg, rgb(255 255 255 / 0.07) 0 3deg, transparent 3deg 9deg),
+    radial-gradient(circle at 50% 30%, #2b4a5e 0%, #13293a 55%, #07141d 100%);
+  box-shadow:
+    0 1px 0 rgb(255 255 255 / 0.08) inset,
+    0 -1px 0 rgb(0 0 0 / 0.5) inset,
+    0 6px 10px -4px rgb(0 0 0 / 0.65);
+}
+
+/* Nacre cap: the shell rotates; the highlight in ::after does not. */
+.cap {
+  position: absolute;
+  inset: 24%;
+  border-radius: 50%;
+  overflow: hidden;
+  box-shadow:
+    0 0 0 1px rgb(6 17 25 / 0.55),
+    0 2px 3px rgb(0 0 0 / 0.45);
+}
+
+.shell {
+  position: absolute;
+  inset: 0;
+  background: var(--nacre);
+  transform: rotate(var(--angle));
+}
+
+.cap::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 34% 26%, rgb(255 255 255 / 0.85) 0%, rgb(255 255 255 / 0) 34%),
+    radial-gradient(circle at 50% 50%, rgb(255 255 255 / 0) 58%, rgb(18 41 56 / 0.32) 100%);
+  pointer-events: none;
+}
+
+.pointer {
+  position: absolute;
+  left: calc(50% - 1px);
+  top: 7%;
+  width: 2px;
+  height: 36%;
+  border-radius: 1px;
+  background: var(--ink-1);
+}
+
+.sm .pointer {
+  top: 4%;
+  height: 40%;
+}
+
+.bubble {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 6px);
+  transform: translateX(-50%);
+  padding: 3px 7px;
+  border-radius: var(--r-ctl);
+  background: var(--ink-0);
+  color: var(--bone);
+  font-size: var(--t-11);
+  font-weight: 560;
+  white-space: nowrap;
+  box-shadow: var(--shadow-pop);
+  pointer-events: none;
+  z-index: 20;
+}
+
+.label {
+  margin-top: 4px;
+  color: var(--legend, var(--bone-2));
+  font-size: var(--t-11);
+  font-stretch: var(--legend-stretch);
+  font-weight: 520;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  line-height: 1.1;
+}
+
+.value {
+  color: var(--legend-dim, var(--bone-3));
+  font-size: var(--t-10);
+  font-weight: 450;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.sm .label {
+  font-size: var(--t-10);
+}
+
+.xl .label {
+  font-size: var(--t-12);
+}

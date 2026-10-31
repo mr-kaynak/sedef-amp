@@ -1,0 +1,70 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+.wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.lever {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.base {
+  position: relative;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #f0ede5, #8f8e88 70%, #55554f);
+  box-shadow: 0 2px 4px rgb(0 0 0 / 0.5);
+}
+
+/* The bat swings from the nut toward the selected label (to the right). */
+.bat {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 22px;
+  height: 6px;
+  margin-top: -3px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #f3f0e8, #9b9a94);
+  box-shadow: 0 2px 2px rgb(0 0 0 / 0.45);
+  transform-origin: 0 50%;
+  transform: rotate(var(--tilt));
+  transition: transform var(--dur-2) var(--ease-out);
+}
+
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-left: 14px;
+}
+
+.option {
+  height: 18px;
+  padding: 0 4px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--legend-dim, var(--bone-3));
+  font-size: var(--t-10);
+  font-stretch: var(--legend-stretch);
+  font-weight: 520;
+  text-align: left;
+}
+
+.option[aria-checked='true'] {
+  color: var(--legend, var(--bone));
+  font-weight: 650;
+}
+
+.caption {
+  color: var(--legend, var(--bone-2));
+  font-size: var(--t-11);
+  font-stretch: var(--legend-stretch);
+  font-weight: 520;
+}

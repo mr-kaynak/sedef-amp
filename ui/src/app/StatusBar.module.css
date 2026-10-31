@@ -1,0 +1,21 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+.status {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  height: 24px;
+  padding: 0 20px;
+  background: var(--ink-0);
+  border-top: 1px solid var(--line);
+  color: var(--bone-4);
+  font-size: var(--t-10);
+  font-stretch: 108%;
+}
+
+.sim {
+  color: var(--bone-3);
+}
+
+.spacer {
+  flex: 1;
+}

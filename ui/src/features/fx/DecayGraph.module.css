@@ -1,0 +1,32 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 0 0;
+}
+
+.svg {
+  display: block;
+  border-radius: var(--r-ctl);
+  background: rgb(6 17 25 / 0.55);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.line {
+  fill: none;
+  stroke: var(--nacre-lilac);
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+}
+
+.fill {
+  fill: rgb(221 214 246 / 0.1);
+}
+
+.legend {
+  display: flex;
+  justify-content: space-between;
+  color: var(--bone-3);
+  font-size: var(--t-11);
+}

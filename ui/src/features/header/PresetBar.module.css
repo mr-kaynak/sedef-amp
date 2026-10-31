@@ -1,0 +1,93 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+.bar {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  height: 42px;
+  border-radius: var(--r-panel);
+  background: var(--ink-0);
+  box-shadow:
+    inset 0 1px 3px rgb(0 0 0 / 0.6),
+    0 1px 0 rgb(255 255 255 / 0.05);
+}
+
+.step {
+  width: 34px;
+  border: none;
+  background: transparent;
+  color: var(--bone-3);
+  display: grid;
+  place-items: center;
+}
+
+.step:hover {
+  color: var(--bone);
+}
+
+.current {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 0 30px 0 10px;
+  border: none;
+  border-left: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+  background: transparent;
+  text-align: left;
+}
+
+.current:hover .name {
+  color: #fff;
+}
+
+.where {
+  color: var(--bone-3);
+  font-size: var(--t-10);
+  font-stretch: 112%;
+  line-height: 1;
+}
+
+.nameRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+}
+
+.name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--bone);
+  font-size: var(--t-16);
+  font-weight: 560;
+  line-height: 1.15;
+}
+
+.dirty {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--amber);
+  box-shadow: 0 0 6px rgb(233 199 125 / 0.6);
+}
+
+.chevron {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  margin-top: -7px;
+  color: var(--bone-3);
+}
+
+.popover {
+  top: calc(100% + 8px);
+  left: 0;
+  width: 400px;
+}

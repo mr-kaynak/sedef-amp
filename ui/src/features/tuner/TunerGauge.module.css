@@ -1,0 +1,187 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+.gauge {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 560px;
+}
+
+.dial {
+  display: block;
+  overflow: visible;
+}
+
+.zone {
+  fill: none;
+  stroke: var(--bone-4);
+  stroke-width: 6;
+  stroke-linecap: round;
+  transition: stroke var(--dur-2);
+}
+
+.gauge[data-state='in-tune'] .zone {
+  stroke: var(--nacre-aqua);
+  filter: drop-shadow(0 0 8px rgb(200 241 234 / 0.8));
+}
+
+.tick {
+  stroke: var(--bone-4);
+  stroke-width: 1.2;
+}
+
+.tickMajor {
+  stroke: var(--bone-3);
+  stroke-width: 1.6;
+}
+
+.tickZero {
+  stroke: var(--bone);
+  stroke-width: 2;
+}
+
+.scaleLabel {
+  fill: var(--bone-4);
+  font-size: 11px;
+  font-family: var(--font-ui);
+}
+
+.needle line {
+  stroke: var(--bone);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+
+.needle circle {
+  fill: var(--bone);
+}
+
+.gauge[data-state='in-tune'] .needle line,
+.gauge[data-state='in-tune'] .needle circle {
+  stroke: var(--nacre-aqua);
+  fill: var(--nacre-aqua);
+}
+
+.readout {
+  margin-top: -118px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.note {
+  display: flex;
+  align-items: baseline;
+  height: 112px;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-variation-settings: 'opsz' 96;
+  line-height: 1;
+  color: var(--bone);
+}
+
+.letter {
+  font-size: 112px;
+}
+
+.accidental {
+  align-self: flex-start;
+  margin-top: 10px;
+  font-size: 48px;
+}
+
+.octave {
+  margin-left: 4px;
+  font-size: 36px;
+  color: var(--bone-3);
+}
+
+/* In tune: the note is inlaid with nacre. */
+.gauge[data-state='in-tune'] .letter,
+.gauge[data-state='in-tune'] .accidental {
+  background: conic-gradient(from 160deg at 45% 55%, #cdeeee, #ddd6f6, #f6dbe2, #f2e8cb, #cdeeee);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 18px rgb(200 241 234 / 0.35));
+}
+
+.waiting {
+  align-self: center;
+  font-family: var(--font-ui);
+  font-size: var(--t-18);
+  color: var(--bone-3);
+}
+
+.numbers {
+  display: flex;
+  gap: 18px;
+  align-items: baseline;
+  height: 26px;
+}
+
+.cents {
+  font-size: var(--t-24);
+  font-weight: 560;
+  min-width: 90px;
+  text-align: right;
+}
+
+.hz {
+  min-width: 100px;
+  color: var(--bone-3);
+  font-size: var(--t-14);
+}
+
+.gauge[data-state='sharp'] .cents,
+.gauge[data-state='flat'] .cents {
+  color: var(--amber);
+}
+
+.gauge[data-state='in-tune'] .cents {
+  color: var(--nacre-aqua);
+}
+
+.strobe {
+  --offset: 0px;
+  margin-top: 16px;
+  width: 420px;
+  height: 14px;
+  border-radius: 7px;
+  background-color: var(--ink-0);
+  background-image: repeating-linear-gradient(
+    90deg,
+    rgb(237 230 214 / 0.55) 0 12px,
+    transparent 12px 24px
+  );
+  background-position: var(--offset) 0;
+  box-shadow: inset 0 0 0 1px var(--line);
+  mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
+}
+
+.gauge[data-state='idle'] .strobe {
+  opacity: 0.3;
+}
+
+.gauge[data-state='in-tune'] .strobe {
+  background-image: repeating-linear-gradient(
+    90deg,
+    rgb(205 238 238 / 0.85) 0 12px,
+    transparent 12px 24px
+  );
+}
+
+.gauge[data-compact] {
+  transform: scale(0.82);
+  transform-origin: top center;
+  margin-bottom: -60px;
+}
+
+/* The strobe is pure motion; the needle and the numbers carry the same information. */
+@media (prefers-reduced-motion: reduce) {
+  .strobe {
+    visibility: hidden;
+  }
+}

@@ -2,6 +2,14 @@
 #pragma once
 
 #include "sedef/core/AudioView.h"
+#include "sedef/core/Biquad.h"
+#include "sedef/core/DelayLine.h"
+#include "sedef/core/Oversampler.h"
+#include "sedef/core/Smoothed.h"
+#include "sedef/dsp/detail/Adaa.h"
+
+#include <array>
+#include <vector>
 
 namespace sedef::dsp
 {
@@ -24,6 +32,34 @@ public:
     void setSettings (const Settings& s) noexcept;
     void process (const AudioView& io) noexcept;
     int latencySamples() const noexcept;
+
+private:
+    void processBlock (const AudioView& io) noexcept;
+    void applySettings (bool snap) noexcept;
+    void updateMid (float mid) noexcept;
+    void updateDriveBandwidth (float gain) noexcept;
+    void updateTone (float tone) noexcept;
+
+    double sampleRate_ = 48000.0;
+    int numChannels_ = 0;
+    int maxBlockSize_ = 0;
+    int latency_ = 0;
+    Settings settings_;
+    bool primed_ = false;
+
+    Oversampler oversampler_;
+    std::array<DelayLine, kMaxChannels> cleanDelay_; // aligns the clean path with the clipper
+    std::array<std::vector<float>, kMaxChannels> drive_;
+    std::array<float*, kMaxChannels> drivePtrs_{};
+    std::array<detail::Adaa1, kMaxChannels> clipper_;
+
+    LinearSmoothed driveGain_;  // op-amp gain of the clipping path
+    LinearSmoothed outputGain_; // trim x level
+    ExpSmoothed gainKnob_, tone_, mid_;
+
+    Biquad inputHp_, midBoost_; // shared by both paths
+    Biquad driveHp_, driveLp_;  // band-limits the clipping path
+    Biquad dcBlock_, toneLp_, fizzLp_;
 };
 
 } // namespace sedef::dsp

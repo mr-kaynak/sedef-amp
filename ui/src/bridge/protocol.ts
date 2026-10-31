@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // Sedef bridge protocol, version 1. This file is the contract between the web UI and the C++
-// plugin shell (plugin/src/bridge/). Any change here must be mirrored there and bump
-// PROTOCOL_VERSION when it is not backwards compatible.
+// plugin shell (plugin/src/PluginEditor.cpp, which registers the native functions and emits the
+// events). Any change here must be mirrored there and bump PROTOCOL_VERSION when it is not
+// backwards compatible.
 //
 // Transport: JUCE WebBrowserComponent native functions (UI -> C++, return a Promise) and events
 // (C++ -> UI). All parameter values cross the bridge in REAL units (dB, Hz, ms, 0..1 for knobs,
@@ -184,11 +185,11 @@ export interface PitchEvent {
 }
 
 export interface Events {
-  /** Changed parameter values (host automation, preset loads, undo). Batched at <= 60 Hz. */
+  /** Changed parameter values (host automation, preset loads, undo). Batched at 60 Hz. */
   'sedef:params': { values: ParamValues };
-  /** ~30 Hz while the editor is open. */
+  /** 30 Hz while the editor is open. */
   'sedef:telemetry': TelemetryEvent;
-  /** ~50 Hz while the tuner is active. */
+  /** 60 Hz while pitch analysis is active (sedef_tuner_setActive). */
   'sedef:pitch': PitchEvent;
   'sedef:presets': PresetState;
   'sedef:ir': IrState;

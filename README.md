@@ -48,8 +48,8 @@ See [docs/intonation.md](docs/intonation.md) for the method and its limits.
 
 ## Install
 
-Download the latest build for your OS from [Releases](https://github.com/mr-kaynak/sedef-amp/releases)
-and copy the plugin you need:
+Download the zip for your OS from [Releases](https://github.com/mr-kaynak/sedef-amp/releases)
+and copy the formats you use:
 
 | OS | VST3 | AU | CLAP |
 |---|---|---|---|
@@ -57,9 +57,9 @@ and copy the plugin you need:
 | Windows | `C:\Program Files\Common Files\VST3` | — | `C:\Program Files\Common Files\CLAP` |
 | Linux | `~/.vst3` | — | `~/.clap` |
 
-Builds are not code-signed yet. On macOS, clear the quarantine flag once after copying:
-`xattr -dr com.apple.quarantine "~/Library/Audio/Plug-Ins/VST3/Sedef Amp.vst3"` (repeat for the AU,
-CLAP and the app).
+Builds are not notarized yet, so macOS quarantines them after download. Clear the flag once:
+`xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/"Sedef Amp.vst3"` (and the same for
+the AU, CLAP and app). Details for every OS are in [docs/install.md](docs/install.md).
 
 ## Build from source
 

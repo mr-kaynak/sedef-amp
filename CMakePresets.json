@@ -6,10 +6,7 @@
       "name": "base",
       "hidden": true,
       "generator": "Ninja",
-      "binaryDir": "${sourceDir}/build/${presetName}",
-      "cacheVariables": {
-        "CPM_SOURCE_CACHE": "$env{HOME}/.cache/CPM"
-      }
+      "binaryDir": "${sourceDir}/build/${presetName}"
     },
     {
       "name": "dev",

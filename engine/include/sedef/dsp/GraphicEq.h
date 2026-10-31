@@ -8,7 +8,10 @@
 namespace sedef::dsp
 {
 
-/// Nine-band graphic EQ (constant-Q peaking bands, +-12 dB) with 12 dB/oct low and high cuts.
+/// Nine-band graphic EQ with 12 dB/oct low and high cuts. Bands are RBJ peaking filters with a
+/// constant Q of 1.41 (one octave); cuts are 2nd-order Butterworth and are bypassed at their
+/// extremes (low cut <= 20 Hz, high cut >= 20 kHz). The UI draws the same curve in TypeScript, so
+/// keep these definitions in sync with ui/src/features/eq/response.ts.
 class GraphicEq
 {
 public:
@@ -27,8 +30,10 @@ public:
     void setSettings (const Settings& s) noexcept;
     void process (const AudioView& io) noexcept;
 
-    /// Magnitude response in dB of the current target settings (for the UI curve).
-    float responseDb (float hz) const noexcept;
+    static constexpr float kBandQ = 1.41f;
+
+    /// Magnitude response in dB for the given settings. Thread-safe (pure function).
+    static float responseDb (const Settings& s, double sampleRate, float hz) noexcept;
 };
 
 } // namespace sedef::dsp

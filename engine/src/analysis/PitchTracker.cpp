@@ -161,10 +161,12 @@ double PitchTracker::median() const noexcept
 {
     if (recentCount_ == 0)
         return 0.0;
+    // The clamp is a no-op (recentCount_ never exceeds kMedianSize) that lets GCC prove the bounds.
+    const int n = std::min (recentCount_, kMedianSize);
     double v[kMedianSize];
-    std::copy (recent_, recent_ + recentCount_, v);
-    std::sort (v, v + recentCount_);
-    return v[(recentCount_ - 1) / 2]; // lower median: never a mean of two octaves
+    std::copy (recent_, recent_ + n, v);
+    std::sort (v, v + n);
+    return v[(n - 1) / 2]; // lower median: never a mean of two octaves
 }
 
 void PitchTracker::startSegment (std::int64_t start, bool countOnset)

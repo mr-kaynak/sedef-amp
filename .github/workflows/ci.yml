@@ -148,9 +148,13 @@ jobs:
           cmake --preset release -DSEDEF_BUILD_UI=OFF -DSEDEF_BUILD_TESTS=OFF -DSEDEF_BUILD_HOST_SMOKE=ON
           ${{ runner.os == 'macOS' && '-DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"' || '' }}
       - name: Build
-        run: cmake --build --preset release --target SedefAmp_All sedef-host-smoke
+        run: cmake --build --preset release --target SedefAmp_All SedefAmp_CLAP sedef-host-smoke
       - name: UI smoke test (editor in a real WebView)
         shell: bash
+        env:
+          # WebKitGTK's DMA-BUF renderer often fails to start under Xvfb on CI runners.
+          WEBKIT_DISABLE_DMABUF_RENDERER: "1"
+          WEBKIT_DISABLE_COMPOSITING_MODE: "1"
         run: |
           if [ "$RUNNER_OS" = "Linux" ]; then
             xvfb-run -a tools/ci/ui-smoke.sh build/release/plugin
@@ -171,11 +175,13 @@ jobs:
           else
             tools/ci/validate-plugins.sh "$artefacts"
           fi
+      # upload-artifact drops executable bits, so ship a zip that keeps the bundles runnable.
+      - name: Pack build
+        shell: bash
+        run: |
+          cd build/release/plugin/SedefAmp_artefacts/Release
+          7z a "$GITHUB_WORKSPACE/sedef-amp-${RUNNER_OS}.zip" VST3 CLAP Standalone $([ -d AU ] && echo AU)
       - uses: actions/upload-artifact@v4
         with:
           name: sedef-amp-${{ runner.os }}
-          path: |
-            build/release/plugin/SedefAmp_artefacts/Release/VST3
-            build/release/plugin/SedefAmp_artefacts/Release/AU
-            build/release/plugin/SedefAmp_artefacts/Release/CLAP
-            build/release/plugin/SedefAmp_artefacts/Release/Standalone
+          path: sedef-amp-${{ runner.os }}.zip

@@ -71,7 +71,7 @@ jobs:
           cmake --preset release -DSEDEF_BUILD_UI=OFF -DSEDEF_BUILD_TESTS=OFF
           ${{ runner.os == 'macOS' && '-DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"' || '' }}
       - name: Build
-        run: cmake --build --preset release --target SedefAmp_All
+        run: cmake --build --preset release --target SedefAmp_All SedefAmp_CLAP
       - name: Sign (ad hoc, macOS)
         if: runner.os == 'macOS'
         shell: bash

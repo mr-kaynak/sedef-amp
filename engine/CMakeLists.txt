@@ -9,7 +9,7 @@ CPMAddPackage(
 add_library(sedef_pffft STATIC ${pffft_SOURCE_DIR}/src/pffft.c ${pffft_SOURCE_DIR}/src/pffft_common.c)
 target_include_directories(sedef_pffft SYSTEM PUBLIC ${pffft_SOURCE_DIR}/include)
 target_include_directories(sedef_pffft PRIVATE ${pffft_SOURCE_DIR}/src ${pffft_SOURCE_DIR}/include/pffft)
-target_compile_definitions(sedef_pffft PRIVATE _USE_MATH_DEFINES)
+target_compile_definitions(sedef_pffft PRIVATE _USE_MATH_DEFINES PUBLIC PFFFT_STATIC_DEFINE)
 if(NOT MSVC)
     target_compile_options(sedef_pffft PRIVATE -w)
 endif()

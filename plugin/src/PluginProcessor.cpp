@@ -143,8 +143,34 @@ void SedefProcessor::setParamValue (ParamId id, float realValue)
 
 void SedefProcessor::setMetronomePattern (const std::array<std::uint8_t, 13>& steps)
 {
-    metronomePattern_ = steps;
+    {
+        const std::scoped_lock lock (extraLock_);
+        metronomePattern_ = steps;
+    }
     engine_.setMetronomePattern (steps);
+}
+
+std::array<std::uint8_t, 13> SedefProcessor::metronomePattern() const
+{
+    const std::scoped_lock lock (extraLock_);
+    return metronomePattern_;
+}
+
+juce::var SedefProcessor::uiState() const
+{
+    juce::String json;
+    {
+        const std::scoped_lock lock (extraLock_);
+        json = uiStateJson_;
+    }
+    return json.isEmpty() ? juce::var() : juce::JSON::parse (json);
+}
+
+void SedefProcessor::setUiState (const juce::var& s)
+{
+    const auto json = juce::JSON::toString (s, true);
+    const std::scoped_lock lock (extraLock_);
+    uiStateJson_ = json;
 }
 
 float SedefProcessor::tapTempo()
@@ -169,21 +195,33 @@ float SedefProcessor::tapTempo()
 
 void SedefProcessor::timerCallback()
 {
-    // Preset navigation through automatable switches (MIDI footswitches via the host).
+    // Preset navigation through automatable switches (MIDI footswitches via the host). Each switch
+    // acts on its rising edge and then springs back to off, so it can fire again and a saved
+    // session never holds it on.
     const bool prev = paramValue (ParamId::presetPrevious) >= 0.5f;
     const bool next = paramValue (ParamId::presetNext) >= 0.5f;
     if (prev && !lastPrev_)
     {
         presets_.step (-1);
         ++presetRevision;
+        setParamValue (ParamId::presetPrevious, 0.0f);
     }
     if (next && !lastNext_)
     {
         presets_.step (1);
         ++presetRevision;
+        setParamValue (ParamId::presetNext, 0.0f);
     }
-    lastPrev_ = prev;
-    lastNext_ = next;
+    lastPrev_ = paramValue (ParamId::presetPrevious) >= 0.5f;
+    lastNext_ = paramValue (ParamId::presetNext) >= 0.5f;
+
+    {
+        const auto id = presets_.currentId();
+        const auto name = presets_.currentName();
+        const std::scoped_lock lock (extraLock_);
+        savedPresetId_ = id;
+        savedPresetName_ = name;
+    }
 
     analysis_.setReferenceHz (paramValue (ParamId::tunerReference));
     irs_.collectGarbage();
@@ -202,15 +240,19 @@ void SedefProcessor::getStateInformation (juce::MemoryBlock& dest)
     root.setProperty ("version", 1, nullptr);
     root.appendChild (state_.copyState(), nullptr);
 
+    // Hosts call this from any thread: everything below comes from atomics or extraLock_.
     juce::ValueTree extra ("Extra");
-    extra.setProperty ("uiState", juce::JSON::toString (uiState_, true), nullptr);
-    extra.setProperty ("uiScale", uiScale_, nullptr);
-    extra.setProperty ("presetId", presets_.currentId(), nullptr);
-    extra.setProperty ("presetName", presets_.currentName(), nullptr);
-    juce::StringArray steps;
-    for (auto s : metronomePattern_)
-        steps.add (juce::String (static_cast<int> (s)));
-    extra.setProperty ("metronomePattern", steps.joinIntoString (","), nullptr);
+    {
+        const std::scoped_lock lock (extraLock_);
+        extra.setProperty ("uiState", uiStateJson_, nullptr);
+        extra.setProperty ("presetId", savedPresetId_, nullptr);
+        extra.setProperty ("presetName", savedPresetName_, nullptr);
+        juce::StringArray steps;
+        for (auto s : metronomePattern_)
+            steps.add (juce::String (static_cast<int> (s)));
+        extra.setProperty ("metronomePattern", steps.joinIntoString (","), nullptr);
+    }
+    extra.setProperty ("uiScale", uiScale(), nullptr);
     root.appendChild (extra, nullptr);
 
     juce::ValueTree irs ("IRs");
@@ -237,14 +279,31 @@ void SedefProcessor::setStateInformation (const void* data, int size)
         return;
     const auto root = juce::ValueTree::fromXml (*xml);
 
-    if (const auto params = root.getChildWithName (state_.state.getType()); params.isValid())
+    if (auto params = root.getChildWithName (state_.state.getType()).createCopy(); params.isValid())
+    {
+        // Older sessions may have saved a preset switch held on; never restore it on, or the
+        // first timer tick would step away from the preset the session just restored.
+        for (auto child : params)
+            if (const auto id = child.getProperty ("id").toString();
+                id == toJuce (spec (ParamId::presetPrevious).id) ||
+                id == toJuce (spec (ParamId::presetNext).id))
+                child.setProperty ("value", 0.0f, nullptr);
         state_.replaceState (params);
+    }
 
+    // This can run on any thread (Logic and AUHost restore AU state off the message thread), so
+    // only lock-guarded and atomic members are written here; the preset manager is updated on the
+    // message thread below.
     const auto extra = root.getChildWithName ("Extra");
-    uiState_ = juce::JSON::parse (extra.getProperty ("uiState").toString());
-    uiScale_ = juce::jlimit (0.5, 2.5, static_cast<double> (extra.getProperty ("uiScale", 1.0)));
-    presets_.restoreCurrent (extra.getProperty ("presetId").toString(),
-                             extra.getProperty ("presetName").toString());
+    const auto presetId = extra.getProperty ("presetId").toString();
+    const auto presetName = extra.getProperty ("presetName").toString();
+    {
+        const std::scoped_lock lock (extraLock_);
+        uiStateJson_ = extra.getProperty ("uiState").toString();
+        savedPresetId_ = presetId;
+        savedPresetName_ = presetName;
+    }
+    setUiScale (juce::jlimit (0.5, 2.5, static_cast<double> (extra.getProperty ("uiScale", 1.0))));
 
     const auto steps =
         juce::StringArray::fromTokens (extra.getProperty ("metronomePattern").toString(), ",", "");
@@ -258,28 +317,31 @@ void SedefProcessor::setStateInformation (const void* data, int size)
     }
 
     const auto irs = root.getChildWithName ("IRs");
-    juce::MessageManager::callAsync ([safe = juce::WeakReference<SedefProcessor> (this), irs] {
-        if (auto* p = safe.get())
-        {
-            // The restored state is the whole truth: slots it doesn't mention are empty.
-            for (int m = 0; m < IrLibrary::kMics; ++m)
-                for (int c = 0; c < IrLibrary::kCabs; ++c)
-                    p->irs_.clear (m, c);
-            for (const auto& slot : irs)
+    juce::MessageManager::callAsync (
+        [safe = juce::WeakReference<SedefProcessor> (this), irs, presetId, presetName] {
+            if (auto* p = safe.get())
             {
-                const juce::File f (slot.getProperty ("path").toString());
-                if (f.existsAsFile())
-                    p->irs_.loadAsync (slot.getProperty ("mic"), slot.getProperty ("cab"), f,
-                                       [safeAgain = juce::WeakReference<SedefProcessor> (p)] (
-                                           const juce::String&) {
-                                           if (auto* q = safeAgain.get())
-                                               ++q->irRevision;
-                                       });
+                p->presets_.restoreCurrent (presetId, presetName);
+
+                // The restored state is the whole truth: slots it doesn't mention are empty.
+                for (int m = 0; m < IrLibrary::kMics; ++m)
+                    for (int c = 0; c < IrLibrary::kCabs; ++c)
+                        p->irs_.clear (m, c);
+                for (const auto& slot : irs)
+                {
+                    const juce::File f (slot.getProperty ("path").toString());
+                    if (f.existsAsFile())
+                        p->irs_.loadAsync (slot.getProperty ("mic"), slot.getProperty ("cab"), f,
+                                           [safeAgain = juce::WeakReference<SedefProcessor> (p)] (
+                                               const juce::String&) {
+                                               if (auto* q = safeAgain.get())
+                                                   ++q->irRevision;
+                                           });
+                }
+                ++p->irRevision;
+                ++p->presetRevision;
             }
-            ++p->irRevision;
-            ++p->presetRevision;
-        }
-    });
+        });
 }
 
 } // namespace sedef::plugin

@@ -59,13 +59,15 @@ public:
     }
     void setParamValue (ParamId id, float realValue);
 
-    juce::var uiState() const { return uiState_; }
-    void setUiState (const juce::var& s) { uiState_ = s; }
-    double uiScale() const noexcept { return uiScale_; }
-    void setUiScale (double s) noexcept { uiScale_ = s; }
+    // UI state, scale and the metronome pattern are saved by getStateInformation(), which hosts
+    // may call from any thread, so they live behind extraLock_ (or are atomic).
+    juce::var uiState() const;
+    void setUiState (const juce::var& s);
+    double uiScale() const noexcept { return uiScale_.load (std::memory_order_relaxed); }
+    void setUiScale (double s) noexcept { uiScale_.store (s, std::memory_order_relaxed); }
 
     void setMetronomePattern (const std::array<std::uint8_t, 13>& steps);
-    std::array<std::uint8_t, 13> metronomePattern() const noexcept { return metronomePattern_; }
+    std::array<std::uint8_t, 13> metronomePattern() const;
     /// Registers a tap and returns the new tempo (BPM).
     float tapTempo();
 
@@ -93,9 +95,12 @@ private:
     AnalysisWorker analysis_;
 
     juce::AudioProcessLoadMeasurer loadMeasurer_;
-    juce::var uiState_;
-    double uiScale_ = 1.0;
+
+    mutable std::mutex extraLock_;
+    juce::String uiStateJson_;                     // guarded by extraLock_
+    juce::String savedPresetId_, savedPresetName_; // guarded; mirrored from presets_ by the timer
     std::array<std::uint8_t, 13> metronomePattern_ { 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+    std::atomic<double> uiScale_ { 1.0 };
     std::array<double, 4> taps_ {};
     int numTaps_ = 0;
 

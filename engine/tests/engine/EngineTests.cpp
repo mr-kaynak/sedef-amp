@@ -41,6 +41,30 @@ void* operator new[] (std::size_t n)
 {
     return countedAlloc (n);
 }
+// The nothrow forms must come from the same allocator as the replaced deletes below (the standard
+// library's temporary buffers use them), or sanitizers report an alloc/dealloc mismatch.
+void* operator new (std::size_t n, const std::nothrow_t&) noexcept
+{
+    try
+    {
+        return countedAlloc (n);
+    }
+    catch (...)
+    {
+        return nullptr;
+    }
+}
+void* operator new[] (std::size_t n, const std::nothrow_t&) noexcept
+{
+    try
+    {
+        return countedAlloc (n);
+    }
+    catch (...)
+    {
+        return nullptr;
+    }
+}
 void operator delete (void* p) noexcept
 {
     std::free (p);

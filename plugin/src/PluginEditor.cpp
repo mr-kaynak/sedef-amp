@@ -382,7 +382,10 @@ void SedefEditor::timerCallback()
 {
     if (smokeResult_ != juce::File() && !smokeDone_)
         smokeTestTick();
-    if (!pageReady_)
+    // While hidden (minimised, or a host that hides instead of destroying editors) the browser
+    // drops events, so don't advance the last-sent bookkeeping either; the page catches up when
+    // shown.
+    if (!pageReady_ || !browser_->isShowing())
         return;
     ++tick_;
 

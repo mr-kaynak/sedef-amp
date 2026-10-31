@@ -1,0 +1,125 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+#include "IrLibrary.h"
+
+#include "sedef/dsp/cab/CabSim.h"
+
+namespace sedef::plugin
+{
+namespace
+{
+constexpr double kMaxSeconds = 1.0;
+}
+
+IrLibrary::IrLibrary (Engine& engine, std::mutex& engineLock) : engine_ (engine), engineLock_ (engineLock)
+{
+    formats_.registerBasicFormats();
+}
+
+IrLibrary::~IrLibrary() = default;
+
+juce::String IrLibrary::load (int mic, int cab, const juce::File& file)
+{
+    if (mic < 0 || mic >= kMics || cab < 0 || cab >= kCabs)
+        return "Invalid IR slot";
+
+    std::unique_ptr<juce::AudioFormatReader> reader (formats_.createReaderFor (file));
+    if (reader == nullptr)
+        return "Unsupported audio file";
+    if (reader->sampleRate <= 0.0 || reader->lengthInSamples <= 0)
+        return "The file contains no audio";
+
+    const auto length = static_cast<int> (
+        std::min<juce::int64> (reader->lengthInSamples,
+                               static_cast<juce::int64> (reader->sampleRate * kMaxSeconds)));
+    juce::AudioBuffer<float> buffer (static_cast<int> (reader->numChannels), length);
+    reader->read (&buffer, 0, length, 0, true, true);
+
+    // Stereo IRs are folded to mono; Sedef pans each mic itself.
+    Slot slot;
+    slot.file = file;
+    slot.sampleRate = reader->sampleRate;
+    slot.samples.assign (static_cast<size_t> (length), 0.0f);
+    for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+        juce::FloatVectorOperations::addWithMultiply (slot.samples.data(), buffer.getReadPointer (ch),
+                                                     1.0f / static_cast<float> (buffer.getNumChannels()),
+                                                     length);
+
+    slots_[static_cast<size_t> (mic)][static_cast<size_t> (cab)] = std::move (slot);
+    install (mic, cab);
+    return {};
+}
+
+void IrLibrary::clear (int mic, int cab)
+{
+    if (mic < 0 || mic >= kMics || cab < 0 || cab >= kCabs)
+        return;
+    slots_[static_cast<size_t> (mic)][static_cast<size_t> (cab)] = {};
+    const std::scoped_lock lock (engineLock_);
+    for (int c = 0; c < engine_.numCabs(); ++c)
+        engine_.cab (c).setCustomIr (mic, cab, nullptr);
+}
+
+void IrLibrary::install (int mic, int cab)
+{
+    const auto& slot = slots_[static_cast<size_t> (mic)][static_cast<size_t> (cab)];
+    const std::scoped_lock lock (engineLock_);
+    for (int c = 0; c < engine_.numCabs(); ++c)
+    {
+        auto kernel = slot.samples.empty()
+                          ? nullptr
+                          : dsp::CabSim::makeKernel (slot.samples.data(),
+                                                     static_cast<int> (slot.samples.size()),
+                                                     slot.sampleRate, engine_.sampleRate(), engine_.maxBlockSize());
+        engine_.cab (c).setCustomIr (mic, cab, std::move (kernel));
+    }
+}
+
+void IrLibrary::rebuildAll()
+{
+    for (int m = 0; m < kMics; ++m)
+        for (int c = 0; c < kCabs; ++c)
+            if (!slots_[static_cast<size_t> (m)][static_cast<size_t> (c)].samples.empty())
+                install (m, c);
+}
+
+void IrLibrary::collectGarbage()
+{
+    const std::scoped_lock lock (engineLock_);
+    for (int c = 0; c < engine_.numCabs(); ++c)
+        engine_.cab (c).collectGarbage();
+}
+
+juce::File IrLibrary::fileFor (int mic, int cab) const
+{
+    return slots_[static_cast<size_t> (mic)][static_cast<size_t> (cab)].file;
+}
+
+juce::var IrLibrary::stateAsVar() const
+{
+    juce::Array<juce::var> list;
+    for (int m = 0; m < kMics; ++m)
+        for (int c = 0; c < kCabs; ++c)
+        {
+            const auto& s = slots_[static_cast<size_t> (m)][static_cast<size_t> (c)];
+            auto* o = new juce::DynamicObject();
+            o->setProperty ("mic", m);
+            o->setProperty ("cab", c);
+            if (s.samples.empty())
+            {
+                o->setProperty ("name", juce::var());
+                o->setProperty ("durationMs", juce::var());
+            }
+            else
+            {
+                o->setProperty ("name", s.file.getFileName());
+                o->setProperty ("durationMs",
+                                1000.0 * static_cast<double> (s.samples.size()) / s.sampleRate);
+            }
+            list.add (juce::var (o));
+        }
+    auto* root = new juce::DynamicObject();
+    root->setProperty ("slots", list);
+    return juce::var (root);
+}
+
+} // namespace sedef::plugin

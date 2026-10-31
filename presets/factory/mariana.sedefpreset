@@ -1,0 +1,19 @@
+{
+  "format": "sedef-preset",
+  "version": 1,
+  "name": "Mariana",
+  "folder": "Lead",
+  "author": "Sedef",
+  "tags": [
+    "high gain",
+    "rhythm"
+  ],
+  "parameters": {
+    "ampModel": 2,
+    "abyssGain": 0.85,
+    "abyssShift": 1,
+    "abyssMid": 0.4,
+    "abyssBass": 0.55,
+    "gateThreshold": -58.0
+  }
+}

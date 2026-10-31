@@ -1,0 +1,34 @@
+{
+  "format": "sedef-preset",
+  "version": 1,
+  "name": "Nacre",
+  "folder": "Clean",
+  "author": "Sedef",
+  "tags": [
+    "clean",
+    "chorus",
+    "plate"
+  ],
+  "parameters": {
+    "ampModel": 0,
+    "micAPosition": 0.4,
+    "micBEnabled": 1,
+    "micBCab1Type": 8,
+    "micBDistance": 0.25,
+    "micBLevel": -5.0,
+    "lagoonVolume": 0.45,
+    "lagoonCut": 0.35,
+    "lagoonMaster": 0.55,
+    "tideEnabled": 1,
+    "tideComp": 0.45,
+    "tideBlend": 0.6,
+    "rippleEnabled": 1,
+    "rippleMode": 1,
+    "rippleSpeed": 0.9,
+    "rippleDepth": 0.35,
+    "fathomEnabled": 1,
+    "fathomMode": 0,
+    "fathomMix": 0.22,
+    "fathomDecay": 2.2
+  }
+}

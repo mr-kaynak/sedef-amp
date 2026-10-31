@@ -1,0 +1,22 @@
+{
+  "format": "sedef-preset",
+  "version": 1,
+  "name": "Harbor Lights",
+  "folder": "Crunch",
+  "author": "Sedef",
+  "tags": [
+    "crunch",
+    "slapback"
+  ],
+  "parameters": {
+    "ampModel": 1,
+    "reefGain": 0.55,
+    "driftEnabled": 1,
+    "driftHeads": 0,
+    "driftSync": 0,
+    "driftTime": 120.0,
+    "driftFeedback": 0.12,
+    "driftMix": 0.25,
+    "driftTapeMod": 0.35
+  }
+}

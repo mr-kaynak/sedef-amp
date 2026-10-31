@@ -1,0 +1,43 @@
+name: Bug report
+description: Something sounds wrong, crashes or misbehaves
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you expect instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. Load preset ...\n2. Turn ...\n3. ..."
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Sedef Amp version
+    validations:
+      required: true
+  - type: dropdown
+    id: format
+    attributes:
+      label: Format
+      options: [Standalone, VST3, AU, CLAP]
+    validations:
+      required: true
+  - type: input
+    id: host
+    attributes:
+      label: Host / DAW and OS
+      placeholder: "e.g. Reaper 7.2 on macOS 15.4 (Apple M2)"
+    validations:
+      required: true
+  - type: input
+    id: audio
+    attributes:
+      label: Sample rate and buffer size
+      placeholder: "48 kHz, 128 samples"

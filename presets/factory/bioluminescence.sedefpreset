@@ -1,0 +1,31 @@
+{
+  "format": "sedef-preset",
+  "version": 1,
+  "name": "Bioluminescence",
+  "folder": "Lead",
+  "author": "Sedef",
+  "tags": [
+    "lead",
+    "ambient"
+  ],
+  "parameters": {
+    "ampModel": 2,
+    "abyssGain": 0.5,
+    "pearlEnabled": 1,
+    "pearlGain": 0.1,
+    "pearlLevel": 0.68,
+    "rippleEnabled": 1,
+    "rippleMode": 1,
+    "rippleSpeed": 0.7,
+    "rippleDepth": 0.2,
+    "driftEnabled": 1,
+    "driftHeads": 1,
+    "driftNote": 12,
+    "driftMix": 0.22,
+    "driftFeedback": 0.35,
+    "fathomEnabled": 1,
+    "fathomMix": 0.2,
+    "fathomDecay": 3.5,
+    "gateThreshold": -62.0
+  }
+}

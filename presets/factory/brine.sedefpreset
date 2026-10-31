@@ -1,0 +1,19 @@
+{
+  "format": "sedef-preset",
+  "version": 1,
+  "name": "Brine",
+  "folder": "Crunch",
+  "author": "Sedef",
+  "tags": [
+    "crunch",
+    "rhythm"
+  ],
+  "parameters": {
+    "ampModel": 1,
+    "reefVoice": 2,
+    "reefGain": 0.7,
+    "reefMid": 0.62,
+    "reefPresence": 0.55,
+    "gateThreshold": -66.0
+  }
+}

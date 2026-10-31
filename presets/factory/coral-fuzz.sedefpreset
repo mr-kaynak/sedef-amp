@@ -1,0 +1,19 @@
+{
+  "format": "sedef-preset",
+  "version": 1,
+  "name": "Coral Fuzz",
+  "folder": "Crunch",
+  "author": "Sedef",
+  "tags": [
+    "distortion"
+  ],
+  "parameters": {
+    "ampModel": 1,
+    "reefGain": 0.35,
+    "coralEnabled": 1,
+    "coralGain": 0.6,
+    "coralCut": 0.4,
+    "coralLevel": 0.55,
+    "gateThreshold": -64.0
+  }
+}

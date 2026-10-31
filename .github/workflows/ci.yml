@@ -1,0 +1,139 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CPM_SOURCE_CACHE: ${{ github.workspace }}/.cpm-cache
+
+jobs:
+  format:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: clang-format
+        run: |
+          sudo apt-get update && sudo apt-get install -y clang-format-18
+          find engine plugin tools -name '*.h' -o -name '*.cpp' | xargs clang-format-18 --dry-run --Werror
+
+  engine:
+    name: engine tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15, windows-2025]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: .cpm-cache
+          key: cpm-engine-${{ matrix.os }}-${{ hashFiles('**/CMakeLists.txt') }}
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: runner.os == 'Windows'
+      - name: Install Ninja (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+      - name: Install Ninja (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ninja
+      - name: Configure
+        run: cmake --preset engine -DSEDEF_WARNINGS_AS_ERRORS=ON
+      - name: Build
+        run: cmake --build --preset engine
+      - name: Test
+        run: ctest --preset engine --output-on-failure
+
+  sanitizers:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: .cpm-cache
+          key: cpm-asan-${{ hashFiles('**/CMakeLists.txt') }}
+      - run: sudo apt-get update && sudo apt-get install -y ninja-build
+      - run: cmake --preset asan
+      - run: cmake --build --preset asan
+      - run: ctest --preset asan --output-on-failure
+
+  ui:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: ui
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: ui/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+      - run: pnpm build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ui-dist
+          path: ui/dist
+
+  plugin:
+    name: plugin (${{ matrix.os }})
+    needs: [ui]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, windows-2025, ubuntu-24.04]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: ui-dist
+          path: ui/dist
+      - uses: actions/cache@v4
+        with:
+          path: .cpm-cache
+          key: cpm-plugin-${{ matrix.os }}-${{ hashFiles('**/CMakeLists.txt') }}
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: runner.os == 'Windows'
+      - name: Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libasound2-dev libjack-jackd2-dev libcurl4-openssl-dev \
+            libfreetype-dev libfontconfig1-dev libx11-dev libxcomposite-dev libxcursor-dev libxext-dev \
+            libxinerama-dev libxrandr-dev libxrender-dev libxi-dev libwebkit2gtk-4.1-dev libglu1-mesa-dev
+      - name: Install Ninja (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ninja
+      - name: Configure
+        run: >
+          cmake --preset release -DSEDEF_BUILD_UI=OFF -DSEDEF_BUILD_TESTS=OFF
+          ${{ runner.os == 'macOS' && '-DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"' || '' }}
+      - name: Build
+        run: cmake --build --preset release --target SedefAmp_All
+      - name: pluginval (VST3)
+        if: runner.os == 'macOS'
+        run: |
+          curl -sSL -o pluginval.zip https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_macOS.zip
+          unzip -q pluginval.zip
+          ./pluginval.app/Contents/MacOS/pluginval --strictness-level 8 --validate-in-process \
+            --skip-gui-tests "build/release/plugin/SedefAmp_artefacts/Release/VST3/Sedef Amp.vst3"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sedef-amp-${{ runner.os }}
+          path: |
+            build/release/plugin/SedefAmp_artefacts/Release/VST3
+            build/release/plugin/SedefAmp_artefacts/Release/AU
+            build/release/plugin/SedefAmp_artefacts/Release/CLAP
+            build/release/plugin/SedefAmp_artefacts/Release/Standalone

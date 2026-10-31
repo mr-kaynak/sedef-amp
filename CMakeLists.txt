@@ -26,6 +26,10 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(CPM)
 include(SedefCompilerSettings)
 
+if(SEDEF_BUILD_TESTS)
+    enable_testing()
+endif()
+
 add_subdirectory(engine)
 
 if(SEDEF_BUILD_TOOLS)

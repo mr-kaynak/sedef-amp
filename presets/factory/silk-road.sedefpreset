@@ -1,0 +1,26 @@
+{
+  "format": "sedef-preset",
+  "version": 1,
+  "name": "Silk Road",
+  "folder": "Crunch",
+  "author": "Sedef",
+  "tags": [
+    "crunch",
+    "boost"
+  ],
+  "parameters": {
+    "ampModel": 1,
+    "reefVoice": 1,
+    "reefGain": 0.45,
+    "reefBass": 0.5,
+    "reefMid": 0.55,
+    "reefTreble": 0.55,
+    "pearlEnabled": 1,
+    "pearlGain": 0.12,
+    "pearlLevel": 0.72,
+    "pearlMid": 0.2,
+    "micADistance": 0.1,
+    "fathomEnabled": 1,
+    "fathomMix": 0.14
+  }
+}

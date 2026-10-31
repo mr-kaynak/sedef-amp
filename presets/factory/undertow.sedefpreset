@@ -1,0 +1,31 @@
+{
+  "format": "sedef-preset",
+  "version": 1,
+  "name": "Undertow",
+  "folder": "Ambient",
+  "author": "Sedef",
+  "tags": [
+    "ambient",
+    "drone"
+  ],
+  "parameters": {
+    "ampModel": 2,
+    "abyssGain": 0.35,
+    "abyssBright": 0,
+    "rippleEnabled": 1,
+    "rippleMode": 2,
+    "rippleSpeed": 0.69,
+    "rippleDepth": 0.3,
+    "driftEnabled": 1,
+    "driftHeads": 3,
+    "driftNote": 13,
+    "driftMix": 0.35,
+    "driftFeedback": 0.55,
+    "driftTapeMod": 0.6,
+    "fathomEnabled": 1,
+    "fathomMode": 1,
+    "fathomMix": 0.5,
+    "fathomDecay": 12.0,
+    "fathomHighCut": 3200.0
+  }
+}

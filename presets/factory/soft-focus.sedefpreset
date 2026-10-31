@@ -1,0 +1,35 @@
+{
+  "format": "sedef-preset",
+  "version": 1,
+  "name": "Soft Focus",
+  "folder": "Ambient",
+  "author": "Sedef",
+  "tags": [
+    "ambient",
+    "swell"
+  ],
+  "parameters": {
+    "ampModel": 0,
+    "micAPosition": 0.4,
+    "micBEnabled": 1,
+    "micBCab1Type": 8,
+    "micBDistance": 0.25,
+    "micBLevel": -5.0,
+    "lagoonVolume": 0.42,
+    "rippleEnabled": 1,
+    "rippleMode": 2,
+    "rippleSpeed": 0.8,
+    "rippleDepth": 0.25,
+    "driftEnabled": 1,
+    "driftHeads": 2,
+    "driftNote": 13,
+    "driftMix": 0.3,
+    "driftFeedback": 0.45,
+    "driftTapeMod": 0.5,
+    "fathomEnabled": 1,
+    "fathomMode": 1,
+    "fathomMix": 0.42,
+    "fathomDecay": 6.0,
+    "fathomPreDelay": 40.0
+  }
+}

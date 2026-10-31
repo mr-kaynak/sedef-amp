@@ -1,0 +1,28 @@
+{
+  "format": "sedef-preset",
+  "version": 1,
+  "name": "Tidewater",
+  "folder": "Clean",
+  "author": "Sedef",
+  "tags": [
+    "clean",
+    "tremolo"
+  ],
+  "parameters": {
+    "ampModel": 0,
+    "micAPosition": 0.4,
+    "micBEnabled": 1,
+    "micBCab1Type": 8,
+    "micBDistance": 0.25,
+    "micBLevel": -5.0,
+    "lagoonVolume": 0.5,
+    "lagoonMaster": 0.5,
+    "rippleEnabled": 1,
+    "rippleMode": 0,
+    "rippleSpeed": 4.6,
+    "rippleDepth": 0.55,
+    "fathomEnabled": 1,
+    "fathomMix": 0.25,
+    "fathomDecay": 2.8
+  }
+}

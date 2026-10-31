@@ -1,0 +1,26 @@
+{
+  "format": "sedef-preset",
+  "version": 1,
+  "name": "Riptide",
+  "folder": "Lead",
+  "author": "Sedef",
+  "tags": [
+    "lead",
+    "delay"
+  ],
+  "parameters": {
+    "ampModel": 2,
+    "abyssGain": 0.6,
+    "abyssBright": 1,
+    "abyssMid": 0.55,
+    "driftEnabled": 1,
+    "driftNote": 13,
+    "driftMix": 0.2,
+    "driftFeedback": 0.3,
+    "fathomEnabled": 1,
+    "fathomMode": 1,
+    "fathomMix": 0.15,
+    "fathomDecay": 3.0,
+    "gateThreshold": -62.0
+  }
+}

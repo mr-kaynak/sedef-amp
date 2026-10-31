@@ -577,3 +577,50 @@ TEST_CASE ("Drift benchmark", "[.bench][timefx-bench]")
     d.setSettings (s);
     benchmarkNsPerFrame ("Drift (4 heads, all on)", 10.0, [&] (AudioView v) { d.process (v, {}); });
 }
+
+TEST_CASE ("Drift wakes from idle with its tape modulation continuous", "[timefx][drift]")
+{
+    // Idling and waking restart the modulation from its present value. (The read head's first
+    // tick after waking reads tape that is silent either way, so this guards the behaviour after
+    // the wake: the echo arrives on time and bends only as much as wow and flutter allow.)
+    Drift d;
+    d.prepare ({ kFs, 512, 2 });
+    auto s = cleanEcho (200.0f);
+    s.tapeMod = 1.0f;
+    s.feedback = 0.3f;
+    d.setSettings (s);
+    Buffer warm (2, static_cast<int> (0.5 * kFs));
+    fillSine (warm[0], 220.0, kFs, 0.3f);
+    warm[1] = warm[0];
+    run (d, warm, 64);
+    s.enabled = false;
+    d.setSettings (s);
+    Buffer quiet (2, static_cast<int> (6.0 * kFs)); // long enough to idle
+    run (d, quiet, 512);
+
+    s.enabled = true;
+    s.feedback = 0.0f; // a single echo, so the check below sees one copy of the tone
+    d.setSettings (s);
+    // 50 ms of silence while the dry signal fades out (mix 1 is wet only), then a 220 Hz tone
+    // with a 10 ms fade-in so its onset carries no kink of its own.
+    const size_t toneAt = 2400, toneEnd = 33600, t = 9600; // delay: 200 ms
+    Buffer b (2, static_cast<int> (kFs));
+    for (size_t i = toneAt; i < toneEnd; ++i)
+    {
+        const double n = static_cast<double> (i - toneAt);
+        const auto ramp = static_cast<float> (std::min (1.0, n / 480.0));
+        b[0][i] = b[1][i] = ramp * 0.3f * static_cast<float> (std::sin (kTwoPiD * 220.0 * n / kFs));
+    }
+    run (d, b, 64);
+
+    // The echo starts within the wow depth (1.6 ms = 77 samples) of the delay time...
+    size_t onset = toneAt;
+    while (onset < b[0].size() && std::abs (b[0][onset]) < 1.0e-3f)
+        ++onset;
+    CHECK (std::abs (static_cast<long> (onset) - static_cast<long> (toneAt + t)) < 100);
+    // ...and stays a smooth tone: the second difference of 220 Hz at 0.3 with wow is ~2.4e-4.
+    const std::vector<float> echo (b[0].begin() + static_cast<long> (toneAt + t + 480),
+                                   b[0].begin() + static_cast<long> (toneEnd + t - 200));
+    CHECK (peak (echo) > 0.1f);
+    CHECK (maxSecondDifference (echo) < 1.0e-3f);
+}

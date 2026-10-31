@@ -133,6 +133,23 @@ constexpr std::array<EqBank, 3> kEqBanks { {
 
 // ---------------------------------------------------------------------------------------------
 
+/// Hands a slot's settings to its module. Coming back from bypass, the module restarts from a
+/// clean state that lands directly on the current settings: reset() re-arms each module's
+/// "first settings snap" and the settings that follow consume it, so automation on the next block
+/// glides again. The settings also go in once before reset() for modules whose reset reads them
+/// (the gate starts open or closed depending on its threshold). Stale state is masked by the
+/// slot's fade-in.
+template <typename Module, typename Settings>
+void applySettings (Module& module, const Settings& settings, bool wasBypassed) noexcept
+{
+    if (wasBypassed)
+    {
+        module.setSettings (settings);
+        module.reset();
+    }
+    module.setSettings (settings);
+}
+
 /// Wraps a module with a click-free bypass. While bypassed, the dry path is delayed by the
 /// module's latency so the chain's total latency never changes when pedals are switched.
 template <typename Module>
@@ -173,7 +190,6 @@ struct Slot
         }
         const bool wasBypassed = fader.isFullyBypassed();
         fader.setEnabled (enabled);
-        module.setSettings (settings);
 
         // The dry path is only needed while bypassed or crossfading, but a latency-bearing module
         // keeps its delay line warm so a later bypass lines up from the first sample.
@@ -196,10 +212,9 @@ struct Slot
         {
             if (latency > 0)
                 std::copy_n (dry.data(), n, io);
-            return false;
+            return false; // settings wait until the module runs again
         }
-        if (wasBypassed)
-            module.reset(); // stale state is masked by the fade-in
+        applySettings (module, settings, wasBypassed);
 
         run (module, AudioView (io, n));
         if (!fader.isFullyActive())
@@ -241,11 +256,9 @@ struct StereoSlot
         }
         const bool wasBypassed = fader.isFullyBypassed();
         fader.setEnabled (enabled);
-        module.setSettings (settings);
         if (fader.isFullyBypassed())
-            return;
-        if (wasBypassed)
-            module.reset();
+            return; // settings wait until the module runs again
+        applySettings (module, settings, wasBypassed);
 
         const int n = io.numFrames();
         std::array<float*, 2> dryPtrs { dry[0].data(), dry[1].data() };
@@ -395,6 +408,8 @@ struct Engine::Impl
     LinearSmoothed outputGain;
     LinearSmoothed mute;     // tuner mute
     LinearSmoothed modeFade; // stereo-mode switch
+    int modeFadeSamples = 1; // length of one modeFade ramp
+    int modeFadeLeft = 0;    // samples until a pending switch's fade-out completes
     bool snapGains = true;   // first block after prepare/reset: no ramps from silence
 
     std::array<std::vector<float>, 2> post;   // stereo post-chain buffers
@@ -426,7 +441,10 @@ void Engine::prepare (double sampleRate, int maxBlockSize, int numInputs, int nu
     d.mute.reset (sampleRate, 0.01);
     d.modeFade.reset (sampleRate, 0.01);
     d.modeFade.setCurrentAndTarget (1.0f);
-    d.dual = false; // a re-prepare may drop the second input; the mode is re-evaluated per chunk
+    // Same rounding as LinearSmoothed, so a chunk can end exactly where the fade-out does.
+    d.modeFadeSamples = std::max (1, static_cast<int> (std::floor (0.01 * sampleRate)));
+    d.modeFadeLeft = 0;
+    d.dual = false; // a re-prepare may drop the second input; the first block snaps the mode
 
     for (auto* group : { &d.post, &d.chainR })
         for (auto& b : *group)
@@ -464,12 +482,15 @@ void Engine::setMetronomePattern (const std::array<std::uint8_t, 13>& steps) noe
 
 int Engine::numCabs() const noexcept
 {
-    return impl_->numChains;
+    // Every chain the engine owns, prepared or not: an IR installed while running with one input
+    // must already be on the second chain when a later prepare() adds it.
+    return static_cast<int> (impl_->chains.size());
 }
 
 dsp::CabSim& Engine::cab (int index) noexcept
 {
-    return impl_->chains[static_cast<size_t> (std::clamp (index, 0, impl_->numChains - 1))].cab;
+    const int last = static_cast<int> (impl_->chains.size()) - 1;
+    return impl_->chains[static_cast<size_t> (std::clamp (index, 0, last))].cab;
 }
 
 void Engine::process (const float* const* inputs, float* const* outputs, int numFrames,
@@ -525,6 +546,11 @@ void Engine::process (const float* const* inputs, float* const* outputs, int num
     for (size_t i = 0; i < metro.steps.size(); ++i)
         metro.steps[i] = static_cast<std::uint8_t> ((pattern >> (2 * i)) & 3u);
 
+    const int numInputs = numInputs_.load (std::memory_order_relaxed);
+    const int numOutputs = numOutputs_.load (std::memory_order_relaxed);
+    const int maxBlock = maxBlockSize_.load (std::memory_order_relaxed);
+    const bool wantDual = numInputs == 2 && p.choice (P::stereoMode) == 1;
+
     const bool analysis = analysisEnabled_.load (std::memory_order_relaxed);
     const float outputTarget = dbToGain (p[P::outputGain]);
     const float muteTarget = analysis && p.flag (P::tunerMute) ? 0.0f : 1.0f;
@@ -532,41 +558,50 @@ void Engine::process (const float* const* inputs, float* const* outputs, int num
     {
         d.outputGain.setCurrentAndTarget (outputTarget);
         d.mute.setCurrentAndTarget (muteTarget);
+        // Start in the wanted stereo mode: there is nothing to fade from yet. (Every chain was
+        // reset with the engine.)
+        d.dual = wantDual;
+        d.modeFade.setCurrentAndTarget (1.0f);
+        d.modeFadeLeft = 0;
         d.snapGains = false;
     }
     d.outputGain.setTarget (outputTarget);
     d.mute.setTarget (muteTarget);
 
-    const int numInputs = numInputs_.load (std::memory_order_relaxed);
-    const int numOutputs = numOutputs_.load (std::memory_order_relaxed);
-    const int maxBlock = maxBlockSize_.load (std::memory_order_relaxed);
-
     float inPeaks[2] = { 0.0f, 0.0f };
     float outPeaks[2] = { 0.0f, 0.0f };
 
-    for (int start = 0; start < numFrames; start += maxBlock)
+    for (int start = 0; start < numFrames;)
     {
-        const int n = std::min (maxBlock, numFrames - start);
-        // Stereo mode changes fade out, switch, and fade back in (checked per chunk so a long host
-        // block doesn't hold the output silent).
-        const bool wantDual = numInputs == 2 && p.choice (P::stereoMode) == 1;
+        int n = std::min (maxBlock, numFrames - start);
+        // Stereo mode changes fade out, switch, and fade back in.
         if (wantDual != d.dual)
         {
             if (d.modeFade.target() > 0.5f)
             {
                 d.modeFade.setTarget (0.0f);
+                d.modeFadeLeft = d.modeFadeSamples;
             }
             else if (!d.modeFade.isSmoothing())
             {
                 d.dual = wantDual;
                 for (int c = 0; c < d.numChains; ++c)
                     d.chains[static_cast<size_t> (c)].reset();
+                // The Doubler only runs in Summed mode; its delay lines still hold audio from
+                // before the switch, which its bypass fade would otherwise replay.
+                d.doubler.reset();
                 d.modeFade.setTarget (1.0f);
+                d.modeFadeLeft = 0;
             }
+            // End this chunk where the fade-out does, so the switch happens there and not after up
+            // to a whole prepared block of silence.
+            if (d.modeFadeLeft > 0)
+                n = std::min (n, d.modeFadeLeft);
         }
         else if (d.modeFade.target() < 0.5f)
         {
             d.modeFade.setTarget (1.0f); // switched back before the fade-out finished
+            d.modeFadeLeft = 0;
         }
 
         const float* in0 = inputs[0] + start;
@@ -628,8 +663,9 @@ void Engine::process (const float* const* inputs, float* const* outputs, int num
         d.fathom.setSettings (fathomSettings);
         d.fathom.process (post);
         d.metronome.setSettings (metro);
-        if (metro.enabled || d.metronome.currentStep() >= 0)
-            d.metronome.process (post);
+        // Always: a click that is still sounding when the metronome is switched off rings out.
+        // (Returns at once when nothing is sounding.)
+        d.metronome.process (post);
 
         for (int i = 0; i < n; ++i)
         {
@@ -653,6 +689,9 @@ void Engine::process (const float* const* inputs, float* const* outputs, int num
             outPeaks[0] = std::max (outPeaks[0], peakOf (out, n));
             outPeaks[1] = outPeaks[0];
         }
+
+        d.modeFadeLeft = std::max (0, d.modeFadeLeft - n);
+        start += n;
     }
 
     for (size_t c = 0; c < 2; ++c)

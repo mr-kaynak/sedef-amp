@@ -285,3 +285,55 @@ TEST_CASE ("GraphicEq benchmark", "[.bench][timefx-bench]")
     benchmarkNsPerFrame ("GraphicEq (all 11 sections)", 10.0,
                          [&] (AudioView v) { eq.process (v); });
 }
+
+TEST_CASE ("GraphicEq: a band gliding back to 0 dB leaves without a step", "[timefx][eq]")
+{
+    // A ringing 65 Hz band (the slowest decay) is boosted, then flattened. The section must run
+    // its last ramp to the identity and let its state die away before it drops out; dropping it
+    // early truncates the state, a step in the output.
+    const double fs = 48000.0;
+    GraphicEq eq;
+    eq.prepare ({ fs, 512, 1 });
+    GraphicEq::Settings boosted;
+    boosted.bandsDb[0] = 12.0f;
+    eq.setSettings (boosted);
+
+    Buffer b (1, static_cast<int> (fs * 1.5));
+    fillSine (b[0], 65.0, fs, 0.2f);
+    const auto dry = b[0];
+    forEachBlock (b.view(), 64, [&] (AudioView v, int start) {
+        if (start == 24000)
+            eq.setSettings ({}); // back to flat: a 50 ms glide
+        eq.process (v);
+    });
+    // The tone at its boosted level has a second difference of ~6e-5.
+    CHECK (maxSecondDifference (b[0], 12000) < 1.5e-4f);
+    // Once settled, the band is out of the path again: bit-exact.
+    const std::vector<float> tail (b[0].begin() + 48000, b[0].end());
+    const std::vector<float> dryTail (dry.begin() + 48000, dry.end());
+    CHECK (tail == dryTail);
+}
+
+TEST_CASE ("GraphicEq flushes its filter state instead of decaying into denormals", "[timefx][eq]")
+{
+    const double fs = 48000.0;
+    GraphicEq eq;
+    eq.prepare ({ fs, 512, 2 });
+    GraphicEq::Settings s;
+    s.bandsDb[0] = 12.0f; // 65 Hz rings longest
+    s.lowCutHz = 40.0f;
+    eq.setSettings (s);
+
+    Buffer b (2, static_cast<int> (fs));
+    b[0][0] = b[1][0] = 1.0f;
+    forEachBlock (b.view(), 64, [&] (AudioView v, int) { eq.process (v); });
+    for (int c = 0; c < 2; ++c)
+    {
+        CHECK (std::none_of (b[c].begin(), b[c].end(),
+                             [] (float x) { return std::fpclassify (x) == FP_SUBNORMAL; }));
+        // The impulse response falls below the flush level within ~0.3 s; from then on the
+        // output is exactly zero rather than an ever smaller residue.
+        const std::vector<float> tail (b[c].begin() + 24000, b[c].end());
+        CHECK (peak (tail) == 0.0f);
+    }
+}

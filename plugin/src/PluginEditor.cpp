@@ -64,13 +64,13 @@ SedefEditor::SedefEditor (SedefProcessor& p) : AudioProcessorEditor (&p), proces
     const auto dev = devServerUrl();
     browser_->goToURL (dev.isNotEmpty() ? dev : juce::WebBrowserComponent::getResourceProviderRoot());
 
+    const double scale = processor_.uiScale(); // read before resize limits trigger resized()
     setResizable (true, true);
     const double ratio = static_cast<double> (SedefProcessor::kBaseWidth) / SedefProcessor::kBaseHeight;
     setResizeLimits (SedefProcessor::kBaseWidth * 3 / 4, SedefProcessor::kBaseHeight * 3 / 4,
                      SedefProcessor::kBaseWidth * 2, SedefProcessor::kBaseHeight * 2);
     if (auto* c = getConstrainer())
         c->setFixedAspectRatio (ratio);
-    const double scale = processor_.uiScale();
     setSize (juce::roundToInt (SedefProcessor::kBaseWidth * scale),
              juce::roundToInt (SedefProcessor::kBaseHeight * scale));
 
@@ -106,8 +106,7 @@ juce::WebBrowserComponent::Options SedefEditor::makeOptions()
             .withBackend (Options::Backend::webview2)
             .withWinWebView2Options (
                 Options::WinWebView2 {}
-                    .withUserDataFolder (juce::File::getSpecialLocation (juce::File::tempDirectory)
-                                             .getChildFile ("SedefAmpWebView2"))
+                    .withUserDataFolder (PresetManager::userFolder().getSiblingFile ("WebView2"))
                     .withBackgroundColour (juce::Colour (0xff0b1117))
                     .withStatusBarDisabled())
             .withNativeIntegrationEnabled()
@@ -130,9 +129,10 @@ juce::WebBrowserComponent::Options SedefEditor::makeOptions()
         if (a.size() >= 2)
             if (const auto id = paramFromVar (a[0]))
             {
-                const float v = spec (*id).sanitise (static_cast<float> (a[1]));
-                proc.setParamValue (*id, v);
-                lastSent_[index (*id)] = v; // don't echo the UI's own change back
+                proc.setParamValue (*id, spec (*id).sanitise (static_cast<float> (a[1])));
+                // Don't echo the UI's own change back. Read the stored value: the normalised round
+                // trip through the host can move a skewed parameter by an ULP.
+                lastSent_[index (*id)] = proc.paramValue (*id);
             }
         done ({});
     });
@@ -148,10 +148,17 @@ juce::WebBrowserComponent::Options SedefEditor::makeOptions()
     fn ("sedef_beginGesture", gesture (true));
     fn ("sedef_endGesture", gesture (false));
 
-    fn ("sedef_resetParam", [&proc] (const juce::Array<juce::var>& a, Completion done) {
+    fn ("sedef_resetParam", [this, &proc] (const juce::Array<juce::var>& a, Completion done) {
         if (!a.isEmpty())
             if (const auto id = paramFromVar (a[0]))
-                proc.setParamValue (*id, spec (*id).defaultValue);
+                if (auto* p = proc.state().getParameter (a[0].toString()))
+                {
+                    // A gesture, so hosts in touch/latch/write automation modes record the reset.
+                    p->beginChangeGesture();
+                    proc.setParamValue (*id, spec (*id).defaultValue);
+                    p->endChangeGesture();
+                    lastSent_[index (*id)] = proc.paramValue (*id);
+                }
         done ({});
     });
 
@@ -161,6 +168,7 @@ juce::WebBrowserComponent::Options SedefEditor::makeOptions()
             action (proc.presets(), a);
             ++proc.presetRevision;
             lastPresetRevision_ = proc.presetRevision.load();
+            lastDirty_ = proc.presets().isDirty();
             done (proc.presets().stateAsVar());
         };
     };
@@ -249,20 +257,38 @@ juce::WebBrowserComponent::Options SedefEditor::makeOptions()
 
 void SedefEditor::loadIr (int mic, int cab, Completion completion)
 {
+    if (chooser_ != nullptr) // a chooser is already open; answer instead of leaving a promise hanging
+    {
+        completion (processor_.irs().stateAsVar());
+        return;
+    }
+
     chooser_ = std::make_unique<juce::FileChooser> ("Load impulse response", juce::File(), "*.wav;*.aif;*.aiff;*.flac");
-    chooser_->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
-                           [this, mic, cab, done = std::move (completion)] (const juce::FileChooser& fc) {
-                               const auto file = fc.getResult();
-                               if (file.existsAsFile())
-                               {
-                                   const auto error = processor_.irs().load (mic, cab, file);
-                                   if (error.isNotEmpty())
-                                       juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon,
-                                                                               "Could not load IR", error);
-                                   ++processor_.irRevision;
-                               }
-                               done (processor_.irs().stateAsVar());
-                           });
+    chooser_->launchAsync (
+        juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
+        [safe = juce::Component::SafePointer<SedefEditor> (this), mic, cab,
+         done = std::move (completion)] (const juce::FileChooser& fc) {
+            if (safe == nullptr)
+                return;
+            const auto file = fc.getResult();
+            safe->chooser_.reset();
+            if (!file.existsAsFile())
+            {
+                done (safe->processor_.irs().stateAsVar());
+                return;
+            }
+            // Decoding, resampling and FFT partitioning run on the IR library's worker thread.
+            auto& irs = safe->processor_.irs();
+            irs.loadAsync (mic, cab, file, [safe, done] (const juce::String& error) {
+                if (safe == nullptr)
+                    return;
+                if (error.isNotEmpty())
+                    juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon,
+                                                            "Could not load IR", error);
+                ++safe->processor_.irRevision;
+                done (safe->processor_.irs().stateAsVar());
+            });
+        });
 }
 
 // -------------------------------------------------------------------------------------------------

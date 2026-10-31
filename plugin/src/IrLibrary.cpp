@@ -2,6 +2,7 @@
 #include "IrLibrary.h"
 
 #include "sedef/dsp/cab/CabSim.h"
+#include "sedef/dsp/cab/ConvolutionKernel.h"
 
 namespace sedef::plugin
 {
@@ -15,7 +16,19 @@ IrLibrary::IrLibrary (Engine& engine, std::mutex& engineLock) : engine_ (engine)
     formats_.registerBasicFormats();
 }
 
-IrLibrary::~IrLibrary() = default;
+IrLibrary::~IrLibrary()
+{
+    worker_.removeAllJobs (true, 5000);
+}
+
+void IrLibrary::loadAsync (int mic, int cab, const juce::File& file,
+                           std::function<void (const juce::String&)> onDone)
+{
+    worker_.addJob ([this, mic, cab, file, onDone = std::move (onDone)] {
+        const auto error = load (mic, cab, file);
+        juce::MessageManager::callAsync ([onDone, error] { onDone (error); });
+    });
+}
 
 juce::String IrLibrary::load (int mic, int cab, const juce::File& file)
 {
@@ -44,6 +57,7 @@ juce::String IrLibrary::load (int mic, int cab, const juce::File& file)
                                                      1.0f / static_cast<float> (buffer.getNumChannels()),
                                                      length);
 
+    const std::scoped_lock lock (slotsLock_);
     slots_[static_cast<size_t> (mic)][static_cast<size_t> (cab)] = std::move (slot);
     install (mic, cab);
     return {};
@@ -53,6 +67,7 @@ void IrLibrary::clear (int mic, int cab)
 {
     if (mic < 0 || mic >= kMics || cab < 0 || cab >= kCabs)
         return;
+    const std::scoped_lock slotLock (slotsLock_);
     slots_[static_cast<size_t> (mic)][static_cast<size_t> (cab)] = {};
     const std::scoped_lock lock (engineLock_);
     for (int c = 0; c < engine_.numCabs(); ++c)
@@ -76,6 +91,7 @@ void IrLibrary::install (int mic, int cab)
 
 void IrLibrary::rebuildAll()
 {
+    const std::scoped_lock lock (slotsLock_);
     for (int m = 0; m < kMics; ++m)
         for (int c = 0; c < kCabs; ++c)
             if (!slots_[static_cast<size_t> (m)][static_cast<size_t> (c)].samples.empty())
@@ -91,11 +107,13 @@ void IrLibrary::collectGarbage()
 
 juce::File IrLibrary::fileFor (int mic, int cab) const
 {
+    const std::scoped_lock lock (slotsLock_);
     return slots_[static_cast<size_t> (mic)][static_cast<size_t> (cab)].file;
 }
 
 juce::var IrLibrary::stateAsVar() const
 {
+    const std::scoped_lock lock (slotsLock_);
     juce::Array<juce::var> list;
     for (int m = 0; m < kMics; ++m)
         for (int c = 0; c < kCabs; ++c)

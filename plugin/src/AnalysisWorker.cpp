@@ -29,6 +29,8 @@ void AnalysisWorker::setActive (bool active)
     else
     {
         engine_.setAnalysisEnabled (false);
+        signalThreadShouldExit();
+        notify(); // wake the idle wait so stopping doesn't stall the message thread
         stopThread (1000);
         const std::scoped_lock lock (readingMutex_);
         reading_ = {};
@@ -39,7 +41,8 @@ void AnalysisWorker::engineWasPrepared()
 {
     if (!active_)
         return;
-    setActive (false);
+    active_ = false; // the engine already stopped feeding the ring; restart at the new rate
+    stopThread (1000);
     setActive (true);
 }
 

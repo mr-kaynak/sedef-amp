@@ -39,6 +39,32 @@ juce::String formatValue (const ParamSpec& spec, float value, int maxLength)
     return maxLength > 0 ? text.substring (0, maxLength) : text;
 }
 
+float parseValue (const ParamSpec& spec, const juce::String& text)
+{
+    const auto t = text.trim().toLowerCase();
+    if (spec.kind == ParamKind::Choice)
+    {
+        for (int c = 0; c < spec.numChoices(); ++c)
+            if (toJuce (spec.choiceLabel (c)).equalsIgnoreCase (t))
+                return static_cast<float> (c);
+        return spec.sanitise (t.getFloatValue());
+    }
+    if (spec.kind == ParamKind::Bool)
+        return (t == "on" || t == "true" || t == "yes" || t.getFloatValue() >= 0.5f) ? 1.0f : 0.0f;
+
+    float v = t.retainCharacters ("0123456789.-+eE").getFloatValue();
+    const auto unit = spec.unit;
+    if (unit == "knob")
+        v /= 10.0f; // knobs read 0-10
+    else if (unit == "Hz" && t.contains ("k"))
+        v *= 1000.0f;
+    else if (unit == "ms" && t.endsWith ("s") && !t.endsWith ("ms"))
+        v *= 1000.0f;
+    else if (unit == "s" && t.endsWith ("ms"))
+        v /= 1000.0f;
+    return spec.sanitise (v);
+}
+
 juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
 {
     juce::AudioProcessorValueTreeState::ParameterLayout layout;
@@ -73,7 +99,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
                     .withLabel (label)
                     .withAutomatable (spec.automatable)
                     .withStringFromValueFunction (
-                        [&spec] (float v, int len) { return formatValue (spec, v, len); })));
+                        [&spec] (float v, int len) { return formatValue (spec, v, len); })
+                    .withValueFromStringFunction (
+                        [&spec] (const juce::String& text) { return parseValue (spec, text); })));
             break;
         }
         case ParamKind::Int:
@@ -84,7 +112,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
                     .withLabel (label)
                     .withAutomatable (spec.automatable)
                     .withStringFromValueFunction (
-                        [&spec] (int v, int len) { return formatValue (spec, static_cast<float> (v), len); })));
+                        [&spec] (int v, int len) { return formatValue (spec, static_cast<float> (v), len); })
+                    .withValueFromStringFunction ([&spec] (const juce::String& text) {
+                        return static_cast<int> (parseValue (spec, text));
+                    })));
             break;
         case ParamKind::Bool:
             group->addChild (std::make_unique<juce::AudioParameterBool> (

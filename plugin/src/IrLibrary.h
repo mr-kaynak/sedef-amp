@@ -6,6 +6,7 @@
 #include <juce_audio_formats/juce_audio_formats.h>
 
 #include <array>
+#include <functional>
 #include <mutex>
 
 namespace sedef::plugin
@@ -23,8 +24,11 @@ public:
     IrLibrary (Engine& engine, std::mutex& engineLock);
     ~IrLibrary();
 
-    /// Message thread. Returns an error message, or an empty string on success.
+    /// Any non-real-time thread. Decodes, resamples and installs the IR; returns an error message,
+    /// or an empty string on success.
     juce::String load (int mic, int cab, const juce::File& file);
+    /// Message thread. Runs load() on the worker thread, then calls onDone on the message thread.
+    void loadAsync (int mic, int cab, const juce::File& file, std::function<void (const juce::String&)> onDone);
     void clear (int mic, int cab);
 
     /// Rebuilds every loaded kernel for the engine's current sample rate (after prepare).
@@ -48,7 +52,9 @@ private:
     Engine& engine_;
     std::mutex& engineLock_;
     juce::AudioFormatManager formats_;
+    mutable std::recursive_mutex slotsLock_; // slots are touched by the worker and message threads
     std::array<std::array<Slot, kCabs>, kMics> slots_;
+    juce::ThreadPool worker_ { juce::ThreadPoolOptions {}.withThreadName ("Sedef IR loader").withNumberOfThreads (1) };
 };
 
 } // namespace sedef::plugin

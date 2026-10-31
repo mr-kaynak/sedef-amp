@@ -13,6 +13,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 
 /// Human-readable value text for a parameter, used by hosts and the preset browser.
 juce::String formatValue (const ParamSpec& spec, float value, int maxLength = 0);
+/// Inverse of formatValue for host text entry ("1.2 kHz", "1.5 s", "Hall", "7.5" on a knob).
+float parseValue (const ParamSpec& spec, const juce::String& text);
 
 inline juce::String toJuce (std::string_view s)
 {

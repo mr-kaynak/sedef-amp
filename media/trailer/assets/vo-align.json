@@ -1,0 +1,593 @@
+{
+ "voice": "EXAVITQu4vr4xnSDxMaL",
+ "lines": [
+  {
+   "text": "This is Sedef. It means mother-of-pearl, the shimmer inlaid in fine instruments.",
+   "start": 0,
+   "end": 6.2,
+   "words": [
+    {
+     "w": "This",
+     "start": 0,
+     "end": 0.24
+    },
+    {
+     "w": "is",
+     "start": 0.32,
+     "end": 0.4
+    },
+    {
+     "w": "Sedef.",
+     "start": 0.48,
+     "end": 1.2
+    },
+    {
+     "w": "It",
+     "start": 1.36,
+     "end": 1.44
+    },
+    {
+     "w": "means",
+     "start": 1.52,
+     "end": 1.84
+    },
+    {
+     "w": "mother-of-pearl,",
+     "start": 2.08,
+     "end": 3.36
+    },
+    {
+     "w": "the",
+     "start": 3.44,
+     "end": 3.52
+    },
+    {
+     "w": "shimmer",
+     "start": 3.6,
+     "end": 3.92
+    },
+    {
+     "w": "inlaid",
+     "start": 4,
+     "end": 4.48
+    },
+    {
+     "w": "in",
+     "start": 4.56,
+     "end": 4.64
+    },
+    {
+     "w": "fine",
+     "start": 4.8,
+     "end": 5.12
+    },
+    {
+     "w": "instruments.",
+     "start": 5.2,
+     "end": 6.2
+    }
+   ]
+  },
+  {
+   "text": "Sedef is a complete guitar rig. Free, and open source.",
+   "start": 6.48,
+   "end": 10.24,
+   "words": [
+    {
+     "w": "Sedef",
+     "start": 6.48,
+     "end": 6.88
+    },
+    {
+     "w": "is",
+     "start": 6.96,
+     "end": 7.04
+    },
+    {
+     "w": "a",
+     "start": 7.12,
+     "end": 7.16
+    },
+    {
+     "w": "complete",
+     "start": 7.2,
+     "end": 7.68
+    },
+    {
+     "w": "guitar",
+     "start": 7.76,
+     "end": 8.08
+    },
+    {
+     "w": "rig.",
+     "start": 8.16,
+     "end": 8.64
+    },
+    {
+     "w": "Free,",
+     "start": 8.8,
+     "end": 9.2
+    },
+    {
+     "w": "and",
+     "start": 9.28,
+     "end": 9.36
+    },
+    {
+     "w": "open",
+     "start": 9.44,
+     "end": 9.68
+    },
+    {
+     "w": "source.",
+     "start": 9.76,
+     "end": 10.24
+    }
+   ]
+  },
+  {
+   "text": "Four pedals, and three amps, from glassy clean to a singing lead.",
+   "start": 10.64,
+   "end": 14.96,
+   "words": [
+    {
+     "w": "Four",
+     "start": 10.64,
+     "end": 10.8
+    },
+    {
+     "w": "pedals,",
+     "start": 10.88,
+     "end": 11.36
+    },
+    {
+     "w": "and",
+     "start": 11.4,
+     "end": 11.44
+    },
+    {
+     "w": "three",
+     "start": 11.6,
+     "end": 11.84
+    },
+    {
+     "w": "amps,",
+     "start": 11.92,
+     "end": 12.4
+    },
+    {
+     "w": "from",
+     "start": 12.48,
+     "end": 12.56
+    },
+    {
+     "w": "glassy",
+     "start": 12.72,
+     "end": 13.12
+    },
+    {
+     "w": "clean",
+     "start": 13.2,
+     "end": 13.6
+    },
+    {
+     "w": "to",
+     "start": 13.68,
+     "end": 13.84
+    },
+    {
+     "w": "a",
+     "start": 13.88,
+     "end": 13.92
+    },
+    {
+     "w": "singing",
+     "start": 14.08,
+     "end": 14.4
+    },
+    {
+     "w": "lead.",
+     "start": 14.48,
+     "end": 14.96
+    }
+   ]
+  },
+  {
+   "text": "Put two microphones on the speaker, exactly where you'd place them in a studio.",
+   "start": 15.28,
+   "end": 19.4,
+   "words": [
+    {
+     "w": "Put",
+     "start": 15.28,
+     "end": 15.44
+    },
+    {
+     "w": "two",
+     "start": 15.52,
+     "end": 15.6
+    },
+    {
+     "w": "microphones",
+     "start": 15.68,
+     "end": 16.24
+    },
+    {
+     "w": "on",
+     "start": 16.28,
+     "end": 16.32
+    },
+    {
+     "w": "the",
+     "start": 16.4,
+     "end": 16.44
+    },
+    {
+     "w": "speaker,",
+     "start": 16.48,
+     "end": 17.12
+    },
+    {
+     "w": "exactly",
+     "start": 17.2,
+     "end": 17.76
+    },
+    {
+     "w": "where",
+     "start": 17.84,
+     "end": 17.92
+    },
+    {
+     "w": "you'd",
+     "start": 17.96,
+     "end": 18.08
+    },
+    {
+     "w": "place",
+     "start": 18.2,
+     "end": 18.32
+    },
+    {
+     "w": "them",
+     "start": 18.4,
+     "end": 18.48
+    },
+    {
+     "w": "in",
+     "start": 18.52,
+     "end": 18.56
+    },
+    {
+     "w": "a",
+     "start": 18.6,
+     "end": 18.64
+    },
+    {
+     "w": "studio.",
+     "start": 18.92,
+     "end": 19.4
+    }
+   ]
+  },
+  {
+   "text": "Tape echo that drifts and breathes. Reverb as deep as you like.",
+   "start": 19.6,
+   "end": 24.08,
+   "words": [
+    {
+     "w": "Tape",
+     "start": 19.6,
+     "end": 19.84
+    },
+    {
+     "w": "echo",
+     "start": 19.92,
+     "end": 20.24
+    },
+    {
+     "w": "that",
+     "start": 20.32,
+     "end": 20.48
+    },
+    {
+     "w": "drifts",
+     "start": 20.56,
+     "end": 21.12
+    },
+    {
+     "w": "and",
+     "start": 21.2,
+     "end": 21.28
+    },
+    {
+     "w": "breathes.",
+     "start": 21.36,
+     "end": 22
+    },
+    {
+     "w": "Reverb",
+     "start": 22.32,
+     "end": 22.8
+    },
+    {
+     "w": "as",
+     "start": 22.88,
+     "end": 23.04
+    },
+    {
+     "w": "deep",
+     "start": 23.2,
+     "end": 23.36
+    },
+    {
+     "w": "as",
+     "start": 23.44,
+     "end": 23.52
+    },
+    {
+     "w": "you",
+     "start": 23.56,
+     "end": 23.6
+    },
+    {
+     "w": "like.",
+     "start": 23.68,
+     "end": 24.08
+    }
+   ]
+  },
+  {
+   "text": "And one tool most rigs leave out: intonation.",
+   "start": 24.4,
+   "end": 27.44,
+   "words": [
+    {
+     "w": "And",
+     "start": 24.4,
+     "end": 24.48
+    },
+    {
+     "w": "one",
+     "start": 24.56,
+     "end": 24.72
+    },
+    {
+     "w": "tool",
+     "start": 24.8,
+     "end": 25.04
+    },
+    {
+     "w": "most",
+     "start": 25.12,
+     "end": 25.36
+    },
+    {
+     "w": "rigs",
+     "start": 25.44,
+     "end": 25.68
+    },
+    {
+     "w": "leave",
+     "start": 25.76,
+     "end": 25.92
+    },
+    {
+     "w": "out:",
+     "start": 26,
+     "end": 26.56
+    },
+    {
+     "w": "intonation.",
+     "start": 26.64,
+     "end": 27.44
+    }
+   ]
+  },
+  {
+   "text": "Tune the open string, play the twelfth fret, and Sedef tells you which way to move the saddle, and how far.",
+   "start": 27.76,
+   "end": 34.08,
+   "words": [
+    {
+     "w": "Tune",
+     "start": 27.76,
+     "end": 28
+    },
+    {
+     "w": "the",
+     "start": 28.04,
+     "end": 28.08
+    },
+    {
+     "w": "open",
+     "start": 28.16,
+     "end": 28.4
+    },
+    {
+     "w": "string,",
+     "start": 28.48,
+     "end": 29.04
+    },
+    {
+     "w": "play",
+     "start": 29.16,
+     "end": 29.28
+    },
+    {
+     "w": "the",
+     "start": 29.32,
+     "end": 29.36
+    },
+    {
+     "w": "twelfth",
+     "start": 29.44,
+     "end": 29.76
+    },
+    {
+     "w": "fret,",
+     "start": 29.8,
+     "end": 30.4
+    },
+    {
+     "w": "and",
+     "start": 30.48,
+     "end": 30.56
+    },
+    {
+     "w": "Sedef",
+     "start": 30.64,
+     "end": 31.04
+    },
+    {
+     "w": "tells",
+     "start": 31.12,
+     "end": 31.28
+    },
+    {
+     "w": "you",
+     "start": 31.36,
+     "end": 31.44
+    },
+    {
+     "w": "which",
+     "start": 31.52,
+     "end": 31.68
+    },
+    {
+     "w": "way",
+     "start": 31.76,
+     "end": 31.92
+    },
+    {
+     "w": "to",
+     "start": 31.96,
+     "end": 32
+    },
+    {
+     "w": "move",
+     "start": 32.08,
+     "end": 32.24
+    },
+    {
+     "w": "the",
+     "start": 32.28,
+     "end": 32.32
+    },
+    {
+     "w": "saddle,",
+     "start": 32.4,
+     "end": 32.96
+    },
+    {
+     "w": "and",
+     "start": 33.08,
+     "end": 33.2
+    },
+    {
+     "w": "how",
+     "start": 33.28,
+     "end": 33.36
+    },
+    {
+     "w": "far.",
+     "start": 33.44,
+     "end": 34.08
+    }
+   ]
+  },
+  {
+   "text": "VST3, AU, CLAP, or standalone. On Mac, Windows and Linux.",
+   "start": 34.32,
+   "end": 40.12,
+   "words": [
+    {
+     "w": "VST3,",
+     "start": 34.32,
+     "end": 35.52
+    },
+    {
+     "w": "AU,",
+     "start": 35.6,
+     "end": 36.2
+    },
+    {
+     "w": "CLAP,",
+     "start": 36.32,
+     "end": 36.8
+    },
+    {
+     "w": "or",
+     "start": 36.84,
+     "end": 36.88
+    },
+    {
+     "w": "standalone.",
+     "start": 36.96,
+     "end": 37.68
+    },
+    {
+     "w": "On",
+     "start": 38,
+     "end": 38.08
+    },
+    {
+     "w": "Mac,",
+     "start": 38.16,
+     "end": 38.64
+    },
+    {
+     "w": "Windows",
+     "start": 38.72,
+     "end": 39.12
+    },
+    {
+     "w": "and",
+     "start": 39.2,
+     "end": 39.36
+    },
+    {
+     "w": "Linux.",
+     "start": 39.44,
+     "end": 40.12
+    }
+   ]
+  },
+  {
+   "text": "Sedef. Sound beautiful. Play in tune.",
+   "start": 40.32,
+   "end": 43.68,
+   "words": [
+    {
+     "w": "Sedef.",
+     "start": 40.32,
+     "end": 40.88
+    },
+    {
+     "w": "Sound",
+     "start": 41.28,
+     "end": 41.52
+    },
+    {
+     "w": "beautiful.",
+     "start": 41.68,
+     "end": 42.32
+    },
+    {
+     "w": "Play",
+     "start": 42.64,
+     "end": 42.8
+    },
+    {
+     "w": "in",
+     "start": 42.88,
+     "end": 42.96
+    },
+    {
+     "w": "tune.",
+     "start": 43.04,
+     "end": 43.68
+    }
+   ]
+  }
+ ]
+}

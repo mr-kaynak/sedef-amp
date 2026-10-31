@@ -1,0 +1,6 @@
+node_modules/
+.env.local
+.env*
+renders/*.mp4
+!renders/.gitkeep
+.hyperframes/

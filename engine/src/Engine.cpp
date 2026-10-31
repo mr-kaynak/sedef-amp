@@ -87,7 +87,7 @@ ChainSettings chainSettings (const ParamSnapshot& p)
     s.ripple = { p.choice (P::rippleMode), p[P::rippleSpeed], p[P::rippleDepth] };
 
     auto& a = s.amp;
-    a.model = p.choice (P::ampModel);
+    a.model = std::clamp (p.choice (P::ampModel), 0, 2);
     a.lagoon = { p[P::lagoonVolume], p[P::lagoonBass], p[P::lagoonCut], p[P::lagoonMaster],
                  p[P::lagoonOutput] };
     a.reef = { p.choice (P::reefVoice), p[P::reefGain],     p[P::reefBass],   p[P::reefMid],
@@ -97,7 +97,8 @@ ChainSettings chainSettings (const ParamSnapshot& p)
                 p[P::abyssPresence],     p[P::abyssMaster],   p[P::abyssOutput] };
 
     // The cab follows the amp while linked; otherwise the user picks it.
-    s.cab.cab = p.flag (P::ampCabLink) ? a.model : p.choice (P::cabModel);
+    s.cab.cab = p.flag (P::ampCabLink) ? a.model
+                                       : std::clamp (p.choice (P::cabModel), 0, dsp::CabSim::kNumCabs - 1);
     for (int m = 0; m < dsp::CabSim::kNumMics; ++m)
         s.cab.mics[static_cast<size_t> (m)] = micSettings (p, m, s.cab.cab);
     return s;
@@ -139,6 +140,7 @@ struct Slot
     DelayLine dryDelay;
     std::vector<float> dry;
     int latency = 0;
+    bool snapOnNextBlock = true; // first block after prepare/reset starts in its final state
 
     void prepare (const ProcessSpec& spec)
     {
@@ -154,25 +156,43 @@ struct Slot
     {
         module.reset();
         dryDelay.reset();
+        snapOnNextBlock = true;
     }
 
     /// Returns true when the module ran (so its telemetry is meaningful).
     template <typename Settings, typename Run>
     bool process (float* io, int n, bool enabled, const Settings& settings, Run&& run) noexcept
     {
+        if (snapOnNextBlock)
+        {
+            fader.snap (enabled);
+            snapOnNextBlock = false;
+        }
         const bool wasBypassed = fader.isFullyBypassed();
         fader.setEnabled (enabled);
         module.setSettings (settings);
 
-        for (int i = 0; i < n; ++i)
+        // The dry path is only needed while bypassed or crossfading, but a latency-bearing module
+        // keeps its delay line warm so a later bypass lines up from the first sample.
+        const bool needDry = !fader.isFullyActive();
+        if (latency > 0)
         {
-            dryDelay.push (io[i]);
-            dry[static_cast<size_t> (i)] = dryDelay.read (latency);
+            for (int i = 0; i < n; ++i)
+            {
+                dryDelay.push (io[i]);
+                if (needDry)
+                    dry[static_cast<size_t> (i)] = dryDelay.read (latency);
+            }
+        }
+        else if (needDry)
+        {
+            std::copy_n (io, n, dry.data());
         }
 
         if (fader.isFullyBypassed())
         {
-            std::copy_n (dry.data(), n, io);
+            if (latency > 0)
+                std::copy_n (dry.data(), n, io);
             return false;
         }
         if (wasBypassed)
@@ -192,6 +212,7 @@ struct StereoSlot
     Module module;
     BypassFader fader;
     std::array<std::vector<float>, 2> dry;
+    bool snapOnNextBlock = true;
 
     void prepare (const ProcessSpec& spec)
     {
@@ -201,11 +222,20 @@ struct StereoSlot
         fader.prepare (spec.sampleRate);
     }
 
-    void reset() noexcept { module.reset(); }
+    void reset() noexcept
+    {
+        module.reset();
+        snapOnNextBlock = true;
+    }
 
     template <typename Settings>
     void process (const AudioView& io, bool enabled, const Settings& settings) noexcept
     {
+        if (snapOnNextBlock)
+        {
+            fader.snap (enabled);
+            snapOnNextBlock = false;
+        }
         const bool wasBypassed = fader.isFullyBypassed();
         fader.setEnabled (enabled);
         module.setSettings (settings);
@@ -243,6 +273,8 @@ struct Chain
     std::vector<float> buffer;
     std::vector<float> sidechain;
     float inputPeak = 0.0f;
+    bool gateRan = false, tideRan = false;
+    bool snapGain = true;
 
     void prepare (double sampleRate, int maxBlock)
     {
@@ -267,6 +299,7 @@ struct Chain
 
     void reset() noexcept
     {
+        snapGain = true;
         transpose.reset();
         gate.reset();
         tide.reset();
@@ -281,12 +314,19 @@ struct Chain
     {
         const int n = stereoOut.numFrames();
         float* x = buffer.data();
-        std::copy_n (in, n, sidechain.data());
         std::copy_n (in, n, x);
 
         transpose.setSettings ({ s.semitones });
         transpose.process (AudioView (x, n));
+        // The gate listens to the instrument before input gain (so it follows the DI level), but
+        // after transpose, so its timing matches the shifted signal it gates.
+        std::copy_n (x, n, sidechain.data());
 
+        if (snapGain)
+        {
+            inputGain.setCurrentAndTarget (s.inputGain);
+            snapGain = false;
+        }
         inputGain.setTarget (s.inputGain);
         float peak = 0.0f;
         for (int i = 0; i < n; ++i)
@@ -296,11 +336,11 @@ struct Chain
         }
         inputPeak = peak;
 
-        gate.process (x, n, s.gateOn, s.gate, [this] (dsp::NoiseGate& g, const AudioView& v) {
+        gateRan = gate.process (x, n, s.gateOn, s.gate, [this] (dsp::NoiseGate& g, const AudioView& v) {
             g.process (v, sidechain.data());
         });
         const auto run = [] (auto& m, const AudioView& v) { m.process (v); };
-        tide.process (x, n, s.tideOn, s.tide, run);
+        tideRan = tide.process (x, n, s.tideOn, s.tide, run);
         pearl.process (x, n, s.pearlOn, s.pearl, run);
         coral.process (x, n, s.coralOn, s.coral, run);
         ripple.process (x, n, s.rippleOn, s.ripple, run);
@@ -321,10 +361,13 @@ float peakOf (const float* d, int n) noexcept
     return p;
 }
 
+/// Max-accumulates a peak the UI reads with exchange(0); a CAS loop so no peak is lost in between.
 void raisePeak (std::atomic<float>& a, float v) noexcept
 {
-    if (v > a.load (std::memory_order_relaxed))
-        a.store (v, std::memory_order_relaxed);
+    float current = a.load (std::memory_order_relaxed);
+    while (v > current && !a.compare_exchange_weak (current, v, std::memory_order_relaxed))
+    {
+    }
 }
 
 } // namespace
@@ -346,7 +389,7 @@ struct Engine::Impl
     LinearSmoothed outputGain;
     LinearSmoothed mute;     // tuner mute
     LinearSmoothed modeFade; // stereo-mode switch
-    bool pendingDual = false;
+    bool snapGains = true;   // first block after prepare/reset: no ramps from silence
 
     std::array<std::vector<float>, 2> post;  // stereo post-chain buffers
     std::array<std::vector<float>, 2> chainR; // second chain's cab output in dual mode
@@ -359,17 +402,14 @@ Engine::~Engine() = default;
 void Engine::prepare (double sampleRate, int maxBlockSize, int numInputs, int numOutputs)
 {
     assert (numInputs >= 1 && numInputs <= 2 && numOutputs >= 1 && numOutputs <= 2);
-    sampleRate_ = sampleRate;
-    maxBlockSize_ = std::max (1, maxBlockSize);
-    numInputs_ = numInputs;
-    numOutputs_ = numOutputs;
+    const int block = std::max (1, maxBlockSize);
 
     auto& d = *impl_;
     d.numChains = numInputs;
     for (int c = 0; c < d.numChains; ++c)
-        d.chains[static_cast<size_t> (c)].prepare (sampleRate, maxBlockSize_);
+        d.chains[static_cast<size_t> (c)].prepare (sampleRate, block);
 
-    const ProcessSpec stereo { sampleRate, maxBlockSize_, 2 };
+    const ProcessSpec stereo { sampleRate, block, 2 };
     d.eq.prepare (stereo);
     d.doubler.prepare (stereo);
     d.drift.prepare (stereo);
@@ -378,16 +418,19 @@ void Engine::prepare (double sampleRate, int maxBlockSize, int numInputs, int nu
 
     d.outputGain.reset (sampleRate, 0.02);
     d.mute.reset (sampleRate, 0.01);
-    d.mute.setCurrentAndTarget (1.0f);
     d.modeFade.reset (sampleRate, 0.01);
     d.modeFade.setCurrentAndTarget (1.0f);
 
     for (auto* group : { &d.post, &d.chainR })
         for (auto& b : *group)
-            b.assign (static_cast<size_t> (maxBlockSize_), 0.0f);
-    d.monoIn.assign (static_cast<size_t> (maxBlockSize_), 0.0f);
+            b.assign (static_cast<size_t> (block), 0.0f);
+    d.monoIn.assign (static_cast<size_t> (block), 0.0f);
 
-    latency_ = d.chains[0].latency();
+    sampleRate_.store (sampleRate, std::memory_order_release);
+    maxBlockSize_.store (block, std::memory_order_release);
+    numInputs_.store (numInputs, std::memory_order_release);
+    numOutputs_.store (numOutputs, std::memory_order_release);
+    latency_.store (d.chains[0].latency(), std::memory_order_release);
     reset();
 }
 
@@ -401,12 +444,15 @@ void Engine::reset()
     d.drift.reset();
     d.fathom.reset();
     d.metronome.reset();
+    d.snapGains = true;
 }
 
 void Engine::setMetronomePattern (const std::array<std::uint8_t, 13>& steps) noexcept
 {
+    std::uint32_t packed = 0;
     for (size_t i = 0; i < steps.size(); ++i)
-        metronomePattern_[i].store (steps[i], std::memory_order_relaxed);
+        packed |= static_cast<std::uint32_t> (steps[i] & 3u) << (2 * i);
+    metronomePattern_.store (packed, std::memory_order_relaxed);
 }
 
 int Engine::numCabs() const noexcept
@@ -467,42 +513,56 @@ void Engine::process (const float* const* inputs, float* const* outputs, int num
     metro.signature = p.choice (P::metronomeSignature);
     metro.sound = p.choice (P::metronomeSound);
     metro.bpm = p[P::tempo];
+    const auto pattern = metronomePattern_.load (std::memory_order_relaxed);
     for (size_t i = 0; i < metro.steps.size(); ++i)
-        metro.steps[i] = metronomePattern_[i].load (std::memory_order_relaxed);
+        metro.steps[i] = static_cast<std::uint8_t> ((pattern >> (2 * i)) & 3u);
 
     const bool analysis = analysisEnabled_.load (std::memory_order_relaxed);
-    d.outputGain.setTarget (dbToGain (p[P::outputGain]));
-    d.mute.setTarget (analysis && p.flag (P::tunerMute) ? 0.0f : 1.0f);
+    const float outputTarget = dbToGain (p[P::outputGain]);
+    const float muteTarget = analysis && p.flag (P::tunerMute) ? 0.0f : 1.0f;
+    if (d.snapGains)
+    {
+        d.outputGain.setCurrentAndTarget (outputTarget);
+        d.mute.setCurrentAndTarget (muteTarget);
+        d.snapGains = false;
+    }
+    d.outputGain.setTarget (outputTarget);
+    d.mute.setTarget (muteTarget);
 
-    // Stereo mode changes fade out, switch, and fade back in.
-    const bool wantDual = numInputs_ == 2 && p.choice (P::stereoMode) == 1;
-    if (wantDual != d.dual)
-    {
-        if (d.modeFade.target() > 0.5f)
-        {
-            d.modeFade.setTarget (0.0f);
-        }
-        else if (!d.modeFade.isSmoothing())
-        {
-            d.dual = wantDual;
-            for (int c = 0; c < d.numChains; ++c)
-                d.chains[static_cast<size_t> (c)].reset();
-            d.modeFade.setTarget (1.0f);
-        }
-    }
-    else if (d.modeFade.target() < 0.5f)
-    {
-        d.modeFade.setTarget (1.0f); // switched back before the fade-out finished
-    }
+    const int numInputs = numInputs_.load (std::memory_order_relaxed);
+    const int numOutputs = numOutputs_.load (std::memory_order_relaxed);
+    const int maxBlock = maxBlockSize_.load (std::memory_order_relaxed);
 
     float inPeaks[2] = { 0.0f, 0.0f };
     float outPeaks[2] = { 0.0f, 0.0f };
 
-    for (int start = 0; start < numFrames; start += maxBlockSize_)
+    for (int start = 0; start < numFrames; start += maxBlock)
     {
-        const int n = std::min (maxBlockSize_, numFrames - start);
+        const int n = std::min (maxBlock, numFrames - start);
+        // Stereo mode changes fade out, switch, and fade back in (checked per chunk so a long host
+        // block doesn't hold the output silent).
+        const bool wantDual = numInputs == 2 && p.choice (P::stereoMode) == 1;
+        if (wantDual != d.dual)
+        {
+            if (d.modeFade.target() > 0.5f)
+            {
+                d.modeFade.setTarget (0.0f);
+            }
+            else if (!d.modeFade.isSmoothing())
+            {
+                d.dual = wantDual;
+                for (int c = 0; c < d.numChains; ++c)
+                    d.chains[static_cast<size_t> (c)].reset();
+                d.modeFade.setTarget (1.0f);
+            }
+        }
+        else if (d.modeFade.target() < 0.5f)
+        {
+            d.modeFade.setTarget (1.0f); // switched back before the fade-out finished
+        }
+
         const float* in0 = inputs[0] + start;
-        const float* in1 = numInputs_ == 2 ? inputs[1] + start : nullptr;
+        const float* in1 = numInputs == 2 ? inputs[1] + start : nullptr;
 
         // Mono source for the single chain (summed at -6 dB in stereo-summed mode).
         const float* chainIn = in0;
@@ -558,7 +618,7 @@ void Engine::process (const float* const* inputs, float* const* outputs, int num
             post.channel (1)[i] *= g;
         }
 
-        if (numOutputs_ == 2)
+        if (numOutputs == 2)
         {
             std::copy_n (post.channel (0), n, outputs[0] + start);
             std::copy_n (post.channel (1), n, outputs[1] + start);
@@ -585,10 +645,12 @@ void Engine::process (const float* const* inputs, float* const* outputs, int num
     if (std::max (outPeaks[0], outPeaks[1]) >= 1.0f)
         telemetry_.outputClip.store (true, std::memory_order_relaxed);
 
-    auto& g = d.chains[0].gate.module;
-    telemetry_.gateOpen.store (g.isOpen(), std::memory_order_relaxed);
-    telemetry_.gateReductionDb.store (g.gainReductionDb(), std::memory_order_relaxed);
-    telemetry_.tideReductionDb.store (d.chains[0].tide.module.gainReductionDb(),
+    // A bypassed module's last reading would freeze on the meters; report neutral values instead.
+    const auto& chain0 = d.chains[0];
+    telemetry_.gateOpen.store (!chain0.gateRan || chain0.gate.module.isOpen(), std::memory_order_relaxed);
+    telemetry_.gateReductionDb.store (chain0.gateRan ? chain0.gate.module.gainReductionDb() : 0.0f,
+                                      std::memory_order_relaxed);
+    telemetry_.tideReductionDb.store (chain0.tideRan ? chain0.tide.module.gainReductionDb() : 0.0f,
                                       std::memory_order_relaxed);
     telemetry_.metronomeStep.store (d.metronome.currentStep(), std::memory_order_relaxed);
     telemetry_.driftTimeMs.store (d.drift.effectiveTimeMs(), std::memory_order_relaxed);

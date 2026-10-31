@@ -53,11 +53,12 @@ public:
                   const ParamSnapshot& params, const Transport& transport) noexcept;
 
     /// Constant for a given prepare() (oversampled stages are always latency-aligned).
-    int latencySamples() const noexcept { return latency_; }
-    double sampleRate() const noexcept { return sampleRate_; }
-    int maxBlockSize() const noexcept { return maxBlockSize_; }
-    int numInputs() const noexcept { return numInputs_; }
-    int numOutputs() const noexcept { return numOutputs_; }
+    /// These getters are safe from any thread.
+    int latencySamples() const noexcept { return latency_.load (std::memory_order_acquire); }
+    double sampleRate() const noexcept { return sampleRate_.load (std::memory_order_acquire); }
+    int maxBlockSize() const noexcept { return maxBlockSize_.load (std::memory_order_acquire); }
+    int numInputs() const noexcept { return numInputs_.load (std::memory_order_acquire); }
+    int numOutputs() const noexcept { return numOutputs_.load (std::memory_order_acquire); }
 
     const Telemetry& telemetry() const noexcept { return telemetry_; }
 
@@ -83,13 +84,13 @@ private:
     SpscRing<float> analysisRing_ { 1 << 16 };
     std::atomic<bool> analysisEnabled_ { false };
     std::atomic<bool> metronomeAllowed_ { false };
-    std::array<std::atomic<std::uint8_t>, 13> metronomePattern_ {};
+    std::atomic<std::uint32_t> metronomePattern_ { 0 }; // 13 steps x 2 bits, one atomic word
 
-    double sampleRate_ = 48000.0;
-    int maxBlockSize_ = 512;
-    int numInputs_ = 1;
-    int numOutputs_ = 2;
-    int latency_ = 0;
+    std::atomic<double> sampleRate_ { 48000.0 };
+    std::atomic<int> maxBlockSize_ { 512 };
+    std::atomic<int> numInputs_ { 1 };
+    std::atomic<int> numOutputs_ { 2 };
+    std::atomic<int> latency_ { 0 };
 };
 
 } // namespace sedef

@@ -23,6 +23,13 @@ public:
         mix_.setTarget (enabled ? 1.0f : 0.0f);
     }
 
+    /// Jumps straight to a state (first block after prepare/reset: no fade from silence).
+    void snap (bool enabled) noexcept
+    {
+        enabled_ = enabled;
+        mix_.setCurrentAndTarget (enabled ? 1.0f : 0.0f);
+    }
+
     /// True when the module can be skipped entirely for this block.
     bool isFullyBypassed() const noexcept { return !enabled_ && !mix_.isSmoothing(); }
     /// True when the processed output can be used as-is (no crossfade needed).

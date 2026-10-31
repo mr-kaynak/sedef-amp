@@ -1,0 +1,14 @@
+{
+  "name": "sedef-trailer",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "vo": "node --env-file=${ELEVENLABS_ENV:-.env.local} tools/vo.mjs",
+    "music": "node --env-file=${ELEVENLABS_ENV:-.env.local} tools/music.mjs",
+    "check": "npx --yes hyperframes@0.8.192 check",
+    "render": "npx --yes hyperframes@0.8.192 render"
+  },
+  "dependencies": {
+    "@elevenlabs/elevenlabs-js": "^2.74.0"
+  }
+}

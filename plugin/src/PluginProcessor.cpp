@@ -54,6 +54,8 @@ void SedefProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     const int ins = juce::jlimit (1, 2, getTotalNumInputChannels());
     const int outs = juce::jlimit (1, 2, getTotalNumOutputChannels());
+    // The tracker is rate-specific: stop feeding it until it is re-prepared below.
+    engine_.setAnalysisEnabled (false);
     {
         const std::scoped_lock lock (engineLock_);
         engine_.prepare (sampleRate, samplesPerBlock, ins, outs);
@@ -117,6 +119,17 @@ void SedefProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiB
 
     for (int ch = outs; ch < buffer.getNumChannels(); ++ch)
         buffer.clear (ch, 0, numSamples);
+}
+
+double SedefProcessor::getTailLengthSeconds() const
+{
+    // Hosts stop processing after the tail; report the longest ring-out the rig can produce.
+    double tail = 0.0;
+    if (paramValue (ParamId::fathomEnabled) >= 0.5f)
+        tail = std::max (tail, static_cast<double> (paramValue (ParamId::fathomDecay)) * 1.2);
+    if (paramValue (ParamId::driftEnabled) >= 0.5f)
+        tail = std::max (tail, 10.0);
+    return tail;
 }
 
 void SedefProcessor::setParamValue (ParamId id, float realValue)
@@ -247,7 +260,11 @@ void SedefProcessor::setStateInformation (const void* data, int size)
             {
                 const juce::File f (slot.getProperty ("path").toString());
                 if (f.existsAsFile())
-                    p->irs_.load (slot.getProperty ("mic"), slot.getProperty ("cab"), f);
+                    p->irs_.loadAsync (slot.getProperty ("mic"), slot.getProperty ("cab"), f,
+                                       [safeAgain = juce::WeakReference<SedefProcessor> (p)] (const juce::String&) {
+                                           if (auto* q = safeAgain.get())
+                                               ++q->irRevision;
+                                       });
             }
             ++p->irRevision;
             ++p->presetRevision;

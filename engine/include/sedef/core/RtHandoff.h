@@ -26,6 +26,9 @@ public:
 
     void publish (std::unique_ptr<T> object)
     {
+        // Free what the audio thread retired since the last collect(), so a burst of publishes
+        // never leaves the retire slot full and the new object stuck in `incoming_`.
+        collect();
         delete incoming_.exchange (object.release(), std::memory_order_acq_rel);
     }
 

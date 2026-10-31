@@ -3,6 +3,8 @@
 
 #include "sedef/core/AudioView.h"
 
+#include <memory>
+
 namespace sedef::dsp
 {
 
@@ -68,7 +70,7 @@ public:
 
 private:
     struct Impl;
-    Impl* impl_ = nullptr;
+    std::unique_ptr<Impl> impl_;
 };
 
 } // namespace sedef::dsp

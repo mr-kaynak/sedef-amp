@@ -510,3 +510,183 @@ TEST_CASE ("Automating every control is click-free", "[cab]")
     CHECK (clicksR < level * 1.0e-4f);
     cab.collectGarbage();
 }
+
+namespace
+{
+/// Settings far from the defaults in every respect a voice or smoother cares about.
+CabSim::Settings unusualSettings()
+{
+    CabSim::Settings s;
+    s.cab = 2;
+    auto& a = s.mics[0];
+    a.type = kRibbonSmooth;
+    a.position = 0.15f;
+    a.distance = 0.7f;
+    a.levelDb = -12.0f;
+    a.pan = 0.6f;
+    a.invertPolarity = true;
+    a.roomEnabled = true;
+    a.roomLevelDb = -3.0f;
+    auto& b = s.mics[1];
+    b.type = 3;
+    b.position = 0.9f;
+    b.distance = 0.3f;
+    b.levelDb = -4.0f;
+    b.pan = -0.8f;
+    return s;
+}
+
+float maxDifference (const std::vector<float>& a, const std::vector<float>& b, size_t from = 0,
+                     size_t to = SIZE_MAX)
+{
+    float d = 0.0f;
+    for (size_t i = from; i < std::min ({ a.size(), b.size(), to }); ++i)
+        d = std::max (d, std::abs (a[i] - b[i]));
+    return d;
+}
+} // namespace
+
+TEST_CASE ("The first settings after prepare or reset take effect at once", "[cab]")
+{
+    const double fs = 48000.0;
+    const int block = 64;
+    const auto target = unusualSettings();
+    std::vector<float> x (8192);
+    fillNoise (x, 0.5f, 31);
+    const auto engineOrder = [&] (CabSim& c, const CabSim::Settings& s) {
+        return run (c, x, block, [&] (int) { c.setSettings (s); });
+    };
+
+    // Reference: the state reset() builds from settings already in place.
+    CabSim ref;
+    ref.prepare ({ fs, block, 2 });
+    ref.setSettings (target);
+    ref.reset();
+    const auto [refL, refR] = engineOrder (ref, target);
+
+    SECTION ("after prepare")
+    {
+        CabSim cab;
+        cab.prepare ({ fs, block, 2 });
+        const auto [l, r] = engineOrder (cab, target);
+        CHECK (maxDifference (l, refL) == 0.0f);
+        CHECK (maxDifference (r, refR) == 0.0f);
+    }
+
+    SECTION ("after reset, following other settings and audio")
+    {
+        CabSim cab;
+        cab.prepare ({ fs, block, 2 });
+        engineOrder (cab, CabSim::Settings {});
+        cab.reset();
+        const auto [l, r] = engineOrder (cab, target);
+        CHECK (maxDifference (l, refL) == 0.0f);
+        CHECK (maxDifference (r, refR) == 0.0f);
+    }
+}
+
+TEST_CASE ("Only the first settings snap; later changes glide", "[cab]")
+{
+    const double fs = 48000.0;
+    const int block = 64;
+    std::vector<float> x (static_cast<size_t> (0.2 * fs));
+    fillSine (x, 1000.0, fs, 0.5f);
+    const auto steady = soloMicA (1, kCondPrecision);
+    auto quieter = steady;
+    quieter.mics[0].levelDb = -20.0f;
+    const int changeAt = 40 * block;
+
+    CabSim a, b;
+    a.prepare ({ fs, block, 2 });
+    b.prepare ({ fs, block, 2 });
+    const auto [ya, unusedA] = run (a, x, block, [&] (int) { a.setSettings (steady); });
+    const auto [yb, unusedB] =
+        run (b, x, block, [&] (int pos) { b.setSettings (pos < changeAt ? steady : quieter); });
+    (void)unusedA;
+    (void)unusedB;
+
+    // The same voice, so yb / ya is the gain trajectory (taken where the tone is not near zero).
+    const float big = 0.2f * peak (ya);
+    const auto ratioNear = [&] (int from, int count) {
+        double sum = 0.0;
+        int used = 0;
+        for (int i = from; i < from + count; ++i)
+            if (std::abs (ya[static_cast<size_t> (i)]) > big)
+            {
+                sum += yb[static_cast<size_t> (i)] / ya[static_cast<size_t> (i)];
+                ++used;
+            }
+        return used > 0 ? sum / used : 0.0;
+    };
+    CHECK (ratioNear (changeAt - block, block) == Approx (1.0).margin (1e-6));
+    CHECK (ratioNear (changeAt, 24) > 0.95); // starts gliding, no jump
+    CHECK (ratioNear (changeAt + static_cast<int> (0.03 * fs), 96) == Approx (0.1).margin (1e-4));
+}
+
+TEST_CASE ("Settings after audio on the defaults crossfade instead of cutting", "[cab]")
+{
+    const double fs = 48000.0;
+    const int block = 64;
+    std::vector<float> x (8192);
+    fillNoise (x, 0.5f, 32);
+    auto otherCab = CabSim::Settings {};
+    otherCab.cab = 2;
+    otherCab.mics[0].type = kRibbonDark;
+
+    CabSim moved, stayed;
+    moved.prepare ({ fs, block, 2 });
+    stayed.prepare ({ fs, block, 2 });
+    // One block runs on the default settings before any setSettings() call.
+    const auto [ym, unusedM] = run (moved, x, block, [&] (int pos) {
+        if (pos > 0)
+            moved.setSettings (otherCab);
+    });
+    const auto [ys, unusedS] = run (stayed, x, block, [] (int) {});
+    (void)unusedM;
+    (void)unusedS;
+
+    // During the 5 ms pre-roll the outgoing (default) voice is still playing alone...
+    const auto preroll = static_cast<size_t> (block + static_cast<int> (0.005 * fs) - 1);
+    CHECK (maxDifference (ym, ys, 0, preroll) == 0.0f);
+    // ...and after the crossfade the new cab is playing.
+    CHECK (maxDifference (ym, ys, static_cast<size_t> (0.05 * fs)) > 1.0e-3f);
+}
+
+TEST_CASE ("A mic woken from idle starts at its current level and pan", "[cab]")
+{
+    const double fs = 48000.0;
+    const int block = 64;
+    std::vector<float> x (static_cast<size_t> (0.3 * fs));
+    fillNoise (x, 0.5f, 33);
+
+    auto before = soloMicA (1, kDynClassic);
+    before.mics[0].enabled = false;
+    auto final = before;
+    final.mics[0].levelDb = -20.0f;
+    final.mics[0].pan = -1.0f;
+    final.mics[0].roomLevelDb = -30.0f;
+    auto awake = final;
+    awake.mics[0].enabled = true;
+    awake.mics[0].roomEnabled = true;
+
+    const int changeAt = static_cast<int> (0.1 * fs) / block * block; // well after going idle
+    const int wakeAt = static_cast<int> (0.2 * fs) / block * block;
+
+    // `stale` changes level, pan and room level while the mic is idle; `fresh` had them all along.
+    CabSim stale, fresh;
+    stale.prepare ({ fs, block, 2 });
+    fresh.prepare ({ fs, block, 2 });
+    const auto [sl, sr] = run (stale, x, block, [&] (int pos) {
+        stale.setSettings (pos < changeAt ? before : pos < wakeAt ? final : awake);
+    });
+    const auto [fl, fr] =
+        run (fresh, x, block, [&] (int pos) { fresh.setSettings (pos < wakeAt ? final : awake); });
+
+    CHECK (peak (sl) > 0.0f);
+    CHECK (maxDifference (sl, fl) == 0.0f);
+    CHECK (maxDifference (sr, fr) == 0.0f);
+    // Hard left from the first woken sample: the right channel only carries the room.
+    std::vector<float> closeR (sr.begin() + wakeAt,
+                               sr.begin() + wakeAt + static_cast<int> (0.004 * fs));
+    CHECK (peak (closeR) < 1.0e-4f * peak (sl));
+}

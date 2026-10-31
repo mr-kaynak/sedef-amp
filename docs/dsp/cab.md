@@ -99,8 +99,12 @@ mic's pan at half width. Room level 0 dB carries about as much energy as the clo
   are **interpolated per sample** across the block. A plain 32-sample coefficient staircase
   measured −65 dB of zipper noise above 2.5 kHz on a 110 Hz tone; interpolation brings it below
   −100 dB.
+- **First settings snap.** The first `setSettings()` after `prepare()`/`reset()` starts voices
+  and smoothers in their final state, like every module; later calls glide. If audio was
+  processed before that first call (on the defaults), it glides too rather than cutting.
 - **Idle mics** (close switch and room switch both off and settled) cost nothing; they restart
-  clean, without a crossfade, when switched back on. The room processor keeps ringing after its
+  clean, without a crossfade, when switched back on, with their smoothers snapped to the current
+  targets (they are not advanced while idle). The room processor keeps ringing after its
   sends close (spill-over) and stops itself `2 · RT60` later.
 
 ## 5. Level calibration
@@ -243,6 +247,8 @@ third-party impulse responses, measurements or product data are used (ADR-0006).
 | time of flight | cross-correlation of distance 1 vs 0: 0.8–1.1 ms later |
 | mono fold | A at distance 0 plus B at 0.6 shows a notch ≥ 10 dB below the coherent sum in 300 Hz–3 kHz; B inverted with identical settings cancels to < −120 dB |
 | pan | hard left is silent on the right; centre is −3 dB per side |
+| first settings | engine order (setSettings + process per block) after prepare, and after reset following other audio, is bit-identical to settings applied before reset; a later level change glides (no jump, −20 dB reached after the ramp); settings arriving after audio on the defaults keep the old voice through the pre-roll |
+| idle wake | level, pan and room level changed while a mic is idle: output after waking is bit-identical to having had them all along; hard left is silent on the right from the first sample |
 | room | RT (T20) between 0.25 and 0.6 s; nothing in the first 2 ms; tail rings after switch-off, decays, then the output is exactly zero |
 | click-free automation | 6 s of a 110 Hz tone while every control moves (position, distance, level, pan, room level sweeps; cab, both mic types incl. custom IR, polarity, enables, rooms switching). Energy above 2.5 kHz (8th-order high-pass) stays < −80 dB re output RMS (measured ≈ −100 dB) |
 | convolution vs direct | random 3000-tap IR, 44.1/48/96 kHz, blocks {1}, {333}, mixed: max error < 1e-5 re peak; also end-to-end through `CabSim` with random block sizes incl. 1 and 333 |

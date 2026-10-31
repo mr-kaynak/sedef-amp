@@ -1,0 +1,14 @@
+/build/
+/out/
+.cache/
+.DS_Store
+*.swp
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+compile_commands.json
+node_modules/
+ui/dist/
+ui/coverage/
+*.log

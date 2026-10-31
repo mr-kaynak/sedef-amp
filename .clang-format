@@ -1,0 +1,19 @@
+---
+Language: Cpp
+BasedOnStyle: LLVM
+Standard: c++20
+ColumnLimit: 100
+IndentWidth: 4
+AccessModifierOffset: -4
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLambdasOnASingleLine: Inline
+AlwaysBreakTemplateDeclarations: Yes
+BreakBeforeBraces: Allman
+PointerAlignment: Left
+SpaceBeforeParens: ControlStatements
+IncludeBlocks: Regroup
+SortIncludes: CaseSensitive
+NamespaceIndentation: None
+FixNamespaceComments: true
+...

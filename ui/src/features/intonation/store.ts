@@ -2,6 +2,7 @@
 // Workbench state. The instrument profile and results persist in the plugin state (through
 // sedef_ui_setState); live progress does not.
 import { create } from 'zustand';
+import { useShallow } from 'zustand/react/shallow';
 import {
   CUSTOM_INSTRUMENT_ID,
   CUSTOM_SCALE_ID,
@@ -18,7 +19,10 @@ export interface StringResult {
   openHz: number;
   frettedHz: number;
   cents: number;
-  /** Standard error of the fretted reading, in cents. */
+  /**
+   * How steady the fretted reading was during the capture, in cents: the scatter of the
+   * tracker's detections or the movement of the reading, whichever is larger.
+   */
   stdCents: number;
   measuredAt: number;
 }
@@ -37,6 +41,11 @@ interface IntonationState extends IntonationProfile {
   /** Measured open-string frequency for the current string (set when tuning completes). */
   openHz: number | null;
   results: (StringResult | null)[];
+  /**
+   * Measuring strings picked from the summary rather than all of them in order: Next goes to the
+   * next string without a result, and the summary is one click away.
+   */
+  fromSummary: boolean;
   tuneProgress: number;
   captureProgress: number;
 }
@@ -55,6 +64,7 @@ export const useIntonationStore = create<IntonationState>()(() => ({
   step: 'tune',
   openHz: null,
   results: [],
+  fromSummary: false,
   tuneProgress: 0,
   captureProgress: 0,
 }));
@@ -69,6 +79,33 @@ export function scaleLengthMm(s: IntonationProfile): number {
     return Math.min(MAX_CUSTOM_SCALE_MM, Math.max(MIN_CUSTOM_SCALE_MM, s.customScaleMm));
   }
   return SCALE_LENGTHS.find((l) => l.id === s.scaleId)?.mm ?? 648;
+}
+
+// Narrow subscriptions: live progress changes up to 60 times a second while measuring, and
+// components that do not show it must not re-render with it.
+export const useStringNotes = () => useIntonationStore(stringNotes);
+export const useScaleLength = () => useIntonationStore(scaleLengthMm);
+export const useProfile = () =>
+  useIntonationStore(
+    useShallow((s): IntonationProfile => ({
+      instrumentId: s.instrumentId,
+      customNotes: s.customNotes,
+      scaleId: s.scaleId,
+      customScaleMm: s.customScaleMm,
+    })),
+  );
+
+/** Where Next leads from the current string: a string index, or null for the summary. */
+export function nextString(
+  s: IntonationProfile & Pick<IntonationState, 'current' | 'results' | 'fromSummary'>,
+): number | null {
+  const count = stringNotes(s).length;
+  if (!s.fromSummary) return s.current + 1 < count ? s.current + 1 : null;
+  for (let k = 1; k < count; k += 1) {
+    const i = (s.current + k) % count;
+    if (!s.results[i]) return i;
+  }
+  return null;
 }
 
 const fresh = {
@@ -114,11 +151,12 @@ export const intonationActions = {
     useIntonationStore.setState((s) => ({
       ...fresh,
       phase: 'measure',
+      fromSummary: false,
       results: stringNotes(s).map((_, i) => s.results[i] ?? null),
     }));
   },
   goToString(index: number) {
-    useIntonationStore.setState({ ...fresh, phase: 'measure', current: index });
+    useIntonationStore.setState({ ...fresh, phase: 'measure', current: index, fromSummary: true });
   },
   tuned(openHz: number) {
     useIntonationStore.setState({ step: 'fret', openHz, tuneProgress: 1, captureProgress: 0 });
@@ -140,16 +178,15 @@ export const intonationActions = {
   },
   next() {
     useIntonationStore.setState((s) => {
-      const count = stringNotes(s).length;
-      if (s.current + 1 >= count) return { phase: 'summary' };
-      return { ...fresh, current: s.current + 1 };
+      const next = nextString(s);
+      return next === null ? { phase: 'summary' } : { ...fresh, current: next };
     });
   },
   showSummary() {
     useIntonationStore.setState({ phase: 'summary' });
   },
   backToSetup() {
-    useIntonationStore.setState({ ...fresh, phase: 'setup' });
+    useIntonationStore.setState({ ...fresh, phase: 'setup', fromSummary: false });
   },
   setProgress(tuneProgress: number, captureProgress: number) {
     useIntonationStore.setState((s) =>

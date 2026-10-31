@@ -39,7 +39,7 @@
 }
 
 .scaleText {
-  fill: var(--bone-4);
+  fill: var(--bone-3);
   font-size: 10px;
   text-anchor: middle;
 }

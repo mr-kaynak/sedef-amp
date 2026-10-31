@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { useEffect } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import buttons from '../../controls/Button.module.css';
 import { Icon } from '../../controls/Icon';
 import { midiLabel } from '../../lib/music';
@@ -10,7 +11,7 @@ import { stringNumber } from './instruments';
 import { adjustmentFor, formatCents } from './math';
 import { MeasureStep } from './MeasureStep';
 import { SetupStep } from './SetupStep';
-import { scaleLengthMm, stringNotes, useIntonationStore, type Phase } from './store';
+import { useIntonationStore, useScaleLength, useStringNotes, type Phase } from './store';
 import { SummaryStep } from './SummaryStep';
 import styles from './Workbench.module.css';
 
@@ -39,9 +40,11 @@ function PhaseTrail({ phase }: { phase: Phase }) {
 }
 
 function StringRail() {
-  const s = useIntonationStore();
-  const notes = stringNotes(s);
-  const L = scaleLengthMm(s);
+  const s = useIntonationStore(
+    useShallow((st) => ({ phase: st.phase, current: st.current, results: st.results })),
+  );
+  const notes = useStringNotes();
+  const L = useScaleLength();
   return (
     <ul className={styles.rail} aria-label="Strings">
       {notes.map((midi, i) => {

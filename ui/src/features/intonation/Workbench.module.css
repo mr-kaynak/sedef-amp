@@ -47,14 +47,14 @@
   gap: 7px;
   padding: 0 12px 0 4px;
   height: 26px;
-  color: var(--bone-4);
+  color: var(--bone-3);
   font-size: var(--t-12);
   font-weight: 520;
 }
 
 .phases li[data-state='done'],
 .trail li[data-state='done'] {
-  color: var(--bone-3);
+  color: var(--bone-2);
 }
 
 .phases li[data-state='now'],
@@ -134,7 +134,7 @@ li[data-state='done'] > .trailDot {
 }
 
 .railNum {
-  color: var(--bone-4);
+  color: var(--bone-3);
   font-size: var(--t-11);
 }
 
@@ -358,7 +358,7 @@ li[data-state='done'] > .trailDot {
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  color: var(--bone-4);
+  color: var(--bone-3);
   font-size: var(--t-10);
 }
 
@@ -636,5 +636,5 @@ li[data-state='done'] > .trailDot {
 }
 
 .table tr[data-verdict='none'] td {
-  color: var(--bone-4);
+  color: var(--bone-3);
 }

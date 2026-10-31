@@ -35,7 +35,7 @@
 }
 
 .search input::placeholder {
-  color: var(--bone-4);
+  color: var(--bone-3);
 }
 
 .search input::-webkit-search-cancel-button {
@@ -145,7 +145,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--bone-4);
+  color: var(--bone-3);
   font-size: var(--t-11);
 }
 
@@ -157,7 +157,7 @@
   border: none;
   border-radius: var(--r-ctl);
   background: transparent;
-  color: var(--bone-4);
+  color: var(--bone-3);
 }
 
 .star:hover {
@@ -237,4 +237,10 @@
 .danger {
   color: var(--coral);
   border-color: rgb(240 123 128 / 0.4);
+}
+
+.error {
+  margin: 0;
+  color: var(--coral);
+  font-size: var(--t-11);
 }

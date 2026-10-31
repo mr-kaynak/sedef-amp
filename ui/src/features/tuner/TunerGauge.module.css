@@ -41,7 +41,7 @@
 }
 
 .scaleLabel {
-  fill: var(--bone-4);
+  fill: var(--bone-3);
   font-size: 11px;
   font-family: var(--font-ui);
 }

@@ -4,7 +4,7 @@
 import { create } from 'zustand';
 import type { ParamSpec, ParamValues } from '../bridge/protocol';
 import { bundledSchema, defaultValues, indexSchema } from './schema';
-import { isLocallyOwned } from './sender';
+import { deferHostValue, isLocallyOwned, onHostValuesReleased } from './sender';
 
 interface ParamState {
   specs: Record<string, ParamSpec>;
@@ -31,21 +31,26 @@ export function setLocalValue(id: string, value: number): void {
 
 /**
  * Applies values from the host. Values for a control the user is dragging (or just released)
- * are skipped: the host echoes our own changes back a little later, and applying a stale echo
- * would make the control jump backwards under the pointer.
+ * are held back, so a stale value never makes the control jump under the pointer, and applied
+ * once the user lets go unless the user has changed the parameter since (see deferHostValue).
  */
 export function applyRemoteValues(incoming: ParamValues): void {
-  useParamStore.setState((s) => {
-    let changed = false;
-    const values = { ...s.values };
-    for (const [id, value] of Object.entries(incoming)) {
-      if (!(id in s.specs) || values[id] === value || isLocallyOwned(id)) continue;
-      values[id] = value;
-      changed = true;
+  const s = useParamStore.getState();
+  let values: ParamValues | null = null;
+  for (const [id, value] of Object.entries(incoming)) {
+    if (!(id in s.specs)) continue;
+    if (isLocallyOwned(id)) {
+      deferHostValue(id, value);
+      continue;
     }
-    return changed ? { values } : s;
-  });
+    if (s.values[id] === value) continue;
+    values ??= { ...s.values };
+    values[id] = value;
+  }
+  if (values) useParamStore.setState({ values });
 }
+
+onHostValuesReleased(applyRemoteValues);
 
 export function getValue(id: string): number {
   const s = useParamStore.getState();

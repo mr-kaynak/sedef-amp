@@ -11,20 +11,21 @@ import { Pedal, type PedalFinish } from './Pedal';
 import styles from './PedalsSection.module.css';
 
 const FINISH: Record<'tide' | 'pearl' | 'coral' | 'ripple', PedalFinish> = {
-  tide: { paint: ['#46677a', '#2c4757'], legend: '#eef0ea', legendDim: 'rgb(238 240 234 / 0.62)' },
+  tide: { paint: ['#46677a', '#2c4757'], legend: '#eef0ea', legendDim: 'rgb(238 240 234 / 0.86)' },
   pearl: {
     paint: ['#efeadf', '#d8d1c2'],
     legend: '#13293a',
-    legendDim: 'rgb(19 41 58 / 0.6)',
+    legendDim: 'rgb(19 41 58 / 0.75)',
     // Pearl gets the only nacre-sheened enclosure: the pedal is named for it.
     sheen:
       'conic-gradient(from 210deg at 70% 30%, rgb(205 238 238 / 0.5), rgb(221 214 246 / 0.4), rgb(246 219 226 / 0.5), rgb(242 232 203 / 0.45), rgb(205 238 238 / 0.5))',
   },
-  coral: { paint: ['#cf5d66', '#a3414b'], legend: '#fbefe6', legendDim: 'rgb(251 239 230 / 0.68)' },
+  // Deep enough for 4.5:1 small text: a mid coral fails with light and dark legends alike.
+  coral: { paint: ['#b04e56', '#8b363f'], legend: '#fbefe6', legendDim: 'rgb(251 239 230 / 0.95)' },
   ripple: {
     paint: ['#4a4a82', '#2f2f5c'],
     legend: '#ece9f8',
-    legendDim: 'rgb(236 233 248 / 0.62)',
+    legendDim: 'rgb(236 233 248 / 0.75)',
   },
 };
 

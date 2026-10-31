@@ -61,7 +61,7 @@
 }
 
 .axis text {
-  fill: var(--bone-4);
+  fill: var(--bone-3);
   font-size: 10px;
   font-family: var(--font-ui);
 }

@@ -18,6 +18,7 @@ export function VSlider({ param, label, height = 180, disabled }: VSliderProps) 
   const p = useParam(param);
   const { active, handlers, wheelRef } = useValueControl(p, {
     pixelsForRange: height,
+    layoutPixels: true,
     fineFactor: 8,
     disabled,
   });

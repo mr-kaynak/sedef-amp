@@ -1,17 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Needle and strobe display. Everything that moves is drawn from the pitch channel in
 // requestAnimationFrame through refs; React re-renders only when the note or the in-tune state
-// changes.
+// changes. Screen readers get a settled reading ("E 2, in tune") rather than every pluck.
 import { useRef } from 'react';
 import { noteOf, splitAccidental } from '../../lib/music';
 import { pitch, useLiveFrame, useLiveSelector } from '../../state/live';
-import { centsFor, type GaugeTarget } from './cents';
+import { centsFor, IN_TUNE_CENTS, spokenReading, type GaugeTarget } from './cents';
 import { formatCents } from '../intonation/math';
 import styles from './TunerGauge.module.css';
 
 const SWEEP_DEG = 52;
-/** Matches the workbench's tuning window: a precision tuner, not a forgiving one. */
-const IN_TUNE_CENTS = 1;
+/** A reading is announced once it has held this long, and at most this often. */
+const ANNOUNCE_SETTLE_SECONDS = 0.6;
+const ANNOUNCE_GAP_SECONDS = 2;
 const W = 560;
 const H = 250;
 const CX = W / 2;
@@ -28,9 +29,10 @@ function tickPath(cents: number, inner: number, outer: number): string {
 }
 
 const TICKS = Array.from({ length: 21 }, (_, i) => (i - 10) * 5);
+const CHROMATIC: GaugeTarget = { kind: 'chromatic' };
 
 export function TunerGauge({
-  target = { kind: 'chromatic' },
+  target = CHROMATIC,
   compact = false,
 }: {
   target?: GaugeTarget;
@@ -40,7 +42,9 @@ export function TunerGauge({
   const centsRef = useRef<HTMLSpanElement>(null);
   const hzRef = useRef<HTMLSpanElement>(null);
   const strobeRef = useRef<HTMLDivElement>(null);
+  const announceRef = useRef<HTMLSpanElement>(null);
   const motion = useRef({ angle: 0, strobe: 0, textClock: 0, visible: 0 });
+  const speech = useRef({ heard: '', heardFor: 0, announced: '', sinceAnnounced: Infinity });
 
   const note = useLiveSelector(pitch, (e) => {
     if (target.kind === 'target') return target.midi;
@@ -75,6 +79,26 @@ export function TunerGauge({
         centsRef.current.textContent = cents === null ? '—' : formatCents(cents);
       if (hzRef.current)
         hzRef.current.textContent = e?.valid ? `${e.frequencyHz.toFixed(2)} Hz` : '';
+    }
+
+    const s = speech.current;
+    const heard =
+      cents === null || !e
+        ? ''
+        : spokenReading(target.kind === 'target' ? target.midi : e.midiNote, cents);
+    s.heardFor = heard === s.heard ? s.heardFor + dt : 0;
+    s.heard = heard;
+    s.sinceAnnounced += dt;
+    if (
+      heard &&
+      heard !== s.announced &&
+      s.heardFor >= ANNOUNCE_SETTLE_SECONDS &&
+      s.sinceAnnounced >= ANNOUNCE_GAP_SECONDS &&
+      announceRef.current
+    ) {
+      announceRef.current.textContent = heard;
+      s.announced = heard;
+      s.sinceAnnounced = 0;
     }
   });
 
@@ -123,7 +147,7 @@ export function TunerGauge({
         </g>
       </svg>
       <div className={styles.readout}>
-        <div className={styles.note} aria-live="polite">
+        <div className={styles.note}>
           {label ? (
             <>
               <span className={styles.letter}>{letter}</span>
@@ -142,6 +166,7 @@ export function TunerGauge({
         </div>
       </div>
       <div ref={strobeRef} className={styles.strobe} aria-hidden="true" />
+      <span ref={announceRef} className="visually-hidden" aria-live="polite" />
     </div>
   );
 }

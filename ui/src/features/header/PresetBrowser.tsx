@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Icon } from '../../controls/Icon';
 import buttons from '../../controls/Button.module.css';
+import { renameClashes } from '../../lib/presetFiles';
 import { useAppStore } from '../../state/appStore';
 import {
   currentPreset,
@@ -31,6 +32,26 @@ export function PresetBrowser({ onDone }: { onDone: () => void }) {
   const [mode, setMode] = useState<Mode>('list');
   const [name, setName] = useState('');
   const [folder, setFolder] = useState('');
+  const root = useRef<HTMLDivElement>(null);
+  /** The list button that opened the current form; focus returns to it. */
+  const opener = useRef<string | null>(null);
+
+  // Switching between the list and a form unmounts the focused button. Move focus into the new
+  // content so it never falls to the page, where digit keys switch sections.
+  useEffect(() => {
+    const el = root.current;
+    if (!el) return;
+    const back =
+      mode === 'list' && opener.current
+        ? el.querySelector<HTMLElement>(`[data-opens="${opener.current}"]:not(:disabled)`)
+        : null;
+    (back ?? el.querySelector<HTMLElement>('[data-autofocus]'))?.focus({ preventScroll: true });
+  }, [mode]);
+
+  const open = (next: Mode, from: string) => {
+    opener.current = from;
+    setMode(next);
+  };
 
   const groups = useMemo(
     () => groupPresets(state.items, { query, category: tab }),
@@ -43,15 +64,15 @@ export function PresetBrowser({ onDone }: { onDone: () => void }) {
     onDone();
   };
 
-  const beginSaveAs = () => {
+  const beginSaveAs = (from: string) => {
     setName(isUser ? `${state.currentName} copy` : state.currentName);
     setFolder(isUser ? (current?.folder ?? '') : '');
-    setMode('saveAs');
+    open('saveAs', from);
   };
 
   const save = () => {
     if (isUser && current) void presetActions.save(current.name, current.folder);
-    else beginSaveAs();
+    else beginSaveAs('save');
   };
 
   const submitSaveAs = (e: FormEvent) => {
@@ -62,14 +83,17 @@ export function PresetBrowser({ onDone }: { onDone: () => void }) {
     setMode('list');
   };
 
+  const clash = mode === 'rename' && !!current && renameClashes(state.items, current.id, name);
+
   const submitRename = (e: FormEvent) => {
     e.preventDefault();
+    if (clash) return;
     if (current && name.trim()) void presetActions.rename(current.id, name.trim());
     setMode('list');
   };
 
   return (
-    <div className={styles.browser}>
+    <div ref={root} className={styles.browser}>
       {mode === 'list' && (
         <>
           <div className={styles.search}>
@@ -146,34 +170,42 @@ export function PresetBrowser({ onDone }: { onDone: () => void }) {
             ))}
           </div>
           <div className={styles.actions}>
-            <button type="button" className={`${buttons.solid} ${buttons.small}`} onClick={save}>
+            <button
+              type="button"
+              data-opens="save"
+              className={`${buttons.solid} ${buttons.small}`}
+              onClick={save}
+            >
               Save
             </button>
             <button
               type="button"
+              data-opens="saveAs"
               className={`${buttons.ghost} ${buttons.small}`}
-              onClick={beginSaveAs}
+              onClick={() => beginSaveAs('saveAs')}
             >
               Save as…
             </button>
             <button
               type="button"
+              data-opens="rename"
               className={`${buttons.ghost} ${buttons.small}`}
               disabled={!isUser}
               title={isUser ? undefined : 'Factory presets cannot be renamed'}
               onClick={() => {
                 setName(state.currentName);
-                setMode('rename');
+                open('rename', 'rename');
               }}
             >
               Rename
             </button>
             <button
               type="button"
+              data-opens="delete"
               className={`${buttons.ghost} ${buttons.small}`}
               disabled={!isUser}
               title={isUser ? undefined : 'Factory presets cannot be deleted'}
-              onClick={() => setMode('delete')}
+              onClick={() => open('delete', 'delete')}
             >
               Delete
             </button>
@@ -252,8 +284,15 @@ export function PresetBrowser({ onDone }: { onDone: () => void }) {
               onChange={(e) => setName(e.target.value)}
               maxLength={64}
               required
+              aria-invalid={clash || undefined}
+              aria-describedby={clash ? 'preset-rename-error' : undefined}
             />
           </label>
+          {clash && (
+            <p id="preset-rename-error" className={styles.error} role="alert">
+              Another preset in this folder is already called “{name.trim()}”. Choose another name.
+            </p>
+          )}
           <div className={styles.formActions}>
             <button
               type="button"

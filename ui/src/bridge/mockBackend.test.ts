@@ -91,14 +91,21 @@ describe('MockBackend', () => {
     expect(state.currentId).toBe(saved?.id);
     expect(state.dirty).toBe(false);
 
+    // Renaming renames the file, so the id follows, and never lands on another preset's file.
     state = await mock.call('sedef_presets_rename', saved!.id, 'Big lead');
     expect(state.currentName).toBe('Big lead');
+    const renamed = 'user:Gigs/Big lead.sedefpreset';
+    expect(state.currentId).toBe(renamed);
+    state = await mock.call('sedef_presets_save', 'Rhythm', 'Gigs');
+    const rhythm = state.items.find((p) => p.name === 'Rhythm')!;
+    state = await mock.call('sedef_presets_rename', rhythm.id, 'big LEAD');
+    expect(state.items.find((p) => p.id === rhythm.id)?.name).toBe('Rhythm');
 
-    state = await mock.call('sedef_presets_setFavorite', saved!.id, true);
-    expect(state.items.find((p) => p.id === saved!.id)?.favorite).toBe(true);
+    state = await mock.call('sedef_presets_setFavorite', renamed, true);
+    expect(state.items.find((p) => p.id === renamed)?.favorite).toBe(true);
 
-    state = await mock.call('sedef_presets_delete', saved!.id);
-    expect(state.items.find((p) => p.id === saved!.id)).toBeUndefined();
+    state = await mock.call('sedef_presets_delete', renamed);
+    expect(state.items.find((p) => p.id === renamed)).toBeUndefined();
 
     // Factory presets cannot be deleted.
     state = await mock.call('sedef_presets_delete', 'factory:glass-pocket');

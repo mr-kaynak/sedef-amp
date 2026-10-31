@@ -34,7 +34,7 @@ export const AMPS: AmpDefinition[] = [
     finish: {
       plate: ['#d6e5df', '#b7cdc6'],
       legend: '#12283a',
-      legendDim: 'rgb(18 40 58 / 0.55)',
+      legendDim: 'rgb(18 40 58 / 0.75)',
       grille: '#c5d3cb',
       grilleThread: 'rgb(36 72 84 / 0.22)',
       badge: '#12283a',
@@ -55,7 +55,7 @@ export const AMPS: AmpDefinition[] = [
     finish: {
       plate: ['#643539', '#47252a'],
       legend: '#f3e6d2',
-      legendDim: 'rgb(243 230 210 / 0.6)',
+      legendDim: 'rgb(243 230 210 / 0.75)',
       grille: '#2a1a1c',
       grilleThread: 'rgb(226 180 150 / 0.2)',
       badge: '#f3e6d2',
@@ -79,7 +79,7 @@ export const AMPS: AmpDefinition[] = [
     finish: {
       plate: ['#0d1923', '#060d13'],
       legend: '#e8e2d3',
-      legendDim: 'rgb(232 226 211 / 0.5)',
+      legendDim: 'rgb(232 226 211 / 0.75)',
       grille: '#05090d',
       grilleThread: 'rgb(205 238 238 / 0.09)',
       badge: 'nacre',

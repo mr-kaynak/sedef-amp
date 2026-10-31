@@ -30,9 +30,9 @@ export function Popover({
     if (!open) return;
     const panel = ref.current;
     const anchor = anchorRef.current;
-    const first = panel?.querySelector<HTMLElement>(
-      '[data-autofocus], input, button, [tabindex="0"]',
-    );
+    const first =
+      panel?.querySelector<HTMLElement>('[data-autofocus]') ??
+      panel?.querySelector<HTMLElement>('input, button, [tabindex="0"]');
     first?.focus({ preventScroll: true });
 
     const onPointerDown = (e: PointerEvent) => {

@@ -54,7 +54,7 @@ export async function setupMock(options: MockOptions = {}): Promise<Harness> {
   };
 }
 
-/** Lets queued microtasks (coalesced sends, mock events) run. */
+/** Lets queued microtasks (coalesced sends, mock events, call completions) run. */
 export async function flush(): Promise<void> {
-  for (let i = 0; i < 3; i += 1) await Promise.resolve();
+  for (let i = 0; i < 6; i += 1) await Promise.resolve();
 }

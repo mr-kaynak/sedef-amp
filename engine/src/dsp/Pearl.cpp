@@ -113,7 +113,7 @@ void Pearl::reset() noexcept
         c.reset();
     for (auto& d : cleanDelay_)
         d.reset();
-    for (auto* f : {&inputHp_, &midBoost_, &driveHp_, &driveLp_, &dcBlock_, &toneLp_, &fizzLp_})
+    for (auto* f : { &inputHp_, &midBoost_, &driveHp_, &driveLp_, &dcBlock_, &toneLp_, &fizzLp_ })
         f->reset();
     primed_ = false;
 }

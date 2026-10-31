@@ -193,8 +193,7 @@ void PitchTracker::startSegment (std::int64_t start, bool countOnset)
 void PitchTracker::runHop()
 {
     // Keep the filters' decay into silence out of the denormal range.
-    const auto flush = [] (Section& s)
-    {
+    const auto flush = [] (Section& s) {
         s.s1 = std::abs (s.s1) < 1.0e-30 ? 0.0 : s.s1;
         s.s2 = std::abs (s.s2) < 1.0e-30 ? 0.0 : s.s2;
     };

@@ -16,7 +16,7 @@ TEST_CASE ("Calibrate drive output levels", "[.calibrate]")
     const int frames = 48000;
     for (int which = 0; which < 2; ++which)
     {
-        for (float gain : {0.0f, 0.125f, 0.25f, 0.375f, 0.5f, 0.625f, 0.75f, 0.875f, 1.0f})
+        for (float gain : { 0.0f, 0.125f, 0.25f, 0.375f, 0.5f, 0.625f, 0.75f, 0.875f, 1.0f })
         {
             test::Buffer b (1, frames);
             test::fillGuitarTone (b[0], fs);
@@ -24,15 +24,15 @@ TEST_CASE ("Calibrate drive output levels", "[.calibrate]")
             if (which == 0)
             {
                 dsp::Pearl p;
-                p.prepare ({fs, 512, 1});
-                p.setSettings ({gain, 0.5f, 0.5f, 0.0f});
+                p.prepare ({ fs, 512, 1 });
+                p.setSettings ({ gain, 0.5f, 0.5f, 0.0f });
                 test::processInBlocks (b, 512, [&] (AudioView v) { p.process (v); });
             }
             else
             {
                 dsp::Coral c;
-                c.prepare ({fs, 512, 1});
-                c.setSettings ({gain, 0.5f, 0.5f});
+                c.prepare ({ fs, 512, 1 });
+                c.setSettings ({ gain, 0.5f, 0.5f });
                 test::processInBlocks (b, 512, [&] (AudioView v) { c.process (v); });
             }
             const float out = test::rms (b[0], frames / 2);

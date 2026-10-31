@@ -57,7 +57,7 @@ private:
     float attack_ = 0.0f, fastRelease_ = 0.0f;
     float slowCharge_ = 0.0f, slowRelease_ = 0.0f;
 
-    std::atomic<float> gainReductionDb_{0.0f};
+    std::atomic<float> gainReductionDb_ { 0.0f };
 };
 
 } // namespace sedef::dsp

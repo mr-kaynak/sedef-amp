@@ -36,7 +36,8 @@ inline void fillSine (std::vector<float>& v, double hz, double fs, float amp = 1
                       double phase = 0.0)
 {
     for (size_t i = 0; i < v.size(); ++i)
-        v[i] = amp * static_cast<float> (std::sin (kTwoPiD * hz * static_cast<double> (i) / fs + phase));
+        v[i] = amp *
+               static_cast<float> (std::sin (kTwoPiD * hz * static_cast<double> (i) / fs + phase));
 }
 
 inline void fillNoise (std::vector<float>& v, float amp = 1.0f, std::uint32_t seed = 1)

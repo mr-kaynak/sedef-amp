@@ -268,8 +268,7 @@ void Metronome::startVoice (StepState state) noexcept
 
     const Recipe& r = kRecipes[static_cast<size_t> (settings_.sound)];
     const double fs = sampleRate_;
-    const auto samples = [fs] (float ms)
-    {
+    const auto samples = [fs] (float ms) {
         return static_cast<int> (std::lround (1.0e-3 * ms * fs));
     };
     const float pitch = state == Accent ? r.accentPitch : 1.0f;

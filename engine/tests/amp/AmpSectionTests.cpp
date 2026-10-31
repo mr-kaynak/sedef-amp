@@ -219,8 +219,9 @@ TEST_CASE ("Switching models does not click", "[amp]")
             const auto steadyFrom = render (input, defaults (from), 64, [] (int, auto&) {});
             const auto steadyTo = render (input, defaults (to), 64, [] (int, auto&) {});
             const auto switched =
-                render (input, defaults (from), 64, [&] (int block, AmpSection::Settings& s)
-                        { s.model = static_cast<size_t> (block * 64) >= switchAt ? to : from; });
+                render (input, defaults (from), 64, [&] (int block, AmpSection::Settings& s) {
+                    s.model = static_cast<size_t> (block * 64) >= switchAt ? to : from;
+                });
             const size_t settled = static_cast<size_t> (0.3 * fs);
             const float steady = std::max (maxJump (steadyFrom, settled, input.size()),
                                            maxJump (steadyTo, settled, input.size()));
@@ -241,8 +242,9 @@ TEST_CASE ("Rapid model changes (reversal, queued third model) stay click-free",
         steady = std::max (steady, maxJump (render (input, defaults (m), 64, [] (int, auto&) {}),
                                             static_cast<size_t> (0.3 * fs), input.size()));
     // Model changes every 10 ms: faster than the 30 ms fade, so fades reverse and queue.
-    const auto out = render (input, defaults (0), 32, [] (int block, AmpSection::Settings& s)
-                             { s.model = block < 400 ? 0 : (block / 15) % 3; });
+    const auto out = render (input, defaults (0), 32, [] (int block, AmpSection::Settings& s) {
+        s.model = block < 400 ? 0 : (block / 15) % 3;
+    });
     CAPTURE (steady, maxJump (out, static_cast<size_t> (0.3 * fs), out.size()));
     CHECK (maxJump (out, static_cast<size_t> (0.3 * fs), out.size()) <= 1.1f * steady);
 }
@@ -303,15 +305,13 @@ TEST_CASE ("Automating every knob per block is click-free", "[amp]")
         // several times on the way).
         const int sweepBlocks = static_cast<int> (fs) / block;
         const int startBlock = static_cast<int> (settled) / block;
-        const auto out = render (input, defaults (k.model), block,
-                                 [&] (int b, AmpSection::Settings& s)
-                                 {
-                                     const float p =
-                                         std::clamp (static_cast<float> (b - startBlock) /
-                                                         static_cast<float> (sweepBlocks),
-                                                     0.0f, 1.0f);
-                                     k.set (s, 1.0f - std::abs (2.0f * p - 1.0f));
-                                 });
+        const auto out =
+            render (input, defaults (k.model), block, [&] (int b, AmpSection::Settings& s) {
+                const float p = std::clamp (static_cast<float> (b - startBlock) /
+                                                static_cast<float> (sweepBlocks),
+                                            0.0f, 1.0f);
+                k.set (s, 1.0f - std::abs (2.0f * p - 1.0f));
+            });
         const float during = maxJump (out, settled, out.size());
         CAPTURE (k.name, steady, during);
         CHECK (test::allFinite (out));

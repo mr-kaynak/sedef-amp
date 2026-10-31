@@ -13,7 +13,9 @@ namespace
 constexpr double kMaxSeconds = 1.0;
 }
 
-IrLibrary::IrLibrary (Engine& engine, std::mutex& engineLock) : engine_ (engine), engineLock_ (engineLock)
+IrLibrary::IrLibrary (Engine& engine, std::mutex& engineLock)
+    : engine_ (engine),
+      engineLock_ (engineLock)
 {
     formats_.registerBasicFormats();
 }
@@ -43,9 +45,8 @@ juce::String IrLibrary::load (int mic, int cab, const juce::File& file)
     if (reader->sampleRate <= 0.0 || reader->lengthInSamples <= 0)
         return "The file contains no audio";
 
-    const auto length = static_cast<int> (
-        std::min<juce::int64> (reader->lengthInSamples,
-                               static_cast<juce::int64> (reader->sampleRate * kMaxSeconds)));
+    const auto length = static_cast<int> (std::min<juce::int64> (
+        reader->lengthInSamples, static_cast<juce::int64> (reader->sampleRate * kMaxSeconds)));
     juce::AudioBuffer<float> buffer (static_cast<int> (reader->numChannels), length);
     reader->read (buffer.getArrayOfWritePointers(), buffer.getNumChannels(), 0, length);
 
@@ -55,9 +56,9 @@ juce::String IrLibrary::load (int mic, int cab, const juce::File& file)
     slot.sampleRate = reader->sampleRate;
     slot.samples.assign (static_cast<size_t> (length), 0.0f);
     for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
-        juce::FloatVectorOperations::addWithMultiply (slot.samples.data(), buffer.getReadPointer (ch),
-                                                     1.0f / static_cast<float> (buffer.getNumChannels()),
-                                                     length);
+        juce::FloatVectorOperations::addWithMultiply (
+            slot.samples.data(), buffer.getReadPointer (ch),
+            1.0f / static_cast<float> (buffer.getNumChannels()), length);
 
     const std::scoped_lock lock (slotsLock_);
     slots_[static_cast<size_t> (mic)][static_cast<size_t> (cab)] = std::move (slot);
@@ -84,9 +85,9 @@ void IrLibrary::install (int mic, int cab)
     {
         auto kernel = slot.samples.empty()
                           ? nullptr
-                          : dsp::CabSim::makeKernel (slot.samples.data(),
-                                                     static_cast<int> (slot.samples.size()),
-                                                     slot.sampleRate, engine_.sampleRate(), engine_.maxBlockSize());
+                          : dsp::CabSim::makeKernel (
+                                slot.samples.data(), static_cast<int> (slot.samples.size()),
+                                slot.sampleRate, engine_.sampleRate(), engine_.maxBlockSize());
         engine_.cab (c).setCustomIr (mic, cab, std::move (kernel));
     }
 }

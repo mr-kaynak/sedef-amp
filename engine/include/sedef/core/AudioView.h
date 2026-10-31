@@ -25,7 +25,8 @@ public:
     AudioView() = default;
 
     AudioView (float* const* channels, int numChannels, int numFrames) noexcept
-        : numChannels_ (numChannels), numFrames_ (numFrames)
+        : numChannels_ (numChannels),
+          numFrames_ (numFrames)
     {
         assert (numChannels >= 0 && numChannels <= kMaxChannels);
         for (int c = 0; c < numChannels; ++c)

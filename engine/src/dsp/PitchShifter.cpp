@@ -150,8 +150,7 @@ struct PitchShifter::Impl
     void prepare (const ProcessSpec& spec)
     {
         fs = spec.sampleRate;
-        auto samples = [&] (double ms)
-        {
+        auto samples = [&] (double ms) {
             return static_cast<int> (std::lround (ms * 0.001 * fs));
         };
         decimation = std::max (1, static_cast<int> (std::lround (fs / kSearchRate)));
@@ -309,8 +308,7 @@ struct PitchShifter::Impl
         const int n = corrLen;
         const float* refFull = mono.at (write - static_cast<std::uint32_t> (refNewest + n - 1));
         const float refFullEnergy = dotEnergy (refFull, refFull, n).energy;
-        auto score = [&] (int j)
-        {
+        auto score = [&] (int j) {
             const float* cand =
                 mono.at (write - static_cast<std::uint32_t> (refNewest - j + n - 1));
             const auto [dot, energy] = dotEnergy (refFull, cand, n);

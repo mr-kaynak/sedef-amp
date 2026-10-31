@@ -103,8 +103,7 @@ TEST_CASE ("Amp voicing report", "[.voicing]")
         {
             auto s = defaults (m);
             ref = test::measureGainDb (
-                [&] (AudioView view)
-                {
+                [&] (AudioView view) {
                     AmpSection a;
                     test::prepareAmp (a, s, fs);
                     a.process (view);
@@ -115,8 +114,7 @@ TEST_CASE ("Amp voicing report", "[.voicing]")
         {
             auto s = defaults (m);
             const double g = test::measureGainDb (
-                [&] (AudioView view)
-                {
+                [&] (AudioView view) {
                     AmpSection a;
                     test::prepareAmp (a, s, fs);
                     a.process (view);
@@ -225,8 +223,7 @@ TEST_CASE ("Amp switch and knob report", "[.voicing]")
 {
     const double fs = 48000.0;
     const auto in = test::guitarStrum (fs, 6.0);
-    const auto bandsFor = [&] (const AmpSection::Settings& s)
-    {
+    const auto bandsFor = [&] (const AmpSection::Settings& s) {
         AmpSection amp;
         test::prepareAmp (amp, s, fs);
         auto v = in;

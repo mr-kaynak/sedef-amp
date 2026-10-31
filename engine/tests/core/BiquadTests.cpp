@@ -17,15 +17,20 @@ double db (double g)
 }
 } // namespace
 
-TEST_CASE ("RBJ low-pass and high-pass are -3 dB at the corner with Butterworth Q", "[core][biquad]")
+TEST_CASE ("RBJ low-pass and high-pass are -3 dB at the corner with Butterworth Q",
+           "[core][biquad]")
 {
     const double fs = GENERATE (44100.0, 48000.0, 96000.0);
     for (double f : { 100.0, 1000.0, 8000.0 })
     {
-        CHECK (db (design::magnitude (design::lowpass (fs, f), f, fs)) == Approx (-3.0103).margin (0.01));
-        CHECK (db (design::magnitude (design::highpass (fs, f), f, fs)) == Approx (-3.0103).margin (0.01));
-        CHECK (design::magnitude (design::lowpass (fs, f), 1.0, fs) == Approx (1.0).margin (5e-3)); // float coefficient quantisation
-        CHECK (design::magnitude (design::highpass (fs, f), fs * 0.499, fs) == Approx (1.0).margin (1e-2));
+        CHECK (db (design::magnitude (design::lowpass (fs, f), f, fs)) ==
+               Approx (-3.0103).margin (0.01));
+        CHECK (db (design::magnitude (design::highpass (fs, f), f, fs)) ==
+               Approx (-3.0103).margin (0.01));
+        CHECK (design::magnitude (design::lowpass (fs, f), 1.0, fs) ==
+               Approx (1.0).margin (5e-3)); // float coefficient quantisation
+        CHECK (design::magnitude (design::highpass (fs, f), fs * 0.499, fs) ==
+               Approx (1.0).margin (1e-2));
     }
 }
 
@@ -70,8 +75,10 @@ TEST_CASE ("All-pass designs have unit magnitude", "[core][biquad]")
     const double fs = 48000.0;
     for (double f : { 50.0, 500.0, 5000.0, 15000.0 })
     {
-        CHECK (design::magnitude (design::allpass (fs, 1000.0, 0.7), f, fs) == Approx (1.0).margin (1e-5));
-        CHECK (design::magnitude (design::allpass1 (fs, 1000.0), f, fs) == Approx (1.0).margin (1e-5));
+        CHECK (design::magnitude (design::allpass (fs, 1000.0, 0.7), f, fs) ==
+               Approx (1.0).margin (1e-5));
+        CHECK (design::magnitude (design::allpass1 (fs, 1000.0), f, fs) ==
+               Approx (1.0).margin (1e-5));
     }
 }
 

@@ -36,24 +36,20 @@ cplx nodalResponse (const ToneStackComponents& c, double t, double m, double l, 
     const cplx s (0.0, kTwoPiD * hz);
 
     // A pot segment of zero ohms becomes a 1 milliohm resistor (keeps the matrix regular).
-    const auto res = [] (double r)
-    {
+    const auto res = [] (double r) {
         return cplx (1.0 / std::max (r, 1.0e-3), 0.0);
     };
-    const auto between = [&] (int i, int j, cplx g)
-    {
+    const auto between = [&] (int i, int j, cplx g) {
         y[i][i] += g;
         y[j][j] += g;
         y[i][j] -= g;
         y[j][i] -= g;
     };
-    const auto toInput = [&] (int i, cplx g)
-    {
+    const auto toInput = [&] (int i, cplx g) {
         y[i][i] += g;
         rhs[i] += g; // times Vin = 1
     };
-    const auto toGround = [&] (int i, cplx g)
-    {
+    const auto toGround = [&] (int i, cplx g) {
         y[i][i] += g;
     };
 
@@ -219,8 +215,7 @@ TEST_CASE ("Tone stack filter output matches its designed response", "[amp][tone
         ToneStackFilter filter;
         filter.setCoeffs (d);
         const double measured = test::measureGainDb (
-            [&] (AudioView v)
-            {
+            [&] (AudioView v) {
                 float* p = v.channel (0);
                 for (int i = 0; i < v.numFrames(); ++i)
                     p[i] = filter.processSample (0, p[i]);

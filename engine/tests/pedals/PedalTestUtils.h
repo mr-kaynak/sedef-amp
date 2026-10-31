@@ -12,8 +12,8 @@
 namespace sedef::test
 {
 
-inline constexpr double kSampleRates[] = {44100.0, 48000.0, 96000.0};
-inline constexpr int kBlockSizes[] = {1, 17, 64, 512};
+inline constexpr double kSampleRates[] = { 44100.0, 48000.0, 96000.0 };
+inline constexpr int kBlockSizes[] = { 1, 17, 64, 512 };
 inline constexpr int kMaxBlock = 512;
 
 /// Runs `process` over a buffer in blocks of `block` frames; `perBlock(startFrame)` is called
@@ -168,10 +168,10 @@ void checkFiniteWithRandomSettings (RandomSettings&& randomSettings, Process&& p
 {
     for (double fs : kSampleRates)
         for (int block : kBlockSizes)
-            for (int channels : {1, 2})
+            for (int channels : { 1, 2 })
             {
                 Module m;
-                m.prepare ({fs, kMaxBlock, channels});
+                m.prepare ({ fs, kMaxBlock, channels });
                 Buffer b (channels, static_cast<int> (0.25 * fs));
                 for (int c = 0; c < channels; ++c)
                     fillNoise (b[c], 1.0f, static_cast<std::uint32_t> (11 + c));
@@ -190,7 +190,7 @@ template <typename Module, typename Settings, typename Process>
 float silenceOutputPeak (const Settings& settings, Process&& process, int channels = 2)
 {
     Module m;
-    m.prepare ({48000.0, kMaxBlock, channels});
+    m.prepare ({ 48000.0, kMaxBlock, channels });
     m.setSettings (settings);
     Buffer b (channels, 48000);
     processInBlocks (b, 64, [&] (AudioView v) { process (m, v); });
@@ -222,7 +222,7 @@ SweepResult measureSweep (SettingsAt&& settingsAt, Process&& process, double fs 
     {
         const float t = static_cast<float> (k) / 8.0f;
         Module m;
-        m.prepare ({fs, block, 1});
+        m.prepare ({ fs, block, 1 });
         m.setSettings (settingsAt (t));
         Buffer b (1, 2 * settle);
         fillSine (b[0], toneHz, fs, amp);
@@ -234,14 +234,13 @@ SweepResult measureSweep (SettingsAt&& settingsAt, Process&& process, double fs 
     }
 
     Module m;
-    m.prepare ({fs, block, 1});
+    m.prepare ({ fs, block, 1 });
     m.setSettings (settingsAt (0.0f));
     Buffer b (1, 2 * settle + sweep);
     fillSine (b[0], toneHz, fs, amp);
     processInBlocks (
         b, block, [&] (AudioView v) { process (m, v); },
-        [&] (int start)
-        {
+        [&] (int start) {
             const float t = std::clamp (static_cast<float> (start - settle) / sweep, 0.0f, 1.0f);
             m.setSettings (settingsAt (t));
         });

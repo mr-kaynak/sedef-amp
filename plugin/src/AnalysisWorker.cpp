@@ -6,7 +6,11 @@
 namespace sedef::plugin
 {
 
-AnalysisWorker::AnalysisWorker (Engine& engine) : juce::Thread ("Sedef pitch analysis"), engine_ (engine) {}
+AnalysisWorker::AnalysisWorker (Engine& engine)
+    : juce::Thread ("Sedef pitch analysis"),
+      engine_ (engine)
+{
+}
 
 AnalysisWorker::~AnalysisWorker()
 {

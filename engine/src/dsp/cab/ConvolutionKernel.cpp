@@ -19,7 +19,8 @@ AlignedFloats::~AlignedFloats()
 }
 
 AlignedFloats::AlignedFloats (AlignedFloats&& other) noexcept
-    : data_ (other.data_), size_ (other.size_)
+    : data_ (other.data_),
+      size_ (other.size_)
 {
     other.data_ = nullptr;
     other.size_ = 0;
@@ -166,8 +167,7 @@ double irLoudnessDb (const float* ir, int length, double sampleRate)
     pffft_transform_ordered (fft.setup, buffer.data(), buffer.data(), work.data(), PFFFT_FORWARD);
 
     const float* spec = buffer.data();
-    const auto binPower = [&] (int k) -> double
-    {
+    const auto binPower = [&] (int k) -> double {
         if (k <= 0)
             return static_cast<double> (spec[0]) * spec[0];
         if (k >= n / 2)
@@ -176,14 +176,12 @@ double irLoudnessDb (const float* ir, int length, double sampleRate)
         return re * re + im * im;
     };
 
-    return loudnessIndexDb (
-        [&] (double hz)
-        {
-            const double bin = hz * n / sampleRate;
-            const int k = static_cast<int> (bin);
-            const double frac = bin - k;
-            return binPower (k) + frac * (binPower (k + 1) - binPower (k));
-        });
+    return loudnessIndexDb ([&] (double hz) {
+        const double bin = hz * n / sampleRate;
+        const int k = static_cast<int> (bin);
+        const double frac = bin - k;
+        return binPower (k) + frac * (binPower (k + 1) - binPower (k));
+    });
 }
 
 } // namespace cab

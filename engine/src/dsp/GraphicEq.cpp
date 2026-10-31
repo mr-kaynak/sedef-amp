@@ -126,8 +126,7 @@ void GraphicEq::applyTarget (bool snap) noexcept
         }
     }
 
-    const auto applyCut = [&] (Cut& cut, bool isLowCut, float hz, float offHz)
-    {
+    const auto applyCut = [&] (Cut& cut, bool isLowCut, float hz, float offHz) {
         cut.wantOn = isLowCut ? lowCutOn (hz) : highCutOn (hz);
         const float targetLog2 = std::log2 (cut.wantOn ? hz : offHz);
         if (snap)
@@ -283,8 +282,7 @@ void GraphicEq::Section::run (const AudioView& io, int start, int length,
 void GraphicEq::processBlock (const AudioView& io, int start, int length) noexcept
 {
     const auto prepareFade = [length] (Cut& cut,
-                                       std::array<float, kControlBlock>& gains) -> const float*
-    {
+                                       std::array<float, kControlBlock>& gains) -> const float* {
         if (!cut.running || (!cut.mix.isSmoothing() && cut.mix.current() >= 1.0f))
             return nullptr;
         assert (length <= kControlBlock);

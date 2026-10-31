@@ -248,8 +248,7 @@ TEST_CASE ("PitchTracker::toNote maps frequencies to the nearest note and cents"
 {
     int midi = -1;
     float cents = 99.0f;
-    const auto at = [] (double a4, double centsFromA4)
-    {
+    const auto at = [] (double a4, double centsFromA4) {
         return static_cast<float> (a4 * std::exp2 (centsFromA4 / 1200.0));
     };
 
@@ -372,8 +371,7 @@ TEST_CASE ("PitchTracker stays accurate with hum, a weak fundamental and a quiet
            "[analysis][tracker]")
 {
     const double fs = 48000.0;
-    const auto hum = [&] (std::vector<float>& s, double mains, float db)
-    {
+    const auto hum = [&] (std::vector<float>& s, double mains, float db) {
         for (size_t i = 0; i < s.size(); ++i)
         {
             const double ph = kTwoPiD * mains * static_cast<double> (i) / fs;

@@ -13,7 +13,8 @@ juce::ZipFile* uiArchive()
 {
     // The archive is the only resource in this binary-data target.
     static int size = 0;
-    static const char* data = SedefUiData::getNamedResource (SedefUiData::namedResourceList[0], size);
+    static const char* data =
+        SedefUiData::getNamedResource (SedefUiData::namedResourceList[0], size);
     static juce::MemoryInputStream stream (data, static_cast<size_t> (size), false);
     static juce::ZipFile zip (stream);
     return &zip;
@@ -22,11 +23,11 @@ juce::ZipFile* uiArchive()
 juce::String mimeFor (const juce::String& path)
 {
     static const std::unordered_map<juce::String, const char*> types {
-        { "html", "text/html" },      { "js", "text/javascript" },  { "mjs", "text/javascript" },
-        { "css", "text/css" },        { "json", "application/json" }, { "map", "application/json" },
-        { "svg", "image/svg+xml" },   { "png", "image/png" },       { "jpg", "image/jpeg" },
-        { "webp", "image/webp" },     { "ico", "image/x-icon" },    { "woff2", "font/woff2" },
-        { "woff", "font/woff" },      { "ttf", "font/ttf" },        { "txt", "text/plain" },
+        { "html", "text/html" },    { "js", "text/javascript" },    { "mjs", "text/javascript" },
+        { "css", "text/css" },      { "json", "application/json" }, { "map", "application/json" },
+        { "svg", "image/svg+xml" }, { "png", "image/png" },         { "jpg", "image/jpeg" },
+        { "webp", "image/webp" },   { "ico", "image/x-icon" },      { "woff2", "font/woff2" },
+        { "woff", "font/woff" },    { "ttf", "font/ttf" },          { "txt", "text/plain" },
     };
     const auto ext = path.fromLastOccurrenceOf (".", false, false).toLowerCase();
     if (const auto it = types.find (ext); it != types.end())
@@ -37,7 +38,8 @@ juce::String mimeFor (const juce::String& path)
 
 std::optional<juce::WebBrowserComponent::Resource> getUiResource (const juce::String& url)
 {
-    auto path = url.upToFirstOccurrenceOf ("?", false, false).fromFirstOccurrenceOf ("/", false, false);
+    auto path =
+        url.upToFirstOccurrenceOf ("?", false, false).fromFirstOccurrenceOf ("/", false, false);
     if (path.isEmpty())
         path = "index.html";
 

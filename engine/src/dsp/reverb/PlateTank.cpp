@@ -30,8 +30,7 @@ constexpr float kTapGain = 0.6f;
 void PlateTank::prepare (double sampleRate)
 {
     fs_ = sampleRate;
-    auto scale = [&] (int n)
-    {
+    auto scale = [&] (int n) {
         return scaleLength (n, kRefRate, fs_);
     };
 

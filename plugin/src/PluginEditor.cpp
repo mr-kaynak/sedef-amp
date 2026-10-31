@@ -35,7 +35,9 @@ float toDb (float linear)
     return juce::Decibels::gainToDecibels (linear, -100.0f);
 }
 
-const char* const kNoteNames[] = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
+const char* const kNoteNames[] = {
+    "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"
+};
 } // namespace
 
 // -------------------------------------------------------------------------------------------------
@@ -49,7 +51,8 @@ public:
     bool pageAboutToLoad (const juce::String& url) override
     {
         const auto dev = devServerUrl();
-        return url.startsWith (getResourceProviderRoot()) || (dev.isNotEmpty() && url.startsWith (dev));
+        return url.startsWith (getResourceProviderRoot()) ||
+               (dev.isNotEmpty() && url.startsWith (dev));
     }
 };
 
@@ -62,11 +65,13 @@ SedefEditor::SedefEditor (SedefProcessor& p) : AudioProcessorEditor (&p), proces
     addAndMakeVisible (*browser_);
 
     const auto dev = devServerUrl();
-    browser_->goToURL (dev.isNotEmpty() ? dev : juce::WebBrowserComponent::getResourceProviderRoot());
+    browser_->goToURL (dev.isNotEmpty() ? dev
+                                        : juce::WebBrowserComponent::getResourceProviderRoot());
 
     const double scale = processor_.uiScale(); // read before resize limits trigger resized()
     setResizable (true, true);
-    const double ratio = static_cast<double> (SedefProcessor::kBaseWidth) / SedefProcessor::kBaseHeight;
+    const double ratio =
+        static_cast<double> (SedefProcessor::kBaseWidth) / SedefProcessor::kBaseHeight;
     setResizeLimits (SedefProcessor::kBaseWidth * 3 / 4, SedefProcessor::kBaseHeight * 3 / 4,
                      SedefProcessor::kBaseWidth * 2, SedefProcessor::kBaseHeight * 2);
     if (auto* c = getConstrainer())
@@ -111,10 +116,11 @@ juce::WebBrowserComponent::Options SedefEditor::makeOptions()
                     .withStatusBarDisabled())
             .withNativeIntegrationEnabled()
             .withKeepPageLoadedWhenBrowserIsHidden()
-            .withResourceProvider ([] (const juce::String& url) { return getUiResource (url); },
-                                   devServerUrl().isNotEmpty()
-                                       ? std::optional<juce::String> (juce::URL (devServerUrl()).getOrigin())
-                                       : std::nullopt);
+            .withResourceProvider (
+                [] (const juce::String& url) { return getUiResource (url); },
+                devServerUrl().isNotEmpty()
+                    ? std::optional<juce::String> (juce::URL (devServerUrl()).getOrigin())
+                    : std::nullopt);
 
     const auto fn = [&options] (const char* name, juce::WebBrowserComponent::NativeFunction f) {
         options = options.withNativeFunction (name, std::move (f));
@@ -178,7 +184,8 @@ juce::WebBrowserComponent::Options SedefEditor::makeOptions()
                 pm.load (a[0].toString());
         }));
     fn ("sedef_presets_save", presetCall ([] (PresetManager& pm, const auto& a) {
-            pm.save (a.size() > 0 ? a[0].toString() : juce::String(), a.size() > 1 ? a[1].toString() : juce::String());
+            pm.save (a.size() > 0 ? a[0].toString() : juce::String(),
+                     a.size() > 1 ? a[1].toString() : juce::String());
         }));
     fn ("sedef_presets_delete", presetCall ([] (PresetManager& pm, const auto& a) {
             if (!a.isEmpty())
@@ -205,8 +212,8 @@ juce::WebBrowserComponent::Options SedefEditor::makeOptions()
 
     // IRs ---------------------------------------------------------------------------------------
     fn ("sedef_ir_load", [this] (const juce::Array<juce::var>& a, Completion done) {
-        loadIr (a.size() > 0 ? static_cast<int> (a[0]) : 0, a.size() > 1 ? static_cast<int> (a[1]) : 0,
-                std::move (done));
+        loadIr (a.size() > 0 ? static_cast<int> (a[0]) : 0,
+                a.size() > 1 ? static_cast<int> (a[1]) : 0, std::move (done));
     });
     fn ("sedef_ir_clear", [&proc] (const juce::Array<juce::var>& a, Completion done) {
         if (a.size() >= 2)
@@ -224,20 +231,21 @@ juce::WebBrowserComponent::Options SedefEditor::makeOptions()
         std::array<std::uint8_t, 13> steps {};
         if (const auto* list = a.isEmpty() ? nullptr : a[0].getArray())
             for (int i = 0; i < std::min (13, list->size()); ++i)
-                steps[static_cast<size_t> (i)] = static_cast<std::uint8_t> (juce::jlimit (0, 3, static_cast<int> ((*list)[i])));
+                steps[static_cast<size_t> (i)] =
+                    static_cast<std::uint8_t> (juce::jlimit (0, 3, static_cast<int> ((*list)[i])));
         proc.setMetronomePattern (steps);
         done ({});
     });
-    fn ("sedef_metronome_tap", [&proc] (const juce::Array<juce::var>&, Completion done) {
-        done (proc.tapTempo());
-    });
+    fn ("sedef_metronome_tap",
+        [&proc] (const juce::Array<juce::var>&, Completion done) { done (proc.tapTempo()); });
     fn ("sedef_ui_setState", [&proc] (const juce::Array<juce::var>& a, Completion done) {
         if (!a.isEmpty())
             proc.setUiState (a[0]);
         done ({});
     });
     fn ("sedef_ui_setScale", [this] (const juce::Array<juce::var>& a, Completion done) {
-        const double scale = juce::jlimit (0.75, 2.0, a.isEmpty() ? 1.0 : static_cast<double> (a[0]));
+        const double scale =
+            juce::jlimit (0.75, 2.0, a.isEmpty() ? 1.0 : static_cast<double> (a[0]));
         setSize (juce::roundToInt (SedefProcessor::kBaseWidth * scale),
                  juce::roundToInt (SedefProcessor::kBaseHeight * scale));
         done ({});
@@ -257,13 +265,15 @@ juce::WebBrowserComponent::Options SedefEditor::makeOptions()
 
 void SedefEditor::loadIr (int mic, int cab, Completion completion)
 {
-    if (chooser_ != nullptr) // a chooser is already open; answer instead of leaving a promise hanging
+    if (chooser_ !=
+        nullptr) // a chooser is already open; answer instead of leaving a promise hanging
     {
         completion (processor_.irs().stateAsVar());
         return;
     }
 
-    chooser_ = std::make_unique<juce::FileChooser> ("Load impulse response", juce::File(), "*.wav;*.aif;*.aiff;*.flac");
+    chooser_ = std::make_unique<juce::FileChooser> ("Load impulse response", juce::File(),
+                                                    "*.wav;*.aif;*.aiff;*.flac");
     chooser_->launchAsync (
         juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
         [safe = juce::Component::SafePointer<SedefEditor> (this), mic, cab,
@@ -321,14 +331,16 @@ juce::var SedefEditor::allValues() const
 {
     auto* o = new juce::DynamicObject();
     for (std::size_t i = 0; i < kNumParams; ++i)
-        o->setProperty (toJuce (kParamSpecs[i].id), processor_.paramValue (static_cast<ParamId> (i)));
+        o->setProperty (toJuce (kParamSpecs[i].id),
+                        processor_.paramValue (static_cast<ParamId> (i)));
     return juce::var (o);
 }
 
 juce::var SedefEditor::hello()
 {
-    static constexpr const char* kWrappers[] = { "Browser", "VST", "VST3", "AudioUnit", "AudioUnitv3",
-                                                 "AAX", "Standalone", "Unity", "LV2" };
+    static constexpr const char* kWrappers[] = { "Browser",    "VST",         "VST3",
+                                                 "AudioUnit",  "AudioUnitv3", "AAX",
+                                                 "Standalone", "Unity",       "LV2" };
     const auto type = static_cast<int> (processor_.wrapperType);
     // The CLAP wrapper reports itself as "undefined" to JUCE.
     const juce::String wrapper = type > 0 && type < 9 ? kWrappers[type] : "CLAP";
@@ -398,7 +410,8 @@ void SedefEditor::emitParams()
         }
     }
     if (changed != nullptr)
-        browser_->emitEventIfBrowserIsVisible ("sedef:params", object ({ { "values", juce::var (changed.get()) } }));
+        browser_->emitEventIfBrowserIsVisible (
+            "sedef:params", object ({ { "values", juce::var (changed.get()) } }));
 }
 
 void SedefEditor::emitTelemetry()
@@ -413,37 +426,36 @@ void SedefEditor::emitTelemetry()
         out.add (toDb (t.outputPeak[static_cast<size_t> (c)].exchange (0.0f)));
 
     browser_->emitEventIfBrowserIsVisible (
-        "sedef:telemetry",
-        object ({ { "inputDb", in },
-                  { "outputDb", out },
-                  { "inputClip", t.inputClip.exchange (false) },
-                  { "outputClip", t.outputClip.exchange (false) },
-                  { "gateOpen", t.gateOpen.load() },
-                  { "gateReductionDb", t.gateReductionDb.load() },
-                  { "tideReductionDb", t.tideReductionDb.load() },
-                  { "metronomeStep", t.metronomeStep.load() },
-                  { "driftTimeMs", t.driftTimeMs.load() },
-                  { "cpu", processor_.cpuLoad() } }));
+        "sedef:telemetry", object ({ { "inputDb", in },
+                                     { "outputDb", out },
+                                     { "inputClip", t.inputClip.exchange (false) },
+                                     { "outputClip", t.outputClip.exchange (false) },
+                                     { "gateOpen", t.gateOpen.load() },
+                                     { "gateReductionDb", t.gateReductionDb.load() },
+                                     { "tideReductionDb", t.tideReductionDb.load() },
+                                     { "metronomeStep", t.metronomeStep.load() },
+                                     { "driftTimeMs", t.driftTimeMs.load() },
+                                     { "cpu", processor_.cpuLoad() } }));
 }
 
 void SedefEditor::emitPitch()
 {
     const auto r = processor_.analysis().latest();
     const int midi = juce::jlimit (0, 127, r.midiNote);
-    browser_->emitEventIfBrowserIsVisible ("sedef:pitch",
-                                           object ({ { "valid", r.valid },
-                                                     { "frequencyHz", r.frequencyHz },
-                                                     { "midiNote", midi },
-                                                     { "note", kNoteNames[midi % 12] },
-                                                     { "octave", midi / 12 - 1 },
-                                                     { "cents", r.cents },
-                                                     { "clarity", r.clarity },
-                                                     { "levelDb", r.levelDb },
-                                                     { "stable", r.stable },
-                                                     { "stableHz", r.stableHz },
-                                                     { "stableStdCents", r.stableStdCents },
-                                                     { "stableCount", r.stableCount },
-                                                     { "onsetId", static_cast<int> (r.onsetId) } }));
+    browser_->emitEventIfBrowserIsVisible (
+        "sedef:pitch", object ({ { "valid", r.valid },
+                                 { "frequencyHz", r.frequencyHz },
+                                 { "midiNote", midi },
+                                 { "note", kNoteNames[midi % 12] },
+                                 { "octave", midi / 12 - 1 },
+                                 { "cents", r.cents },
+                                 { "clarity", r.clarity },
+                                 { "levelDb", r.levelDb },
+                                 { "stable", r.stable },
+                                 { "stableHz", r.stableHz },
+                                 { "stableStdCents", r.stableStdCents },
+                                 { "stableCount", r.stableCount },
+                                 { "onsetId", static_cast<int> (r.onsetId) } }));
 }
 
 void SedefEditor::emitPresets()

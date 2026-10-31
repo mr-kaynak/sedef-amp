@@ -113,8 +113,10 @@ void SedefProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiB
         return;
     }
 
-    std::array<const float*, 2> inputs { buffer.getReadPointer (0), ins > 1 ? buffer.getReadPointer (1) : nullptr };
-    std::array<float*, 2> outputs { buffer.getWritePointer (0), outs > 1 ? buffer.getWritePointer (1) : nullptr };
+    std::array<const float*, 2> inputs { buffer.getReadPointer (0),
+                                         ins > 1 ? buffer.getReadPointer (1) : nullptr };
+    std::array<float*, 2> outputs { buffer.getWritePointer (0),
+                                    outs > 1 ? buffer.getWritePointer (1) : nullptr };
     engine_.process (inputs.data(), outputs.data(), numSamples, snapshot, transport);
 
     for (int ch = outs; ch < buffer.getNumChannels(); ++ch)
@@ -241,14 +243,17 @@ void SedefProcessor::setStateInformation (const void* data, int size)
     const auto extra = root.getChildWithName ("Extra");
     uiState_ = juce::JSON::parse (extra.getProperty ("uiState").toString());
     uiScale_ = juce::jlimit (0.5, 2.5, static_cast<double> (extra.getProperty ("uiScale", 1.0)));
-    presets_.restoreCurrent (extra.getProperty ("presetId").toString(), extra.getProperty ("presetName").toString());
+    presets_.restoreCurrent (extra.getProperty ("presetId").toString(),
+                             extra.getProperty ("presetName").toString());
 
-    const auto steps = juce::StringArray::fromTokens (extra.getProperty ("metronomePattern").toString(), ",", "");
+    const auto steps =
+        juce::StringArray::fromTokens (extra.getProperty ("metronomePattern").toString(), ",", "");
     if (steps.size() == 13)
     {
         std::array<std::uint8_t, 13> pattern {};
         for (int i = 0; i < 13; ++i)
-            pattern[static_cast<size_t> (i)] = static_cast<std::uint8_t> (juce::jlimit (0, 3, steps[i].getIntValue()));
+            pattern[static_cast<size_t> (i)] =
+                static_cast<std::uint8_t> (juce::jlimit (0, 3, steps[i].getIntValue()));
         setMetronomePattern (pattern);
     }
 
@@ -265,7 +270,8 @@ void SedefProcessor::setStateInformation (const void* data, int size)
                 const juce::File f (slot.getProperty ("path").toString());
                 if (f.existsAsFile())
                     p->irs_.loadAsync (slot.getProperty ("mic"), slot.getProperty ("cab"), f,
-                                       [safeAgain = juce::WeakReference<SedefProcessor> (p)] (const juce::String&) {
+                                       [safeAgain = juce::WeakReference<SedefProcessor> (p)] (
+                                           const juce::String&) {
                                            if (auto* q = safeAgain.get())
                                                ++q->irRevision;
                                        });

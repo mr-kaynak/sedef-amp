@@ -97,7 +97,7 @@ void Coral::reset() noexcept
     oversampler_.reset();
     for (auto& c : clipper_)
         c.reset();
-    for (auto* f : {&inputHp_, &emphasis_, &driveLp_, &dcBlock_, &cutLp_, &fizzLp_})
+    for (auto* f : { &inputHp_, &emphasis_, &driveLp_, &dcBlock_, &cutLp_, &fizzLp_ })
         f->reset();
     primed_ = false;
 }

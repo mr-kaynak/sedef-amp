@@ -3,7 +3,6 @@
 #include "sedef/core/SpscRing.h"
 
 #include <catch2/catch_test_macros.hpp>
-
 #include <thread>
 
 using namespace sedef;
@@ -35,7 +34,8 @@ TEST_CASE ("SpscRing transfers every item in order across threads", "[core][conc
     CHECK (ring.available() == 0);
 }
 
-TEST_CASE ("RtHandoff swaps objects and frees retired ones off the audio thread", "[core][concurrency]")
+TEST_CASE ("RtHandoff swaps objects and frees retired ones off the audio thread",
+           "[core][concurrency]")
 {
     struct Counted
     {

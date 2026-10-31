@@ -57,17 +57,14 @@ TEST_CASE ("Doubler output is finite for random settings and full-scale noise", 
     fillNoise (b[0], 1.0f, 1);
     fillNoise (b[1], 1.0f, 2);
     int sinceChange = 1 << 20;
-    forEachBlock (b.view(), blockSize,
-                  [&] (AudioView v, int)
-                  {
-                      if ((sinceChange += v.numFrames()) >= 1000)
-                      {
-                          d.setSettings (
-                              { mapLin (rng.unipolar(), 0.0f, 25.0f) }); // includes out-of-range
-                          sinceChange = 0;
-                      }
-                      d.process (v);
-                  });
+    forEachBlock (b.view(), blockSize, [&] (AudioView v, int) {
+        if ((sinceChange += v.numFrames()) >= 1000)
+        {
+            d.setSettings ({ mapLin (rng.unipolar(), 0.0f, 25.0f) }); // includes out-of-range
+            sinceChange = 0;
+        }
+        d.process (v);
+    });
     CHECK (allFinite (b[0]));
     CHECK (allFinite (b[1]));
     CHECK (peak (b[0]) < 1.5f);
@@ -186,17 +183,15 @@ TEST_CASE ("Doubler spread automation glides without clicks", "[timefx][doubler]
     b[1] = b[0];
     int sinceChange = 0;
     bool wide = false;
-    forEachBlock (b.view(), blockSize,
-                  [&] (AudioView v, int)
-                  {
-                      if ((sinceChange += v.numFrames()) >= 4800)
-                      {
-                          wide = !wide;
-                          d.setSettings ({ wide ? 20.0f : 3.0f });
-                          sinceChange = 0;
-                      }
-                      d.process (v);
-                  });
+    forEachBlock (b.view(), blockSize, [&] (AudioView v, int) {
+        if ((sinceChange += v.numFrames()) >= 4800)
+        {
+            wide = !wide;
+            d.setSettings ({ wide ? 20.0f : 3.0f });
+            sinceChange = 0;
+        }
+        d.process (v);
+    });
     // 220 Hz at 0.5 has a second difference of ~4e-3; the glide bends pitch by under a semitone.
     // Skip the onset, where the delayed sine starts with a kink of its own.
     CHECK (maxSecondDifference (b[0], 2400) < 6.0e-3f);

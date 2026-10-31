@@ -424,8 +424,7 @@ struct CabSim::Impl
     /// Position and distance glide (one-pole); filters follow once per control block.
     void updatePlacement (Mic& mic, int n) noexcept
     {
-        const auto glide = [n] (ExpSmoothed& s)
-        {
+        const auto glide = [n] (ExpSmoothed& s) {
             float v = s.skip (n);
             if (std::abs (v - s.target()) < kSnapTolerance)
             {

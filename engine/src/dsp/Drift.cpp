@@ -217,8 +217,7 @@ float Drift::syncedTimeMs (const Transport& transport) const noexcept
 
 void Drift::applyTargets (bool snap) noexcept
 {
-    const auto set = [snap] (LinearSmoothed& s, float v)
-    {
+    const auto set = [snap] (LinearSmoothed& s, float v) {
         if (snap)
             s.setCurrentAndTarget (v);
         else
@@ -347,8 +346,7 @@ void Drift::processSamples (const AudioView& io, int start, int length) noexcept
         if (slotLevel_[j].current() != 0.0f || slotLevel_[j].isSmoothing())
             heads[numHeads++] = j;
 
-    const auto record = [this] (int loop, float x) noexcept
-    {
+    const auto record = [this] (int loop, float x) noexcept {
         float y = emphasis_.processSample (loop, x);
         y = driveGain_ * fastTanh (driveK_ * y);
         y = deEmphasis_.processSample (loop, y);
@@ -382,8 +380,7 @@ void Drift::processSamples (const AudioView& io, int start, int length) noexcept
         wetB = playbackTone_.processSample (1, wetB + lastLevel * lastB);
 
         const float loop = loopGain_.next();
-        const auto feedback = [&] (int line, float last) noexcept
-        {
+        const auto feedback = [&] (int line, float last) noexcept {
             const float x = loop * feedbackTone_.processSample (line, last);
             return kLoopCeiling * fastTanh (x * (1.0f / kLoopCeiling)) * driveInvSlope_;
         };

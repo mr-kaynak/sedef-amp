@@ -30,11 +30,11 @@ public:
     struct Settings
     {
         bool enabled = false;
-        int heads = 0;          ///< 0..3 -> 1..4 playback heads
-        float timeMs = 500.0f;  ///< 16..2500 ms (Free)
+        int heads = 0;         ///< 0..3 -> 1..4 playback heads
+        float timeMs = 500.0f; ///< 16..2500 ms (Free)
         int sync = Host;
-        int note = 13;          ///< index into kNoteBeats (1/4 by default)
-        float tapBpm = 120.0f;  ///< used when sync == Tap
+        int note = 13;         ///< index into kNoteBeats (1/4 by default)
+        float tapBpm = 120.0f; ///< used when sync == Tap
         float feedback = 0.35f, tapeMod = 0.3f, tapeDrive = 0.0f;
         float bass = 0.5f, treble = 0.5f, width = 1.0f, mix = 0.35f;
     };

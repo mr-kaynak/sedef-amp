@@ -28,9 +28,9 @@ GraphicEq::Settings randomSettings (Random& rng)
 
 double processedGainDb (GraphicEq& eq, double hz, double fs)
 {
-    return measureGainDb ([&] (AudioView v)
-                          { forEachBlock (v, 512, [&] (AudioView b, int) { eq.process (b); }); },
-                          hz, fs);
+    return measureGainDb (
+        [&] (AudioView v) { forEachBlock (v, 512, [&] (AudioView b, int) { eq.process (b); }); },
+        hz, fs);
 }
 
 double designDb (const BiquadCoeffs& c, double hz, double fs)
@@ -50,16 +50,14 @@ TEST_CASE ("GraphicEq output is finite for random settings and full-scale noise"
     fillNoise (b[0], 1.0f, 1);
     fillNoise (b[1], 1.0f, 2);
     int sinceChange = 1 << 20;
-    forEachBlock (b.view(), blockSize,
-                  [&] (AudioView v, int)
-                  {
-                      if ((sinceChange += v.numFrames()) >= 1500)
-                      {
-                          eq.setSettings (randomSettings (rng));
-                          sinceChange = 0;
-                      }
-                      eq.process (v);
-                  });
+    forEachBlock (b.view(), blockSize, [&] (AudioView v, int) {
+        if ((sinceChange += v.numFrames()) >= 1500)
+        {
+            eq.setSettings (randomSettings (rng));
+            sinceChange = 0;
+        }
+        eq.process (v);
+    });
     CHECK (allFinite (b[0]));
     CHECK (allFinite (b[1]));
 }
@@ -220,23 +218,21 @@ TEST_CASE ("GraphicEq automation is smoothed and click-free", "[timefx][eq]")
     b[1] = b[0];
     Random rng (17);
     int sinceChange = 0;
-    forEachBlock (b.view(), blockSize,
-                  [&] (AudioView v, int)
-                  {
-                      if ((sinceChange += v.numFrames()) >= 4800)
-                      {
-                          // Worst-case jumps: every band to a random extreme, cuts flipping between
-                          // bypass and their far end.
-                          GraphicEq::Settings s;
-                          for (auto& g : s.bandsDb)
-                              g = rng.unipolar() < 0.5f ? -12.0f : 12.0f;
-                          s.lowCutHz = rng.unipolar() < 0.5f ? 20.0f : 500.0f;
-                          s.highCutHz = rng.unipolar() < 0.5f ? 20000.0f : 1000.0f;
-                          eq.setSettings (s);
-                          sinceChange = 0;
-                      }
-                      eq.process (v);
-                  });
+    forEachBlock (b.view(), blockSize, [&] (AudioView v, int) {
+        if ((sinceChange += v.numFrames()) >= 4800)
+        {
+            // Worst-case jumps: every band to a random extreme, cuts flipping between
+            // bypass and their far end.
+            GraphicEq::Settings s;
+            for (auto& g : s.bandsDb)
+                g = rng.unipolar() < 0.5f ? -12.0f : 12.0f;
+            s.lowCutHz = rng.unipolar() < 0.5f ? 20.0f : 500.0f;
+            s.highCutHz = rng.unipolar() < 0.5f ? 20000.0f : 1000.0f;
+            eq.setSettings (s);
+            sinceChange = 0;
+        }
+        eq.process (v);
+    });
     CHECK (allFinite (b[0]));
     // A 110 Hz tone at up to ~7x the input level has a second difference near 4e-4; stepping the
     // coefficients once per control block instead of ramping them measured 0.02-0.05 here.
@@ -269,12 +265,10 @@ TEST_CASE ("GraphicEq silence in is silence out", "[timefx][eq]")
     eq.prepare ({ 44100.0, 512, 2 });
     eq.setSettings (randomSettings (rng));
     Buffer b (2, 4000);
-    forEachBlock (b.view(), 17,
-                  [&] (AudioView v, int)
-                  {
-                      eq.setSettings (randomSettings (rng));
-                      eq.process (v);
-                  });
+    forEachBlock (b.view(), 17, [&] (AudioView v, int) {
+        eq.setSettings (randomSettings (rng));
+        eq.process (v);
+    });
     CHECK (peak (b[0]) == 0.0f);
     CHECK (peak (b[1]) == 0.0f);
 }

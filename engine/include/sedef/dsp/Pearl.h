@@ -50,7 +50,7 @@ private:
     Oversampler oversampler_;
     std::array<DelayLine, kMaxChannels> cleanDelay_; // aligns the clean path with the clipper
     std::array<std::vector<float>, kMaxChannels> drive_;
-    std::array<float*, kMaxChannels> drivePtrs_{};
+    std::array<float*, kMaxChannels> drivePtrs_ {};
     std::array<detail::Adaa1, kMaxChannels> clipper_;
 
     LinearSmoothed driveGain_;  // op-amp gain of the clipping path

@@ -22,8 +22,7 @@ double nsPerSample (int model, int channels, double fs, bool switching)
     amp.prepare ({ fs, block, channels });
 
     test::Buffer buf (channels, block);
-    const auto run = [&] (size_t frames)
-    {
+    const auto run = [&] (size_t frames) {
         size_t pos = 0;
         int blockIndex = 0;
         for (size_t done = 0; done < frames; done += block, ++blockIndex)

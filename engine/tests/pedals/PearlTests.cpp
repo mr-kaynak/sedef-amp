@@ -22,8 +22,8 @@ void run (Pearl& p, AudioView v)
 double thdAt (float gain)
 {
     Pearl p;
-    p.prepare ({kFs, 512, 1});
-    p.setSettings ({gain, 1.0f, 0.5f, 0.0f});
+    p.prepare ({ kFs, 512, 1 });
+    p.setSettings ({ gain, 1.0f, 0.5f, 0.0f });
     test::Buffer b (1, 32768);
     test::fillSine (b[0], 750.0, kFs, 0.2f);
     test::processInBlocks (b, 512, [&] (AudioView v) { p.process (v); });
@@ -33,31 +33,34 @@ double thdAt (float gain)
 double gainDb (const Pearl::Settings& s, double hz)
 {
     Pearl p;
-    p.prepare ({kFs, 512, 1});
+    p.prepare ({ kFs, 512, 1 });
     p.setSettings (s);
-    return test::measureGainDb ([&] (AudioView v)
-                                { test::processChunked (v, [&] (AudioView c) { p.process (c); }); },
-                                hz, kFs, 32768, 0.003f);
+    return test::measureGainDb (
+        [&] (AudioView v) { test::processChunked (v, [&] (AudioView c) { p.process (c); }); }, hz,
+        kFs, 32768, 0.003f);
 }
 } // namespace
 
 TEST_CASE ("Pearl output stays finite for random settings and full-scale noise", "[pedals][pearl]")
 {
     test::checkFiniteWithRandomSettings<Pearl> (
-        [] (Random& r)
-        { return Pearl::Settings{r.unipolar(), r.unipolar(), r.unipolar(), r.unipolar()}; }, run);
+        [] (Random& r) {
+            return Pearl::Settings { r.unipolar(), r.unipolar(), r.unipolar(), r.unipolar() };
+        },
+        run);
 }
 
 TEST_CASE ("Pearl passes silence as silence", "[pedals][pearl]")
 {
-    CHECK (test::silenceOutputPeak<Pearl> (Pearl::Settings{}, run) == 0.0f);
-    CHECK (test::silenceOutputPeak<Pearl> (Pearl::Settings{1.0f, 1.0f, 1.0f, 1.0f}, run) == 0.0f);
+    CHECK (test::silenceOutputPeak<Pearl> (Pearl::Settings {}, run) == 0.0f);
+    CHECK (test::silenceOutputPeak<Pearl> (Pearl::Settings { 1.0f, 1.0f, 1.0f, 1.0f }, run) ==
+           0.0f);
 }
 
 TEST_CASE ("Pearl distortion rises with gain", "[pedals][pearl]")
 {
     double previous = 0.0;
-    for (float gain : {0.0f, 0.25f, 0.5f, 0.75f, 1.0f})
+    for (float gain : { 0.0f, 0.25f, 0.5f, 0.75f, 1.0f })
     {
         const double d = thdAt (gain);
         CHECK (d > previous);
@@ -71,11 +74,10 @@ TEST_CASE ("Pearl keeps the low end clean and full", "[pedals][pearl]")
 {
     // Only what the feedback network's high-pass lets through is clipped, so at moderate gain a
     // low note distorts far less than a mid-range one and keeps its fundamental.
-    const auto measure = [] (double hz, float amp, double& fundamentalDb)
-    {
+    const auto measure = [] (double hz, float amp, double& fundamentalDb) {
         Pearl p;
-        p.prepare ({kFs, 512, 1});
-        p.setSettings ({0.5f, 1.0f, 0.5f, 0.0f});
+        p.prepare ({ kFs, 512, 1 });
+        p.setSettings ({ 0.5f, 1.0f, 0.5f, 0.0f });
         test::Buffer b (1, 32768);
         test::fillSine (b[0], hz, kFs, amp);
         test::processInBlocks (b, 512, [&] (AudioView v) { p.process (v); });
@@ -93,11 +95,11 @@ TEST_CASE ("Pearl is touch sensitive", "[pedals][pearl]")
 {
     // Softer picking, cleaner sound.
     double previous = 0.0;
-    for (float amp : {0.03f, 0.1f, 0.3f})
+    for (float amp : { 0.03f, 0.1f, 0.3f })
     {
         Pearl p;
-        p.prepare ({kFs, 512, 1});
-        p.setSettings ({0.5f, 0.5f, 0.5f, 0.0f});
+        p.prepare ({ kFs, 512, 1 });
+        p.setSettings ({ 0.5f, 0.5f, 0.5f, 0.0f });
         test::Buffer b (1, 32768);
         test::fillSine (b[0], 196.0, kFs, amp);
         test::processInBlocks (b, 512, [&] (AudioView v) { p.process (v); });
@@ -109,9 +111,8 @@ TEST_CASE ("Pearl is touch sensitive", "[pedals][pearl]")
 
 TEST_CASE ("Pearl mid boost lifts 1 kHz against 100 Hz", "[pedals][pearl]")
 {
-    const auto tilt = [] (float mid)
-    {
-        const Pearl::Settings s{0.0f, 0.5f, 0.5f, mid};
+    const auto tilt = [] (float mid) {
+        const Pearl::Settings s { 0.0f, 0.5f, 0.5f, mid };
         return gainDb (s, 1000.0) - gainDb (s, 100.0);
     };
     const double flat = tilt (0.0f);
@@ -123,9 +124,8 @@ TEST_CASE ("Pearl mid boost lifts 1 kHz against 100 Hz", "[pedals][pearl]")
 
 TEST_CASE ("Pearl tone darkens counter-clockwise", "[pedals][pearl]")
 {
-    const auto highs = [] (float tone)
-    {
-        const Pearl::Settings s{0.3f, tone, 0.5f, 0.0f};
+    const auto highs = [] (float tone) {
+        const Pearl::Settings s { 0.3f, tone, 0.5f, 0.0f };
         return gainDb (s, 6000.0) - gainDb (s, 500.0);
     };
     CHECK (highs (0.0f) < highs (0.5f) - 3.0);
@@ -134,11 +134,11 @@ TEST_CASE ("Pearl tone darkens counter-clockwise", "[pedals][pearl]")
 
 TEST_CASE ("Pearl level 0.5 is close to unity across the gain range", "[pedals][pearl]")
 {
-    for (float gain : {0.0f, 0.25f, 0.5f, 0.75f, 1.0f})
+    for (float gain : { 0.0f, 0.25f, 0.5f, 0.75f, 1.0f })
     {
         Pearl p;
-        p.prepare ({kFs, 512, 1});
-        p.setSettings ({gain, 0.5f, 0.5f, 0.0f});
+        p.prepare ({ kFs, 512, 1 });
+        p.setSettings ({ gain, 0.5f, 0.5f, 0.0f });
         test::Buffer b (1, 48000);
         test::fillGuitarTone (b[0], kFs);
         const float in = test::rms (b[0], 24000);
@@ -151,11 +151,11 @@ TEST_CASE ("Pearl keeps aliasing low on high notes at full gain", "[pedals][pear
 {
     // Oversampling plus antiderivative anti-aliasing: inharmonic products of a 24th-fret note
     // (and an octave above it) stay 60 dB below the fundamental.
-    for (double f0 : {1318.5, 2637.0})
+    for (double f0 : { 1318.5, 2637.0 })
     {
         Pearl m;
-        m.prepare ({kFs, 512, 1});
-        m.setSettings ({1.0f, 1.0f, 0.5f, 0.0f});
+        m.prepare ({ kFs, 512, 1 });
+        m.setSettings ({ 1.0f, 1.0f, 0.5f, 0.0f });
         test::Buffer b (1, 49152);
         test::fillSine (b[0], f0, kFs, 0.3f);
         test::processInBlocks (b, 512, [&] (AudioView v) { m.process (v); });
@@ -165,12 +165,12 @@ TEST_CASE ("Pearl keeps aliasing low on high notes at full gain", "[pedals][pear
 
 TEST_CASE ("Pearl reports the oversampler's latency", "[pedals][pearl]")
 {
-    for (double fs : {44100.0, 48000.0, 96000.0, 192000.0})
+    for (double fs : { 44100.0, 48000.0, 96000.0, 192000.0 })
     {
         Oversampler os;
         os.prepare (512, 1, Oversampler::factorLog2For (fs));
         Pearl p;
-        p.prepare ({fs, 512, 1});
+        p.prepare ({ fs, 512, 1 });
         CHECK (p.latencySamples() == os.latencySamples());
     }
 }
@@ -180,18 +180,19 @@ TEST_CASE ("Pearl's clean and clipping paths are time-aligned", "[pedals][pearl]
     // At low level both paths are linear and overlap above ~650 Hz. Misaligned by the
     // oversampler's latency they would comb-filter (notches every ~1.3 kHz at 48 kHz); aligned,
     // the response is a smooth hump: it turns at most twice between 500 Hz and 8 kHz.
-    for (double fs : {48000.0, 96000.0})
+    for (double fs : { 48000.0, 96000.0 })
     {
         std::vector<double> response;
         for (double hz = 500.0; hz <= 8000.0; hz += 100.0)
         {
             Pearl p;
-            p.prepare ({fs, 512, 1});
-            p.setSettings ({0.0f, 1.0f, 0.5f, 0.0f});
+            p.prepare ({ fs, 512, 1 });
+            p.setSettings ({ 0.0f, 1.0f, 0.5f, 0.0f });
             response.push_back (test::measureGainDb (
-                [&] (AudioView v)
-                { test::processChunked (v, [&] (AudioView c) { p.process (c); }); }, hz, fs, 8192,
-                0.001f));
+                [&] (AudioView v) {
+                    test::processChunked (v, [&] (AudioView c) { p.process (c); });
+                },
+                hz, fs, 8192, 0.001f));
         }
         int turns = 0;
         double maxStep = 0.0;
@@ -209,15 +210,14 @@ TEST_CASE ("Pearl's clean and clipping paths are time-aligned", "[pedals][pearl]
 
 TEST_CASE ("Pearl automation is click-free", "[pedals][pearl]")
 {
-    const auto check = [] (auto settingsAt)
-    {
+    const auto check = [] (auto settingsAt) {
         const auto r = test::measureSweep<Pearl> (settingsAt, run);
         CHECK (r.finite);
         CHECK (r.sweep <= 1.5f * r.reference);
     };
-    check ([] (float t) { return Pearl::Settings{t, 0.5f, 0.5f, 0.0f}; });
-    check ([] (float t) { return Pearl::Settings{0.5f, t, 0.5f, 0.0f}; });
-    check ([] (float t) { return Pearl::Settings{0.5f, 0.5f, t, 0.0f}; });
-    check ([] (float t) { return Pearl::Settings{0.5f, 0.5f, 0.5f, t}; });
-    check ([] (float t) { return Pearl::Settings{t, 1.0f - t, t, 1.0f - t}; });
+    check ([] (float t) { return Pearl::Settings { t, 0.5f, 0.5f, 0.0f }; });
+    check ([] (float t) { return Pearl::Settings { 0.5f, t, 0.5f, 0.0f }; });
+    check ([] (float t) { return Pearl::Settings { 0.5f, 0.5f, t, 0.0f }; });
+    check ([] (float t) { return Pearl::Settings { 0.5f, 0.5f, 0.5f, t }; });
+    check ([] (float t) { return Pearl::Settings { t, 1.0f - t, t, 1.0f - t }; });
 }

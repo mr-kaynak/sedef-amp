@@ -111,8 +111,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
                 juce::AudioParameterIntAttributes()
                     .withLabel (label)
                     .withAutomatable (spec.automatable)
-                    .withStringFromValueFunction (
-                        [&spec] (int v, int len) { return formatValue (spec, static_cast<float> (v), len); })
+                    .withStringFromValueFunction ([&spec] (int v, int len) {
+                        return formatValue (spec, static_cast<float> (v), len);
+                    })
                     .withValueFromStringFunction ([&spec] (const juce::String& text) {
                         return static_cast<int> (parseValue (spec, text));
                     })));

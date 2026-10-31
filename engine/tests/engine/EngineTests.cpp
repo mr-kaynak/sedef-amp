@@ -2,10 +2,9 @@
 #include "TestUtils.h"
 #include "sedef/Engine.h"
 
+#include <atomic>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
-
-#include <atomic>
 #include <cstdlib>
 #include <new>
 
@@ -79,8 +78,10 @@ struct Rig
         for (int s = offset; s < offset + frames; s += block)
         {
             const int n = std::min (block, offset + frames - s);
-            std::array<const float*, 2> ip { in.ptrs[0] + s, in.channels() > 1 ? in.ptrs[1] + s : nullptr };
-            std::array<float*, 2> op { out.ptrs[0] + s, out.channels() > 1 ? out.ptrs[1] + s : nullptr };
+            std::array<const float*, 2> ip { in.ptrs[0] + s,
+                                             in.channels() > 1 ? in.ptrs[1] + s : nullptr };
+            std::array<float*, 2> op { out.ptrs[0] + s,
+                                       out.channels() > 1 ? out.ptrs[1] + s : nullptr };
             engine.process (ip.data(), op.data(), n, p, transport);
         }
     }
@@ -132,10 +133,10 @@ TEST_CASE ("Engine::process never allocates after prepare", "[engine]")
     Random r (7);
     auto p = randomSnapshot (r);
     // Turn everything on so every module runs.
-    for (auto id : { ParamId::gateEnabled, ParamId::tideEnabled, ParamId::pearlEnabled,
-                     ParamId::coralEnabled, ParamId::rippleEnabled, ParamId::doublerEnabled,
-                     ParamId::driftEnabled, ParamId::fathomEnabled, ParamId::roomAEnabled,
-                     ParamId::roomBEnabled })
+    for (auto id :
+         { ParamId::gateEnabled, ParamId::tideEnabled, ParamId::pearlEnabled, ParamId::coralEnabled,
+           ParamId::rippleEnabled, ParamId::doublerEnabled, ParamId::driftEnabled,
+           ParamId::fathomEnabled, ParamId::roomAEnabled, ParamId::roomBEnabled })
         p[id] = 1.0f;
     p[ParamId::transpose] = -2.0f;
     rig.engine.setAnalysisEnabled (true);
@@ -183,7 +184,8 @@ TEST_CASE ("Switching pedals does not change the chain's latency", "[engine]")
     {
         double acc = 0.0;
         for (int i = 900; i < 4000; ++i)
-            acc += static_cast<double> (off[static_cast<size_t> (i)]) * on[static_cast<size_t> (i + lag)];
+            acc += static_cast<double> (off[static_cast<size_t> (i)]) *
+                   on[static_cast<size_t> (i + lag)];
         if (acc > best)
         {
             best = acc;

@@ -57,8 +57,8 @@ int main()
                 ", \"group\": " + quote (s.group) + ", \"kind\": \"" + kindName (s.kind) +
                 "\", \"min\": " + number (s.min) + ", \"max\": " + number (s.max) +
                 ", \"default\": " + number (s.defaultValue) + ", \"skew\": " + number (s.skew) +
-                ", \"unit\": " + quote (s.unit) + ", \"automatable\": " +
-                (s.automatable ? "true" : "false") + ", \"choices\": [";
+                ", \"unit\": " + quote (s.unit) +
+                ", \"automatable\": " + (s.automatable ? "true" : "false") + ", \"choices\": [";
         for (int c = 0; c < s.numChoices(); ++c)
             json += (c > 0 ? ", " : "") + quote (s.choiceLabel (c));
         json += "]}";

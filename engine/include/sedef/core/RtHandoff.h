@@ -51,10 +51,7 @@ public:
         return current_;
     }
 
-    void collect()
-    {
-        delete retired_.exchange (nullptr, std::memory_order_acq_rel);
-    }
+    void collect() { delete retired_.exchange (nullptr, std::memory_order_acq_rel); }
 
 private:
     std::atomic<T*> incoming_ { nullptr };

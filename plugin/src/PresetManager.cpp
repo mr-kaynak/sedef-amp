@@ -14,7 +14,8 @@ juce::File sedefFolder()
     return juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
         .getChildFile ("Application Support/Sedef");
 #else
-    return juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory).getChildFile ("Sedef");
+    return juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
+        .getChildFile ("Sedef");
 #endif
 }
 
@@ -33,10 +34,12 @@ PresetManager::PresetManager (juce::AudioProcessorValueTreeState& state) : state
 bool PresetManager::isGlobal (ParamId id) noexcept
 {
     static constexpr ParamId kGlobal[] = {
-        ParamId::inputGain,          ParamId::outputGain,      ParamId::transpose,
-        ParamId::stereoMode,         ParamId::tempo,           ParamId::tunerReference,
-        ParamId::tunerMute,          ParamId::metronomeEnabled, ParamId::metronomeVolume,
-        ParamId::metronomeSignature, ParamId::metronomeSound,  ParamId::presetPrevious,
+        ParamId::inputGain,       ParamId::outputGain,
+        ParamId::transpose,       ParamId::stereoMode,
+        ParamId::tempo,           ParamId::tunerReference,
+        ParamId::tunerMute,       ParamId::metronomeEnabled,
+        ParamId::metronomeVolume, ParamId::metronomeSignature,
+        ParamId::metronomeSound,  ParamId::presetPrevious,
         ParamId::presetNext,
     };
     return std::find (std::begin (kGlobal), std::end (kGlobal), id) != std::end (kGlobal);
@@ -54,7 +57,10 @@ juce::File PresetManager::settingsFile()
 
 juce::String PresetManager::slugify (const juce::String& s)
 {
-    return s.toLowerCase().retainCharacters ("abcdefghijklmnopqrstuvwxyz0123456789 -").trim().replaceCharacter (' ', '-');
+    return s.toLowerCase()
+        .retainCharacters ("abcdefghijklmnopqrstuvwxyz0123456789 -")
+        .trim()
+        .replaceCharacter (' ', '-');
 }
 
 void PresetManager::scan()
@@ -64,7 +70,8 @@ void PresetManager::scan()
     for (int i = 0; i < SedefPresetData::namedResourceListSize; ++i)
     {
         int size = 0;
-        const char* data = SedefPresetData::getNamedResource (SedefPresetData::namedResourceList[i], size);
+        const char* data =
+            SedefPresetData::getNamedResource (SedefPresetData::namedResourceList[i], size);
         const auto json = juce::String::fromUTF8 (data, size);
         const auto parsed = juce::JSON::parse (json);
         if (!parsed.isObject())
@@ -83,7 +90,8 @@ void PresetManager::scan()
     }
 
     const auto root = userFolder();
-    for (const auto& f : root.findChildFiles (juce::File::findFiles, true, juce::String ("*") + kExtension))
+    for (const auto& f :
+         root.findChildFiles (juce::File::findFiles, true, juce::String ("*") + kExtension))
     {
         const auto parsed = juce::JSON::parse (f);
         if (!parsed.isObject())
@@ -94,7 +102,8 @@ void PresetManager::scan()
                                                         : f.getFileNameWithoutExtension();
         e.id = "user:" + f.getRelativePathFrom (root).replaceCharacter ('\\', '/');
         e.category = "User";
-        e.folder = f.getParentDirectory() == root ? juce::String() : f.getParentDirectory().getFileName();
+        e.folder =
+            f.getParentDirectory() == root ? juce::String() : f.getParentDirectory().getFileName();
         e.author = parsed["author"].toString();
         if (auto* tags = parsed["tags"].getArray())
             for (const auto& t : *tags)
@@ -121,7 +130,8 @@ const PresetManager::Entry* PresetManager::find (const juce::String& id) const
 
 std::optional<juce::var> PresetManager::read (const Entry& e) const
 {
-    const auto parsed = e.file.existsAsFile() ? juce::JSON::parse (e.file) : juce::JSON::parse (e.factoryJson);
+    const auto parsed =
+        e.file.existsAsFile() ? juce::JSON::parse (e.file) : juce::JSON::parse (e.factoryJson);
     if (!parsed.isObject() || !parsed["parameters"].isObject())
         return std::nullopt;
     return parsed;
@@ -137,8 +147,9 @@ void PresetManager::apply (const juce::var& parameters)
             continue;
         const auto& spec = kParamSpecs[i];
         const auto key = toJuce (spec.id);
-        const float value = parameters.hasProperty (key) ? static_cast<float> (parameters[juce::Identifier (key)])
-                                                         : spec.defaultValue;
+        const float value = parameters.hasProperty (key)
+                                ? static_cast<float> (parameters[juce::Identifier (key)])
+                                : spec.defaultValue;
         const float clean = spec.sanitise (value);
         if (auto* param = state_.getParameter (key))
             param->setValueNotifyingHost (spec.toNormalised (clean));
@@ -208,8 +219,8 @@ juce::String PresetManager::save (const juce::String& name, const juce::String& 
         if (const auto parsed = read (*e))
             for (std::size_t i = 0; i < kNumParams; ++i)
                 if (!isGlobal (static_cast<ParamId> (i)))
-                    loadedValues_[static_cast<ParamId> (i)] =
-                        static_cast<float> ((*parsed)["parameters"][juce::Identifier (toJuce (kParamSpecs[i].id))]);
+                    loadedValues_[static_cast<ParamId> (i)] = static_cast<float> (
+                        (*parsed)["parameters"][juce::Identifier (toJuce (kParamSpecs[i].id))]);
     return currentId_;
 }
 
@@ -235,7 +246,8 @@ bool PresetManager::rename (const juce::String& id, const juce::String& newName)
         return false;
     if (auto* obj = parsed->getDynamicObject())
         obj->setProperty ("name", newName.trim());
-    const auto target = e->file.getSiblingFile (juce::File::createLegalFileName (newName.trim()) + kExtension);
+    const auto target =
+        e->file.getSiblingFile (juce::File::createLegalFileName (newName.trim()) + kExtension);
     if (target.exists() && target != e->file)
         return false;
     target.replaceWithText (juce::JSON::toString (*parsed));
@@ -245,7 +257,8 @@ bool PresetManager::rename (const juce::String& id, const juce::String& newName)
     scan();
     if (wasCurrent)
     {
-        currentId_ = "user:" + target.getRelativePathFrom (userFolder()).replaceCharacter ('\\', '/');
+        currentId_ =
+            "user:" + target.getRelativePathFrom (userFolder()).replaceCharacter ('\\', '/');
         currentName_ = newName.trim();
     }
     return true;
@@ -269,7 +282,8 @@ void PresetManager::step (int delta)
         if (entries_[i].id == currentId_)
             index = static_cast<int> (i);
     const int count = static_cast<int> (entries_.size());
-    const int next = index < 0 ? (delta > 0 ? 0 : count - 1) : ((index + delta) % count + count) % count;
+    const int next =
+        index < 0 ? (delta > 0 ? 0 : count - 1) : ((index + delta) % count + count) % count;
     load (entries_[static_cast<size_t> (next)].id);
 }
 
@@ -303,8 +317,9 @@ void PresetManager::restoreCurrent (const juce::String& id, const juce::String& 
             {
                 const auto key = juce::Identifier (toJuce (kParamSpecs[i].id));
                 const auto& params = (*parsed)["parameters"];
-                loadedValues_[static_cast<ParamId> (i)] =
-                    params.hasProperty (key) ? static_cast<float> (params[key]) : kParamSpecs[i].defaultValue;
+                loadedValues_[static_cast<ParamId> (i)] = params.hasProperty (key)
+                                                              ? static_cast<float> (params[key])
+                                                              : kParamSpecs[i].defaultValue;
             }
 }
 

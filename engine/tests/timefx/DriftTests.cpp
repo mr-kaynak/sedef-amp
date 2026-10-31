@@ -102,18 +102,16 @@ TEST_CASE ("Drift output is finite for random settings and full-scale noise", "[
     fillNoise (b[1], 1.0f, 2);
     Transport t { true, 133.0, true, 0.0 };
     int sinceChange = 1 << 20;
-    forEachBlock (b.view(), blockSize,
-                  [&] (AudioView v, int)
-                  {
-                      if ((sinceChange += v.numFrames()) >= 3000)
-                      {
-                          d.setSettings (randomSettings (rng, false));
-                          t.hasHostTempo = rng.unipolar() < 0.5f;
-                          t.bpm = mapLin (rng.unipolar(), 20.0f, 300.0f);
-                          sinceChange = 0;
-                      }
-                      d.process (v, t);
-                  });
+    forEachBlock (b.view(), blockSize, [&] (AudioView v, int) {
+        if ((sinceChange += v.numFrames()) >= 3000)
+        {
+            d.setSettings (randomSettings (rng, false));
+            t.hasHostTempo = rng.unipolar() < 0.5f;
+            t.bpm = mapLin (rng.unipolar(), 20.0f, 300.0f);
+            sinceChange = 0;
+        }
+        d.process (v, t);
+    });
     CHECK (allFinite (b[0]));
     CHECK (allFinite (b[1]));
     CHECK (peak (b[0]) < 8.0f);
@@ -347,16 +345,14 @@ TEST_CASE ("Drift spillover: disabling stops new input but the tail rings out", 
     const size_t secondAt = kImpulseAt + 2 * t + 1440; // 230 ms, after the input has faded out
     b[0][secondAt] = 1.0f;
     b[1][secondAt] = 1.0f;
-    forEachBlock (b.view(), 64,
-                  [&] (AudioView v, int start)
-                  {
-                      if (start >= static_cast<int> (kImpulseAt + t + 2400)) // disable at 150 ms
-                      {
-                          s.enabled = false;
-                          d.setSettings (s);
-                      }
-                      d.process (v, {});
-                  });
+    forEachBlock (b.view(), 64, [&] (AudioView v, int start) {
+        if (start >= static_cast<int> (kImpulseAt + t + 2400)) // disable at 150 ms
+        {
+            s.enabled = false;
+            d.setSettings (s);
+        }
+        d.process (v, {});
+    });
 
     const float first = peakIn (b[0], kImpulseAt + t - 20, kImpulseAt + t + 20);
     const float third = peakIn (b[0], kImpulseAt + 3 * t - 20, kImpulseAt + 3 * t + 20);
@@ -420,18 +416,16 @@ TEST_CASE ("Drift silence in is silence out", "[timefx][drift]")
     d.prepare ({ kFs, 512, 2 });
     Buffer b (2, static_cast<int> (kFs));
     int sinceChange = 1 << 20;
-    forEachBlock (b.view(), 17,
-                  [&] (AudioView v, int)
-                  {
-                      if ((sinceChange += v.numFrames()) >= 2000)
-                      {
-                          auto s = randomSettings (rng, true);
-                          s.feedback = 1.0f;
-                          d.setSettings (s);
-                          sinceChange = 0;
-                      }
-                      d.process (v, {});
-                  });
+    forEachBlock (b.view(), 17, [&] (AudioView v, int) {
+        if ((sinceChange += v.numFrames()) >= 2000)
+        {
+            auto s = randomSettings (rng, true);
+            s.feedback = 1.0f;
+            d.setSettings (s);
+            sinceChange = 0;
+        }
+        d.process (v, {});
+    });
     CHECK (peak (b[0]) == 0.0f);
     CHECK (peak (b[1]) == 0.0f);
 }
@@ -468,8 +462,7 @@ TEST_CASE ("Drift time, sync and head changes are click-free", "[timefx][drift]"
     Drift d;
     d.prepare ({ kFs, 512, 2 });
     Random rng (seed);
-    const auto randomTime = [&rng]
-    {
+    const auto randomTime = [&rng] {
         auto s = cleanEcho (mapExp (rng.unipolar(), 16.0f, 2500.0f));
         s.heads = static_cast<int> (rng.unipolar() * 4.0f);
         s.sync = static_cast<int> (rng.unipolar() * 3.0f);
@@ -488,17 +481,15 @@ TEST_CASE ("Drift time, sync and head changes are click-free", "[timefx][drift]"
     b[1] = b[0];
     int sinceChange = 0;
     Transport t { true, 120.0, true, 0.0 };
-    forEachBlock (b.view(), blockSize,
-                  [&] (AudioView v, int start)
-                  {
-                      if (start >= preroll && (sinceChange += v.numFrames()) >= 9600)
-                      {
-                          d.setSettings (randomTime());
-                          t.bpm = mapLin (rng.unipolar(), 40.0f, 240.0f);
-                          sinceChange = 0;
-                      }
-                      d.process (v, t);
-                  });
+    forEachBlock (b.view(), blockSize, [&] (AudioView v, int start) {
+        if (start >= preroll && (sinceChange += v.numFrames()) >= 9600)
+        {
+            d.setSettings (randomTime());
+            t.bpm = mapLin (rng.unipolar(), 40.0f, 240.0f);
+            sinceChange = 0;
+        }
+        d.process (v, t);
+    });
     // Dry plus up to four heads replaying the 110 Hz tone at up to 2x speed: second difference
     // below ~1e-3. A step of 0.002 (-54 dBFS) would show.
     CHECK (maxSecondDifference (b[0], static_cast<size_t> (preroll)) < 1.5e-3f);
@@ -513,8 +504,7 @@ TEST_CASE ("Drift tone, feedback, drive, mod, width and mix automation is click-
     Drift d;
     d.prepare ({ kFs, 512, 2 });
     Random rng (seed);
-    const auto randomVoice = [&rng]
-    {
+    const auto randomVoice = [&rng] {
         auto s = randomSettings (rng, true);
         s.sync = Drift::Free;
         s.timeMs = 230.0f;
@@ -527,16 +517,14 @@ TEST_CASE ("Drift tone, feedback, drive, mod, width and mix automation is click-
     fillSine (b[0], 110.0, kFs, 0.3f);
     b[1] = b[0];
     int sinceChange = 0;
-    forEachBlock (b.view(), blockSize,
-                  [&] (AudioView v, int start)
-                  {
-                      if (start >= preroll && (sinceChange += v.numFrames()) >= 9600)
-                      {
-                          d.setSettings (randomVoice());
-                          sinceChange = 0;
-                      }
-                      d.process (v, {});
-                  });
+    forEachBlock (b.view(), blockSize, [&] (AudioView v, int start) {
+        if (start >= preroll && (sinceChange += v.numFrames()) >= 9600)
+        {
+            d.setSettings (randomVoice());
+            sinceChange = 0;
+        }
+        d.process (v, {});
+    });
     CHECK (allFinite (b[0]));
     // Drive and treble add harmonics of the 110 Hz tone, so the bound sits well above a pure
     // sine's; a hard step of 0.02 (-34 dBFS) would still exceed it.
@@ -555,21 +543,19 @@ TEST_CASE ("Drift time changes glide instead of jumping", "[timefx][drift]")
     Buffer b (2, static_cast<int> (kFs * 3.0));
     fillSine (b[0], 220.0, kFs, 0.5f);
     b[1] = b[0];
-    forEachBlock (b.view(), 64,
-                  [&] (AudioView v, int start)
-                  {
-                      if (start == 64 * 750) // 1 s: 300 ms -> 450 ms
-                      {
-                          s.timeMs = 450.0f;
-                          d.setSettings (s);
-                      }
-                      else if (start == 64 * 1500) // 2 s: 450 ms -> 20 ms
-                      {
-                          s.timeMs = 20.0f;
-                          d.setSettings (s);
-                      }
-                      d.process (v, {});
-                  });
+    forEachBlock (b.view(), 64, [&] (AudioView v, int start) {
+        if (start == 64 * 750) // 1 s: 300 ms -> 450 ms
+        {
+            s.timeMs = 450.0f;
+            d.setSettings (s);
+        }
+        else if (start == 64 * 1500) // 2 s: 450 ms -> 20 ms
+        {
+            s.timeMs = 20.0f;
+            d.setSettings (s);
+        }
+        d.process (v, {});
+    });
     CHECK (d.effectiveTimeMs() == 20.0f);
     CHECK (maxSecondDifference (b[0]) < 0.05f);
 }

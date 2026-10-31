@@ -52,7 +52,9 @@ struct ChainSettings
 dsp::CabSim::MicSettings micSettings (const ParamSnapshot& p, int mic, int cab)
 {
     // Mic A and B parameters are laid out identically; B follows A in the schema.
-    const auto base = [mic] (P a, P b) { return mic == 0 ? a : b; };
+    const auto base = [mic] (P a, P b) {
+        return mic == 0 ? a : b;
+    };
     const P types[2][3] = { { P::micACab1Type, P::micACab2Type, P::micACab3Type },
                             { P::micBCab1Type, P::micBCab2Type, P::micBCab3Type } };
 
@@ -92,13 +94,14 @@ ChainSettings chainSettings (const ParamSnapshot& p)
                  p[P::lagoonOutput] };
     a.reef = { p.choice (P::reefVoice), p[P::reefGain],     p[P::reefBass],   p[P::reefMid],
                p[P::reefTreble],        p[P::reefPresence], p[P::reefMaster], p[P::reefOutput] };
-    a.abyss = { p.flag (P::abyssBright), p[P::abyssGain],     p[P::abyssBass],
-                p[P::abyssMid],          p[P::abyssTreble],   p.flag (P::abyssShift),
-                p[P::abyssPresence],     p[P::abyssMaster],   p[P::abyssOutput] };
+    a.abyss = { p.flag (P::abyssBright), p[P::abyssGain],   p[P::abyssBass],
+                p[P::abyssMid],          p[P::abyssTreble], p.flag (P::abyssShift),
+                p[P::abyssPresence],     p[P::abyssMaster], p[P::abyssOutput] };
 
     // The cab follows the amp while linked; otherwise the user picks it.
-    s.cab.cab = p.flag (P::ampCabLink) ? a.model
-                                       : std::clamp (p.choice (P::cabModel), 0, dsp::CabSim::kNumCabs - 1);
+    s.cab.cab = p.flag (P::ampCabLink)
+                    ? a.model
+                    : std::clamp (p.choice (P::cabModel), 0, dsp::CabSim::kNumCabs - 1);
     for (int m = 0; m < dsp::CabSim::kNumMics; ++m)
         s.cab.mics[static_cast<size_t> (m)] = micSettings (p, m, s.cab.cab);
     return s;
@@ -336,10 +339,13 @@ struct Chain
         }
         inputPeak = peak;
 
-        gateRan = gate.process (x, n, s.gateOn, s.gate, [this] (dsp::NoiseGate& g, const AudioView& v) {
-            g.process (v, sidechain.data());
-        });
-        const auto run = [] (auto& m, const AudioView& v) { m.process (v); };
+        gateRan =
+            gate.process (x, n, s.gateOn, s.gate, [this] (dsp::NoiseGate& g, const AudioView& v) {
+                g.process (v, sidechain.data());
+            });
+        const auto run = [] (auto& m, const AudioView& v) {
+            m.process (v);
+        };
         tideRan = tide.process (x, n, s.tideOn, s.tide, run);
         pearl.process (x, n, s.pearlOn, s.pearl, run);
         coral.process (x, n, s.coralOn, s.coral, run);
@@ -391,7 +397,7 @@ struct Engine::Impl
     LinearSmoothed modeFade; // stereo-mode switch
     bool snapGains = true;   // first block after prepare/reset: no ramps from silence
 
-    std::array<std::vector<float>, 2> post;  // stereo post-chain buffers
+    std::array<std::vector<float>, 2> post;   // stereo post-chain buffers
     std::array<std::vector<float>, 2> chainR; // second chain's cab output in dual mode
     std::vector<float> monoIn;
 };
@@ -509,7 +515,8 @@ void Engine::process (const float* const* inputs, float* const* outputs, int num
     fathomSettings.preDelayMs = p[P::fathomPreDelay];
 
     dsp::Metronome::Settings metro;
-    metro.enabled = p.flag (P::metronomeEnabled) && metronomeAllowed_.load (std::memory_order_relaxed);
+    metro.enabled =
+        p.flag (P::metronomeEnabled) && metronomeAllowed_.load (std::memory_order_relaxed);
     metro.volumeDb = p[P::metronomeVolume];
     metro.signature = p.choice (P::metronomeSignature);
     metro.sound = p.choice (P::metronomeSound);
@@ -603,10 +610,10 @@ void Engine::process (const float* const* inputs, float* const* outputs, int num
             // Each chain feeds its own side.
             for (int i = 0; i < n; ++i)
             {
-                d.post[0][static_cast<size_t> (i)] =
-                    0.5f * (d.post[0][static_cast<size_t> (i)] + d.post[1][static_cast<size_t> (i)]);
-                d.post[1][static_cast<size_t> (i)] =
-                    0.5f * (d.chainR[0][static_cast<size_t> (i)] + d.chainR[1][static_cast<size_t> (i)]);
+                d.post[0][static_cast<size_t> (i)] = 0.5f * (d.post[0][static_cast<size_t> (i)] +
+                                                             d.post[1][static_cast<size_t> (i)]);
+                d.post[1][static_cast<size_t> (i)] = 0.5f * (d.chainR[0][static_cast<size_t> (i)] +
+                                                             d.chainR[1][static_cast<size_t> (i)]);
             }
         }
         else
@@ -660,7 +667,8 @@ void Engine::process (const float* const* inputs, float* const* outputs, int num
 
     // A bypassed module's last reading would freeze on the meters; report neutral values instead.
     const auto& chain0 = d.chains[0];
-    telemetry_.gateOpen.store (!chain0.gateRan || chain0.gate.module.isOpen(), std::memory_order_relaxed);
+    telemetry_.gateOpen.store (!chain0.gateRan || chain0.gate.module.isOpen(),
+                               std::memory_order_relaxed);
     telemetry_.gateReductionDb.store (chain0.gateRan ? chain0.gate.module.gainReductionDb() : 0.0f,
                                       std::memory_order_relaxed);
     telemetry_.tideReductionDb.store (chain0.tideRan ? chain0.tide.module.gainReductionDb() : 0.0f,

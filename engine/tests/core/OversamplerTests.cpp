@@ -56,7 +56,8 @@ TEST_CASE ("Oversampler latency is reported exactly", "[core][oversampling]")
     CHECK (*peakIt > 0.75f);
 }
 
-TEST_CASE ("Oversampler passband is flat and the round trip preserves level", "[core][oversampling]")
+TEST_CASE ("Oversampler passband is flat and the round trip preserves level",
+           "[core][oversampling]")
 {
     const double fs = 48000.0;
     const int factorLog2 = GENERATE (1, 2);

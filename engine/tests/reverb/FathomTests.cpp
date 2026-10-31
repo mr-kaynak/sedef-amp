@@ -241,8 +241,7 @@ TEST_CASE ("Fathom high cut removes energy above 5 kHz", "[reverb][fathom]")
     const double fs = 48000.0;
     const int fft = 65536;
 
-    auto render = [&] (float highCut)
-    {
+    auto render = [&] (float highCut) {
         auto s = wetOnly (mode, 2.0f);
         s.highCutHz = highCut;
         Fathom f;
@@ -262,8 +261,7 @@ TEST_CASE ("Fathom high cut removes energy above 5 kHz", "[reverb][fathom]")
     const auto bright = render (5000.0f);
     const auto dark = render (800.0f);
 
-    auto fractionAbove = [&] (const std::vector<double>& m)
-    {
+    auto fractionAbove = [&] (const std::vector<double>& m) {
         return test::energyAbove (m, fs, fft, 5000.0) / test::energyAbove (m, fs, fft, 0.0);
     };
     const double darkVsBrightDb = 10.0 * std::log10 (test::energyAbove (dark, fs, fft, 5000.0) /
@@ -289,8 +287,7 @@ TEST_CASE ("Fathom automation and mode or enable switching are click-free", "[re
     f.setSettings (s);
     f.prepare ({ fs, block, 2 });
 
-    auto sweep = [] (double t, double hz)
-    {
+    auto sweep = [] (double t, double hz) {
         return static_cast<float> (0.5 + 0.5 * std::sin (kTwoPiD * hz * t));
     };
     for (int pos = 0; pos < frames; pos += block)

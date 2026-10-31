@@ -56,8 +56,8 @@ private:
     float release_ = 0.0f;
     float rounding_ = 0.0f;
 
-    std::atomic<float> gainReductionDb_{0.0f};
-    std::atomic<bool> isOpen_{false};
+    std::atomic<float> gainReductionDb_ { 0.0f };
+    std::atomic<bool> isOpen_ { false };
 };
 
 } // namespace sedef::dsp

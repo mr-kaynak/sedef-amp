@@ -402,26 +402,24 @@ TEST_CASE ("setCustomIr from another thread is safe and the audio thread never f
         std::atomic<int> audioFrees { -1 };
         std::atomic<bool> finite { true };
         std::atomic<long> blocks { 0 };
-        std::thread audio (
-            [&]
+        std::thread audio ([&] {
+            Buffer in (1, 64), out (2, 64);
+            fillNoise (in[0], 0.5f, 77);
+            int cabIndex = 0;
+            while (!stop.load())
             {
-                Buffer in (1, 64), out (2, 64);
-                fillNoise (in[0], 0.5f, 77);
-                int cabIndex = 0;
-                while (!stop.load())
+                if ((blocks.load() % 50) == 0)
                 {
-                    if ((blocks.load() % 50) == 0)
-                    {
-                        s.cab = cabIndex = (cabIndex + 1) % CabSim::kNumCabs;
-                        cab.setSettings (s);
-                    }
-                    cab.process (in[0].data(), out.view());
-                    if (!allFinite (out[0]) || !allFinite (out[1]))
-                        finite = false;
-                    blocks.fetch_add (1);
+                    s.cab = cabIndex = (cabIndex + 1) % CabSim::kNumCabs;
+                    cab.setSettings (s);
                 }
-                audioFrees = ConvolutionKernel::destroyedOnThisThread();
-            });
+                cab.process (in[0].data(), out.view());
+                if (!allFinite (out[0]) || !allFinite (out[1]))
+                    finite = false;
+                blocks.fetch_add (1);
+            }
+            audioFrees = ConvolutionKernel::destroyedOnThisThread();
+        });
 
         Random r (5);
         const auto start = std::chrono::steady_clock::now();

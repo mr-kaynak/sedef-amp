@@ -70,8 +70,7 @@ double reverbTime (const std::vector<float>& ir, double fs)
     std::vector<double> edc (ir.size() + 1, 0.0);
     for (size_t i = ir.size(); i-- > 0;)
         edc[i] = edc[i + 1] + static_cast<double> (ir[i]) * ir[i];
-    const auto timeAt = [&] (double db)
-    {
+    const auto timeAt = [&] (double db) {
         for (size_t i = 0; i < ir.size(); ++i)
             if (10.0 * std::log10 (edc[i] / edc[0] + 1e-30) <= db)
                 return static_cast<double> (i) / fs;
@@ -101,17 +100,14 @@ TEST_CASE ("CabSim output is finite for random settings and full-scale noise", "
     fillNoise (x, 1.0f, 17);
     Random r (static_cast<std::uint32_t> (fs) + static_cast<std::uint32_t> (block));
     int nextChange = 0;
-    const auto [l, rOut] =
-        run (cab, x, block,
-             [&] (int pos)
-             {
-                 if (pos >= nextChange)
-                 {
-                     cab.setSettings (randomSettings (r));
-                     nextChange = pos + 1 +
-                                  static_cast<int> (r.unipolar() * 0.02f * static_cast<float> (fs));
-                 }
-             });
+    const auto [l, rOut] = run (cab, x, block, [&] (int pos) {
+        if (pos >= nextChange)
+        {
+            cab.setSettings (randomSettings (r));
+            nextChange =
+                pos + 1 + static_cast<int> (r.unipolar() * 0.02f * static_cast<float> (fs));
+        }
+    });
     CHECK (allFinite (l));
     CHECK (allFinite (rOut));
     CHECK (peak (l) < 100.0f);
@@ -226,8 +222,7 @@ TEST_CASE ("Procedural cabinets have plausible responses", "[cab]")
 
     SECTION ("distance trades proximity bass for a small level drop")
     {
-        const auto proximityLoss = [&] (int c, int t)
-        {
+        const auto proximityLoss = [&] (int c, int t) {
             const auto near = impulseResponse (cab, soloMicA (c, t, 0.5f, 0.0f), fs);
             const auto far = impulseResponse (cab, soloMicA (c, t, 0.5f, 1.0f), fs);
             return relativeBandDb (near, fs, 40.0, 150.0) - relativeBandDb (far, fs, 40.0, 150.0);
@@ -262,8 +257,7 @@ TEST_CASE ("Procedural cabinets have plausible responses", "[cab]")
 
     SECTION ("mic voicings order as described")
     {
-        const auto hf = [&] (int t)
-        {
+        const auto hf = [&] (int t) {
             return relativeBandDb (impulseResponse (cab, soloMicA (1, t), fs), fs, 4000.0, 7000.0);
         };
         CHECK (hf (kDynOffAxis) < hf (kDynClassic) - 2.0);
@@ -415,17 +409,14 @@ TEST_CASE ("Room ambience adds a small-room tail that rings out after it is swit
         fillNoise (burst, 0.5f, 4);
         std::copy (burst.begin(), burst.end(), x.begin());
         const int off = static_cast<int> (0.3 * fs);
-        const auto [l, r] = run (cab, x, 128,
-                                 [&] (int pos)
-                                 {
-                                     if (pos >= off && s.mics[0].roomEnabled)
-                                     {
-                                         s.mics[0].roomEnabled = false;
-                                         cab.setSettings (s);
-                                     }
-                                 });
-        const auto window = [&] (double t0, double t1)
-        {
+        const auto [l, r] = run (cab, x, 128, [&] (int pos) {
+            if (pos >= off && s.mics[0].roomEnabled)
+            {
+                s.mics[0].roomEnabled = false;
+                cab.setSettings (s);
+            }
+        });
+        const auto window = [&] (double t0, double t1) {
             return rms (l.data() + static_cast<size_t> (t0 * fs),
                         static_cast<int> ((t1 - t0) * fs));
         };
@@ -475,8 +466,7 @@ TEST_CASE ("Automating every control is click-free", "[cab]")
     std::vector<float> x (static_cast<size_t> (total));
     fillSine (x, 110.0, fs, 0.5f);
 
-    const auto automate = [&] (int pos)
-    {
+    const auto automate = [&] (int pos) {
         const double t = pos / fs;
         auto& a = s.mics[0];
         auto& b = s.mics[1];
@@ -500,8 +490,7 @@ TEST_CASE ("Automating every control is click-free", "[cab]")
     REQUIRE (allFinite (l));
 
     // The output of a 110 Hz tone has (almost) nothing above 2.5 kHz unless something clicks.
-    const auto clickiness = [&] (std::vector<float> y)
-    {
+    const auto clickiness = [&] (std::vector<float> y) {
         std::array<Biquad, 4> hp;
         for (auto& f : hp)
             f.setCoeffs (design::highpass (fs, 2500.0, 0.7071));

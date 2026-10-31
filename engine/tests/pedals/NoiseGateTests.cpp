@@ -32,8 +32,7 @@ GainProbe probe (NoiseGate& gate, const std::vector<float>& sidechain, int block
     int offset = 0;
     test::processInBlocks (
         io, block,
-        [&] (AudioView v)
-        {
+        [&] (AudioView v) {
             gate.process (v, sidechain.data() + offset);
             p.open.push_back (gate.isOpen());
         },
@@ -57,9 +56,8 @@ TEST_CASE ("Gate output stays finite for random settings and full-scale noise", 
     test::fillNoise (key[0], 1.0f, 99);
     int offset = 0;
     test::checkFiniteWithRandomSettings<NoiseGate> (
-        [] (Random& r) { return NoiseGate::Settings{-96.0f + 96.0f * r.unipolar()}; },
-        [&] (NoiseGate& g, AudioView v)
-        {
+        [] (Random& r) { return NoiseGate::Settings { -96.0f + 96.0f * r.unipolar() }; },
+        [&] (NoiseGate& g, AudioView v) {
             // Key from the noise buffer; the offset only needs to stay in range.
             g.process (v, key[0].data() + (offset % 1000));
             offset += v.numFrames();
@@ -68,17 +66,17 @@ TEST_CASE ("Gate output stays finite for random settings and full-scale noise", 
 
 TEST_CASE ("Gate passes silence as silence", "[pedals][gate]")
 {
-    for (float threshold : {-96.0f, -72.0f, -20.0f})
-        CHECK (test::silenceOutputPeak<NoiseGate> (NoiseGate::Settings{threshold},
-                                                   [] (NoiseGate& g, AudioView v)
-                                                   { g.process (v, v.channel (0)); }) == 0.0f);
+    for (float threshold : { -96.0f, -72.0f, -20.0f })
+        CHECK (test::silenceOutputPeak<NoiseGate> (
+                   NoiseGate::Settings { threshold },
+                   [] (NoiseGate& g, AudioView v) { g.process (v, v.channel (0)); }) == 0.0f);
 }
 
 TEST_CASE ("Gate opens within about a millisecond of a burst", "[pedals][gate]")
 {
     NoiseGate gate;
-    gate.prepare ({kFs, 512, 1});
-    gate.setSettings ({-50.0f});
+    gate.prepare ({ kFs, 512, 1 });
+    gate.setSettings ({ -50.0f });
 
     const int onset = ms (200.0);
     std::vector<float> key (static_cast<size_t> (ms (400.0)), 0.0f);
@@ -88,8 +86,7 @@ TEST_CASE ("Gate opens within about a millisecond of a burst", "[pedals][gate]")
                                       static_cast<double> (i - static_cast<size_t> (onset)) / kFs));
 
     const auto p = probe (gate, key);
-    const auto at = [&] (int i)
-    {
+    const auto at = [&] (int i) {
         return p.gain[static_cast<size_t> (i)];
     };
     CHECK (at (onset - 1) < 2.0e-4f); // closed: -80 dB floor
@@ -102,8 +99,8 @@ TEST_CASE ("Gate opens within about a millisecond of a burst", "[pedals][gate]")
 TEST_CASE ("Gate closes after hold and release", "[pedals][gate]")
 {
     NoiseGate gate;
-    gate.prepare ({kFs, 512, 1});
-    gate.setSettings ({-50.0f});
+    gate.prepare ({ kFs, 512, 1 });
+    gate.setSettings ({ -50.0f });
 
     const int stop = ms (200.0);
     std::vector<float> key (static_cast<size_t> (ms (800.0)), 0.0f);
@@ -111,8 +108,7 @@ TEST_CASE ("Gate closes after hold and release", "[pedals][gate]")
     std::fill (key.begin() + stop, key.end(), 0.0f);
 
     const auto p = probe (gate, key);
-    const auto at = [&] (int i)
-    {
+    const auto at = [&] (int i) {
         return p.gain[static_cast<size_t> (i)];
     };
 
@@ -136,9 +132,9 @@ TEST_CASE ("Gate closes after hold and release", "[pedals][gate]")
 TEST_CASE ("Gate hysteresis prevents chatter near the threshold", "[pedals][gate]")
 {
     NoiseGate gate;
-    gate.prepare ({kFs, 512, 1});
+    gate.prepare ({ kFs, 512, 1 });
     const float threshold = -40.0f;
-    gate.setSettings ({threshold});
+    gate.setSettings ({ threshold });
 
     // A tone whose level wobbles +-1.5 dB around the threshold, three times a second.
     std::vector<float> key (static_cast<size_t> (3.0 * kFs));
@@ -164,8 +160,8 @@ TEST_CASE ("Gate hysteresis prevents chatter near the threshold", "[pedals][gate
 TEST_CASE ("Gate is driven by the sidechain, not by its input", "[pedals][gate]")
 {
     NoiseGate gate;
-    gate.prepare ({kFs, 512, 1});
-    gate.setSettings ({-60.0f});
+    gate.prepare ({ kFs, 512, 1 });
+    gate.setSettings ({ -60.0f });
 
     // Loud input, silent sidechain: gated to the floor.
     test::Buffer io (1, ms (300.0));
@@ -192,8 +188,8 @@ TEST_CASE ("Gate is driven by the sidechain, not by its input", "[pedals][gate]"
 TEST_CASE ("Gate at -96 dB is off", "[pedals][gate]")
 {
     NoiseGate gate;
-    gate.prepare ({kFs, 512, 2});
-    gate.setSettings ({-96.0f});
+    gate.prepare ({ kFs, 512, 2 });
+    gate.setSettings ({ -96.0f });
     test::Buffer io (2, ms (200.0));
     test::fillNoise (io[0], 0.5f, 5);
     test::fillNoise (io[1], 0.5f, 6);
@@ -213,7 +209,7 @@ TEST_CASE ("Gate threshold automation never snaps the gain", "[pedals][gate]")
     // Sweep the threshold through the level of a steady tone in both directions. The gain must
     // fade, never jump: the per-sample change is bounded by the tone's own slope plus the attack.
     NoiseGate gate;
-    gate.prepare ({kFs, 64, 1});
+    gate.prepare ({ kFs, 64, 1 });
     const float amp = 0.25f;
     test::Buffer io (1, static_cast<int> (3.0 * kFs));
     test::fillSine (io[0], 110.0, kFs, amp);
@@ -221,12 +217,11 @@ TEST_CASE ("Gate threshold automation never snaps the gain", "[pedals][gate]")
     int offset = 0;
     test::processInBlocks (
         io, 64, [&] (AudioView v) { gate.process (v, key.data() + offset); },
-        [&] (int start)
-        {
+        [&] (int start) {
             offset = start;
             const double t = static_cast<double> (start) / io.frames();
             const double tri = 1.0 - std::abs (2.0 * t - 1.0); // 0 -> 1 -> 0
-            gate.setSettings ({static_cast<float> (-96.0 + 90.0 * tri)});
+            gate.setSettings ({ static_cast<float> (-96.0 + 90.0 * tri) });
         });
     REQUIRE (test::allFinite (io[0]));
     CHECK (test::maxFirstDifference (io[0]) < test::maxFirstDifference (key) + 0.1f * amp);

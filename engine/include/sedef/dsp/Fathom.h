@@ -23,11 +23,11 @@ public:
     {
         bool enabled = false;
         int mode = Plate;
-        float mix = 0.3f;            ///< 0..1
-        float decaySeconds = 2.5f;   ///< 1..60 s (RT60)
-        float lowCutHz = 20.0f;      ///< 20..500 Hz, applied to the wet signal
-        float highCutHz = 5000.0f;   ///< 800..5000 Hz, applied to the wet signal
-        float preDelayMs = 20.0f;    ///< 1..200 ms
+        float mix = 0.3f;          ///< 0..1
+        float decaySeconds = 2.5f; ///< 1..60 s (RT60)
+        float lowCutHz = 20.0f;    ///< 20..500 Hz, applied to the wet signal
+        float highCutHz = 5000.0f; ///< 800..5000 Hz, applied to the wet signal
+        float preDelayMs = 20.0f;  ///< 1..200 ms
     };
 
     Fathom();

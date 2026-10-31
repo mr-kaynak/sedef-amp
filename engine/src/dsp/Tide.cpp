@@ -140,7 +140,7 @@ void Tide::updateTilt (float tone) noexcept
     const float h = std::exp (-kDbToNeper * kTiltRangeDb * (tone - 0.5f)); // 1 / shelf gain
     const float inv = 1.0f / (h + tiltK_);
     tilt_.setCoeffs (
-        {(1.0f + tiltK_ * h) * inv, (tiltK_ * h - 1.0f) * inv, 0.0f, (tiltK_ - h) * inv, 0.0f});
+        { (1.0f + tiltK_ * h) * inv, (tiltK_ * h - 1.0f) * inv, 0.0f, (tiltK_ - h) * inv, 0.0f });
 }
 
 void Tide::process (const AudioView& io) noexcept

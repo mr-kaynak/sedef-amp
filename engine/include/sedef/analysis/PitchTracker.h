@@ -30,13 +30,13 @@ public:
     {
         bool valid = false;
         float frequencyHz = 0.0f;
-        int midiNote = 0;          ///< nearest equal-tempered note for the reference
-        float cents = 0.0f;        ///< deviation from midiNote, -50..+50
+        int midiNote = 0;   ///< nearest equal-tempered note for the reference
+        float cents = 0.0f; ///< deviation from midiNote, -50..+50
         float clarity = 0.0f;
-        float levelDb = -120.0f;   ///< input RMS level
+        float levelDb = -120.0f; ///< input RMS level
 
-        bool stable = false;       ///< the stability window is full and quiet
-        float stableHz = 0.0f;     ///< mean of the stable window
+        bool stable = false;   ///< the stability window is full and quiet
+        float stableHz = 0.0f; ///< mean of the stable window
         float stableStdCents = 0.0f;
         int stableCount = 0;       ///< detections in the current settled segment
         std::uint32_t onsetId = 0; ///< increments on every detected pluck

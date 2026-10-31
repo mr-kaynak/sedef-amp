@@ -6,9 +6,8 @@
 #include "PresetManager.h"
 #include "sedef/Engine.h"
 
-#include <juce_audio_processors/juce_audio_processors.h>
-
 #include <array>
+#include <juce_audio_processors/juce_audio_processors.h>
 #include <mutex>
 
 namespace sedef::plugin
@@ -54,7 +53,10 @@ public:
     IrLibrary& irs() noexcept { return irs_; }
     AnalysisWorker& analysis() noexcept { return analysis_; }
 
-    float paramValue (ParamId id) const noexcept { return raw_[index (id)]->load (std::memory_order_relaxed); }
+    float paramValue (ParamId id) const noexcept
+    {
+        return raw_[index (id)]->load (std::memory_order_relaxed);
+    }
     void setParamValue (ParamId id, float realValue);
 
     juce::var uiState() const { return uiState_; }
@@ -67,7 +69,10 @@ public:
     /// Registers a tap and returns the new tempo (BPM).
     float tapTempo();
 
-    float cpuLoad() const noexcept { return static_cast<float> (loadMeasurer_.getLoadAsProportion()); }
+    float cpuLoad() const noexcept
+    {
+        return static_cast<float> (loadMeasurer_.getLoadAsProportion());
+    }
     juce::String layoutDescription() const;
     bool isStandalone() const noexcept { return wrapperType == wrapperType_Standalone; }
 

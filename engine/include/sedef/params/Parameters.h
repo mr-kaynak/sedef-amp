@@ -27,8 +27,8 @@ struct ParamSpec
     float min;
     float max;
     float defaultValue;
-    float skew;              ///< JUCE NormalisableRange skew: norm = proportion^skew
-    std::string_view unit;   ///< "dB", "Hz", "ms", "s", "st", "%", "bpm", "knob" or empty
+    float skew;               ///< JUCE NormalisableRange skew: norm = proportion^skew
+    std::string_view unit;    ///< "dB", "Hz", "ms", "s", "st", "%", "bpm", "knob" or empty
     std::string_view choices; ///< '|'-separated labels for Choice parameters
     bool automatable;
 
@@ -90,10 +90,7 @@ struct ParamSnapshot
     float& operator[] (ParamId id) noexcept { return values[index (id)]; }
 
     bool flag (ParamId id) const noexcept { return values[index (id)] >= 0.5f; }
-    int choice (ParamId id) const noexcept
-    {
-        return static_cast<int> (values[index (id)] + 0.5f);
-    }
+    int choice (ParamId id) const noexcept { return static_cast<int> (values[index (id)] + 0.5f); }
 };
 
 } // namespace sedef

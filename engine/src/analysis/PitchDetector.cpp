@@ -290,8 +290,7 @@ bool PitchDetector::refineFundamental (const float* x, int n, double period,
                                        double& hz) const noexcept
 {
     const double periodicHz = sampleRate_ / period;
-    const auto plausible = [&] (double f)
-    {
+    const auto plausible = [&] (double f) {
         return f > 0.0 &&
                std::abs (kCentsPerOctave * std::log2 (f / periodicHz)) <= kMaxRefineCents;
     };
@@ -388,8 +387,7 @@ PitchDetector::Partial PitchDetector::measurePartial (const float* x, int n, dou
 
     // Unwrap: the advance over `offset` is the wrapped phase plus the whole cycles that the
     // current estimate predicts.
-    const auto unwrap = [] (double estimate, double re, double im, int offset)
-    {
+    const auto unwrap = [] (double estimate, double re, double im, int offset) {
         const double phase = std::atan2 (im, re);
         return (phase + kTwoPiD * std::round ((estimate * offset - phase) / kTwoPiD)) / offset;
     };

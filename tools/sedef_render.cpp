@@ -94,8 +94,10 @@ std::optional<Audio> readWav (const std::string& path)
     std::ifstream f (path, std::ios::binary);
     if (!f)
         return std::nullopt;
-    const std::vector<unsigned char> d ((std::istreambuf_iterator<char> (f)), std::istreambuf_iterator<char>());
-    if (d.size() < 44 || std::memcmp (d.data(), "RIFF", 4) != 0 || std::memcmp (d.data() + 8, "WAVE", 4) != 0)
+    const std::vector<unsigned char> d ((std::istreambuf_iterator<char> (f)),
+                                        std::istreambuf_iterator<char>());
+    if (d.size() < 44 || std::memcmp (d.data(), "RIFF", 4) != 0 ||
+        std::memcmp (d.data() + 8, "WAVE", 4) != 0)
         return std::nullopt;
 
     int format = 0, channels = 0, bits = 0;
@@ -117,23 +119,29 @@ std::optional<Audio> readWav (const std::string& path)
         else if (std::memcmp (d.data() + pos, "data", 4) == 0 && channels > 0)
         {
             const int bytes = bits / 8;
-            const std::size_t frames = std::min<std::size_t> (size, d.size() - (pos + 8)) / static_cast<std::size_t> (bytes * channels);
+            const std::size_t frames = std::min<std::size_t> (size, d.size() - (pos + 8)) /
+                                       static_cast<std::size_t> (bytes * channels);
             a.mono.assign (frames, 0.0f);
             for (std::size_t i = 0; i < frames; ++i)
             {
                 float acc = 0.0f;
                 for (int c = 0; c < channels; ++c)
                 {
-                    const unsigned char* s = body + (i * static_cast<std::size_t> (channels) + static_cast<std::size_t> (c)) * static_cast<std::size_t> (bytes);
+                    const unsigned char* s = body + (i * static_cast<std::size_t> (channels) +
+                                                     static_cast<std::size_t> (c)) *
+                                                        static_cast<std::size_t> (bytes);
                     float v = 0.0f;
                     if (format == 3 && bits == 32)
                         std::memcpy (&v, s, 4);
                     else if (bits == 16)
                         v = static_cast<float> (static_cast<std::int16_t> (readU16 (s))) / 32768.0f;
                     else if (bits == 24)
-                        v = static_cast<float> (static_cast<std::int32_t> (readU32 (s - 1) & 0xFFFFFF00u)) / 2147483648.0f;
+                        v = static_cast<float> (
+                                static_cast<std::int32_t> (readU32 (s - 1) & 0xFFFFFF00u)) /
+                            2147483648.0f;
                     else if (bits == 32)
-                        v = static_cast<float> (static_cast<std::int32_t> (readU32 (s))) / 2147483648.0f;
+                        v = static_cast<float> (static_cast<std::int32_t> (readU32 (s))) /
+                            2147483648.0f;
                     acc += v;
                 }
                 a.mono[i] = acc / static_cast<float> (channels);
@@ -145,11 +153,16 @@ std::optional<Audio> readWav (const std::string& path)
     return std::nullopt;
 }
 
-void writeWav (const std::string& path, const std::vector<float>& left, const std::vector<float>& right, double rate)
+void writeWav (const std::string& path, const std::vector<float>& left,
+               const std::vector<float>& right, double rate)
 {
     std::ofstream f (path, std::ios::binary);
-    const auto u32 = [&f] (std::uint32_t v) { f.write (reinterpret_cast<const char*> (&v), 4); };
-    const auto u16 = [&f] (std::uint16_t v) { f.write (reinterpret_cast<const char*> (&v), 2); };
+    const auto u32 = [&f] (std::uint32_t v) {
+        f.write (reinterpret_cast<const char*> (&v), 4);
+    };
+    const auto u16 = [&f] (std::uint16_t v) {
+        f.write (reinterpret_cast<const char*> (&v), 2);
+    };
     const auto frames = static_cast<std::uint32_t> (left.size());
     f.write ("RIFF", 4);
     u32 (36 + frames * 8);
@@ -185,7 +198,8 @@ std::vector<float> syntheticDi (double fs, double seconds)
             s = rng.bipolar() * static_cast<float> (amp);
         auto i0 = static_cast<std::size_t> (start * fs);
         float prev = 0.0f;
-        for (std::size_t i = i0, k = 0; i < out.size() && k < static_cast<std::size_t> (fs * 2.5); ++i, ++k)
+        for (std::size_t i = i0, k = 0; i < out.size() && k < static_cast<std::size_t> (fs * 2.5);
+             ++i, ++k)
         {
             auto& cur = ring[k % ring.size()];
             const float next = 0.996f * 0.5f * (cur + prev);
@@ -195,10 +209,10 @@ std::vector<float> syntheticDi (double fs, double seconds)
         }
     };
 
-    const double chords[][6] = { { 82.41, 123.47, 164.81, 207.65, 246.94, 329.63 },  // E
-                                 { 110.0, 164.81, 220.0, 277.18, 329.63, 0.0 },       // A
-                                 { 146.83, 220.0, 293.66, 369.99, 0.0, 0.0 },         // D
-                                 { 98.0, 123.47, 146.83, 196.0, 246.94, 392.0 } };    // G
+    const double chords[][6] = { { 82.41, 123.47, 164.81, 207.65, 246.94, 329.63 }, // E
+                                 { 110.0, 164.81, 220.0, 277.18, 329.63, 0.0 },     // A
+                                 { 146.83, 220.0, 293.66, 369.99, 0.0, 0.0 },       // D
+                                 { 98.0, 123.47, 146.83, 196.0, 246.94, 392.0 } };  // G
     double t = 0.05;
     for (const auto& chord : chords)
     {
@@ -242,7 +256,8 @@ Stats measure (const std::vector<float>& l, const std::vector<float>& r, std::si
         }
     }
     s.peakDb = gainToDb (peak);
-    s.rmsDb = gainToDb (static_cast<float> (std::sqrt (acc / static_cast<double> (std::max<std::size_t> (n, 1)))));
+    s.rmsDb = gainToDb (
+        static_cast<float> (std::sqrt (acc / static_cast<double> (std::max<std::size_t> (n, 1)))));
     return s;
 }
 
@@ -252,7 +267,8 @@ struct RenderResult
     int latency = 0;
 };
 
-RenderResult render (const std::vector<float>& input, double fs, const ParamSnapshot& params, int block = 256)
+RenderResult render (const std::vector<float>& input, double fs, const ParamSnapshot& params,
+                     int block = 256)
 {
     Engine engine;
     engine.prepare (fs, block, 1, 2);
@@ -263,7 +279,8 @@ RenderResult render (const std::vector<float>& input, double fs, const ParamSnap
     Transport transport;
     for (std::size_t s = 0; s < input.size(); s += static_cast<std::size_t> (block))
     {
-        const int n = static_cast<int> (std::min<std::size_t> (static_cast<std::size_t> (block), input.size() - s));
+        const int n = static_cast<int> (
+            std::min<std::size_t> (static_cast<std::size_t> (block), input.size() - s));
         const float* in[1] = { input.data() + s };
         float* out[2] = { r.left.data() + s, r.right.data() + s };
         engine.process (in, out, n, params, transport);
@@ -271,7 +288,8 @@ RenderResult render (const std::vector<float>& input, double fs, const ParamSnap
     return r;
 }
 
-bool applyParameters (ParamSnapshot& snap, const std::map<std::string, float>& values, const std::string& source)
+bool applyParameters (ParamSnapshot& snap, const std::map<std::string, float>& values,
+                      const std::string& source)
 {
     bool ok = true;
     for (const auto& [key, value] : values)
@@ -310,8 +328,8 @@ int main (int argc, char** argv)
     if (args[0] == "--check")
     {
         // Every factory preset must render finite, with headroom, and inside a narrow level window.
-        // Factory presets are balanced to -16 LUFS with this DI (see presets/README.md), which lands
-        // between -23 and -19 dBFS RMS depending on how bright and compressed the sound is.
+        // Factory presets are balanced to -16 LUFS with this DI (see presets/README.md), which
+        // lands between -23 and -19 dBFS RMS depending on how bright and compressed the sound is.
         const auto di = syntheticDi (rate, seconds);
         int failures = 0;
         for (std::size_t i = 1; i < args.size(); ++i)
@@ -327,8 +345,9 @@ int main (int argc, char** argv)
             const auto r = render (di, rate, snap);
             const auto s = measure (r.left, r.right, static_cast<std::size_t> (rate * 0.5));
             const bool ok = s.finite && s.peakDb < -1.0f && s.rmsDb > -24.0f && s.rmsDb < -18.0f;
-            std::printf ("%s  %-48s rms %6.1f dBFS  peak %6.1f dBFS\n", ok ? "ok  " : "FAIL", args[i].c_str(),
-                         static_cast<double> (s.rmsDb), static_cast<double> (s.peakDb));
+            std::printf ("%s  %-48s rms %6.1f dBFS  peak %6.1f dBFS\n", ok ? "ok  " : "FAIL",
+                         args[i].c_str(), static_cast<double> (s.rmsDb),
+                         static_cast<double> (s.peakDb));
             failures += ok ? 0 : 1;
         }
         return failures == 0 ? 0 : 1;
@@ -338,7 +357,9 @@ int main (int argc, char** argv)
     std::map<std::string, float> overrides;
     for (std::size_t i = 0; i < args.size(); ++i)
     {
-        const auto next = [&] { return i + 1 < args.size() ? args[++i] : std::string(); };
+        const auto next = [&] {
+            return i + 1 < args.size() ? args[++i] : std::string();
+        };
         if (args[i] == "--preset")
             presetPath = next();
         else if (args[i] == "--in")
@@ -394,8 +415,8 @@ int main (int argc, char** argv)
     const auto r = render (input, rate, snap);
     const auto s = measure (r.left, r.right, 0);
     std::printf ("{\"rmsDb\": %.2f, \"peakDb\": %.2f, \"finite\": %s, \"latency\": %d}\n",
-                 static_cast<double> (s.rmsDb), static_cast<double> (s.peakDb), s.finite ? "true" : "false",
-                 r.latency);
+                 static_cast<double> (s.rmsDb), static_cast<double> (s.peakDb),
+                 s.finite ? "true" : "false", r.latency);
     if (!outPath.empty())
         writeWav (outPath, r.left, r.right, rate);
     return s.finite ? 0 : 1;

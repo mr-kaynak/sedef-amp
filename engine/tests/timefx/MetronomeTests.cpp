@@ -230,24 +230,22 @@ TEST_CASE ("Metronome output is finite for random settings, rates and block size
     fillNoise (b[0], 1.0f, 7);
     fillNoise (b[1], 1.0f, 8);
     int sinceChange = 1 << 20;
-    forEachBlock (b.view(), blockSize,
-                  [&] (AudioView v, int)
-                  {
-                      if ((sinceChange += v.numFrames()) >= 5000)
-                      {
-                          Metronome::Settings s;
-                          s.enabled = rng.unipolar() < 0.8f;
-                          s.volumeDb = mapLin (rng.unipolar(), -24.0f, 12.0f);
-                          s.signature = static_cast<int> (rng.unipolar() * 8.0f);
-                          s.sound = static_cast<int> (rng.unipolar() * 6.0f);
-                          s.bpm = mapLin (rng.unipolar(), 40.0f, 400.0f);
-                          for (auto& st : s.steps)
-                              st = static_cast<std::uint8_t> (rng.unipolar() * 4.0f);
-                          m.setSettings (s);
-                          sinceChange = 0;
-                      }
-                      m.process (v);
-                  });
+    forEachBlock (b.view(), blockSize, [&] (AudioView v, int) {
+        if ((sinceChange += v.numFrames()) >= 5000)
+        {
+            Metronome::Settings s;
+            s.enabled = rng.unipolar() < 0.8f;
+            s.volumeDb = mapLin (rng.unipolar(), -24.0f, 12.0f);
+            s.signature = static_cast<int> (rng.unipolar() * 8.0f);
+            s.sound = static_cast<int> (rng.unipolar() * 6.0f);
+            s.bpm = mapLin (rng.unipolar(), 40.0f, 400.0f);
+            for (auto& st : s.steps)
+                st = static_cast<std::uint8_t> (rng.unipolar() * 4.0f);
+            m.setSettings (s);
+            sinceChange = 0;
+        }
+        m.process (v);
+    });
     CHECK (allFinite (b[0]));
     CHECK (allFinite (b[1]));
     CHECK (peak (b[0]) < 4.0f);

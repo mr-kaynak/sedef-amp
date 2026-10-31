@@ -5,7 +5,6 @@
 #include "sedef/analysis/PitchTracker.h"
 
 #include <juce_core/juce_core.h>
-
 #include <mutex>
 
 namespace sedef::plugin

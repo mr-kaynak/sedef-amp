@@ -25,7 +25,7 @@ template <typename Module>
 double bench (const typename Module::Settings& s)
 {
     Module m;
-    m.prepare ({48000.0, 64, 1});
+    m.prepare ({ 48000.0, 64, 1 });
     m.setSettings (s);
     return test::nsPerSample ([&] (AudioView v) { m.process (v); });
 }
@@ -37,14 +37,14 @@ TEST_CASE ("Pedal CPU cost", "[.bench]")
 
     {
         dsp::NoiseGate gate;
-        gate.prepare ({48000.0, 64, 1});
-        gate.setSettings ({-60.0f});
+        gate.prepare ({ 48000.0, 64, 1 });
+        gate.setSettings ({ -60.0f });
         report ("Gate", test::nsPerSample ([&] (AudioView v) { gate.process (v, v.channel (0)); }));
     }
-    report ("Tide", bench<dsp::Tide> ({0.7f, 0.6f, 0.5f, 0.7f}));
-    report ("Pearl", bench<dsp::Pearl> ({0.6f, 0.5f, 0.5f, 0.5f}));
-    report ("Coral", bench<dsp::Coral> ({0.8f, 0.5f, 0.5f}));
-    report ("Ripple tremolo", bench<dsp::Ripple> ({dsp::Ripple::Tremolo, 5.0f, 0.7f}));
-    report ("Ripple chorus", bench<dsp::Ripple> ({dsp::Ripple::Chorus, 1.0f, 0.7f}));
-    report ("Ripple vibrato", bench<dsp::Ripple> ({dsp::Ripple::Vibrato, 5.0f, 0.7f}));
+    report ("Tide", bench<dsp::Tide> ({ 0.7f, 0.6f, 0.5f, 0.7f }));
+    report ("Pearl", bench<dsp::Pearl> ({ 0.6f, 0.5f, 0.5f, 0.5f }));
+    report ("Coral", bench<dsp::Coral> ({ 0.8f, 0.5f, 0.5f }));
+    report ("Ripple tremolo", bench<dsp::Ripple> ({ dsp::Ripple::Tremolo, 5.0f, 0.7f }));
+    report ("Ripple chorus", bench<dsp::Ripple> ({ dsp::Ripple::Chorus, 1.0f, 0.7f }));
+    report ("Ripple vibrato", bench<dsp::Ripple> ({ dsp::Ripple::Vibrato, 5.0f, 0.7f }));
 }

@@ -2,7 +2,14 @@
 #pragma once
 
 #include "sedef/core/AudioView.h"
+#include "sedef/core/Biquad.h"
+#include "sedef/core/DelayLine.h"
+#include "sedef/core/Lfo.h"
+#include "sedef/core/Smoothed.h"
 #include "sedef/core/Transport.h"
+
+#include <array>
+#include <atomic>
 
 namespace sedef::dsp
 {
@@ -45,6 +52,54 @@ public:
 
     /// The delay time currently in effect (after sync), for the UI.
     float effectiveTimeMs() const noexcept;
+
+private:
+    /// Distinct playback-head positions (fractions of the delay time) used by the head patterns.
+    static constexpr int kNumSlots = 5;
+
+    float syncedTimeMs (const Transport& transport) const noexcept;
+    void applyTargets (bool snap) noexcept;
+    void updateTone() noexcept;
+    void updateDrive() noexcept;
+    void controlTick() noexcept;
+    void processSamples (const AudioView& io, int start, int length) noexcept;
+    void wake() noexcept;
+    void goIdle() noexcept;
+
+    double sampleRate_ = 48000.0;
+    Settings settings_ {};
+    bool snapNext_ = true;
+    bool idle_ = true;
+    long long silentSamples_ = 0;
+
+    // Two tape loops: A is fed by the input, B only by A's feedback, and B feeds A. Repeats
+    // therefore alternate between A and B; width decides how the two are panned.
+    std::array<DelayLine, 2> tape_;
+    // Channel index = loop (both loops share coefficients). Record path: emphasis, drive,
+    // de-emphasis + LF loss, HF loss. Bass/treble sit in the playback amp: on the wet bus and on
+    // the last head's feedback ahead of the loop's soft ceiling, so boosts cannot lift a runaway
+    // echo past that ceiling.
+    Biquad emphasis_, deEmphasis_, hfLoss_, playbackTone_, feedbackTone_;
+
+    // Delay time follows its target like a critically damped spring whose velocity (the playback
+    // speed offset) is limited: smooth pitch bends, no kinks, never backwards.
+    double targetDelay_ = 0.0, delay_ = 0.0, delayVelocity_ = 0.0;
+    double glideRate_ = 0.0;
+    bool snapDelay_ = true;
+
+    std::array<LinearSmoothed, kNumSlots> slotLevel_;
+    LinearSmoothed loopGain_, inputGain_, dryGain_, wetGain_, sameSide_, otherSide_;
+    LinearSmoothed bassDb_, trebleDb_, drive_, modAmount_;
+    float driveK_ = 1.0f, driveGain_ = 1.0f, driveInvSlope_ = 1.0f;
+
+    // Wow and flutter are evaluated per control tick and interpolated in between.
+    Lfo wow_, flutter_;
+    SmoothRandom wowDrift_, flutterNoise_;
+    float mod_ = 0.0f, modStep_ = 0.0f;
+    float wowSamples_ = 0.0f, flutterSamples_ = 0.0f;
+    int tickCountdown_ = 0;
+
+    std::atomic<float> effectiveTimeMs_ { 500.0f };
 };
 
 } // namespace sedef::dsp

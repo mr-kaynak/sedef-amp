@@ -1,0 +1,100 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+import { ChoiceSelect } from '../../controls/ChoiceSelect';
+import { Icon } from '../../controls/Icon';
+import { Knob } from '../../controls/Knob';
+import { setParam, useParamValue } from '../../params/useParam';
+import { telemetry, useLiveSelector } from '../../state/live';
+import { useUiStore } from '../../state/uiStore';
+import { setMetronomePattern, tapTempo } from './actions';
+import {
+  cycleStep,
+  STEP_ACCENT,
+  STEP_NORMAL,
+  STEP_OFF,
+  STEP_SOFT,
+  stepsFor,
+} from '../../lib/metronome';
+import styles from './MetronomePanel.module.css';
+
+const STEP_NAMES: Record<number, string> = {
+  [STEP_OFF]: 'off',
+  [STEP_NORMAL]: 'normal',
+  [STEP_ACCENT]: 'accent',
+  [STEP_SOFT]: 'soft',
+};
+
+export function MetronomePanel() {
+  const playing = useParamValue('metronomeEnabled') >= 0.5;
+  const bpm = useParamValue('tempo');
+  const signature = Math.round(useParamValue('metronomeSignature'));
+  const steps = useUiStore((s) => s.metronomeSteps);
+  const count = stepsFor(signature);
+  const currentStep = useLiveSelector(telemetry, (t) => (playing ? (t?.metronomeStep ?? -1) : -1));
+
+  const toggleStep = (i: number) => {
+    const next = [...steps];
+    next[i] = cycleStep(next[i] ?? STEP_NORMAL);
+    setMetronomePattern(next);
+  };
+
+  return (
+    <div className={styles.panel}>
+      <div className={styles.top}>
+        <button
+          type="button"
+          className={styles.play}
+          aria-pressed={playing}
+          aria-label={playing ? 'Stop metronome' : 'Start metronome'}
+          onClick={() => setParam('metronomeEnabled', playing ? 0 : 1)}
+        >
+          <Icon name={playing ? 'stop' : 'play'} size={18} filled />
+        </button>
+        <div className={styles.tempo}>
+          <span className={styles.bpm}>{Math.round(bpm)}</span>
+          <span className={styles.unit}>bpm</span>
+        </div>
+        <Knob param="tempo" size="sm" label="Tempo" hideValue />
+        <button type="button" className={styles.tap} onClick={() => void tapTempo()}>
+          Tap
+        </button>
+      </div>
+
+      <div
+        className={styles.grid}
+        style={{ gridTemplateColumns: `repeat(${count}, 1fr)` }}
+        role="group"
+        aria-label="Beat pattern. Click a beat to cycle off, normal, accent, soft."
+      >
+        {Array.from({ length: count }, (_, i) => {
+          const state = steps[i] ?? STEP_NORMAL;
+          return (
+            <button
+              key={i}
+              type="button"
+              className={styles.step}
+              data-state={STEP_NAMES[state]}
+              data-now={i === currentStep || undefined}
+              aria-label={`Beat ${i + 1}: ${STEP_NAMES[state]}`}
+              onClick={() => toggleStep(i)}
+            >
+              <span className={styles.bar} />
+              <span className={styles.index}>{i + 1}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className={styles.row}>
+        <label className={styles.field}>
+          <span>Signature</span>
+          <ChoiceSelect param="metronomeSignature" />
+        </label>
+        <label className={styles.field}>
+          <span>Sound</span>
+          <ChoiceSelect param="metronomeSound" />
+        </label>
+        <Knob param="metronomeVolume" size="sm" label="Volume" />
+      </div>
+    </div>
+  );
+}

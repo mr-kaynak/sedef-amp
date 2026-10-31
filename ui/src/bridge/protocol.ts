@@ -132,6 +132,11 @@ export interface NativeFunctions {
   /** Starts/stops pitch analysis (tuner and intonation). Events flow only while active. */
   sedef_tuner_setActive(active: boolean): void;
 
+  /**
+   * One entry per step, step 0 = downbeat, up to 13 entries (Metronome::kMaxSteps). Values follow
+   * Metronome::StepState: 0 off, 1 normal, 2 accent, 3 soft. The UI always sends all 13 so a
+   * pattern survives switching to a shorter signature and back.
+   */
   sedef_metronome_setPattern(steps: number[]): void;
   sedef_metronome_tap(): number; // returns new BPM
 

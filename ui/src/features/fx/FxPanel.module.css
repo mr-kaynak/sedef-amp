@@ -1,0 +1,50 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+.panel {
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px;
+  background:
+    repeating-linear-gradient(90deg, rgb(255 255 255 / 0.018) 0 1px, transparent 1px 3px),
+    linear-gradient(180deg, #152d3d, #0f2230);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.08),
+    0 0 0 1px rgb(0 0 0 / 0.45),
+    0 20px 34px -20px rgb(0 0 0 / 0.85);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px 0;
+}
+
+.name {
+  margin: 0;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: var(--t-36);
+  font-weight: 500;
+  line-height: 1;
+}
+
+.kind {
+  color: var(--bone-3);
+  font-size: var(--t-11);
+  font-stretch: 125%;
+  font-weight: 500;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  padding: 12px 18px 16px;
+}
+
+.panel:not([data-on]) .body {
+  opacity: 0.62;
+}

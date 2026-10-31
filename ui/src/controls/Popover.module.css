@@ -1,0 +1,17 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+.popover {
+  position: absolute;
+  z-index: 50;
+  border-radius: var(--r-pop);
+  background: linear-gradient(180deg, #13293a, #0d1f2c);
+  box-shadow: var(--shadow-pop);
+  color: var(--bone);
+  animation: rise var(--dur-2) var(--ease-out);
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}

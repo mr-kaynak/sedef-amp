@@ -1,0 +1,94 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+.strip {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px 12px;
+  border-radius: var(--r-panel);
+  background: rgb(6 17 25 / 0.5);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.strip[data-off] .knobs,
+.strip[data-off] .type {
+  opacity: 0.5;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.badge {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  color: var(--ink-1);
+  font-size: var(--t-11);
+  font-weight: 700;
+}
+
+.strip[data-mic='A'] .badge {
+  background: var(--nacre-aqua);
+}
+
+.strip[data-mic='B'] .badge {
+  background: var(--nacre-rose);
+}
+
+.title {
+  margin: 0 auto 0 0;
+  font-size: var(--t-14);
+  font-weight: 600;
+}
+
+.type {
+  width: 100%;
+}
+
+.knobs {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.room {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding-left: 12px;
+  border-left: 1px solid var(--line);
+}
+
+.room > button {
+  height: 22px;
+}
+
+.ir {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 6px 6px 10px;
+  border-radius: var(--r-ctl);
+  background: var(--ink-0);
+  color: var(--bone-3);
+}
+
+.irName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--bone);
+  font-size: var(--t-12);
+}
+
+.irMeta,
+.irEmpty {
+  color: var(--bone-3);
+}

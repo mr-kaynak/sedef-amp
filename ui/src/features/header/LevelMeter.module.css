@@ -1,0 +1,75 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+.meter {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2px;
+  width: 92px;
+  padding-right: 10px;
+}
+
+.bar {
+  position: relative;
+  height: 4px;
+  border-radius: 1px;
+  overflow: hidden;
+  /* Fixed gradient; the cover hides the unlit part so colours stay put as the level moves. */
+  background: linear-gradient(
+    90deg,
+    #4f6f78 0%,
+    var(--nacre-aqua) 62%,
+    var(--nacre-lilac) 80%,
+    var(--amber) 90%,
+    var(--coral) 95.2%
+  );
+}
+
+.cover {
+  position: absolute;
+  inset: 0;
+  background: var(--ink-0);
+  transform-origin: 100% 50%;
+  transform: scaleX(1);
+}
+
+.peakTrack {
+  position: absolute;
+  inset: 0;
+}
+
+.peak {
+  position: absolute;
+  left: -1px;
+  top: 0;
+  bottom: 0;
+  width: 100%;
+  opacity: 0;
+}
+
+.peak::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--bone);
+}
+
+.clip {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  margin-top: -3px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: #2a3c47;
+}
+
+.clip[data-on] {
+  background: var(--coral);
+  box-shadow: 0 0 6px 1px rgb(240 123 128 / 0.8);
+}

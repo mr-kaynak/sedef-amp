@@ -1,0 +1,42 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+.tape {
+  display: block;
+}
+
+.reel {
+  fill: #0b1720;
+  stroke: rgb(237 230 214 / 0.18);
+}
+
+.hub {
+  fill: #31454f;
+}
+
+.path {
+  stroke: #6c5a46;
+  stroke-width: 2;
+}
+
+.rec {
+  fill: #3c4b54;
+}
+
+.head {
+  fill: #1c2c36;
+  stroke: rgb(237 230 214 / 0.18);
+}
+
+.head[data-selected] {
+  fill: #6f8790;
+}
+
+.head[data-active] {
+  fill: var(--nacre-aqua);
+  filter: drop-shadow(0 0 4px rgb(200 241 234 / 0.7));
+}
+
+.caption {
+  fill: var(--bone-4);
+  font-size: 9px;
+  text-anchor: middle;
+}

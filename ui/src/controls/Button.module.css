@@ -1,0 +1,79 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Shared button styles. "ghost" for toolbars, "solid" for primary actions, "nacre" for the one
+   action that matters most on a screen. */
+.ghost,
+.solid,
+.nacre {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: var(--r-ctl);
+  font-size: var(--t-12);
+  font-weight: 540;
+  white-space: nowrap;
+  transition:
+    background var(--dur-1),
+    border-color var(--dur-1),
+    color var(--dur-1);
+}
+
+.ghost {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--bone-2);
+}
+
+.ghost:hover {
+  color: var(--bone);
+  background: rgb(237 230 214 / 0.06);
+}
+
+.ghost[aria-pressed='true'],
+.ghost[aria-expanded='true'] {
+  color: var(--bone);
+  background: rgb(205 238 238 / 0.08);
+  border-color: rgb(205 238 238 / 0.22);
+}
+
+.solid {
+  border: 1px solid var(--line-strong);
+  background: var(--ink-3);
+  color: var(--bone);
+}
+
+.solid:hover {
+  background: var(--ink-4);
+}
+
+.nacre {
+  border: none;
+  background: var(--nacre-line);
+  color: var(--ink-1);
+  font-weight: 620;
+  box-shadow: 0 2px 10px -2px rgb(200 241 234 / 0.35);
+}
+
+.nacre:hover {
+  filter: brightness(1.05);
+}
+
+.ghost:disabled,
+.solid:disabled,
+.nacre:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.icon {
+  width: 30px;
+  padding: 0;
+}
+
+.small {
+  height: 24px;
+  padding: 0 9px;
+  font-size: var(--t-11);
+}

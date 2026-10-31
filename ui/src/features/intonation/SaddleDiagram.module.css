@@ -1,0 +1,84 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+.diagram {
+  display: block;
+  overflow: visible;
+}
+
+.dir {
+  fill: var(--bone-3);
+  font-size: 11px;
+  font-family: var(--font-ui);
+}
+
+.plate {
+  fill: #1a2e3b;
+  stroke: rgb(237 230 214 / 0.14);
+}
+
+.string {
+  stroke: #9da4a0;
+  opacity: 0.55;
+}
+
+.row[data-focus] .string {
+  stroke: var(--bone);
+  opacity: 1;
+}
+
+.label {
+  fill: var(--bone-4);
+  font-size: 10px;
+  font-family: var(--font-ui);
+}
+
+.row[data-focus] .label {
+  fill: var(--bone);
+  font-weight: 600;
+}
+
+.saddle {
+  fill: #6b7a80;
+  stroke: rgb(0 0 0 / 0.5);
+}
+
+.row[data-focus] .saddle {
+  fill: var(--bone-2);
+}
+
+.ghost {
+  fill: none;
+  stroke: var(--nacre-aqua);
+  stroke-width: 1.6;
+  stroke-dasharray: 3 2;
+}
+
+.arrow {
+  stroke: var(--nacre-aqua);
+  stroke-width: 2;
+}
+
+.arrowHead {
+  fill: var(--nacre-aqua);
+}
+
+.pip {
+  fill: var(--nacre-lilac);
+}
+
+.amount {
+  fill: var(--nacre-aqua);
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--font-ui);
+}
+
+.scale line {
+  stroke: var(--bone-3);
+  stroke-width: 2;
+}
+
+.scale text {
+  fill: var(--bone-3);
+  font-size: 10px;
+  font-family: var(--font-ui);
+}

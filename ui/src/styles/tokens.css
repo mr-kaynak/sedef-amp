@@ -1,0 +1,93 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/*
+ * Design tokens. The palette is a deep-sea lacquer: blue-green inks that read as colour, not as
+ * tinted black, warm bone type, and nacre (mother-of-pearl) reserved for things that are alive:
+ * knob caps, lit LEDs, the active tab, the logo inlay.
+ */
+:root {
+  /* Lacquer inks, deepest first. */
+  --ink-0: #061119;
+  --ink-1: #0b1c27;
+  --ink-2: #102635;
+  --ink-3: #173447;
+  --ink-4: #22465c;
+
+  /* Bone type. */
+  --bone: #ede6d6;
+  --bone-2: #bdb7a8;
+  --bone-3: #86918f;
+  --bone-4: #5a6a6d;
+
+  /* Hairlines are bone at low alpha so they pick up whatever lacquer sits underneath. */
+  --line: rgb(237 230 214 / 0.1);
+  --line-strong: rgb(237 230 214 / 0.2);
+
+  /* Nacre: four pale interference colours. Never used as flat fills on large areas. */
+  --nacre-rose: #f6dbe2;
+  --nacre-aqua: #cdeeee;
+  --nacre-lilac: #ddd6f6;
+  --nacre-gold: #f2e8cb;
+  --nacre: conic-gradient(
+    from 200deg,
+    var(--nacre-aqua),
+    var(--nacre-lilac),
+    var(--nacre-rose),
+    var(--nacre-gold),
+    var(--nacre-aqua),
+    var(--nacre-rose),
+    var(--nacre-lilac),
+    var(--nacre-aqua)
+  );
+  --nacre-line: linear-gradient(
+    90deg,
+    var(--nacre-aqua),
+    var(--nacre-lilac),
+    var(--nacre-rose),
+    var(--nacre-gold)
+  );
+  --glow: #c8f1ea;
+
+  /* Signals. */
+  --coral: #f07b80;
+  --amber: #e9c77d;
+
+  /* Type. Scale follows the classic 10/11/12/14/16/18/24/36/48/72 sequence. */
+  --font-ui: 'Archivo Variable', 'Helvetica Neue', Arial, sans-serif;
+  --font-display: 'Bodoni Moda Variable', 'Didot', 'Bodoni 72', serif;
+  --t-10: 10px;
+  --t-11: 11px;
+  --t-12: 12px;
+  --t-14: 14px;
+  --t-16: 16px;
+  --t-18: 18px;
+  --t-24: 24px;
+  --t-36: 36px;
+  --t-48: 48px;
+  --t-72: 72px;
+  /* Engraved panel legends: wide, light tracking, sentence case. */
+  --legend-stretch: 118%;
+
+  /* Geometry. Radii differ by role: hardware is nearly square, overlays are soft. */
+  --r-hw: 4px;
+  --r-ctl: 6px;
+  --r-panel: 10px;
+  --r-pop: 12px;
+
+  --shadow-hw: 0 1px 0 rgb(255 255 255 / 0.05) inset, 0 10px 24px -12px rgb(0 0 0 / 0.7);
+  --shadow-pop: 0 24px 60px -20px rgb(0 0 0 / 0.75), 0 0 0 1px var(--line-strong);
+
+  --focus: 0 0 0 2px var(--ink-1), 0 0 0 4px var(--nacre-aqua);
+
+  --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --dur-1: 120ms;
+  --dur-2: 220ms;
+
+  color-scheme: dark;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-1: 0ms;
+    --dur-2: 0ms;
+  }
+}

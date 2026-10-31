@@ -1,0 +1,45 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+.header {
+  position: relative;
+  z-index: 30;
+  display: grid;
+  grid-template-columns: 176px 340px 1fr auto;
+  align-items: center;
+  gap: 20px;
+  height: 68px;
+  padding: 0 16px 0 20px;
+  background: linear-gradient(180deg, #0f2433 0%, #0c1e2a 100%);
+  border-bottom: 1px solid rgb(0 0 0 / 0.5);
+  box-shadow: 0 1px 0 rgb(255 255 255 / 0.04);
+}
+
+.io {
+  display: flex;
+  justify-content: center;
+  gap: 18px;
+}
+
+.gain {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.gain > :first-child {
+  min-width: 0;
+}
+
+.tools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.anchor {
+  position: relative;
+}
+
+.rightPopover {
+  top: calc(100% + 12px);
+  right: 0;
+}

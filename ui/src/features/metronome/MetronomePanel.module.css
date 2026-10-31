@@ -1,0 +1,139 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+.panel {
+  width: 380px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.play {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 50%;
+  background: var(--ink-3);
+  color: var(--bone);
+  box-shadow: 0 0 0 1px var(--line-strong);
+}
+
+.play[aria-pressed='true'] {
+  background: var(--nacre);
+  color: var(--ink-1);
+}
+
+.tempo {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  flex: 1;
+}
+
+.bpm {
+  font-family: var(--font-display);
+  font-size: var(--t-36);
+  font-weight: 500;
+  font-variation-settings: 'opsz' 48;
+  line-height: 1;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+.unit {
+  color: var(--bone-3);
+  font-size: var(--t-12);
+}
+
+.tap {
+  width: 52px;
+  height: 44px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-ctl);
+  background: var(--ink-3);
+  color: var(--bone);
+  font-weight: 600;
+}
+
+.tap:active {
+  background: var(--ink-4);
+}
+
+.grid {
+  display: grid;
+  gap: 4px;
+}
+
+.step {
+  position: relative;
+  height: 56px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 4px;
+  padding: 0 0 4px;
+  border: none;
+  border-radius: var(--r-hw);
+  background: var(--ink-0);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.bar {
+  width: 60%;
+  border-radius: 2px;
+  background: var(--bone-3);
+  transition: height var(--dur-1);
+}
+
+.step[data-state='off'] .bar {
+  height: 2px;
+  background: var(--bone-4);
+}
+
+.step[data-state='soft'] .bar {
+  height: 12px;
+  background: var(--bone-4);
+}
+
+.step[data-state='normal'] .bar {
+  height: 22px;
+}
+
+.step[data-state='accent'] .bar {
+  height: 34px;
+  background: var(--nacre-line);
+}
+
+.step[data-now] {
+  box-shadow:
+    inset 0 0 0 1px rgb(205 238 238 / 0.65),
+    0 0 12px -2px rgb(200 241 234 / 0.5);
+}
+
+.index {
+  color: var(--bone-4);
+  font-size: var(--t-10);
+  line-height: 1;
+}
+
+.row {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.field {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: var(--bone-3);
+  font-size: var(--t-11);
+}

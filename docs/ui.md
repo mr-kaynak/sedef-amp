@@ -28,18 +28,18 @@ chromium-headless-shell`.
 
 ### URL flags (mock only)
 
-| Flag | Effect |
-| --- | --- |
-| `?section=pedals\|amp\|eq\|cab\|fx` | open a section |
-| `?overlay=tuner\|intonation` | open the tuner or the intonation workbench |
-| `?preset=soft-focus` | start from a factory preset (slug; default `nacre`) |
-| `?set=pearlEnabled:1,pearlGain:0.4` | parameter values applied as part of that preset (no dirty dot) |
-| `?freeze` | no simulation: static meters, pitch only from the demo hook |
-| `?demo` | expose `window.__sedefDemo` (`pitch`, `silence`, `intonation`, `set`) for scripted frames |
-| `?grain=0` | hide the lacquer grain (much smaller PNGs) |
-| `?host=plugin\|standalone` | present as a plugin (no metronome) or as the standalone app instead of the browser preview |
-| `?errors=3.6,-2.4,1.1` | 12th-fret errors in cents that the simulated guitar produces, per string |
-| `?fresh` | ignore UI state saved by earlier browser sessions |
+| Flag                                | Effect                                                                                     |
+| ----------------------------------- | ------------------------------------------------------------------------------------------ |
+| `?section=pedals\|amp\|eq\|cab\|fx` | open a section                                                                             |
+| `?overlay=tuner\|intonation`        | open the tuner or the intonation workbench                                                 |
+| `?preset=soft-focus`                | start from a factory preset (slug; default `nacre`)                                        |
+| `?set=pearlEnabled:1,pearlGain:0.4` | parameter values applied as part of that preset (no dirty dot)                             |
+| `?freeze`                           | no simulation: static meters, pitch only from the demo hook                                |
+| `?demo`                             | expose `window.__sedefDemo` (`pitch`, `silence`, `intonation`, `set`) for scripted frames  |
+| `?grain=0`                          | hide the lacquer grain (much smaller PNGs)                                                 |
+| `?host=plugin\|standalone`          | present as a plugin (no metronome) or as the standalone app instead of the browser preview |
+| `?errors=3.6,-2.4,1.1`              | 12th-fret errors in cents that the simulated guitar produces, per string                   |
+| `?fresh`                            | ignore UI state saved by earlier browser sessions                                          |
 
 ### Inside the plugin
 
@@ -80,11 +80,11 @@ as `protocol.ts` specifies. The UI depends only on this interface:
 
 ```ts
 interface Backend {
-  kind: 'juce' | 'mock';
+  kind: "juce" | "mock";
   hello(): Promise<HelloResponse>;
-  call(name, ...args): Promise<result>;   // typed against NativeFunctions
-  on(event, fn): () => void;               // typed against Events
-  simulator?: PitchSimulator;              // mock only, see below
+  call(name, ...args): Promise<result>; // typed against NativeFunctions
+  on(event, fn): () => void; // typed against Events
+  simulator?: PitchSimulator; // mock only, see below
 }
 ```
 
@@ -105,14 +105,26 @@ and `sedef:ir`.
 - Normalisation mirrors JUCE `NormalisableRange`: `norm = ((v − min) / (max − min))^skew`.
 - Changes are optimistic: the store updates at once, and `sedef_setParam` calls are coalesced
   per task. `begin`/`end` flush pending values first, so hosts record whole gestures.
-- The host echoes our own changes back. Echoes for a parameter that is mid-gesture or changed in
-  the last 250 ms are ignored, so a knob never jumps backwards under the pointer.
+- Gestures are reference-counted per parameter (`params/sender.ts`): a wheel burst, a drag and a
+  key press on one control can overlap and the host still sees one begin and one end. A drag or
+  wheel burst ends the parameter it began on, also when the control unmounts mid-drag, is
+  rebound to another parameter or loses pointer capture.
+- While the user owns a parameter (mid-gesture or changed in the last 250 ms), host values for
+  it are held back, so a control never jumps under the pointer. The plugin sends each change
+  only once, so a held value is applied when ownership ends (a preset loaded right after a wheel
+  turn still lands), unless the user changed the parameter after it arrived. A value that
+  arrives while our own call for that parameter is still unanswered was produced before the host
+  applied ours and is dropped.
+- The wheel moves by the distance scrolled: 2 % of the range (one step for stepped parameters)
+  per 100 px notch, line and page delta modes converted, small trackpad deltas accumulated, and
+  the first event of a burst always moves a stepped control. Faders count drag distance in their
+  own layout pixels, so the cap follows the pointer at any window scale.
 - Components subscribe to one value each (Zustand selectors). An automation burst re-renders only
   the controls whose values changed.
 
 ### High-rate data
 
-Telemetry (~30 Hz) and pitch (~50 Hz) never go through React state. They land in `LiveChannel`s;
+Telemetry (~30 Hz) and pitch (~60 Hz) never go through React state. They land in `LiveChannel`s;
 meters, the tuner needle, the strobe and the compressor's reduction bar draw from them in
 `requestAnimationFrame` through refs (`useLiveFrame`). Text that changes rarely — a note name, a
 metronome step, the effective Drift time — uses `useLiveSelector`, which re-renders only when the
@@ -141,9 +153,12 @@ tolerance. The mock starts on Nacre.
 - **Telemetry**: a player strumming every couple of seconds, shaped by input/output gain, the gate
   threshold and the compressor; metronome steps at the current tempo and signature; the effective
   Drift time for Free/Host/Tap sync.
-- **Pitch**: a virtual player modelled on what the C++ `PitchTracker` reports — plucks with a sharp
-  attack, settling, jitter, decay, and a stability window with mean and standard error. With no
-  intent it tunes the strings of a guitar one after another. The intonation workbench sets
+- **Pitch**: a virtual player modelled on what the C++ `PitchTracker` reports
+  (`docs/dsp/tuner.md`), at the editor's 60 Hz — plucks with an attack glide, a jittery reading,
+  and settled detections at 200 per second from 0.25 s after the pluck whose last 0.4 s give
+  `stable` (window full, spread under 0.5 cent), `stableHz` (mean), `stableStdCents` (sample
+  standard deviation) and `stableCount`. With no intent it tunes the strings of a guitar one
+  after another. The intonation workbench sets
   intents through the optional `simulator` hook (`tune` an open string, `fret` the 12th fret with
   a configurable error per string), so the whole flow is demoable in a browser.
 
@@ -165,18 +180,18 @@ Design canvas: 1200 × 760 CSS px, scaled uniformly to the window (`app/Stage.ts
 resizes its window to the canvas times the chosen scale (75–200 %, `sedef_ui_setScale`); in a
 browser the canvas fits the window. Everything is vector or text, so it stays crisp at any scale.
 
-| Screen | Notes |
-| --- | --- |
-| Header | logo, preset bar (prev/next, dirty dot, browser with search, Factory/User/Favourites, save, save as, rename, delete, new), input/output gain with peak meters and clip latches, Tuner, Intonation, Metronome (standalone only), Settings |
-| Tabs | Pedals · Amp · EQ · Cab · FX, keys 1–5 and arrow keys; each tab shows what is switched on inside it |
-| Pedals | Gate (threshold, open/closed lamp), Transpose, Tide/Pearl/Coral/Ripple enclosures with LEDs and footswitches, Tide gain reduction, Ripple rate lamp |
-| Amp | Lagoon/Reef/Abyss faceplates; Reef 3-way voice lever; Abyss bright/shift levers; amp/cab link |
-| EQ | the current amp's bank: 9 faders on a log axis under a live response curve, low/high cut, on/off, flatten |
-| Cab | cab picker (shows the link), speaker with draggable Mic A/B markers (sideways = position, up/down = distance ring), per-mic type for the current cab, level, pan, phase, room, custom IR load/clear |
-| FX | Drift (heads, Free/Host/Tap sync with tap button, time or note value, the effective time from telemetry, tape controls), Fathom (plate/hall with an envelope sketch), Doubler |
-| Tuner | needle + strobe, note and octave, cents, Hz, reference 420–460 Hz, mute; in tune within ±1 cent |
-| Intonation | instrument → measure each string (tune open, capture 12th fret, result with saddle diagram) → summary with copy as text |
-| Metronome | play/stop, tempo knob + tap, signature, sound, volume, step grid (off/normal/accent/soft), live beat |
+| Screen     | Notes                                                                                                                                                                                                                                    |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Header     | logo, preset bar (prev/next, dirty dot, browser with search, Factory/User/Favourites, save, save as, rename, delete, new), input/output gain with peak meters and clip latches, Tuner, Intonation, Metronome (standalone only), Settings |
+| Tabs       | Pedals · Amp · EQ · Cab · FX, keys 1–5 and arrow keys; each tab shows what is switched on inside it                                                                                                                                      |
+| Pedals     | Gate (threshold, open/closed lamp), Transpose, Tide/Pearl/Coral/Ripple enclosures with LEDs and footswitches, Tide gain reduction, Ripple rate lamp                                                                                      |
+| Amp        | Lagoon/Reef/Abyss faceplates; Reef 3-way voice lever; Abyss bright/shift levers; amp/cab link                                                                                                                                            |
+| EQ         | the current amp's bank: 9 faders on a log axis under a live response curve, low/high cut, on/off, flatten                                                                                                                                |
+| Cab        | cab picker (shows the link), speaker with draggable Mic A/B markers (sideways = position, up/down = distance ring), per-mic type for the current cab, level, pan, phase, room, custom IR load/clear                                      |
+| FX         | Drift (heads, Free/Host/Tap sync with tap button, time or note value, the effective time from telemetry, tape controls), Fathom (plate/hall with an envelope sketch), Doubler                                                            |
+| Tuner      | needle + strobe, note and octave, cents, Hz, reference 420–460 Hz, mute; in tune within ±1 cent                                                                                                                                          |
+| Intonation | instrument → measure each string (tune open, capture 12th fret, result with saddle diagram) → summary with copy as text                                                                                                                  |
+| Metronome  | play/stop, tempo knob + tap, signature, sound, volume, step grid (off/normal/accent/soft), live beat                                                                                                                                     |
 
 ### EQ curve
 
@@ -191,10 +206,16 @@ corner, 12 dB/oct slopes).
 1. **Instrument**: 6-string standard or drop D, 7-string, 4- and 5-string bass, or a custom
    tuning (4–8 strings, any note B0–E5); scale length from 24.75 in to 35 in, or custom mm.
 2. **Measure**, per string: tune the open string until it stays within ±1 cent for a second (the
-   workbench advances by itself); fret the 12th fret and hold while the progress ring fills from
-   stable readings (`PitchEvent.stable`, `stableHz`, `stableStdCents`, 40 stable detections, standard
-   error ≤ 0.6 cents); read the result.
-3. **Summary** for all strings, re-measure any of them, copy as text.
+   workbench advances by itself); fret the 12th fret and hold while the progress ring fills. The
+   ring needs `PitchEvent.stable` without a break for 0.5 s from one pluck (same `onsetId`, and
+   `stableCount` not falling back, which marks a restarted segment); the result is `stableHz`
+   averaged over that half second. "Steady to ±x cents" is the larger of the tracker's detection
+   scatter (`stableStdCents`) and the reading's movement over the hold. Holds are
+   timed with the clock (`performance.now()`), not by counting events, so they do not depend on
+   the event rate. Read the result.
+3. **Summary** for all strings, re-measure or measure any of them, copy as text. A string picked
+   from the summary has a "Back to summary" button, and its Next goes to the next string without
+   a result, or back to the summary when every string has one.
 
 The math (`features/intonation/math.ts`): octave error `c = 1200·log2(f12 / 2f0)` using the
 measured open frequency, verdict in tune when |c| ≤ 1.5 cents, otherwise move the saddle back
@@ -222,8 +243,13 @@ something is alive.
   Reef is oxblood, Abyss is ink with a nacre badge).
 - **Accessibility**: every control is reachable by keyboard with a visible focus ring; knobs and
   faders are ARIA sliders with real values and readable `aria-valuetext`; arrows, Page Up/Down,
-  Home/End, Delete (reset), shift for fine control. `prefers-reduced-motion` disables transitions
-  and the strobe; the needle keeps its damping because it carries information.
+  Home/End, Delete (reset), shift for fine control. Radio groups have one tab stop and arrow,
+  Home and End keys (`controls/useRadioGroup.ts`). Opening and closing a form in the preset
+  browser keeps focus inside it. The tuner announces a settled reading ("E 2, in tune") through
+  a polite live region, at most every 2 s, rather than every pluck. Text meets WCAG AA (4.5:1):
+  `--bone-3` is the quietest text colour (`--bone-4` is for lines and fills only), and the
+  enclosure legends' dim tone is strong enough on every paint. `prefers-reduced-motion` disables
+  transitions and the strobe; the needle keeps its damping because it carries information.
 
 ## Known gaps
 
@@ -232,3 +258,5 @@ something is alive.
 - The mock has no host transport; Drift's Host sync assumes 120 bpm.
 - No factory preset sets EQ values yet, so the EQ screenshot shapes its curve with `?set=`.
 - Screenshots are full-fidelity PNGs (the lacquer grain does not compress well).
+- A switched-off FX unit fades its body to 62 % opacity, which takes its quiet text below 4.5:1.
+  Its controls still work, so this is a deliberate exception to the contrast rule above.

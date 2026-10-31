@@ -41,6 +41,60 @@ describe('parameter flow', () => {
     endGesture('reefGain');
   });
 
+  it('applies a host value that arrived mid-gesture once the user lets go', async () => {
+    vi.useFakeTimers({ toFake: ['performance', 'setTimeout', 'clearTimeout'] });
+    beginGesture('reefGain');
+    setParam('reefGain', 0.8);
+    await flush();
+    // The plugin sends each change once (a preset load, automation): it must not be lost.
+    h.mock.hostSet({ reefGain: 0.3 });
+    await flush();
+    vi.advanceTimersByTime(300);
+    expect(getValue('reefGain')).toBe(0.8);
+    endGesture('reefGain');
+    vi.advanceTimersByTime(200);
+    expect(getValue('reefGain')).toBe(0.8);
+    vi.advanceTimersByTime(100);
+    expect(getValue('reefGain')).toBe(0.3);
+  });
+
+  it('keeps the user value when the user changed it after the host did', async () => {
+    vi.useFakeTimers({ toFake: ['performance', 'setTimeout', 'clearTimeout'] });
+    beginGesture('reefGain');
+    setParam('reefGain', 0.8);
+    await flush();
+    h.mock.hostSet({ reefGain: 0.3 });
+    setParam('reefGain', 0.6);
+    await flush();
+    endGesture('reefGain');
+    vi.advanceTimersByTime(1000);
+    expect(getValue('reefGain')).toBe(0.6);
+    expect(h.mock.value('reefGain')).toBe(0.6);
+  });
+
+  it('drops a host value produced before the host applied a value still on its way', async () => {
+    vi.useFakeTimers({ toFake: ['performance', 'setTimeout', 'clearTimeout'] });
+    setParam('reefGain', 0.8);
+    h.mock.hostSet({ reefGain: 0.3 });
+    await flush();
+    vi.advanceTimersByTime(1000);
+    expect(getValue('reefGain')).toBe(0.8);
+    expect(h.mock.value('reefGain')).toBe(0.8);
+  });
+
+  it('counts overlapping gestures and tells the host about the outermost only', () => {
+    const call = vi.spyOn(h.mock, 'call');
+    const gestureCalls = () =>
+      call.mock.calls.map(([name]) => name).filter((name) => name.includes('Gesture'));
+    beginGesture('reefGain');
+    beginGesture('reefGain');
+    endGesture('reefGain');
+    expect(gestureCalls()).toEqual(['sedef_beginGesture']);
+    endGesture('reefGain');
+    endGesture('reefGain');
+    expect(gestureCalls()).toEqual(['sedef_beginGesture', 'sedef_endGesture']);
+  });
+
   it('accepts host changes again once the echo guard has passed', async () => {
     vi.useFakeTimers({ toFake: ['performance', 'Date'] });
     setParam('reefGain', 0.8);

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// High-rate data (telemetry ~30 Hz, pitch ~50 Hz) bypasses React state entirely. Meters and
+// High-rate data (telemetry ~30 Hz, pitch ~60 Hz) bypasses React state entirely. Meters and
 // needles draw from these channels in requestAnimationFrame through refs; text that changes
 // rarely (a note name, a step index) subscribes through useLiveSelector and re-renders only
 // when the selected value changes.

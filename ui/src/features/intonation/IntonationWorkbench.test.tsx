@@ -1,21 +1,37 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { act, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setupMock, type Harness } from '../../test/harness';
 import { IntonationWorkbench } from './IntonationWorkbench';
-import { useIntonationStore } from './store';
+import { useIntonationStore, type StringResult } from './store';
 
 describe('Intonation workbench', () => {
   let h: Harness;
   beforeEach(async () => {
+    vi.useFakeTimers({ toFake: ['performance'] });
     h = await setupMock({ intonationErrors: [4, -3, 0.4, 1, 1, 1] });
   });
-  afterEach(() => h.dispose());
+  afterEach(() => {
+    h.dispose();
+    vi.useRealTimers();
+  });
 
-  /** Plays the simulated guitar until the condition holds (or 20 s pass). */
+  /** Plays the simulated guitar at the plugin's 60 Hz until the condition holds (or 20 s pass). */
   const playUntil = (condition: () => boolean) => {
-    for (let i = 0; i < 1000 && !condition(); i += 1) act(() => h.mock.tickPitch(0.02));
+    for (let i = 0; i < 1200 && !condition(); i += 1) {
+      act(() => {
+        vi.advanceTimersByTime(1000 / 60);
+        h.mock.tickPitch(1 / 60);
+      });
+    }
   };
+  const result = (cents: number): StringResult => ({
+    openHz: 82.41,
+    frettedHz: 2 * 82.41 * Math.pow(2, cents / 1200),
+    cents,
+    stdCents: 0.1,
+    measuredAt: 0,
+  });
 
   it('walks from instrument choice to a saddle recommendation', () => {
     render(<IntonationWorkbench />);
@@ -68,5 +84,36 @@ describe('Intonation workbench', () => {
       current: 0,
       step: 'tune',
     });
+  });
+
+  it('returns to the summary after re-measuring a string', () => {
+    useIntonationStore.setState({
+      phase: 'summary',
+      results: [3.6, -2, 1, 0.5, 4, -1].map(result),
+    });
+    render(<IntonationWorkbench />);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Re-measure' })[0]!);
+    fireEvent.click(screen.getByRole('button', { name: 'Back to summary' }));
+    expect(useIntonationStore.getState().phase).toBe('summary');
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Re-measure' })[0]!);
+    playUntil(() => useIntonationStore.getState().step === 'result');
+    expect(screen.queryByRole('button', { name: 'Next string' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'See summary' }));
+    expect(useIntonationStore.getState().phase).toBe('summary');
+    expect(useIntonationStore.getState().results[0]?.cents).toBeCloseTo(4, 0);
+  });
+
+  it('after a string picked from the summary, goes on to the next unmeasured one', () => {
+    useIntonationStore.setState({
+      phase: 'summary',
+      results: [result(3.6), null, result(1), null, result(4), result(-1)],
+    });
+    render(<IntonationWorkbench />);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Measure' })[1]!);
+    expect(useIntonationStore.getState().current).toBe(3);
+    playUntil(() => useIntonationStore.getState().step === 'result');
+    fireEvent.click(screen.getByRole('button', { name: 'Next string' }));
+    expect(useIntonationStore.getState()).toMatchObject({ phase: 'measure', current: 1 });
   });
 });

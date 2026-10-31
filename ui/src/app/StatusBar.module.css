@@ -7,13 +7,13 @@
   padding: 0 20px;
   background: var(--ink-0);
   border-top: 1px solid var(--line);
-  color: var(--bone-4);
+  color: var(--bone-3);
   font-size: var(--t-10);
   font-stretch: 108%;
 }
 
 .sim {
-  color: var(--bone-3);
+  color: var(--bone-2);
 }
 
 .spacer {

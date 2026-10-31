@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import { useRef } from 'react';
+import { useMemo, useRef } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import buttons from '../../controls/Button.module.css';
 import { Icon } from '../../controls/Icon';
 import { centsBetween, midiLabel } from '../../lib/music';
@@ -11,9 +12,10 @@ import { ProgressRing } from './ProgressRing';
 import { SaddleDiagram } from './SaddleDiagram';
 import {
   intonationActions,
-  scaleLengthMm,
-  stringNotes,
+  nextString,
   useIntonationStore,
+  useScaleLength,
+  useStringNotes,
   type StringStep,
 } from './store';
 import styles from './Workbench.module.css';
@@ -44,25 +46,32 @@ function StepTrail({ step }: { step: StringStep }) {
   );
 }
 
-function TuneStep({ midi }: { midi: number }) {
+function HoldBar() {
   const progress = useIntonationStore((s) => s.tuneProgress);
+  return (
+    <div
+      className={styles.hold}
+      role="progressbar"
+      aria-label="Holding in tune"
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(progress * 100)}
+    >
+      <div className={styles.holdFill} style={{ transform: `scaleX(${progress})` }} />
+    </div>
+  );
+}
+
+function TuneStep({ midi }: { midi: number }) {
+  const target = useMemo(() => ({ kind: 'target' as const, midi }), [midi]);
   return (
     <div className={styles.tune}>
       <p className={styles.instruction}>
         Play the open string and bring it to <strong>{midiLabel(midi)}</strong>. Hold it within one
         cent for a second and the workbench moves on by itself.
       </p>
-      <TunerGauge target={{ kind: 'target', midi }} compact />
-      <div
-        className={styles.hold}
-        role="progressbar"
-        aria-label="Holding in tune"
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={Math.round(progress * 100)}
-      >
-        <div className={styles.holdFill} style={{ transform: `scaleX(${progress})` }} />
-      </div>
+      <TunerGauge target={target} compact />
+      <HoldBar />
     </div>
   );
 }
@@ -83,17 +92,23 @@ function LiveOctaveError({ openHz }: { openHz: number }) {
   return <span ref={ref}>—</span>;
 }
 
-function FretStep({ midi, openHz }: { midi: number; openHz: number }) {
+function CaptureRing({ midi, openHz }: { midi: number; openHz: number }) {
   const progress = useIntonationStore((s) => s.captureProgress);
   return (
+    <ProgressRing value={progress} label="Capturing the 12th-fret note" size={196}>
+      <span className={styles.ringNote}>{midiLabel(midi + 12)}</span>
+      <span className={styles.ringLive}>
+        <LiveOctaveError openHz={openHz} />
+      </span>
+      <span className={styles.ringHint}>{progress > 0 ? 'Hold it…' : 'Listening'}</span>
+    </ProgressRing>
+  );
+}
+
+function FretStep({ midi, openHz }: { midi: number; openHz: number }) {
+  return (
     <div className={styles.fret}>
-      <ProgressRing value={progress} label="Capturing the 12th-fret note" size={196}>
-        <span className={styles.ringNote}>{midiLabel(midi + 12)}</span>
-        <span className={styles.ringLive}>
-          <LiveOctaveError openHz={openHz} />
-        </span>
-        <span className={styles.ringHint}>{progress > 0 ? 'Hold it…' : 'Listening'}</span>
-      </ProgressRing>
+      <CaptureRing midi={midi} openHz={openHz} />
       <div className={styles.fretText}>
         <p className={styles.instruction}>
           Fret the string at the <strong>12th fret</strong> and let it ring. Press as you normally
@@ -116,18 +131,18 @@ function FretStep({ midi, openHz }: { midi: number; openHz: number }) {
 }
 
 function ResultStep({ index }: { index: number }) {
-  const s = useIntonationStore();
-  const notes = stringNotes(s);
-  const L = scaleLengthMm(s);
-  const result = s.results[index];
+  const notes = useStringNotes();
+  const L = useScaleLength();
+  const results = useIntonationStore((s) => s.results);
+  const toSummary = useIntonationStore((s) => nextString(s) === null);
+  const result = results[index];
   if (!result) return null;
   const a = adjustmentFor(L, result.cents);
   const offsets = notes.map((_, i) => {
-    const r = s.results[i];
+    const r = results[i];
     return r ? adjustmentFor(L, r.cents).offsetMm : null;
   });
   const labels = notes.map((n, i) => `${stringNumber(i, notes.length)} ${midiLabel(n)}`);
-  const last = index === notes.length - 1;
 
   return (
     <div className={styles.result} data-verdict={a.verdict}>
@@ -155,7 +170,8 @@ function ResultStep({ index }: { index: number }) {
         )}
         <p className={styles.small}>
           {result.frettedHz.toFixed(2)} Hz against an open {result.openHz.toFixed(2)} Hz, reading
-          steady to ±{result.stdCents.toFixed(2)} cents.
+          steady {result.stdCents < 0.01 ? 'within' : 'to'} ±
+          {Math.max(0.01, result.stdCents).toFixed(2)} cents.
         </p>
         <div className={styles.resultActions}>
           <button
@@ -167,7 +183,7 @@ function ResultStep({ index }: { index: number }) {
             Measure again
           </button>
           <button type="button" className={buttons.nacre} onClick={() => intonationActions.next()}>
-            {last ? 'See summary' : 'Next string'}
+            {toSummary ? 'See summary' : 'Next string'}
           </button>
         </div>
         {a.verdict !== 'in-tune' && (
@@ -183,23 +199,39 @@ function ResultStep({ index }: { index: number }) {
 }
 
 export function MeasureStep() {
-  const s = useIntonationStore();
-  const notes = stringNotes(s);
-  const midi = notes[s.current];
+  const { current, step, openHz, fromSummary } = useIntonationStore(
+    useShallow((s) => ({
+      current: s.current,
+      step: s.step,
+      openHz: s.openHz,
+      fromSummary: s.fromSummary,
+    })),
+  );
+  const notes = useStringNotes();
+  const midi = notes[current];
   if (midi === undefined) return null;
 
   return (
     <div className={styles.measure}>
       <header className={styles.measureHead}>
         <h3 className={styles.stringTitle}>
-          String {stringNumber(s.current, notes.length)}
+          String {stringNumber(current, notes.length)}
           <span className={styles.stringNote}>{midiLabel(midi)}</span>
         </h3>
-        <StepTrail step={s.step} />
+        <StepTrail step={step} />
+        {fromSummary && (
+          <button
+            type="button"
+            className={`${buttons.ghost} ${buttons.small}`}
+            onClick={() => intonationActions.showSummary()}
+          >
+            Back to summary
+          </button>
+        )}
       </header>
-      {s.step === 'tune' && <TuneStep midi={midi} />}
-      {s.step === 'fret' && s.openHz !== null && <FretStep midi={midi} openHz={s.openHz} />}
-      {s.step === 'result' && <ResultStep index={s.current} />}
+      {step === 'tune' && <TuneStep midi={midi} />}
+      {step === 'fret' && openHz !== null && <FretStep midi={midi} openHz={openHz} />}
+      {step === 'result' && <ResultStep index={current} />}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import buttons from '../../controls/Button.module.css';
+import { useRadioGroup } from '../../controls/useRadioGroup';
 import { midiLabel } from '../../lib/music';
 import {
   CUSTOM_INSTRUMENT_ID,
@@ -12,7 +13,7 @@ import {
   stringNumber,
   tuningLabel,
 } from './instruments';
-import { intonationActions, stringNotes, useIntonationStore } from './store';
+import { intonationActions, stringNotes, useIntonationStore, useProfile } from './store';
 import styles from './Workbench.module.css';
 
 const NOTE_OPTIONS = Array.from(
@@ -69,26 +70,40 @@ function CustomTuning() {
   );
 }
 
+const SCALE_IDS = [...SCALE_LENGTHS.map((l) => l.id), CUSTOM_SCALE_ID];
+
 export function SetupStep() {
-  const s = useIntonationStore();
+  const s = useProfile();
   const notes = stringNotes(s);
+  const instruments = [
+    ...INSTRUMENTS,
+    { id: CUSTOM_INSTRUMENT_ID, name: 'Custom tuning', notes: s.customNotes },
+  ];
+  const instrumentGroup = useRadioGroup(
+    instruments.length,
+    instruments.findIndex((i) => i.id === s.instrumentId),
+    (index) => intonationActions.chooseInstrument(instruments[index]?.id ?? CUSTOM_INSTRUMENT_ID),
+  );
+  const scaleGroup = useRadioGroup(SCALE_IDS.length, SCALE_IDS.indexOf(s.scaleId), (index) =>
+    intonationActions.chooseScale(SCALE_IDS[index] ?? CUSTOM_SCALE_ID),
+  );
 
   return (
     <div className={styles.setup}>
       <section className={styles.block}>
         <h3 className={styles.blockTitle}>Instrument and tuning</h3>
-        <div className={styles.cards} role="radiogroup" aria-label="Instrument">
-          {[
-            ...INSTRUMENTS,
-            { id: CUSTOM_INSTRUMENT_ID, name: 'Custom tuning', notes: s.customNotes },
-          ].map((inst) => (
+        <div
+          className={styles.cards}
+          role="radiogroup"
+          aria-label="Instrument"
+          onKeyDown={instrumentGroup.onKeyDown}
+        >
+          {instruments.map((inst, i) => (
             <button
               key={inst.id}
               type="button"
-              role="radio"
-              aria-checked={s.instrumentId === inst.id}
               className={styles.card}
-              onClick={() => intonationActions.chooseInstrument(inst.id)}
+              {...instrumentGroup.radio(i)}
             >
               <span className={styles.cardName}>{inst.name}</span>
               <span className={styles.cardMeta}>{tuningLabel(inst.notes)}</span>
@@ -103,27 +118,19 @@ export function SetupStep() {
         <p className={styles.small}>
           Nut to 12th fret, doubled. Your maker lists it in the specifications.
         </p>
-        <div className={styles.chips} role="radiogroup" aria-label="Scale length">
-          {SCALE_LENGTHS.map((l) => (
-            <button
-              key={l.id}
-              type="button"
-              role="radio"
-              aria-checked={s.scaleId === l.id}
-              className={styles.chip}
-              onClick={() => intonationActions.chooseScale(l.id)}
-            >
+        <div
+          className={styles.chips}
+          role="radiogroup"
+          aria-label="Scale length"
+          onKeyDown={scaleGroup.onKeyDown}
+        >
+          {SCALE_LENGTHS.map((l, i) => (
+            <button key={l.id} type="button" className={styles.chip} {...scaleGroup.radio(i)}>
               <span>{l.label}</span>
               <span className={styles.chipMeta}>{l.mm} mm</span>
             </button>
           ))}
-          <button
-            type="button"
-            role="radio"
-            aria-checked={s.scaleId === CUSTOM_SCALE_ID}
-            className={styles.chip}
-            onClick={() => intonationActions.chooseScale(CUSTOM_SCALE_ID)}
-          >
+          <button type="button" className={styles.chip} {...scaleGroup.radio(SCALE_IDS.length - 1)}>
             <span>Custom</span>
             <span className={styles.chipMeta}>in mm</span>
           </button>

@@ -2,8 +2,9 @@
 // Front view of the miked speaker. Each mic marker sits on its own guide line: drag sideways to
 // move it from the dust cap (centre) to the cone edge, up and down to change its distance (the
 // ring grows as the mic moves away from the grille).
-import { useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { KeyboardEvent, PointerEvent } from 'react';
+import { beginGesture, endGesture } from '../../params/sender';
 import { useParam } from '../../params/useParam';
 import styles from './SpeakerStage.module.css';
 
@@ -17,17 +18,33 @@ function MicMarker({ mic, lane }: { mic: 'A' | 'B'; lane: number }) {
   const position = useParam(`mic${mic}Position`);
   const distance = useParam(`mic${mic}Distance`);
   const enabled = useParam(`mic${mic}Enabled`).value >= 0.5;
-  const drag = useRef<{ x: number; y: number; scale: number; pos: number; dist: number } | null>(
-    null,
-  );
+  const drag = useRef<{
+    ids: string[];
+    pointerId: number;
+    x: number;
+    y: number;
+    scale: number;
+    pos: number;
+    dist: number;
+  } | null>(null);
   const [dragging, setDragging] = useState(false);
+
+  const endDrag = useCallback(() => {
+    const d = drag.current;
+    if (!d) return;
+    drag.current = null;
+    d.ids.forEach(endGesture);
+    setDragging(false);
+  }, []);
+  // A section switch can unmount the marker mid-drag: close the host gestures it opened.
+  useEffect(() => endDrag, [endDrag]);
 
   const x = C + position.value * CONE_R;
   const y = C + lane;
   const ring = 16 + distance.value * 34;
 
   const onPointerDown = (e: PointerEvent<SVGGElement>) => {
-    if (e.button !== 0) return;
+    if (e.button !== 0 || drag.current) return;
     e.preventDefault();
     (e.currentTarget as SVGGElement).focus();
     e.currentTarget.setPointerCapture?.(e.pointerId);
@@ -35,15 +52,23 @@ function MicMarker({ mic, lane }: { mic: 'A' | 'B'; lane: number }) {
     const svg = e.currentTarget.ownerSVGElement;
     const rect = svg?.getBoundingClientRect();
     const scale = rect && rect.width ? SIZE / rect.width : 1;
-    drag.current = { x: e.clientX, y: e.clientY, scale, pos: position.value, dist: distance.value };
-    position.begin();
-    distance.begin();
+    const ids = [position.id, distance.id];
+    drag.current = {
+      ids,
+      pointerId: e.pointerId,
+      x: e.clientX,
+      y: e.clientY,
+      scale,
+      pos: position.value,
+      dist: distance.value,
+    };
+    ids.forEach(beginGesture);
     setDragging(true);
   };
 
   const onPointerMove = (e: PointerEvent<SVGGElement>) => {
     const d = drag.current;
-    if (!d) return;
+    if (!d || d.pointerId !== e.pointerId) return;
     const dx = (e.clientX - d.x) * d.scale;
     const dy = (e.clientY - d.y) * d.scale;
     d.x = e.clientX;
@@ -57,12 +82,9 @@ function MicMarker({ mic, lane }: { mic: 'A' | 'B'; lane: number }) {
   };
 
   const onPointerUp = (e: PointerEvent<SVGGElement>) => {
-    if (!drag.current) return;
-    drag.current = null;
+    if (drag.current?.pointerId !== e.pointerId) return;
+    endDrag();
     e.currentTarget.releasePointerCapture?.(e.pointerId);
-    position.end();
-    distance.end();
-    setDragging(false);
   };
 
   const onKeyDown = (e: KeyboardEvent<SVGGElement>) => {
@@ -99,6 +121,9 @@ function MicMarker({ mic, lane }: { mic: 'A' | 'B'; lane: number }) {
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
+      onLostPointerCapture={(e) => {
+        if (drag.current?.pointerId === e.pointerId) endDrag();
+      }}
       onKeyDown={onKeyDown}
       onDoubleClick={() => {
         position.reset();

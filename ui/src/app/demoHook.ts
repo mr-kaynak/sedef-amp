@@ -9,7 +9,7 @@ import { pitch } from '../state/live';
 import { useIntonationStore } from '../features/intonation/store';
 
 export interface PitchFrame {
-  /** Detections in the current stable segment; the workbench captures at 40. */
+  /** Settled detections since the pluck (the tracker adds 200 per second). */
   stableCount?: number;
   stable?: boolean;
 }

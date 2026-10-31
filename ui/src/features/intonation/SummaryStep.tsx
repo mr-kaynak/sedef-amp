@@ -7,21 +7,26 @@ import { stringNumber } from './instruments';
 import { adjustmentFor, formatCents, formatMm, VERDICT_TEXT } from './math';
 import { buildReport, copyText, instrumentName, scaleLabel } from './report';
 import { SaddleDiagram } from './SaddleDiagram';
-import { intonationActions, scaleLengthMm, stringNotes, useIntonationStore } from './store';
+import {
+  intonationActions,
+  stringNotes,
+  useIntonationStore,
+  useProfile,
+  useScaleLength,
+} from './store';
 import styles from './Workbench.module.css';
 
 export function SummaryStep() {
-  const s = useIntonationStore();
-  const notes = stringNotes(s);
-  const L = scaleLengthMm(s);
+  const profile = useProfile();
+  const results = useIntonationStore((s) => s.results);
+  const notes = stringNotes(profile);
+  const L = useScaleLength();
   const [copied, setCopied] = useState<'idle' | 'done' | 'failed'>('idle');
-  const measured = s.results.filter(Boolean).length;
-  const inTune = s.results.filter(
-    (r) => r && adjustmentFor(L, r.cents).verdict === 'in-tune',
-  ).length;
+  const measured = results.filter(Boolean).length;
+  const inTune = results.filter((r) => r && adjustmentFor(L, r.cents).verdict === 'in-tune').length;
 
   const copy = async () => {
-    const ok = await copyText(buildReport(s, s.results));
+    const ok = await copyText(buildReport(profile, results));
     setCopied(ok ? 'done' : 'failed');
   };
 
@@ -33,7 +38,7 @@ export function SummaryStep() {
             ? 'No strings measured yet.'
             : `${inTune} of ${notes.length} strings in tune.`}{' '}
           <span className={styles.small}>
-            {instrumentName(s)}, scale {scaleLabel(s)}
+            {instrumentName(profile)}, scale {scaleLabel(profile)}
           </span>
         </p>
         <table className={styles.table}>
@@ -50,7 +55,7 @@ export function SummaryStep() {
           </thead>
           <tbody>
             {notes.map((midi, i) => {
-              const r = s.results[i];
+              const r = results[i];
               const a = r ? adjustmentFor(L, r.cents) : null;
               return (
                 <tr key={i} data-verdict={a?.verdict ?? 'none'}>
@@ -103,7 +108,7 @@ export function SummaryStep() {
       </div>
       <SaddleDiagram
         offsets={notes.map((_, i) => {
-          const r = s.results[i];
+          const r = results[i];
           return r ? adjustmentFor(L, r.cents).offsetMm : null;
         })}
         labels={notes.map((n, i) => `${stringNumber(i, notes.length)} ${midiLabel(n)}`)}

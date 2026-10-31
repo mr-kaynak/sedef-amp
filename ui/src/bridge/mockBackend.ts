@@ -16,6 +16,7 @@ import {
   type UiState,
   type WrapperType,
 } from './protocol';
+import { renameClashes, renamedPresetId } from '../lib/presetFiles';
 import { bundledSchema, defaultValues, indexSchema } from '../params/schema';
 import { snapValue } from '../params/normalise';
 import { isGlobalParam, sameValue } from '../params/presetScope';
@@ -46,8 +47,9 @@ export interface MockOptions {
    */
   overrides?: ParamValues;
 }
+// The plugin editor's timer: telemetry every other 60 Hz tick, pitch on every tick.
 const TELEMETRY_HZ = 30;
-const PITCH_HZ = 50;
+const PITCH_HZ = 60;
 const IR_NAMES = ['Tight room, close.wav', 'Back porch, far.wav', 'Small hall, edge.wav'];
 
 type Handlers = { [K in NativeName]: (...args: NativeArgs<K>) => NativeResult<K> };
@@ -280,10 +282,22 @@ export class MockBackend implements Backend {
     sedef_presets_rename: (id, newName) => {
       const preset = this.presets.find((p) => p.info.id === id);
       const trimmed = newName.trim();
-      if (preset && preset.info.category === 'User' && trimmed) {
+      const items = this.presets.map((p) => p.info);
+      // Like PresetManager::rename: the file is renamed too, never over another preset's file.
+      if (
+        preset &&
+        preset.info.category === 'User' &&
+        trimmed &&
+        !renameClashes(items, id, trimmed)
+      ) {
         preset.info.name = trimmed;
+        preset.info.id = renamedPresetId(id, trimmed);
         if (this.presetState.currentId === id) {
-          this.presetState = { ...this.presetState, currentName: trimmed };
+          this.presetState = {
+            ...this.presetState,
+            currentId: preset.info.id,
+            currentName: trimmed,
+          };
         }
       }
       return this.publishPresets();

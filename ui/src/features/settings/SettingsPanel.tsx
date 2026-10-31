@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { Segmented } from '../../controls/Segmented';
+import { useRadioGroup } from '../../controls/useRadioGroup';
 import { useAppStore } from '../../state/appStore';
 import { invoke } from '../../state/backendRef';
 import { SCALES, uiActions, useUiStore } from '../../state/uiStore';
@@ -12,25 +13,28 @@ export function SettingsPanel() {
   const scale = useUiStore((s) => s.scale);
   const session = useAppStore((s) => s.session);
 
-  const chooseScale = (value: number) => {
-    uiActions.setScale(value);
-    void invoke('sedef_ui_setScale', value);
-  };
+  const scales = useRadioGroup(
+    SCALES.length,
+    SCALES.findIndex((s) => s === scale),
+    (index) => {
+      const value = SCALES[index] ?? 1;
+      uiActions.setScale(value);
+      void invoke('sedef_ui_setScale', value);
+    },
+  );
 
   return (
     <div className={styles.panel}>
       <section className={styles.section}>
         <h3 className={styles.heading}>Window size</h3>
-        <div className={styles.scales} role="radiogroup" aria-label="Window size">
-          {SCALES.map((s) => (
-            <button
-              key={s}
-              type="button"
-              role="radio"
-              aria-checked={scale === s}
-              className={styles.scale}
-              onClick={() => chooseScale(s)}
-            >
+        <div
+          className={styles.scales}
+          role="radiogroup"
+          aria-label="Window size"
+          onKeyDown={scales.onKeyDown}
+        >
+          {SCALES.map((s, i) => (
+            <button key={s} type="button" className={styles.scale} {...scales.radio(i)}>
               {Math.round(s * 100)}%
             </button>
           ))}

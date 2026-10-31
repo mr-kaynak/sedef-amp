@@ -37,6 +37,13 @@ private:
     void emitIrs();
     void loadIr (int mic, int cab, juce::WebBrowserComponent::NativeFunctionCompletion completion);
 
+    // UI smoke test (SEDEF_UI_SMOKE_TEST=<result file>): see smokeTestTick().
+    void smokeTestTick();
+    void finishSmokeTest (bool ok, const juce::var& details);
+    juce::File smokeResult_;
+    int smokeTicks_ = 0;
+    bool smokeDone_ = false;
+
     SedefProcessor& processor_;
     std::unique_ptr<Browser> browser_;
     std::unique_ptr<juce::FileChooser> chooser_;

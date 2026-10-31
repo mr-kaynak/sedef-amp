@@ -145,10 +145,18 @@ jobs:
       - name: Configure
         shell: bash
         run: >
-          cmake --preset release -DSEDEF_BUILD_UI=OFF -DSEDEF_BUILD_TESTS=OFF
+          cmake --preset release -DSEDEF_BUILD_UI=OFF -DSEDEF_BUILD_TESTS=OFF -DSEDEF_BUILD_HOST_SMOKE=ON
           ${{ runner.os == 'macOS' && '-DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"' || '' }}
       - name: Build
-        run: cmake --build --preset release --target SedefAmp_All
+        run: cmake --build --preset release --target SedefAmp_All sedef-host-smoke
+      - name: UI smoke test (editor in a real WebView)
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            xvfb-run -a tools/ci/ui-smoke.sh build/release/plugin
+          else
+            tools/ci/ui-smoke.sh build/release/plugin
+          fi
       - name: Fetch validators
         shell: bash
         env:

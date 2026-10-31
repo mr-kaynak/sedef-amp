@@ -138,3 +138,28 @@ target_link_libraries(SedefAmp
         juce::juce_recommended_config_flags
         juce::juce_recommended_lto_flags
         juce::juce_recommended_warning_flags)
+
+# --- Host smoke test -----------------------------------------------------------------------------
+# A minimal host that opens the VST3's editor and waits for its UI smoke test (tools/ci/ui-smoke.sh).
+
+option(SEDEF_BUILD_HOST_SMOKE "Build sedef-host-smoke, a minimal VST3 host for UI smoke tests" OFF)
+if(SEDEF_BUILD_HOST_SMOKE)
+    juce_add_gui_app(sedef-host-smoke
+        PRODUCT_NAME "sedef-host-smoke"
+        COMPANY_NAME "Sedef"
+        BUNDLE_ID "io.github.mr-kaynak.sedef-host-smoke"
+        VERSION ${PROJECT_VERSION})
+    target_sources(sedef-host-smoke PRIVATE smoke/HostSmoke.cpp)
+    target_compile_definitions(sedef-host-smoke PRIVATE
+        JUCE_PLUGINHOST_VST3=1
+        JUCE_WEB_BROWSER=0
+        JUCE_USE_CURL=0
+        JUCE_APPLICATION_NAME_STRING="sedef-host-smoke"
+        JUCE_APPLICATION_VERSION_STRING="${PROJECT_VERSION}")
+    target_link_libraries(sedef-host-smoke PRIVATE
+        juce::juce_audio_processors
+        juce::juce_gui_basics
+        juce::juce_recommended_config_flags
+        juce::juce_recommended_warning_flags)
+    add_dependencies(sedef-host-smoke SedefAmp_VST3)
+endif()

@@ -16,6 +16,16 @@ juce::String devServerUrl()
     return juce::SystemStats::getEnvironmentVariable ("SEDEF_UI_DEV_URL", {});
 }
 
+/// CI: when set to a file path, the editor checks that the web UI loaded, writes the result there
+/// as JSON and (in the standalone app) quits. See tools/ci/ui-smoke.sh.
+juce::String smokeTestPath()
+{
+    return juce::SystemStats::getEnvironmentVariable ("SEDEF_UI_SMOKE_TEST", {});
+}
+
+constexpr int kSmokeTimeoutTicks = 60 * 60; // one minute at the 60 Hz editor timer
+constexpr int kSmokeSettleTicks = 60;       // let React render for a second after the handshake
+
 std::optional<ParamId> paramFromVar (const juce::var& v)
 {
     const auto s = v.toString().toStdString();
@@ -78,6 +88,9 @@ SedefEditor::SedefEditor (SedefProcessor& p) : AudioProcessorEditor (&p), proces
         c->setFixedAspectRatio (ratio);
     setSize (juce::roundToInt (SedefProcessor::kBaseWidth * scale),
              juce::roundToInt (SedefProcessor::kBaseHeight * scale));
+
+    if (const auto path = smokeTestPath(); path.isNotEmpty())
+        smokeResult_ = juce::File (path);
 
     startTimerHz (60);
 }
@@ -367,6 +380,8 @@ juce::var SedefEditor::hello()
 
 void SedefEditor::timerCallback()
 {
+    if (smokeResult_ != juce::File() && !smokeDone_)
+        smokeTestTick();
     if (!pageReady_)
         return;
     ++tick_;
@@ -467,6 +482,59 @@ void SedefEditor::emitPresets()
 void SedefEditor::emitIrs()
 {
     browser_->emitEventIfBrowserIsVisible ("sedef:ir", processor_.irs().stateAsVar());
+}
+
+// -------------------------------------------------------------------------------------------------
+// UI smoke test
+
+void SedefEditor::smokeTestTick()
+{
+    ++smokeTicks_;
+    if (!pageReady_)
+    {
+        if (smokeTicks_ > kSmokeTimeoutTicks)
+            finishSmokeTest (false, "The page never called sedef_hello");
+        return;
+    }
+    if (tick_ < kSmokeSettleTicks)
+        return;
+
+    smokeDone_ = true; // one evaluation; the callback writes the result
+    const juce::String script =
+        "JSON.stringify({ controls: document.querySelectorAll('button, input, select, "
+        "[role=slider]')"
+        ".length, title: document.title, text: (document.body.innerText || '').slice(0, 160) })";
+    browser_->evaluateJavascript (
+        script, [safe = juce::Component::SafePointer<SedefEditor> (this)] (auto result) {
+            if (safe == nullptr)
+                return;
+            if (const auto* error = result.getError())
+            {
+                safe->finishSmokeTest (false, "JavaScript error: " + error->message);
+                return;
+            }
+            const auto* value = result.getResult();
+            const auto page =
+                juce::JSON::parse (value != nullptr ? value->toString() : juce::String());
+            const int controls = page.getProperty ("controls", 0);
+            // The editor shows dozens of knobs and switches; a handful means it failed to render.
+            safe->finishSmokeTest (controls >= 20, page);
+        });
+}
+
+void SedefEditor::finishSmokeTest (bool ok, const juce::var& details)
+{
+    smokeDone_ = true;
+    auto* result = new juce::DynamicObject();
+    result->setProperty ("ok", ok);
+    result->setProperty ("protocol", kProtocolVersion);
+    result->setProperty ("wrapper",
+                         juce::AudioProcessor::getWrapperTypeDescription (processor_.wrapperType));
+    result->setProperty ("page", details);
+    smokeResult_.replaceWithText (juce::JSON::toString (juce::var (result)));
+
+    if (processor_.isStandalone())
+        juce::MessageManager::callAsync ([] { juce::JUCEApplicationBase::quit(); });
 }
 
 } // namespace sedef::plugin

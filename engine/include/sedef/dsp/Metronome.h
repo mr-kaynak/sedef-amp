@@ -2,6 +2,9 @@
 #pragma once
 
 #include "sedef/core/AudioView.h"
+#include "sedef/core/Biquad.h"
+#include "sedef/core/Random.h"
+#include "sedef/core/Smoothed.h"
 #include "sedef/core/Transport.h"
 
 #include <array>
@@ -46,6 +49,60 @@ public:
 
     /// Index of the step that sounded last, or -1 when stopped (telemetry for the UI).
     int currentStep() const noexcept;
+
+private:
+    static constexpr int kMaxVoices = 4;
+    static constexpr int kMaxPartials = 3;
+
+    /// One sounding click: up to three decaying partials (optionally pitch-bent, optionally
+    /// square-ish, optionally through a body band-pass) plus a filtered noise burst.
+    struct Voice
+    {
+        bool active = false;
+        int age = 0;
+        int numPartials = 0;
+        float gain = 0.0f;
+        float attack = 0.0f, attackStep = 1.0f;
+        std::array<float, kMaxPartials> phase {}, increment {}, bend {}, bendCoeff {};
+        std::array<float, kMaxPartials> level {}, fast {}, fastCoeff {}, slow {}, slowCoeff {};
+        std::array<float, kMaxPartials> slowMix {};
+        std::array<bool, kMaxPartials> square {};
+        bool hasBody = false;
+        Biquad body;
+        float noiseGain = 0.0f, noiseEnv = 0.0f, noiseCoeff = 0.0f;
+        int noiseAttack = 0;
+        Biquad noise;
+        int settleAge = 0; ///< no early stop before every attack has finished
+        int length = 0;    ///< a short fade-out starts here at the latest
+        float fade = 1.0f, fadeStep = 1.0f;
+
+        float next (Random& rng) noexcept;
+    };
+
+    double samplesPerStep() const noexcept;
+    long long nextTrigger() const noexcept;
+    void trigger (long long when, long long scheduled) noexcept;
+    void startVoice (StepState state) noexcept;
+    void render (const AudioView& io, int start, int end) noexcept;
+
+    double sampleRate_ = 48000.0;
+    Settings settings_ {};
+    std::array<Voice, kMaxVoices> voices_ {};
+    Random rng_ { 0xC11C4u };
+    LinearSmoothed volume_;
+    bool snapNext_ = true;
+
+    // Scheduling is anchored to an absolute sample count: step k after the anchor falls on
+    // ceil(anchor + k * samplesPerStep), so rounding never accumulates.
+    bool startPending_ = false;
+    bool running_ = false;
+    long long now_ = 0;
+    long long anchor_ = 0;
+    long long stepsSinceAnchor_ = 0;
+    long long lastTrigger_ = 0;
+    double interval_ = 0.0;
+    int nextStep_ = 0;
+    std::atomic<int> currentStep_ { -1 };
 };
 
 } // namespace sedef::dsp

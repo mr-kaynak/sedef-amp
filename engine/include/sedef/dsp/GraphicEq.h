@@ -2,6 +2,9 @@
 #pragma once
 
 #include "sedef/core/AudioView.h"
+#include "sedef/core/Biquad.h"
+#include "sedef/core/Math.h"
+#include "sedef/core/Smoothed.h"
 
 #include <array>
 
@@ -34,6 +37,68 @@ public:
 
     /// Magnitude response in dB for the given settings. Thread-safe (pure function).
     static float responseDb (const Settings& s, double sampleRate, float hz) noexcept;
+
+private:
+    static constexpr int kNumBands = 9;
+
+    /// One TDF-II section (designed with design::*) with its own state, run block-wise with the
+    /// state held in registers and both channels as independent chains: about 3x faster than
+    /// per-sample Biquad calls for an 11-section cascade.
+    ///
+    /// While a parameter glides, coefficients move linearly sample by sample across each control
+    /// block. Stepping a direct-form section every 32 samples leaves small output steps (worst near
+    /// Nyquist); the interpolation stays stable because the biquad stability region is convex.
+    struct Section
+    {
+        BiquadCoeffs coeffs, from, to;
+        std::array<std::array<float, 2>, kMaxChannels> state {};
+        bool ramping = false;
+
+        void reset() noexcept { state = {}; }
+        void snap (const BiquadCoeffs& c) noexcept
+        {
+            coeffs = c;
+            ramping = false;
+        }
+        void retarget (const BiquadCoeffs& c) noexcept
+        {
+            from = coeffs;
+            to = c;
+            ramping = true;
+        }
+        /// Filters [start, start + length) of every channel in place. With fade (one control
+        /// block at most), blends from the dry input (0) to the filtered signal (1) per sample.
+        void run (const AudioView& io, int start, int length, const float* fade) noexcept;
+    };
+
+    /// A cut fades against the dry signal when it enters or leaves its bypass extreme: switching
+    /// even a 20 Hz high-pass in or out abruptly shifts low-frequency phase and thumps.
+    struct Cut
+    {
+        Section filter;
+        LinearSmoothed log2Hz; ///< glides in log-frequency so sweeps sound even
+        LinearSmoothed mix;    ///< 0 = bypassed, 1 = fully filtered
+        bool wantOn = false;
+        bool running = false;
+    };
+
+    void applyTarget (bool snap) noexcept;
+    void updateCut (Cut& cut, bool isLowCut, int advance) noexcept;
+    void updateBands (int advance) noexcept;
+    bool isSmoothing() const noexcept;
+    void processBlock (const AudioView& io, int start, int length) noexcept;
+
+    double sampleRate_ = 48000.0;
+    Settings target_ {};
+    bool snapNext_ = true;
+
+    std::array<Section, kNumBands> bands_;
+    std::array<LinearSmoothed, kNumBands> bandDb_;
+    std::array<int, kNumBands> activeBands_ {};
+    int numActiveBands_ = 0;
+    Cut lowCut_, highCut_;
+    // Per-sample fade gains for one control block.
+    std::array<float, kControlBlock> lowMix_ {}, highMix_ {};
 };
 
 } // namespace sedef::dsp

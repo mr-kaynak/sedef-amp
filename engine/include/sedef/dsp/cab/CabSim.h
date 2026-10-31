@@ -2,6 +2,7 @@
 #pragma once
 
 #include "sedef/core/AudioView.h"
+#include "sedef/dsp/cab/ConvolutionKernel.h" // complete type for makeKernel's unique_ptr
 
 #include <array>
 #include <memory>

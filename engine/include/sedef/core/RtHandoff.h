@@ -13,6 +13,11 @@ namespace sedef
 ///   publish()  - any non-RT thread (serialised by the caller)
 ///   acquire()  - audio thread, once per block; returns the current object (may be null)
 ///   collect()  - non-RT thread, periodically; frees retired objects
+///
+/// A newly published object waits in `incoming_` until the retire slot is empty, so the owner must
+/// call collect() (before publishing, and on a timer). publish() deliberately does not collect by
+/// itself: an owner may still be reading the retired object (CabSim crossfades out of it) and
+/// guards collect() with its own ownership flag.
 template <typename T>
 class RtHandoff
 {
@@ -26,9 +31,8 @@ public:
 
     void publish (std::unique_ptr<T> object)
     {
-        // Free what the audio thread retired since the last collect(), so a burst of publishes
-        // never leaves the retire slot full and the new object stuck in `incoming_`.
-        collect();
+        // A pending object the audio thread never picked up is replaced; acquire() takes
+        // `incoming_` with an atomic exchange, so it can never be holding the one deleted here.
         delete incoming_.exchange (object.release(), std::memory_order_acq_rel);
     }
 

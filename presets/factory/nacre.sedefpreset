@@ -19,6 +19,7 @@
     "lagoonVolume": 0.45,
     "lagoonCut": 0.35,
     "lagoonMaster": 0.55,
+    "lagoonOutput": 0.7083,
     "tideEnabled": 1,
     "tideComp": 0.45,
     "tideBlend": 0.6,

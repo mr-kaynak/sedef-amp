@@ -14,6 +14,7 @@
     "coralGain": 0.6,
     "coralCut": 0.4,
     "coralLevel": 0.55,
-    "gateThreshold": -64.0
+    "gateThreshold": -64.0,
+    "reefOutput": 0.2729
   }
 }

@@ -14,6 +14,7 @@
     "abyssShift": 1,
     "abyssMid": 0.4,
     "abyssBass": 0.55,
-    "gateThreshold": -58.0
+    "gateThreshold": -58.0,
+    "abyssOutput": 0.2958
   }
 }

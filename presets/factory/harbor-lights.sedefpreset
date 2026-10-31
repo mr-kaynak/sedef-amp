@@ -17,6 +17,7 @@
     "driftTime": 120.0,
     "driftFeedback": 0.12,
     "driftMix": 0.25,
-    "driftTapeMod": 0.35
+    "driftTapeMod": 0.35,
+    "reefOutput": 0.3729
   }
 }

@@ -29,6 +29,7 @@
     "driftFeedback": 0.25,
     "fathomEnabled": 1,
     "fathomMix": 0.18,
-    "fathomDecay": 1.8
+    "fathomDecay": 1.8,
+    "lagoonOutput": 0.5667
   }
 }

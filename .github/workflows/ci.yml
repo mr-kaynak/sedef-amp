@@ -68,6 +68,25 @@ jobs:
       - run: cmake --build --preset asan
       - run: ctest --preset asan --output-on-failure
 
+  tsan:
+    name: engine tests (TSan)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: .cpm-cache
+          key: cpm-tsan-${{ hashFiles('**/CMakeLists.txt') }}
+      - uses: lukka/get-cmake@latest
+      - run: cmake --preset tsan
+      - run: cmake --build --preset tsan
+      - name: Concurrency tests, repeated
+        run: |
+          for i in $(seq 1 20); do
+            ./build/tsan/engine/sedef_engine_tests "[concurrency]" --rng-seed "$i"
+          done
+      - run: ctest --preset tsan --output-on-failure
+
   ui:
     runs-on: ubuntu-24.04
     defaults:

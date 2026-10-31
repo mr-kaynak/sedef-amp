@@ -157,7 +157,9 @@ TEST_CASE ("Engine::process never allocates after prepare", "[engine]")
 TEST_CASE ("Switching pedals does not change the chain's latency", "[engine]")
 {
     // Render the same impulse with Pearl off and Pearl on at minimum gain; the outputs must line
-    // up (the bypass path is delayed by the pedal's latency).
+    // up (the bypass path is delayed by the pedal's latency). Pearl's tone filters still shift the
+    // correlation peak by their group delay (a few samples), while a missing compensation would
+    // shift it by the whole oversampler latency (31-37 samples at 48 kHz).
     const auto render = [] (bool pearlOn) {
         Rig rig (48000.0, 64, 1, 1);
         rig.in[0][1000] = 0.5f;
@@ -188,7 +190,7 @@ TEST_CASE ("Switching pedals does not change the chain's latency", "[engine]")
             bestLag = lag;
         }
     }
-    CHECK (bestLag == 0);
+    CHECK (std::abs (bestLag) <= 4);
 }
 
 TEST_CASE ("Analysis ring is fed only while analysis is enabled; tuner mute silences", "[engine]")

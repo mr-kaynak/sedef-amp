@@ -26,6 +26,7 @@
     "fathomMode": 1,
     "fathomMix": 0.5,
     "fathomDecay": 12.0,
-    "fathomHighCut": 3200.0
+    "fathomHighCut": 3200.0,
+    "abyssOutput": 0.2021
   }
 }

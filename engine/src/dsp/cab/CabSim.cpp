@@ -782,6 +782,9 @@ void CabSim::setCustomIr (int mic, int cab, std::unique_ptr<ConvolutionKernel> k
     // An empty kernel stands for "cleared": RtHandoff cannot publish null.
     if (kernel == nullptr)
         kernel = std::make_unique<ConvolutionKernel>();
+    // Free what the audio thread has let go of first (respecting the busy flag), so the retire
+    // slot is empty and the new kernel can be picked up on the next block.
+    impl_->collectGarbage();
     impl_->slots[static_cast<size_t> (mic * kNumCabs + cab)].handoff.publish (std::move (kernel));
 }
 

@@ -17,6 +17,7 @@
     "micBLevel": -5.0,
     "lagoonVolume": 0.58,
     "lagoonMaster": 0.62,
+    "lagoonOutput": 0.3021,
     "pearlEnabled": 1,
     "pearlGain": 0.22,
     "pearlTone": 0.55,

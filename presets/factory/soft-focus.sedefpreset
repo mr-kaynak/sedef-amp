@@ -30,6 +30,7 @@
     "fathomMode": 1,
     "fathomMix": 0.42,
     "fathomDecay": 6.0,
-    "fathomPreDelay": 40.0
+    "fathomPreDelay": 40.0,
+    "lagoonOutput": 0.4521
   }
 }

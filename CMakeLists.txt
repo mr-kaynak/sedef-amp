@@ -20,6 +20,7 @@ option(SEDEF_BUILD_PLUGIN "Build the JUCE plugin and standalone app" ON)
 option(SEDEF_BUILD_TESTS "Build engine tests" ON)
 option(SEDEF_BUILD_TOOLS "Build developer tools" ON)
 option(SEDEF_SANITIZE "Build with AddressSanitizer and UBSan" OFF)
+option(SEDEF_SANITIZE_THREAD "Build with ThreadSanitizer" OFF)
 option(SEDEF_WARNINGS_AS_ERRORS "Treat warnings as errors" OFF)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")

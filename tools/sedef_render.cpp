@@ -309,7 +309,9 @@ int main (int argc, char** argv)
 
     if (args[0] == "--check")
     {
-        // Every factory preset must render finite, below 0 dBFS, and within a sane loudness window.
+        // Every factory preset must render finite, with headroom, and inside a narrow level window.
+        // Factory presets are balanced to -16 LUFS with this DI (see presets/README.md), which lands
+        // between -23 and -19 dBFS RMS depending on how bright and compressed the sound is.
         const auto di = syntheticDi (rate, seconds);
         int failures = 0;
         for (std::size_t i = 1; i < args.size(); ++i)
@@ -324,7 +326,7 @@ int main (int argc, char** argv)
             }
             const auto r = render (di, rate, snap);
             const auto s = measure (r.left, r.right, static_cast<std::size_t> (rate * 0.5));
-            const bool ok = s.finite && s.peakDb < 0.0f && s.rmsDb > -32.0f && s.rmsDb < -10.0f;
+            const bool ok = s.finite && s.peakDb < -1.0f && s.rmsDb > -24.0f && s.rmsDb < -18.0f;
             std::printf ("%s  %-48s rms %6.1f dBFS  peak %6.1f dBFS\n", ok ? "ok  " : "FAIL", args[i].c_str(),
                          static_cast<double> (s.rmsDb), static_cast<double> (s.peakDb));
             failures += ok ? 0 : 1;

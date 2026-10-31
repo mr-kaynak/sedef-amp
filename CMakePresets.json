@@ -38,16 +38,28 @@
         "SEDEF_BUILD_PLUGIN": "OFF",
         "SEDEF_SANITIZE": "ON"
       }
+    },
+    {
+      "name": "tsan",
+      "displayName": "Engine tests with ThreadSanitizer",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "SEDEF_BUILD_PLUGIN": "OFF",
+        "SEDEF_SANITIZE_THREAD": "ON"
+      }
     }
   ],
   "buildPresets": [
     { "name": "dev", "configurePreset": "dev" },
     { "name": "release", "configurePreset": "release" },
     { "name": "engine", "configurePreset": "engine" },
-    { "name": "asan", "configurePreset": "asan" }
+    { "name": "asan", "configurePreset": "asan" },
+    { "name": "tsan", "configurePreset": "tsan" }
   ],
   "testPresets": [
     { "name": "engine", "configurePreset": "engine", "output": { "outputOnFailure": true } },
-    { "name": "asan", "configurePreset": "asan", "output": { "outputOnFailure": true } }
+    { "name": "asan", "configurePreset": "asan", "output": { "outputOnFailure": true } },
+    { "name": "tsan", "configurePreset": "tsan", "output": { "outputOnFailure": true } }
   ]
 }

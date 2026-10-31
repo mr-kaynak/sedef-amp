@@ -21,6 +21,7 @@
     "pearlMid": 0.2,
     "micADistance": 0.1,
     "fathomEnabled": 1,
-    "fathomMix": 0.14
+    "fathomMix": 0.14,
+    "reefOutput": 0.2854
   }
 }

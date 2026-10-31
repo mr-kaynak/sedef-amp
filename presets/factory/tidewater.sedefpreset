@@ -17,6 +17,7 @@
     "micBLevel": -5.0,
     "lagoonVolume": 0.5,
     "lagoonMaster": 0.5,
+    "lagoonOutput": 0.5958,
     "rippleEnabled": 1,
     "rippleMode": 0,
     "rippleSpeed": 4.6,

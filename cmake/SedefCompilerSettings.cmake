@@ -4,7 +4,8 @@ add_library(sedef::compiler_settings ALIAS sedef_compiler_settings)
 
 if(MSVC)
     target_compile_options(sedef_compiler_settings INTERFACE
-        /W4 /permissive- /Zc:__cplusplus /utf-8 /fp:fast)
+        /W4 /permissive- /Zc:__cplusplus /utf-8 /fp:fast
+        /wd4324) # C4324: padding added for alignas (cache-line separation is the point)
     if(SEDEF_WARNINGS_AS_ERRORS)
         target_compile_options(sedef_compiler_settings INTERFACE /WX)
     endif()

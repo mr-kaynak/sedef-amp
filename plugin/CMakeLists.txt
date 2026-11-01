@@ -6,10 +6,13 @@ CPMAddPackage(
     GIT_TAG 9.0.4
     GIT_SHALLOW TRUE)
 
+# The patch stops the wrapper from pairing a mono input with a stereo output for in-place
+# processing (clap-validator: process-audio-basic-in-place).
 CPMAddPackage(
     NAME clap-juce-extensions
     GITHUB_REPOSITORY free-audio/clap-juce-extensions
-    GIT_TAG 7adee3a1bd4684d4caa5601100e364abccff4b4d)
+    GIT_TAG 7adee3a1bd4684d4caa5601100e364abccff4b4d
+    PATCHES ${PROJECT_SOURCE_DIR}/cmake/patches/clap-juce-extensions-in-place-pair.patch)
 
 option(SEDEF_BUILD_UI "Build the web UI with pnpm as part of the build" ON)
 option(SEDEF_COPY_PLUGIN "Copy plugins to the user plugin folders after building" OFF)

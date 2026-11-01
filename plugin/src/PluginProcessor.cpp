@@ -289,6 +289,10 @@ void SedefProcessor::setStateInformation (const void* data, int size)
                 id == toJuce (spec (ParamId::presetNext).id))
                 child.setProperty ("value", 0.0f, nullptr);
         state_.replaceState (params);
+        // The CLAP wrapper only tells the host to re-read parameter values after a "parameter
+        // info changed" notification (VST3 and AU hosts pick restored values up by themselves).
+        if (wrapperType == wrapperType_Undefined)
+            updateHostDisplay (ChangeDetails().withParameterInfoChanged (true));
     }
 
     // This can run on any thread (Logic and AUHost restore AU state off the message thread), so

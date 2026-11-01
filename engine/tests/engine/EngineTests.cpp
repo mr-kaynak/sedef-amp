@@ -95,10 +95,10 @@ namespace
 {
 struct Rig
 {
-    Rig (double fs, int block, int ins, int outs) : in (ins, 1 << 16), out (outs, 1 << 16)
+    Rig (double fs, int blockSize, int ins, int outs) : in (ins, 1 << 16), out (outs, 1 << 16)
     {
-        engine.prepare (fs, block, ins, outs);
-        this->block = block;
+        engine.prepare (fs, blockSize, ins, outs);
+        block = blockSize;
     }
 
     /// Processes `frames` samples of the input buffer in host blocks of `block` frames.

@@ -1,0 +1,15 @@
+--- a/src/wrapper/clap-juce-wrapper.cpp
++++ b/src/wrapper/clap-juce-wrapper.cpp
+@@ -1037,9 +1037,10 @@
+             info->flags |= CLAP_AUDIO_PORT_REQUIRES_COMMON_SAMPLE_SIZE;
+         }
+ 
+-        if (processor->getBus(!isInput, (int)index) != nullptr)
++        const auto otherBus = processor->getBus(!isInput, (int)index);
++        if (otherBus != nullptr && otherBus->getDefaultLayout() == busDefaultLayout)
+         {
+-            // this bus has a corresponding bus on the other side, so it can do in-place processing
++            // this bus has a matching bus on the other side, so it can do in-place processing
+             info->in_place_pair = getPortID(!isInput, index);
+         }
+         else

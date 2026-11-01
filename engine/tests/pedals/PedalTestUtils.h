@@ -241,7 +241,8 @@ SweepResult measureSweep (SettingsAt&& settingsAt, Process&& process, double fs 
     processInBlocks (
         b, block, [&] (AudioView v) { process (m, v); },
         [&] (int start) {
-            const float t = std::clamp (static_cast<float> (start - settle) / sweep, 0.0f, 1.0f);
+            const float t = std::clamp (
+                static_cast<float> (start - settle) / static_cast<float> (sweep), 0.0f, 1.0f);
             m.setSettings (settingsAt (t));
         });
     r.sweep = maxSecondDifference (b[0], static_cast<size_t> (settle));

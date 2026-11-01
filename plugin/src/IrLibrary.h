@@ -4,6 +4,7 @@
 #include "sedef/Engine.h"
 
 #include <array>
+#include <cstdint>
 #include <functional>
 #include <juce_audio_formats/juce_audio_formats.h>
 #include <mutex>
@@ -30,6 +31,10 @@ public:
     void loadAsync (int mic, int cab, const juce::File& file,
                     std::function<void (const juce::String&)> onDone);
     void clear (int mic, int cab);
+    /// Any thread. Records the file a slot should hold (what the saved state reports, even while
+    /// the load is still running) and invalidates older loads in flight for that slot. An empty
+    /// file means "no IR". Returns the request's generation.
+    std::uint64_t request (int mic, int cab, const juce::File& file);
 
     /// Rebuilds every loaded kernel for the engine's current sample rate (after prepare).
     void rebuildAll();
@@ -48,12 +53,16 @@ private:
     };
 
     void install (int mic, int cab);
+    juce::String loadIfCurrent (int mic, int cab, const juce::File& file, std::uint64_t generation);
+    juce::String fail (int mic, int cab, std::uint64_t generation, const juce::String& error);
 
     Engine& engine_;
     std::mutex& engineLock_;
     juce::AudioFormatManager formats_;
     mutable std::recursive_mutex slotsLock_; // slots are touched by the worker and message threads
     std::array<std::array<Slot, kCabs>, kMics> slots_;
+    std::array<std::array<juce::File, kCabs>, kMics> requested_;        // guarded by slotsLock_
+    std::array<std::array<std::uint64_t, kCabs>, kMics> generation_ {}; // guarded by slotsLock_
     juce::ThreadPool worker_ {
         juce::ThreadPoolOptions {}.withThreadName ("Sedef IR loader").withNumberOfThreads (1)
     };

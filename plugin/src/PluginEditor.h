@@ -42,6 +42,8 @@ private:
     void finishSmokeTest (bool ok, const juce::var& details);
     juce::File smokeResult_;
     int smokeTicks_ = 0;
+    int smokeReadyAt_ = -1;
+    bool smokeEvaluating_ = false;
     bool smokeDone_ = false;
 
     SedefProcessor& processor_;

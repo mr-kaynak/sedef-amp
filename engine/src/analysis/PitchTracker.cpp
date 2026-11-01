@@ -161,11 +161,17 @@ double PitchTracker::median() const noexcept
 {
     if (recentCount_ == 0)
         return 0.0;
-    // The clamp is a no-op (recentCount_ never exceeds kMedianSize) that lets GCC prove the bounds.
+    // At most five values: an insertion sort (std::sort's heap paths trip GCC's -Warray-bounds).
     const int n = std::min (recentCount_, kMedianSize);
-    double v[kMedianSize];
-    std::copy (recent_, recent_ + n, v);
-    std::sort (v, v + n);
+    double v[kMedianSize] {};
+    for (int i = 0; i < n; ++i)
+    {
+        const double x = recent_[i];
+        int j = i;
+        for (; j > 0 && v[j - 1] > x; --j)
+            v[j] = v[j - 1];
+        v[j] = x;
+    }
     return v[(n - 1) / 2]; // lower median: never a mean of two octaves
 }
 

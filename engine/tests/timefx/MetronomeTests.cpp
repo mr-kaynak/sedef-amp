@@ -100,7 +100,7 @@ TEST_CASE ("Metronome Off steps are silent", "[timefx][metronome]")
 
     const double interval = fs * 60.0 / 150.0;
     std::vector<long long> expected;
-    for (long long k = 0; k * interval < b.frames(); ++k)
+    for (long long k = 0; static_cast<double> (k) * interval < b.frames(); ++k)
         if (k % 4 == 0 || k % 4 == 2)
             expected.push_back (
                 static_cast<long long> (std::ceil (static_cast<double> (k) * interval)));

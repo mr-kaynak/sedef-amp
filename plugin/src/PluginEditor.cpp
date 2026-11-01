@@ -492,41 +492,48 @@ void SedefEditor::emitIrs()
 
 void SedefEditor::smokeTestTick()
 {
-    ++smokeTicks_;
-    if (!pageReady_)
+    if (++smokeTicks_ > kSmokeTimeoutTicks)
     {
-        if (smokeTicks_ > kSmokeTimeoutTicks)
-            finishSmokeTest (false, "The page never called sedef_hello");
+        finishSmokeTest (false, pageReady_ ? "The page called sedef_hello but never rendered"
+                                           : "The page never called sedef_hello");
         return;
     }
-    if (tick_ < kSmokeSettleTicks)
+    if (!pageReady_)
+        return;
+    if (smokeReadyAt_ < 0)
+        smokeReadyAt_ = smokeTicks_;
+    if (smokeEvaluating_ || smokeTicks_ - smokeReadyAt_ < kSmokeSettleTicks)
         return;
 
-    smokeDone_ = true; // one evaluation; the callback writes the result
+    smokeEvaluating_ = true; // one evaluation; the callback (or the timeout) writes the result
     const juce::String script =
         "JSON.stringify({ controls: document.querySelectorAll('button, input, select, "
-        "[role=slider]')"
-        ".length, title: document.title, text: (document.body.innerText || '').slice(0, 160) })";
-    browser_->evaluateJavascript (
-        script, [safe = juce::Component::SafePointer<SedefEditor> (this)] (auto result) {
-            if (safe == nullptr)
-                return;
-            if (const auto* error = result.getError())
-            {
-                safe->finishSmokeTest (false, "JavaScript error: " + error->message);
-                return;
-            }
-            const auto* value = result.getResult();
-            const auto page =
-                juce::JSON::parse (value != nullptr ? value->toString() : juce::String());
-            const int controls = page.getProperty ("controls", 0);
-            // The editor shows dozens of knobs and switches; a handful means it failed to render.
-            safe->finishSmokeTest (controls >= 20, page);
-        });
+        "[role=slider]').length, alerts: Array.from(document.querySelectorAll('[role=alert]'))"
+        ".map(e => e.textContent), title: document.title, "
+        "text: (document.body.innerText || '').slice(0, 160) })";
+    browser_->evaluateJavascript (script, [safe = juce::Component::SafePointer<SedefEditor> (
+                                               this)] (auto result) {
+        if (safe == nullptr)
+            return;
+        if (const auto* error = result.getError())
+        {
+            safe->finishSmokeTest (false, "JavaScript error: " + error->message);
+            return;
+        }
+        const auto* value = result.getResult();
+        const auto page = juce::JSON::parse (value != nullptr ? value->toString() : juce::String());
+        const int controls = page.getProperty ("controls", 0);
+        const auto* alerts = page.getProperty ("alerts", juce::var()).getArray();
+        // The editor shows dozens of knobs and switches; a handful means it failed to render.
+        // Any alert means the page fell back to an error message (bridge or render failure).
+        safe->finishSmokeTest (controls >= 20 && (alerts == nullptr || alerts->isEmpty()), page);
+    });
 }
 
 void SedefEditor::finishSmokeTest (bool ok, const juce::var& details)
 {
+    if (smokeDone_)
+        return;
     smokeDone_ = true;
     auto* result = new juce::DynamicObject();
     result->setProperty ("ok", ok);

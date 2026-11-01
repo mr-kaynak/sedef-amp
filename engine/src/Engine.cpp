@@ -183,12 +183,14 @@ struct Slot
     template <typename Settings, typename Run>
     bool process (float* io, int n, bool enabled, const Settings& settings, Run&& run) noexcept
     {
+        // The first block after prepare/reset counts as coming out of bypass, so modules whose
+        // reset() depends on their settings (the gate) get settings, reset, settings.
+        const bool wasBypassed = snapOnNextBlock || fader.isFullyBypassed();
         if (snapOnNextBlock)
         {
             fader.snap (enabled);
             snapOnNextBlock = false;
         }
-        const bool wasBypassed = fader.isFullyBypassed();
         fader.setEnabled (enabled);
 
         // The dry path is only needed while bypassed or crossfading, but a latency-bearing module
@@ -249,12 +251,14 @@ struct StereoSlot
     template <typename Settings>
     void process (const AudioView& io, bool enabled, const Settings& settings) noexcept
     {
+        // The first block after prepare/reset counts as coming out of bypass, so modules whose
+        // reset() depends on their settings (the gate) get settings, reset, settings.
+        const bool wasBypassed = snapOnNextBlock || fader.isFullyBypassed();
         if (snapOnNextBlock)
         {
             fader.snap (enabled);
             snapOnNextBlock = false;
         }
-        const bool wasBypassed = fader.isFullyBypassed();
         fader.setEnabled (enabled);
         if (fader.isFullyBypassed())
             return; // settings wait until the module runs again
@@ -427,8 +431,10 @@ void Engine::prepare (double sampleRate, int maxBlockSize, int numInputs, int nu
 
     auto& d = *impl_;
     d.numChains = numInputs;
-    for (int c = 0; c < d.numChains; ++c)
-        d.chains[static_cast<size_t> (c)].prepare (sampleRate, block);
+    // Both chains are prepared and reset even in mono: custom IRs are published to both, and an
+    // idle chain must not keep a half-finished IR crossfade (and its kernel) alive.
+    for (auto& chain : d.chains)
+        chain.prepare (sampleRate, block);
 
     const ProcessSpec stereo { sampleRate, block, 2 };
     d.eq.prepare (stereo);
@@ -462,8 +468,8 @@ void Engine::prepare (double sampleRate, int maxBlockSize, int numInputs, int nu
 void Engine::reset()
 {
     auto& d = *impl_;
-    for (int c = 0; c < d.numChains; ++c)
-        d.chains[static_cast<size_t> (c)].reset();
+    for (auto& chain : d.chains)
+        chain.reset();
     d.eq.reset();
     d.doubler.reset();
     d.drift.reset();
@@ -585,8 +591,8 @@ void Engine::process (const float* const* inputs, float* const* outputs, int num
             else if (!d.modeFade.isSmoothing())
             {
                 d.dual = wantDual;
-                for (int c = 0; c < d.numChains; ++c)
-                    d.chains[static_cast<size_t> (c)].reset();
+                for (auto& c : d.chains)
+                    c.reset();
                 // The Doubler only runs in Summed mode; its delay lines still hold audio from
                 // before the switch, which its bypass fade would otherwise replay.
                 d.doubler.reset();

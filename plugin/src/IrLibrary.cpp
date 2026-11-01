@@ -25,25 +25,50 @@ IrLibrary::~IrLibrary()
     worker_.removeAllJobs (true, 5000);
 }
 
+std::uint64_t IrLibrary::request (int mic, int cab, const juce::File& file)
+{
+    if (mic < 0 || mic >= kMics || cab < 0 || cab >= kCabs)
+        return 0;
+    const std::scoped_lock lock (slotsLock_);
+    requested_[static_cast<size_t> (mic)][static_cast<size_t> (cab)] = file;
+    return ++generation_[static_cast<size_t> (mic)][static_cast<size_t> (cab)];
+}
+
 void IrLibrary::loadAsync (int mic, int cab, const juce::File& file,
                            std::function<void (const juce::String&)> onDone)
 {
-    worker_.addJob ([this, mic, cab, file, done = std::move (onDone)] {
-        const auto error = load (mic, cab, file);
+    const auto generation = request (mic, cab, file);
+    worker_.addJob ([this, mic, cab, file, generation, done = std::move (onDone)] {
+        const auto error = loadIfCurrent (mic, cab, file, generation);
         juce::MessageManager::callAsync ([done, error] { done (error); });
     });
 }
 
 juce::String IrLibrary::load (int mic, int cab, const juce::File& file)
 {
+    return loadIfCurrent (mic, cab, file, request (mic, cab, file));
+}
+
+juce::String IrLibrary::fail (int mic, int cab, std::uint64_t generation, const juce::String& error)
+{
+    // A failed load leaves the slot empty, unless a newer request has replaced this one.
+    const std::scoped_lock lock (slotsLock_);
+    if (generation_[static_cast<size_t> (mic)][static_cast<size_t> (cab)] == generation)
+        requested_[static_cast<size_t> (mic)][static_cast<size_t> (cab)] = juce::File();
+    return error;
+}
+
+juce::String IrLibrary::loadIfCurrent (int mic, int cab, const juce::File& file,
+                                       std::uint64_t generation)
+{
     if (mic < 0 || mic >= kMics || cab < 0 || cab >= kCabs)
         return "Invalid IR slot";
 
     std::unique_ptr<juce::AudioFormatReader> reader (formats_.createReaderFor (file));
     if (reader == nullptr)
-        return "Unsupported audio file";
+        return fail (mic, cab, generation, "Unsupported audio file");
     if (reader->sampleRate <= 0.0 || reader->lengthInSamples <= 0)
-        return "The file contains no audio";
+        return fail (mic, cab, generation, "The file contains no audio");
 
     const auto length = static_cast<int> (std::min<juce::int64> (
         reader->lengthInSamples, static_cast<juce::int64> (reader->sampleRate * kMaxSeconds)));
@@ -61,6 +86,8 @@ juce::String IrLibrary::load (int mic, int cab, const juce::File& file)
             1.0f / static_cast<float> (buffer.getNumChannels()), length);
 
     const std::scoped_lock lock (slotsLock_);
+    if (generation_[static_cast<size_t> (mic)][static_cast<size_t> (cab)] != generation)
+        return {}; // superseded by a newer load or clear while decoding
     slots_[static_cast<size_t> (mic)][static_cast<size_t> (cab)] = std::move (slot);
     install (mic, cab);
     return {};
@@ -71,6 +98,7 @@ void IrLibrary::clear (int mic, int cab)
     if (mic < 0 || mic >= kMics || cab < 0 || cab >= kCabs)
         return;
     const std::scoped_lock slotLock (slotsLock_);
+    request (mic, cab, juce::File());
     slots_[static_cast<size_t> (mic)][static_cast<size_t> (cab)] = {};
     const std::scoped_lock lock (engineLock_);
     for (int c = 0; c < engine_.numCabs(); ++c)
@@ -110,8 +138,9 @@ void IrLibrary::collectGarbage()
 
 juce::File IrLibrary::fileFor (int mic, int cab) const
 {
+    // What the slot should hold: saved state round-trips even while a load is still running.
     const std::scoped_lock lock (slotsLock_);
-    return slots_[static_cast<size_t> (mic)][static_cast<size_t> (cab)].file;
+    return requested_[static_cast<size_t> (mic)][static_cast<size_t> (cab)];
 }
 
 juce::var IrLibrary::stateAsVar() const

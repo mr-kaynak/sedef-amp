@@ -99,6 +99,7 @@ private:
     mutable std::mutex extraLock_;
     juce::String uiStateJson_;                     // guarded by extraLock_
     juce::String savedPresetId_, savedPresetName_; // guarded; mirrored from presets_ by the timer
+    int pendingPresetRestores_ = 0;                // guarded; restores not yet applied to presets_
     std::array<std::uint8_t, 13> metronomePattern_ { 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
     std::atomic<double> uiScale_ { 1.0 };
     std::array<double, 4> taps_ {};

@@ -22,6 +22,10 @@ SedefProcessor::SedefProcessor()
         jassert (raw_[i] != nullptr);
     }
     engine_.setMetronomePattern (metronomePattern_);
+    // The saved-state snapshot must match the preset manager from the start, or the first save
+    // and a save after the timer has run would differ (clap-validator checks state byte for byte).
+    savedPresetId_ = presets_.currentId();
+    savedPresetName_ = presets_.currentName();
     startTimerHz (20);
 }
 
@@ -60,7 +64,7 @@ void SedefProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
         const std::scoped_lock lock (engineLock_);
         engine_.prepare (sampleRate, samplesPerBlock, ins, outs);
         engine_.setMetronomeAllowed (isStandalone());
-        engine_.setMetronomePattern (metronomePattern_);
+        engine_.setMetronomePattern (metronomePattern());
     }
     setLatencySamples (engine_.latencySamples());
     loadMeasurer_.reset (sampleRate, samplesPerBlock);
@@ -218,8 +222,11 @@ void SedefProcessor::timerCallback()
         const auto id = presets_.currentId();
         const auto name = presets_.currentName();
         const std::scoped_lock lock (extraLock_);
-        savedPresetId_ = id;
-        savedPresetName_ = name;
+        if (pendingPresetRestores_ == 0) // a restored session's preset is applied asynchronously
+        {
+            savedPresetId_ = id;
+            savedPresetName_ = name;
+        }
     }
 
     analysis_.setReferenceHz (paramValue (ParamId::tunerReference));
@@ -280,10 +287,13 @@ void SedefProcessor::setStateInformation (const void* data, int size)
 
     if (const auto params = root.getChildWithName (state_.state.getType()); params.isValid())
     {
-        state_.replaceState (params);
         // A session saved with a preset switch held on restores it on (hosts and validators expect
-        // state to round-trip exactly), but that must not count as a press: seed the edge detector
-        // so the first timer tick doesn't step away from the preset the session just restored.
+        // state to round-trip exactly), but that must not count as a press. Hold the edge detector
+        // "on" while the values change, so the timer can't see a rising edge mid-restore, then
+        // seed it with the restored values.
+        lastPrev_ = true;
+        lastNext_ = true;
+        state_.replaceState (params);
         lastPrev_ = paramValue (ParamId::presetPrevious) >= 0.5f;
         lastNext_ = paramValue (ParamId::presetNext) >= 0.5f;
         // The CLAP wrapper only tells the host to re-read parameter values after a "parameter
@@ -297,12 +307,15 @@ void SedefProcessor::setStateInformation (const void* data, int size)
     // message thread below.
     const auto extra = root.getChildWithName ("Extra");
     const auto presetId = extra.getProperty ("presetId").toString();
-    const auto presetName = extra.getProperty ("presetName").toString();
+    // Same fallback as PresetManager::restoreCurrent, so the snapshot matches what it will hold.
+    const auto savedName = extra.getProperty ("presetName").toString();
+    const auto presetName = savedName.isNotEmpty() ? savedName : juce::String ("Init");
     {
         const std::scoped_lock lock (extraLock_);
         uiStateJson_ = extra.getProperty ("uiState").toString();
         savedPresetId_ = presetId;
         savedPresetName_ = presetName;
+        ++pendingPresetRestores_; // the timer leaves the snapshot alone until it's applied
     }
     setUiScale (juce::jlimit (0.5, 2.5, static_cast<double> (extra.getProperty ("uiScale", 1.0))));
 
@@ -317,32 +330,49 @@ void SedefProcessor::setStateInformation (const void* data, int size)
         setMetronomePattern (pattern);
     }
 
-    const auto irs = root.getChildWithName ("IRs");
-    juce::MessageManager::callAsync (
-        [safe = juce::WeakReference<SedefProcessor> (this), irs, presetId, presetName] {
-            if (auto* p = safe.get())
-            {
-                p->presets_.restoreCurrent (presetId, presetName);
+    // The restored state is the whole truth: slots it doesn't mention are empty. The wanted files
+    // are recorded now, so a save before the loads finish still reports them.
+    std::array<std::array<juce::File, IrLibrary::kCabs>, IrLibrary::kMics> wanted;
+    for (const auto& slot : root.getChildWithName ("IRs"))
+    {
+        const int m = slot.getProperty ("mic");
+        const int c = slot.getProperty ("cab");
+        const juce::File f (slot.getProperty ("path").toString());
+        if (m >= 0 && m < IrLibrary::kMics && c >= 0 && c < IrLibrary::kCabs && f.existsAsFile())
+            wanted[static_cast<size_t> (m)][static_cast<size_t> (c)] = f;
+    }
+    for (int m = 0; m < IrLibrary::kMics; ++m)
+        for (int c = 0; c < IrLibrary::kCabs; ++c)
+            irs_.request (m, c, wanted[static_cast<size_t> (m)][static_cast<size_t> (c)]);
 
-                // The restored state is the whole truth: slots it doesn't mention are empty.
-                for (int m = 0; m < IrLibrary::kMics; ++m)
-                    for (int c = 0; c < IrLibrary::kCabs; ++c)
-                        p->irs_.clear (m, c);
-                for (const auto& slot : irs)
+    juce::MessageManager::callAsync ([safe = juce::WeakReference<SedefProcessor> (this), wanted,
+                                      presetId, presetName] {
+        if (auto* p = safe.get())
+        {
+            p->presets_.restoreCurrent (presetId, presetName);
+            {
+                const std::scoped_lock lock (p->extraLock_);
+                --p->pendingPresetRestores_;
+            }
+
+            for (int m = 0; m < IrLibrary::kMics; ++m)
+                for (int c = 0; c < IrLibrary::kCabs; ++c)
                 {
-                    const juce::File f (slot.getProperty ("path").toString());
-                    if (f.existsAsFile())
-                        p->irs_.loadAsync (slot.getProperty ("mic"), slot.getProperty ("cab"), f,
+                    const auto& f = wanted[static_cast<size_t> (m)][static_cast<size_t> (c)];
+                    if (f == juce::File())
+                        p->irs_.clear (m, c);
+                    else
+                        p->irs_.loadAsync (m, c, f,
                                            [safeAgain = juce::WeakReference<SedefProcessor> (p)] (
                                                const juce::String&) {
                                                if (auto* q = safeAgain.get())
                                                    ++q->irRevision;
                                            });
                 }
-                ++p->irRevision;
-                ++p->presetRevision;
-            }
-        });
+            ++p->irRevision;
+            ++p->presetRevision;
+        }
+    });
 }
 
 } // namespace sedef::plugin

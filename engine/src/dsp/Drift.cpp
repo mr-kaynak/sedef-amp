@@ -191,6 +191,13 @@ void Drift::setSettings (const Settings& s) noexcept
 {
     settings_ = sanitise (s);
     applyTargets (snapNext_);
+    if (snapNext_)
+    {
+        // First settings after prepare/reset: the tape is empty, so start in the matching state
+        // (idle when disabled) with the modulation continuous at its new depth.
+        idle_ = !settings_.enabled;
+        snapModulation();
+    }
     snapNext_ = false;
 }
 

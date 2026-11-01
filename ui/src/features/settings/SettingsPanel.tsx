@@ -5,6 +5,7 @@ import { useAppStore } from '../../state/appStore';
 import { invoke } from '../../state/backendRef';
 import { SCALES, uiActions, useUiStore } from '../../state/uiStore';
 import { NacreStar } from '../header/Brand';
+import { UpdatesSettings } from '../updates/UpdatesSettings';
 import styles from './SettingsPanel.module.css';
 
 const LICENSE_URL = 'https://www.gnu.org/licenses/agpl-3.0.html';
@@ -47,6 +48,7 @@ export function SettingsPanel() {
           Applies when the host feeds a stereo signal. Two channels runs a full rig per side.
         </p>
       </section>
+      <UpdatesSettings className={styles.section} />
       <section className={`${styles.section} ${styles.about}`}>
         <NacreStar size={36} />
         <div>

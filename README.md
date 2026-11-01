@@ -140,6 +140,14 @@ Start with [docs/architecture.md](docs/architecture.md).
 - Factory presets are balanced to -16 LUFS and checked on every platform
   ([presets/README.md](presets/README.md)).
 
+## Updates & privacy
+
+Sedef checks GitHub for a new release at most once a day, when you open its window, and can
+download, verify (SHA-256) and open the installer for you. The check is a single HTTPS request
+that carries only the Sedef version and your OS family, no identifiers. Switch it off in Settings
+→ Updates, with `SEDEF_DISABLE_UPDATE_CHECK=1`, or at build time with `-DSEDEF_UPDATE_CHECK=OFF`.
+How it works and what it protects against: [docs/updates.md](docs/updates.md).
+
 ## Contributing
 
 Issues and pull requests are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) first,

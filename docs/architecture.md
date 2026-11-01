@@ -76,6 +76,7 @@ plugin (it ships a mock backend for browser development).
 | Message (JUCE) | parameters, presets, WebView bridge, file dialogs | block on audio |
 | Analysis (ours) | pitch detection for tuner and intonation | touch engine state |
 | Loader (ours) | IR file decoding, resampling, FFT partitioning | touch engine state |
+| Updates (ours) | update check and installer download ([updates.md](updates.md)) | touch engine or plugin state |
 
 Communication:
 
@@ -245,6 +246,11 @@ running through the same cab/EQ/FX chain.
     `pitch` (tuner/intonation readings), `presets` (list/current changed).
 - State: APVTS XML plus a `<Sedef>` child for non-parameter state (IR paths,
   UI state). Presets are JSON files.
+- Updates (`plugin/src/update/`, [updates.md](updates.md)): `update.*` functions
+  and an `update` event. One service per process checks GitHub at most once a
+  day, only once an editor's page asks; its settings live in a per-user
+  `update.json`, never in the plugin state. `SEDEF_UPDATE_CHECK=OFF` compiles
+  it out.
 
 ## 11. Quality gates
 

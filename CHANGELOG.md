@@ -23,6 +23,10 @@ All notable changes to this project are documented here. The format follows
   before replacing a preset.
 - Presets may carry a one-line `description`; every factory preset has one, and the factory
   categories and tags follow one vocabulary (`presets/README.md`).
+- **Updates:** a daily check for new releases (one HTTPS request, version and OS only), an
+  Updates panel with release notes, and one-click download that verifies the installer's SHA-256
+  before opening it. Off in Settings, with `SEDEF_DISABLE_UPDATE_CHECK=1` or
+  `-DSEDEF_UPDATE_CHECK=OFF` ([docs/updates.md](docs/updates.md)).
 
 ### Changed
 

@@ -40,6 +40,7 @@ chromium-headless-shell`.
 | `?host=plugin\|standalone`          | present as a plugin (no metronome) or as the standalone app instead of the browser preview |
 | `?errors=3.6,-2.4,1.1`              | 12th-fret errors in cents that the simulated guitar produces, per string                   |
 | `?fresh`                            | ignore UI state saved by earlier browser sessions                                          |
+| `?update=available`                 | what the update checker finds: `current`, `available`, `skipped`, `error`, `noinstaller`, `mismatch`, `unsupported` |
 
 ### Inside the plugin
 
@@ -71,6 +72,7 @@ ui/src/
     tuner/              needle + strobe gauge, overlay
     intonation/         math.ts, store, controller, wizard steps, saddle diagram
     metronome/ settings/
+    updates/            header pill, Updates panel, release-notes Markdown (docs/updates.md)
   lib/                  music (notes, cents), note values, metronome steps
   styles/               tokens.css, global.css, bundled fonts
 ```
@@ -198,6 +200,7 @@ browser the canvas fits the window. Everything is vector or text, so it stays cr
 | Tuner      | needle + strobe, note and octave, cents, Hz, reference 420–460 Hz, mute; in tune within ±1 cent                                                                                                                    |
 | Intonation | instrument → measure each string (tune open, capture 12th fret, result with saddle diagram) → summary with copy as text                                                                                            |
 | Metronome  | play/stop, tempo knob + tap, signature, sound, volume, step grid (off/normal/accent/soft), live beat                                                                                                               |
+| Updates    | header pill when a newer release is out; panel with versions, last check, Check now, the automatic-check switch, release notes, Download & install with progress and Cancel, Skip this version, Later ([updates.md](updates.md)) |
 
 ### EQ curve
 

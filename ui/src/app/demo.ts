@@ -11,6 +11,9 @@
 //   ?demo                            expose window.__sedefDemo for scripted frames (captures)
 //   ?grain=0                         hide the lacquer grain (smaller screenshots)
 //   ?fresh                           ignore UI state saved by earlier browser sessions
+//   ?update=available                what the update checker finds: current|available|skipped|
+//                                    error|noinstaller|mismatch|unsupported (docs/updates.md)
+import { isUpdateScenario, type UpdateScenario } from '../bridge/mock/updateSim';
 import { isSection, type Overlay, type Section } from '../state/uiStore';
 
 export interface DemoFlags {
@@ -24,6 +27,7 @@ export interface DemoFlags {
   demo: boolean;
   grain: boolean;
   fresh: boolean;
+  update: UpdateScenario | null;
 }
 
 function parseOverrides(text: string | null): Record<string, number> {
@@ -63,5 +67,6 @@ export function readDemoFlags(
     demo: q.has('demo'),
     grain: q.get('grain') !== '0',
     fresh: q.has('fresh'),
+    update: isUpdateScenario(q.get('update')) ? (q.get('update') as UpdateScenario) : null,
   };
 }

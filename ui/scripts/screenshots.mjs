@@ -79,6 +79,13 @@ const SHOTS = {
       await page.waitForTimeout(400);
     },
   },
+  updates: {
+    query: 'section=amp&update=available',
+    async prepare(page) {
+      await page.getByRole('button', { name: /^Update available/ }).click();
+      await page.waitForTimeout(300);
+    },
+  },
 };
 
 const wanted = process.argv.slice(2);

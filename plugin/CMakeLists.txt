@@ -16,6 +16,16 @@ CPMAddPackage(
 
 option(SEDEF_BUILD_UI "Build the web UI with pnpm as part of the build" ON)
 option(SEDEF_COPY_PLUGIN "Copy plugins to the user plugin folders after building" OFF)
+option(SEDEF_UPDATE_CHECK "Build the in-app update checker (talks to api.github.com, docs/updates.md)" ON)
+option(SEDEF_BUILD_PLUGIN_TESTS "Build the plug-in's unit tests (update checker)" ${SEDEF_BUILD_TESTS})
+
+# JUCE has no HTTPS on Linux without libcurl. It is loaded when the first request runs, so the
+# plug-in still loads on systems without it (the check then reports a network error).
+if(SEDEF_UPDATE_CHECK AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    set(SEDEF_NEEDS_CURL TRUE)
+else()
+    set(SEDEF_NEEDS_CURL FALSE)
+endif()
 set(SEDEF_UI_DIR "${PROJECT_SOURCE_DIR}/ui")
 set(SEDEF_UI_DIST "${SEDEF_UI_DIR}/dist")
 
@@ -111,6 +121,7 @@ juce_add_plugin(SedefAmp
     EDITOR_WANTS_KEYBOARD_FOCUS TRUE
     NEEDS_WEB_BROWSER TRUE
     NEEDS_WEBVIEW2 TRUE
+    NEEDS_CURL ${SEDEF_NEEDS_CURL}
     VST3_CATEGORIES Fx Distortion
     AU_MAIN_TYPE kAudioUnitType_Effect
     COPY_PLUGIN_AFTER_BUILD ${SEDEF_COPY_PLUGIN}
@@ -124,11 +135,26 @@ clap_juce_extensions_plugin(TARGET SedefAmp
 file(GLOB SEDEF_PLUGIN_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp ${CMAKE_CURRENT_SOURCE_DIR}/src/*.h)
 target_sources(SedefAmp PRIVATE ${SEDEF_PLUGIN_SOURCES})
 
+# Update checker (docs/updates.md). The bridge is always built: with the option off it reports
+# the feature as unsupported and the UI hides it.
+set(SEDEF_UPDATE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/update)
+set(SEDEF_UPDATE_CORE_SOURCES
+    ${SEDEF_UPDATE_DIR}/UpdateLogic.cpp ${SEDEF_UPDATE_DIR}/UpdateLogic.h
+    ${SEDEF_UPDATE_DIR}/UpdateClient.cpp ${SEDEF_UPDATE_DIR}/UpdateClient.h)
+target_sources(SedefAmp PRIVATE ${SEDEF_UPDATE_DIR}/UpdateBridge.cpp ${SEDEF_UPDATE_DIR}/UpdateBridge.h)
+if(SEDEF_UPDATE_CHECK)
+    target_sources(SedefAmp PRIVATE ${SEDEF_UPDATE_CORE_SOURCES}
+        ${SEDEF_UPDATE_DIR}/UpdateService.cpp ${SEDEF_UPDATE_DIR}/UpdateService.h)
+    target_link_libraries(SedefAmp PRIVATE juce::juce_cryptography)
+endif()
+
 target_compile_definitions(SedefAmp PUBLIC
     JUCE_WEB_BROWSER=1
-    JUCE_USE_CURL=0
+    JUCE_USE_CURL=$<BOOL:${SEDEF_NEEDS_CURL}>
+    JUCE_LOAD_CURL_SYMBOLS_LAZILY=1
     JUCE_VST3_CAN_REPLACE_VST2=0
     JUCE_USE_WIN_WEBVIEW2_WITH_STATIC_LINKING=1
+    SEDEF_UPDATE_CHECK=$<BOOL:${SEDEF_UPDATE_CHECK}>
     SEDEF_VERSION="${PROJECT_VERSION}")
 
 target_link_libraries(SedefAmp
@@ -166,4 +192,56 @@ if(SEDEF_BUILD_HOST_SMOKE)
         juce::juce_recommended_config_flags
         juce::juce_recommended_warning_flags)
     add_dependencies(sedef-host-smoke SedefAmp_VST3)
+endif()
+
+# --- Update checker: unit tests and a command-line check ----------------------------------------
+# Both compile the checker's sources against juce_core, without the plug-in around them.
+
+if(SEDEF_UPDATE_CHECK AND SEDEF_BUILD_PLUGIN_TESTS)
+    CPMAddPackage(
+        NAME Catch2
+        GITHUB_REPOSITORY catchorg/Catch2
+        VERSION 3.16.1)
+
+    juce_add_console_app(sedef_update_tests PRODUCT_NAME "sedef_update_tests")
+    target_sources(sedef_update_tests PRIVATE
+        tests/UpdateTests.cpp tests/UpdateClientTests.cpp tests/UpdateServiceTests.cpp
+        ${SEDEF_UPDATE_CORE_SOURCES} ${SEDEF_UPDATE_DIR}/UpdateService.cpp)
+    target_include_directories(sedef_update_tests PRIVATE ${SEDEF_UPDATE_DIR} tests)
+    target_compile_definitions(sedef_update_tests PRIVATE
+        JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 SEDEF_VERSION="0.1.0")
+    target_link_libraries(sedef_update_tests
+        PRIVATE
+            juce::juce_core
+            juce::juce_cryptography
+            juce::juce_events
+            Catch2::Catch2WithMain
+        PUBLIC
+            juce::juce_recommended_config_flags
+            juce::juce_recommended_warning_flags)
+
+    list(APPEND CMAKE_MODULE_PATH ${Catch2_SOURCE_DIR}/extras)
+    include(Catch)
+    catch_discover_tests(sedef_update_tests DISCOVERY_MODE PRE_TEST TEST_PREFIX "update: ")
+endif()
+
+# sedef-update-check: what the plug-in's checker sees, against the real GitHub API.
+if(SEDEF_UPDATE_CHECK AND SEDEF_BUILD_TOOLS)
+    juce_add_console_app(sedef-update-check
+        PRODUCT_NAME "sedef-update-check"
+        NEEDS_CURL ${SEDEF_NEEDS_CURL})
+    target_sources(sedef-update-check PRIVATE tools/sedef_update_check.cpp ${SEDEF_UPDATE_CORE_SOURCES})
+    target_include_directories(sedef-update-check PRIVATE ${SEDEF_UPDATE_DIR})
+    target_compile_definitions(sedef-update-check PRIVATE
+        JUCE_WEB_BROWSER=0
+        JUCE_USE_CURL=$<BOOL:${SEDEF_NEEDS_CURL}>
+        JUCE_LOAD_CURL_SYMBOLS_LAZILY=1
+        SEDEF_VERSION="${PROJECT_VERSION}")
+    target_link_libraries(sedef-update-check
+        PRIVATE
+            juce::juce_core
+            juce::juce_cryptography
+        PUBLIC
+            juce::juce_recommended_config_flags
+            juce::juce_recommended_warning_flags)
 endif()

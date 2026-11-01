@@ -30,6 +30,7 @@ import {
 } from './mock/factoryPresets';
 import { PitchSimulator } from './mock/pitchSim';
 import { TelemetrySimulator } from './mock/telemetrySim';
+import { UpdateSimulator, type UpdateScenario } from './mock/updateSim';
 
 export interface MockOptions {
   /** Run telemetry/pitch timers (browser). Tests leave this off and call tick* themselves. */
@@ -50,11 +51,14 @@ export interface MockOptions {
    * Used by demo URLs and trailer captures.
    */
   overrides?: ParamValues;
+  /** What the update checker finds (docs/updates.md). Defaults to "current": nothing newer. */
+  update?: UpdateScenario;
 }
 // The plugin editor's timer: telemetry every other 60 Hz tick, pitch on every tick.
 const TELEMETRY_HZ = 30;
 const PITCH_HZ = 60;
 const IR_NAMES = ['Tight room, close.wav', 'Back porch, far.wav', 'Small hall, edge.wav'];
+const APP_VERSION = '0.1.0-dev';
 
 type Handlers = { [K in NativeName]: (...args: NativeArgs<K>) => NativeResult<K> };
 
@@ -120,6 +124,8 @@ export class MockBackend implements Backend {
   private pitchTimer: ReturnType<typeof setInterval> | null = null;
   private readonly pitchSim: PitchSimulator;
   private readonly telemetrySim: TelemetrySimulator;
+  /** The update checker; tests advance its checks and downloads with step(). */
+  readonly updates: UpdateSimulator;
 
   constructor(private readonly options: MockOptions = {}) {
     this.uiState = options.uiState ?? this.loadPersistedUiState();
@@ -144,6 +150,13 @@ export class MockBackend implements Backend {
       if (!isGlobalParam(id)) this.loaded[id] = v;
     }
     this.refreshPresetItems();
+    this.updates = new UpdateSimulator({
+      scenario: options.update,
+      currentVersion: APP_VERSION,
+      autoStart: options.autoStart,
+      storageKey: options.persistKey ? 'sedef-mock-updates' : null,
+      emit: (state) => this.emit('sedef:update', state),
+    });
     if (options.autoStart) this.start();
   }
 
@@ -220,6 +233,7 @@ export class MockBackend implements Backend {
     this.timers = [];
     if (this.pitchTimer) clearInterval(this.pitchTimer);
     this.pitchTimer = null;
+    this.updates.dispose();
   }
 
   // --- Native function implementations ---------------------------------------------------------
@@ -229,7 +243,7 @@ export class MockBackend implements Backend {
       if (clientProtocol !== PROTOCOL_VERSION) throw new Error('protocol mismatch');
       return {
         protocol: PROTOCOL_VERSION,
-        appVersion: '0.1.0-dev',
+        appVersion: APP_VERSION,
         wrapperType: this.options.wrapperType ?? 'Browser',
         isStandalone: this.options.isStandalone ?? true,
         sampleRate: 48000,
@@ -441,6 +455,14 @@ export class MockBackend implements Backend {
       if (typeof window !== 'undefined' && this.options.autoStart)
         window.open(url, '_blank', 'noopener');
     },
+
+    sedef_update_getState: () => this.updates.getState(),
+    sedef_update_check: () => this.updates.check(),
+    sedef_update_setAutoCheck: (enabled) => this.updates.setAutoCheck(enabled),
+    sedef_update_skip: (version) => this.updates.skip(version),
+    sedef_update_download: () => this.updates.download(),
+    sedef_update_cancel: () => this.updates.cancel(),
+    sedef_update_reveal: () => this.updates.reveal(),
   };
 
   // --- Internals ------------------------------------------------------------------------------

@@ -1,0 +1,120 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Release notes: quiet document typography inside the Updates panel. */
+.notes {
+  color: var(--bone-2);
+  font-size: var(--t-12);
+  line-height: 1.55;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.notes > :first-child {
+  margin-top: 0;
+}
+
+.notes > :last-child {
+  margin-bottom: 0;
+}
+
+.notes h3,
+.notes h4 {
+  margin: 16px 0 6px;
+  color: var(--bone);
+  font-size: var(--t-12);
+  font-weight: 620;
+}
+
+.notes h3 {
+  font-size: var(--t-14);
+}
+
+.notes p {
+  margin: 0 0 8px;
+}
+
+.notes ul,
+.notes ol {
+  margin: 0 0 8px;
+  padding-left: 18px;
+}
+
+.notes li + li {
+  margin-top: 4px;
+}
+
+.notes li::marker {
+  color: var(--bone-3);
+}
+
+.notes strong {
+  color: var(--bone);
+  font-weight: 620;
+}
+
+.notes code {
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: rgb(6 17 25 / 0.55);
+  color: var(--bone);
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+  font-size: 0.92em;
+}
+
+.notes pre {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border-radius: var(--r-ctl);
+  background: rgb(6 17 25 / 0.55);
+  overflow-x: auto;
+}
+
+.notes pre code {
+  padding: 0;
+  background: none;
+}
+
+.notes blockquote {
+  margin: 0 0 8px;
+  padding-left: 10px;
+  border-left: 2px solid var(--line-strong);
+}
+
+.notes hr {
+  margin: 12px 0;
+  border: none;
+  border-top: 1px solid var(--line);
+}
+
+.notes a {
+  color: var(--nacre-aqua);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  border-radius: 2px;
+}
+
+.notes a:hover {
+  color: var(--bone);
+}
+
+.tableWrap {
+  margin: 0 0 8px;
+  overflow-x: auto;
+}
+
+.notes table {
+  border-collapse: collapse;
+  font-size: var(--t-11);
+}
+
+.notes th,
+.notes td {
+  padding: 4px 10px 4px 0;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.notes th {
+  color: var(--bone);
+  font-weight: 600;
+}

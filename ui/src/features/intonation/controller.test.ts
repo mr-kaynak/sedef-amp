@@ -294,6 +294,33 @@ describe('intonation capture against the tracker', () => {
     });
   });
 
+  describe('a note still ringing from the step before', () => {
+    it('is not judged as the 12th-fret note once the open string moves on', () => {
+      let t = feed(0, DONE + 0.1, () => open(2));
+      expect(state().step).toBe('fret');
+      // The open string keeps ringing, same pluck, while the player frets the 12th.
+      t = feed(t, 3, () => open(2));
+      expect(state().pluck).toBe('listening');
+      feed(t, DONE + 0.1, () => fretted(3, { onsetId: 2 }));
+      expect(state().step).toBe('result');
+      expect(state().results[0]?.cents).toBeCloseTo(1, 6);
+    });
+
+    it('is not judged as the next open string either', () => {
+      useIntonationStore.setState({ step: 'fret', openHz: OPEN_HZ });
+      let t = feed(0, DONE + 0.1, () => fretted(3));
+      expect(state().step).toBe('result');
+      // Plucked again while reading the result, then on to the next string: as the session does,
+      // the controller starts over when the step changes.
+      t = feed(t, 0.5, () => fretted(3, { onsetId: 2 }));
+      intonationActions.next();
+      c.reset();
+      feed(t, 3, () => fretted(3, { onsetId: 2 }));
+      expect(state().current).toBe(1);
+      expect(state().pluck).toBe('listening');
+    });
+  });
+
   describe('open string', () => {
     it('moves on within the tolerance, measured like the fretted note', () => {
       // The short-window reading swings by ±2 cents; the settled reading sits 3 cents sharp.

@@ -28,12 +28,15 @@ const nowSeconds = () => performance.now() / 1000;
 export class IntonationController {
   /** One capture rule for both steps (capture.ts). */
   private readonly capture = new StableCapture();
+  /** The pluck the tracker reported last, in any step. */
+  private lastOnsetId: number | null = null;
 
   /**
    * Feeds one pitch event received at time t (seconds). Exposed for tests; start() wires it to the
    * live channel.
    */
   handle(e: PitchEvent | null, t = nowSeconds()): void {
+    if (e) this.lastOnsetId = e.onsetId;
     const s = useIntonationStore.getState();
     if (s.phase !== 'measure' || !e) return;
     const target = stringNotes(s)[s.current];
@@ -43,8 +46,9 @@ export class IntonationController {
     else if (s.step === 'fret' && s.openHz) this.handleFret(e, s.openHz, t);
   }
 
+  /** Starts over for a new step; the note still ringing from the last one does not count. */
   reset(): void {
-    this.capture.reset();
+    this.capture.reset(this.lastOnsetId);
   }
 
   private handleTune(e: PitchEvent, target: number, t: number): void {

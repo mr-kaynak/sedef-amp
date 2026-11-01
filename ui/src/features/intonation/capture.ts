@@ -97,9 +97,17 @@ function summarise(s: Span): CaptureResult {
 
 export class StableCapture {
   private pluck: Pluck | null = null;
+  /** A pluck from before the last reset, still ringing: not measured, it belongs to that step. */
+  private previousOnsetId: number | null = null;
 
-  reset(): void {
+  /**
+   * Starts over. `ringingOnsetId` is the pluck the tracker last reported: the note that finished
+   * the previous step (the open string, after it moves on to the 12th fret) may still ring, and it
+   * is ignored until the next pluck.
+   */
+  reset(ringingOnsetId: number | null = null): void {
     this.pluck = null;
+    this.previousOnsetId = ringingOnsetId;
   }
 
   /**
@@ -107,6 +115,8 @@ export class StableCapture {
    * is the note being measured.
    */
   feed(e: PitchEvent, t: number, onTarget: (hz: number) => boolean): CaptureStatus {
+    if (e.onsetId === this.previousOnsetId) return { kind: 'listening' };
+    this.previousOnsetId = null;
     let p = this.pluck;
     // A new pluck, or a segment the tracker restarted (stableCount falls back): a new note.
     if (!p || e.onsetId !== p.onsetId || (e.valid && e.stableCount < p.stableCount)) {

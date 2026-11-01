@@ -5,6 +5,8 @@ import { MockBackend } from '../../bridge/mockBackend';
 import type { UpdateScenario } from '../../bridge/mock/updateSim';
 import { flush, setupMock, type Harness } from '../../test/harness';
 import { useUiStore } from '../../state/uiStore';
+import { PresetBrowser } from '../presets/PresetBrowser';
+import { presetBrowser, useBrowserStore } from '../presets/session';
 import { Header } from '../header/Header';
 import { formatBytes, formatSince } from './text';
 import { useUpdateStore } from './updateStore';
@@ -92,6 +94,14 @@ describe('Update pill', () => {
     expect(pill()).toBeInTheDocument();
   });
 
+  it('steps aside while the preset browser covers the tabs line', async () => {
+    await start('available');
+    act(() => useBrowserStore.setState({ open: true }));
+    expect(pill()).toBeNull();
+    act(() => useBrowserStore.setState({ open: false }));
+    expect(pill()).toBeInTheDocument();
+  });
+
   it('"Later" hides it until the next session', async () => {
     await start('available');
     const panel = await openPanel();
@@ -139,6 +149,19 @@ describe('Updates panel', () => {
     fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
     expect(screen.queryByRole('dialog', { name: 'Updates' })).toBeNull();
     expect(pill()).toHaveFocus();
+  });
+
+  it('takes Escape before the preset browser underneath', async () => {
+    await start('available');
+    render(<PresetBrowser />);
+    act(() => presetBrowser.open());
+    await act(flush);
+    act(() => useUpdateStore.setState({ open: true }));
+    await act(flush);
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: 'Updates' })).toBeNull();
+    expect(useBrowserStore.getState().open).toBe(true);
+    act(() => presetBrowser.cancel());
   });
 
   it('keeps Tab inside the panel', async () => {

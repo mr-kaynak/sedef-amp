@@ -126,7 +126,7 @@ export interface ReleaseInfo {
   version: string;
   tag: string;
   name: string;
-  /** Markdown from the release. Untrusted: render with features/updates/markdown.tsx only. */
+  /** Markdown from the release. Untrusted: render with features/updates/ReleaseNotes.tsx only. */
   notes: string;
   /** The release page, always under https://github.com/mr-kaynak/sedef-amp/releases. */
   url: string;

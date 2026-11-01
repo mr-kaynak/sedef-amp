@@ -32,8 +32,8 @@
     /* The pale world closing back into the Output knob's nacre cap (68 px across here). */
     #hd-disc {
       position: absolute;
-      left: 387px;
-      top: 71px;
+      left: 387.4px;
+      top: 59.3px;
       width: 68px;
       height: 68px;
       border-radius: 50%;
@@ -79,8 +79,8 @@
     const B = 1.6;
     const F = (p) => ({ x: 960 - p.x * B * p.z, y: 540 - p.y * B * p.z, scale: B * p.z });
     const at = (q, p) => ({ x: 960 + (q.x - p.x) * B * p.z, y: 540 + (q.y - p.y) * B * p.z });
-    const H = { x: 925, y: 150, z: 2.2 }; // header: Output knob to Intonation
-    const I0 = { x: 700, y: 400, z: 1.25 }; // the intonation workbench
+    const H = { x: 925, y: 153.41, z: 2.2 }; // header from the window's top edge: Output knob to Intonation
+    const W2 = { x: 600, y: 337.5, z: 1 }; // the window full width, header to workbench
     const intonation = { x: 1106, y: 44 }; // lower right of the button, clear of its label
     const tl = gsap.timeline({ paused: true });
     tl.set("#hd-cam", F(H), 0);
@@ -95,13 +95,12 @@
     const ib = at(intonation, H);
     tl.fromTo("#hd-cur", { x: 1900, y: 760, opacity: 1 }, { x: ib.x, y: ib.y, opacity: 1, duration: 0.6, ease: "power3.out", immediateRender: false }, 1.65);
     tl.fromTo("#hd-cur svg", { scale: 1 }, { scale: 0.86, duration: 0.06, yoyo: true, repeat: 1, ease: "power1.inOut", transformOrigin: "3px 3px", immediateRender: false }, 2.41);
+    // The click opens the workbench: a hard cut to the whole window, the cursor still on the button.
     tl.set("#hd-open", { opacity: 1 }, 2.47);
-
-    // Back to the workbench as the music drops out.
-    tl.to("#hd-cam", { ...F(I0), duration: 0.6, ease: "power2.inOut" }, 2.6);
-    tl.to("#hd-lens", { filter: "blur(4px)", duration: 0.3, ease: "power2.in" }, 2.6);
-    tl.to("#hd-lens", { filter: "blur(0px)", duration: 0.3, ease: "power2.out" }, 2.9);
-    tl.to("#hd-cur", { x: ib.x + 30, y: ib.y + 40, opacity: 0, duration: 0.25, ease: "power2.in" }, 2.65);
+    tl.set("#hd-cam", F(W2), 2.47);
+    const ib2 = at(intonation, W2);
+    tl.set("#hd-cur", { x: ib2.x, y: ib2.y }, 2.47);
+    tl.to("#hd-cur", { x: ib2.x + 30, y: ib2.y + 40, opacity: 0, duration: 0.25, ease: "power2.in" }, 2.75);
     window.__timelines["header"] = tl;
   </script>
 </template>

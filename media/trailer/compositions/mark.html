@@ -17,7 +17,7 @@
       position: absolute;
       inset: 0;
     }
-    /* The same fretboard, back at the 12th fret: strings at 340 and 960, no double dot now. */
+    /* The same fretboard, back at the 12th fret: strings at 400 and 900, no double dot now. */
     #mk-world {
       position: absolute;
       left: 0;
@@ -47,7 +47,7 @@
       border-radius: 9px;
     }
     #mk-str-a {
-      top: 331px;
+      top: 391px;
       height: 18px;
       background:
         linear-gradient(180deg, rgba(255, 255, 255, 0) 18%, rgba(255, 255, 255, 0.42) 38%, rgba(255, 255, 255, 0) 58%),
@@ -56,7 +56,7 @@
       box-shadow: 0 16px 12px rgba(10, 4, 2, 0.5);
     }
     #mk-str-b {
-      top: 954px;
+      top: 894px;
       height: 12px;
       background: linear-gradient(180deg, #4d4842 0%, #a9a397 30%, #f3efe6 45%, #d6d0c4 55%, #8a8478 78%, #3f3a34 100%);
       box-shadow: 0 14px 10px rgba(10, 4, 2, 0.5);
@@ -69,13 +69,14 @@
       height: 1300px;
       background: linear-gradient(100deg, rgba(255, 255, 255, 0) 30%, rgba(255, 255, 255, 0.12) 50%, rgba(255, 255, 255, 0) 70%);
     }
-    /* The lockup in the 12th-fret space, in the brand lockup's proportions (star 92, gap 28.8). */
+    /* The lockup in the 12th-fret space (board px; the camera shows them at 2x), in the brand
+       lockup's proportions: star 75, gap 23.5, text 0.917 of the star. */
     #mk-cavity {
       position: absolute;
-      left: 1607.8px;
-      top: 538.3px;
-      width: 98.4px;
-      height: 98.4px;
+      left: 1638.98px;
+      top: 546.38px;
+      width: 80.25px;
+      height: 80.25px;
       background: #160b08;
       -webkit-mask: url("assets/logo.svg") center / contain no-repeat;
       mask: url("assets/logo.svg") center / contain no-repeat;
@@ -83,18 +84,18 @@
     }
     #mk-star {
       position: absolute;
-      left: 1611px;
-      top: 541.5px;
-      width: 92px;
-      height: 92px;
+      left: 1641.6px;
+      top: 549px;
+      width: 75px;
+      height: 75px;
       opacity: 0;
     }
     #mk-shim {
       position: absolute;
-      left: 1611px;
-      top: 541.5px;
-      width: 92px;
-      height: 92px;
+      left: 1641.6px;
+      top: 549px;
+      width: 75px;
+      height: 75px;
       --shim: -40%;
       background: linear-gradient(105deg, rgba(255, 255, 255, 0) calc(var(--shim) - 16%), rgba(255, 255, 255, 0.7) var(--shim), rgba(255, 255, 255, 0) calc(var(--shim) + 16%));
       -webkit-mask: url("assets/logo.svg") center / contain no-repeat;
@@ -102,10 +103,10 @@
     }
     #mk-word {
       position: absolute;
-      left: 1730.1px;
-      top: 552.1px;
-      width: 214.5px;
-      height: 87.7px;
+      left: 1738.75px;
+      top: 557.65px;
+      width: 174.8px;
+      height: 71.5px;
       clip-path: inset(0 100% 0 0);
     }
     .mk-line {
@@ -118,15 +119,15 @@
       white-space: nowrap;
       opacity: 0;
     }
+    /* 30 board px = 60 px on screen: a 41 px cap height (Archivo caps are 0.686 em). */
     #mk-free {
-      top: 702px;
-      font-size: 25px;
-      line-height: 33px;
+      top: 664px;
+      font-size: 30px;
+      line-height: 40px;
       font-weight: 500;
-      color: rgba(237, 230, 214, 0.82);
     }
     #mk-url {
-      top: 744px;
+      top: 708px;
       font-size: 30px;
       line-height: 40px;
       font-weight: 600;
@@ -180,14 +181,15 @@
   </div>
   <script>
     const Fw = (p) => ({ x: 960 - p.x * p.z, y: 540 - p.y * p.z, scale: p.z });
-    const E0 = { x: 1777, y: 650, z: 1.78 };
-    const E1 = { x: 1777, y: 650, z: 1.6 }; // the 12th-fret space, 941 px wide
+    const E0 = { x: 1777, y: 650, z: 2.2 };
+    const E1 = { x: 1777, y: 650, z: 2 }; // the 12th-fret space, 1176 px wide
     const tl = gsap.timeline({ paused: true });
 
     // Out of the diagram's strings onto the fretboard's, settling on the 12th fret.
     tl.fromTo("#mk-world", Fw(E0), { ...Fw(E1), duration: 0.5, ease: "power3.out" }, 0);
     tl.fromTo("#mk-lens", { filter: "blur(10px)" }, { filter: "blur(0px)", duration: 0.2, ease: "power2.out" }, 0);
-    tl.fromTo("#mk-rake", { x: 300 }, { x: 1300, duration: 4, ease: "none" }, 0);
+    // The light crosses the star as it is set and has left the lettering before the URL arrives.
+    tl.fromTo("#mk-rake", { x: 600 }, { x: 2100, duration: 4, ease: "none" }, 0);
 
     // "Sedef." (44.15 s): the star is routed and set into the 12th fret, then catches the light.
     tl.to("#mk-cavity", { opacity: 1, duration: 0.1, ease: "power2.out" }, 0.12);

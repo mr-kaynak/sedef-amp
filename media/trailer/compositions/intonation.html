@@ -45,12 +45,13 @@
   <script>
     const B = 1.6;
     const F = (p) => ({ x: 960 - p.x * B * p.z, y: 540 - p.y * B * p.z, scale: B * p.z });
-    const I0 = { x: 700, y: 400, z: 1.25 }; // string 6, tune the open string
-    const I1 = { x: 640, y: 360, z: 1.35 }; // the 12th-fret capture ring
-    const I2 = { x: 460, y: 390, z: 1.6 }; // the result and the saddle advice
-    const I3 = { x: 860, y: 380, z: 1.8 }; // the saddle diagram
-    const I4 = { x: 955, y: 288, z: 3 }; // "1.42 mm"
-    const I5 = { x: 700, y: 360, z: 1.3 }; // the summary of all strings
+    // Each framing keeps every line of text either whole or out of frame.
+    const W2 = { x: 600, y: 337.5, z: 1 }; // the whole window, as the click left it
+    const I0 = { x: 700, y: 422, z: 1.25 }; // string 6: tune the open string, then the 12th-fret capture
+    const I2 = { x: 414, y: 398, z: 1.536 }; // the result and the saddle advice, the string list whole
+    const I3 = { x: 896, y: 342, z: 1.99 }; // the saddle diagram
+    const I4 = { x: 973, y: 288, z: 3 }; // "1.42 mm"
+    const I5 = { x: 494, y: 350, z: 2.065 }; // the summary table, its smallest text at 36 px
     const I6 = { x: 936, y: 345, z: 4 }; // into the strings of the diagram
     const tl = gsap.timeline({ paused: true });
     const move = (p, t, d = 0.6) => {
@@ -58,10 +59,12 @@
       tl.to("#it-lens", { filter: "blur(4px)", duration: d / 2, ease: "power2.in" }, t);
       tl.to("#it-lens", { filter: "blur(0px)", duration: d / 2, ease: "power2.out" }, t + d / 2);
     };
-    tl.set("#it-cam", F(I0), 0);
+    tl.set("#it-cam", F(W2), 0);
 
-    // "play the twelfth fret" (36.15 s): the workbench moves on to the capture.
-    move(I1, 1.6);
+    // "Tune the open string" (34.75 s)
+    move(I0, 0.05);
+
+    // "play the twelfth fret" (36.15 s): the workbench moves on to the capture, in the same framing.
     tl.set("#it-capture", { opacity: 1 }, 1.75);
     // "and Sedef tells you which way to move the saddle" (37.47 s)
     move(I2, 2.95);

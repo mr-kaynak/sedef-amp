@@ -169,6 +169,14 @@ the design size. The push-in on "1.42 mm" is 4.8×, and the knob caps at the wor
 The cursor is a 64 px macOS arrow, white with a 2 px ink stroke, and each click changes the screen
 on the same frame.
 
+No held framing cuts a word at the frame edge. The position and size of every word in every UI
+state was measured in the built UI (the same states `pnpm captures` shoots). Each framing was then
+chosen so that every line of text, and each group such as the intonation steps or the Gate and
+Transpose panels, is either wholly in frame or wholly out. The summary table is framed at 2.065×,
+so its smallest text is 36 px. On the end card, the camera settles at 2× on the 12th fret, so
+"Free & open source" and the URL can be set at 60 px (a 41 px cap height) and still fit between
+the frets.
+
 The mic drag uses only real pixels. The five `cab-mic-*` captures swap underneath as Mic A passes
 each state, so the Position knob reads 1.0 to 9.0. The marker moves continuously over a strip of
 the same cone, cut from the two captures that are clean there.
@@ -190,7 +198,7 @@ the same cone, cut from the two captures that are clean there.
   [`media/trailer/REVIEW.md`](../media/trailer/REVIEW.md).
 - The delivery render measured −15.8 LUFS integrated with ffmpeg `ebur128`, true peak −1.4 dBTP,
   loudness range 4.2 LU. The mix needs no normalising pass. This was measured, not listened to.
-- The repo copy is re-encoded to fit under 15 MB at 1080p (13.2 MB, SSIM 0.995 against the render),
+- The repo copy is re-encoded to fit under 15 MB at 1080p (12.2 MB, SSIM 0.995 against the render),
   with the audio copied untouched.
 
 ## Reproduce it

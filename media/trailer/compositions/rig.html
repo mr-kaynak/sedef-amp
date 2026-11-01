@@ -54,7 +54,7 @@
     const B = 1.6;
     const F = (p) => ({ x: 960 - p.x * B * p.z, y: 540 - p.y * B * p.z, scale: B * p.z });
     const K = { x: 417, y: 310, z: 4 }; // Pearl's gain knob cap, 170 px across
-    const P = { x: 467, y: 470, z: 1.35 }; // Pearl between Tide and Coral
+    const P = { x: 467, y: 486, z: 1.35 }; // Pearl between Tide and Coral, below Gate/Transpose
     const W = { x: 600, y: 380, z: 0.86 }; // the whole window
     const move = (p, t, d = 0.6) => {
       tl.to("#rg-cam", { ...F(p), duration: d, ease: "power2.inOut" }, t);

@@ -113,14 +113,14 @@
     const B = 1.6;
     const F = (p) => ({ x: 960 - p.x * B * p.z, y: 540 - p.y * B * p.z, scale: B * p.z });
     const at = (q, p) => ({ x: 960 + (q.x - p.x) * B * p.z, y: 540 + (q.y - p.y) * B * p.z });
-    const A2 = { x: 600, y: 350, z: 1 }; // as the last scene left it: the Cab tab was clicked
-    const S = { x: 600, y: 390, z: 1.75 }; // the speaker and Mic A's controls
+    const A = { x: 600, y: 337.5, z: 1 }; // as the last scene left it: the Cab tab was clicked
+    const S = { x: 606, y: 400, z: 1.73 }; // the speaker and Mic A's Position and Distance
     const cabTab = { x: 468, y: 100 };
     const micA = { x: 515, y: 358 }; // grab point on Mic A at position 1; position 9 is 134 px right
     const DRAG = 134;
     const tl = gsap.timeline({ paused: true });
-    tl.set("#cb-cam", F(A2), 0);
-    const ct = at(cabTab, A2);
+    tl.set("#cb-cam", F(A), 0);
+    const ct = at(cabTab, A);
     tl.set("#cb-cur", { x: ct.x, y: ct.y }, 0);
 
     // "on the speaker": punch in on the cone.

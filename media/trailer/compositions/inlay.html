@@ -179,7 +179,7 @@
     // Camera on the board: frame board point p at zoom z (1 = 1 board px per screen px).
     const Fw = (p) => ({ x: 960 - p.x * p.z, y: 540 - p.y * p.z, scale: p.z });
     const C0 = { x: 1200, y: 650, z: 0.889 }; // frets 9-12, the name's fret centred
-    const C1 = { x: 1777, y: 650, z: 1.4 }; // the 12th fret and its double dot
+    const C1 = { x: 1395, y: 650, z: 1.8 }; // the name and the 12th-fret double dot, both whole
     const C2 = { x: 1777, y: 470, z: 30 }; // through the upper dot
     const tl = gsap.timeline({ paused: true });
     tl.set("#in-world", Fw(C0), 0);
@@ -201,7 +201,7 @@
     tl.fromTo(".in-nac span", { "--shim": "-40%" }, { "--shim": "140%", duration: 0.7, ease: "power2.inOut", stagger: 0.07 }, 2.55);
     tl.fromTo(".in-dot", { "--shim": "-40%" }, { "--shim": "140%", duration: 0.7, ease: "power2.inOut", stagger: 0.1 }, 2.95);
 
-    // "inlaid" (4.5 s): the camera moves to the 12th fret.
+    // "inlaid" (4.5 s): the camera moves in on the name and the 12th fret.
     tl.to("#in-world", { ...Fw(C1), duration: 0.6, ease: "power2.inOut" }, 4.5);
     tl.fromTo("#in-lens", { filter: "blur(0px)" }, { filter: "blur(4px)", duration: 0.3, ease: "power2.in" }, 4.5);
     tl.to("#in-lens", { filter: "blur(0px)", duration: 0.3, ease: "power2.out" }, 4.8);

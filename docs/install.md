@@ -85,9 +85,14 @@ The installer isn't code-signed yet, so SmartScreen may say *Windows protected y
 The interface runs in Microsoft Edge WebView2, which ships with Windows 10 and 11. On older
 systems, install the [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/).
 
+If a DAW has the plugin loaded while you update, Setup lists it and offers to close it; save your
+project first. If you keep it open, the new files are put in place when you restart Windows.
+
 Uninstall from **Settings → Apps → Installed apps → Sedef Amp**. For unattended installs, the
 installer takes the usual Inno Setup switches, e.g.
-`Sedef-Amp-Windows-Setup.exe /VERYSILENT /COMPONENTS="vst3,clap,standalone"`.
+`Sedef-Amp-Windows-Setup.exe /VERYSILENT /NORESTART /COMPONENTS="vst3,clap,standalone"`. Close
+DAWs first: a silent install closes programs that hold the plugin, and without `/NORESTART` it
+restarts Windows on its own if a file was still in use.
 
 ## Linux
 

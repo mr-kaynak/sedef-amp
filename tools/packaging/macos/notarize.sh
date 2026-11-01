@@ -17,15 +17,22 @@ file="${1:?usage: notarize.sh <file>}"
 
 credentials=(--apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD")
 
+result="$(mktemp)"
+trap 'rm -f "$result"' EXIT
+
 echo "Notarizing $(basename "$file")"
-result="$(xcrun notarytool submit "$file" "${credentials[@]}" --wait --timeout 1h \
-    --output-format json)"
-status="$(plutil -extract status raw -o - - <<<"$result")"
-submission="$(plutil -extract id raw -o - - <<<"$result")"
-echo "  submission $submission: $status"
+# notarytool exits non-zero for a rejected submission; carry on so Apple's log gets printed.
+xcrun notarytool submit "$file" "${credentials[@]}" --wait --timeout 1h \
+    --output-format json >"$result" || true
+status="$(plutil -extract status raw -o - "$result" 2>/dev/null || echo "unknown")"
+submission="$(plutil -extract id raw -o - "$result" 2>/dev/null || true)"
+echo "  submission ${submission:-(none)}: $status"
 
 if [[ "$status" != "Accepted" ]]; then
-    xcrun notarytool log "$submission" "${credentials[@]}" || true
+    cat "$result" >&2
+    if [[ -n "$submission" ]]; then
+        xcrun notarytool log "$submission" "${credentials[@]}" || true
+    fi
     echo "error: notarization of $file failed ($status)" >&2
     exit 1
 fi

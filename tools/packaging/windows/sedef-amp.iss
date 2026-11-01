@@ -42,8 +42,16 @@ MinVersion=10.0
 WizardStyle=modern
 Compression=lzma2/ultra64
 SolidCompression=yes
+; A DAW with the plugin loaded keeps its binary locked (the in-app updater starts Setup from
+; inside one). Restart Manager finds such programs, including by the plugin extensions added to
+; the default filter, and the Preparing to Install page offers to close them. If the user keeps
+; them open, restartreplace swaps the files in at the next restart and Setup says so.
+CloseApplications=yes
+CloseApplicationsFilter=*.exe,*.dll,*.chm,*.vst3,*.clap
+RestartApplications=no
 
 [Messages]
+ApplicationsFound=These programs are using Sedef Amp, for example a DAW with the plugin loaded. Save your work in them first.%n%nSetup can close them now. If you keep them open, the update is completed when you restart your computer.
 FinishedLabel=Sedef Amp is installed.%n%nRescan plugins in your DAW and look for Sedef Amp by Sedef. The standalone app is in the Start menu.
 
 [Types]
@@ -60,9 +68,9 @@ Name: "standalone"; Description: "Standalone app with a Start menu shortcut"; Ty
 Type: filesandordirs; Name: "{commoncf64}\VST3\Sedef Amp.vst3"; Components: vst3
 
 [Files]
-Source: "{#ArtefactsDir}\VST3\Sedef Amp.vst3\*"; DestDir: "{commoncf64}\VST3\Sedef Amp.vst3"; Components: vst3; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{#ArtefactsDir}\CLAP\Sedef Amp.clap"; DestDir: "{commoncf64}\CLAP"; Components: clap; Flags: ignoreversion
-Source: "{#ArtefactsDir}\Standalone\{#AppExe}"; DestDir: "{app}"; Components: standalone; Flags: ignoreversion
+Source: "{#ArtefactsDir}\VST3\Sedef Amp.vst3\*"; DestDir: "{commoncf64}\VST3\Sedef Amp.vst3"; Components: vst3; Flags: ignoreversion recursesubdirs createallsubdirs restartreplace uninsrestartdelete
+Source: "{#ArtefactsDir}\CLAP\Sedef Amp.clap"; DestDir: "{commoncf64}\CLAP"; Components: clap; Flags: ignoreversion restartreplace uninsrestartdelete
+Source: "{#ArtefactsDir}\Standalone\{#AppExe}"; DestDir: "{app}"; Components: standalone; Flags: ignoreversion restartreplace uninsrestartdelete
 Source: "{#RepoDir}\LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"; Flags: ignoreversion
 Source: "{#RepoDir}\THIRD_PARTY_NOTICES.md"; DestDir: "{app}"; DestName: "THIRD_PARTY_NOTICES.txt"; Flags: ignoreversion
 Source: "{#AssetsDir}\icon.ico"; DestDir: "{app}"; DestName: "sedef-amp.ico"; Flags: ignoreversion

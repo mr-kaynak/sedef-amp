@@ -9,7 +9,9 @@ VST3 · AU · CLAP · Standalone — macOS, Windows, Linux
 [![CI](https://github.com/mr-kaynak/sedef-amp/actions/workflows/ci.yml/badge.svg)](https://github.com/mr-kaynak/sedef-amp/actions/workflows/ci.yml)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
 
-<img src="docs/images/amp.png" alt="Sedef Amp: the amp section" width="860">
+<a href="docs/media/sedef-trailer.mp4"><img src="docs/media/trailer-poster.jpg" alt="Sedef Amp trailer: the pedal board" width="860"></a>
+
+**[▶ Watch the 48-second trailer](docs/media/sedef-trailer.mp4)** · [how it was made](docs/trailer.md)
 
 </div>
 
@@ -27,6 +29,8 @@ around them.
 | **EQ** | 9-band graphic EQ with low/high cut, one bank per amp |
 | **Post** | **Drift** multi-head tape echo with wow, flutter and tape saturation · **Fathom** plate and hall reverbs · double-tracking **Doubler** |
 | **Tools** | precision tuner · **intonation workbench** · metronome with odd meters (standalone) |
+
+<img src="docs/images/amp.png" alt="The amp section" width="100%">
 
 <img src="docs/images/cab.png" alt="Cab section with movable microphones" width="49%"> <img src="docs/images/fx.png" alt="Tape echo and reverb" width="49%">
 
@@ -104,6 +108,17 @@ engine/   Pure C++20 DSP library with no JUCE dependency, unit-tested on every O
 - Every DSP module documents the public research it's based on in [docs/dsp/](docs/dsp/).
 
 Start with [docs/architecture.md](docs/architecture.md).
+
+## Quality
+
+- 202 engine tests run on macOS, Windows and Linux on every push, with Clang, GCC and MSVC
+  treating warnings as errors, plus AddressSanitizer, UBSan and ThreadSanitizer builds.
+- Every plugin build is checked with [pluginval](https://github.com/Tracktion/pluginval)
+  (strictness 8), [clap-validator](https://github.com/free-audio/clap-validator) and, on macOS,
+  `auval`. A smoke test loads the VST3 in a minimal host, opens the editor in the real WebView and
+  fails unless the UI renders.
+- Factory presets are balanced to -16 LUFS and checked on every platform
+  ([presets/README.md](presets/README.md)).
 
 ## Contributing
 

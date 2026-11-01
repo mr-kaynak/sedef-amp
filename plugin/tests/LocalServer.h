@@ -4,6 +4,7 @@
 #include <atomic>
 #include <catch2/catch_test_macros.hpp>
 #include <csignal>
+#include <cstdint>
 #include <juce_core/juce_core.h>
 #include <map>
 #include <mutex>
@@ -41,15 +42,39 @@ public:
     void serve (const juce::String& path, int status, const juce::MemoryBlock& body)
     {
         const std::scoped_lock l (lock_);
-        routes_[path] = { status, body };
+        auto& route = routes_[path];
+        route.status = status;
+        route.body = body;
+        route.headers.clear();
     }
-
-    /// Holds every response back this long (a slow or stuck server).
-    void delay (int ms) { delayMs_ = ms; }
 
     void serve (const juce::String& path, int status, const juce::String& body)
     {
         serve (path, status, juce::MemoryBlock (body.toRawUTF8(), body.getNumBytesAsUTF8()));
+    }
+
+    void redirect (const juce::String& path, int status, const juce::String& location)
+    {
+        const std::scoped_lock l (lock_);
+        auto& route = routes_[path];
+        route.status = status;
+        route.body.reset();
+        route.headers = "Location: " + location + "\r\n";
+    }
+
+    /// Holds every response back this long (a slow or stuck server).
+    void delay (int ms) { delayMs_ = ms; }
+    /// Holds this path's responses back this long, on top of delay().
+    void delay (const juce::String& path, int ms)
+    {
+        const std::scoped_lock l (lock_);
+        routes_[path].delayMs = ms;
+    }
+    /// Every body longer than `bytes` stops for `ms` after that many bytes (a stalled transfer).
+    void pauseAfter (size_t bytes, int ms)
+    {
+        pauseAfterBytes_ = bytes;
+        pauseMs_ = ms;
     }
 
     juce::StringArray requests() const
@@ -83,27 +108,42 @@ private:
 
             const auto path = head.fromFirstOccurrenceOf (" ", false, false)
                                   .upToFirstOccurrenceOf (" ", false, false);
-            std::pair<int, juce::MemoryBlock> response { 404, {} };
+            Route route;
             {
                 const std::scoped_lock l (lock_);
                 requests_.add (head);
                 if (const auto it = routes_.find (path); it != routes_.end())
-                    response = it->second;
+                    route = it->second;
             }
-            for (int waited = 0; waited < delayMs_ && !threadShouldExit(); waited += 10)
-                juce::Thread::sleep (10);
-            if (threadShouldExit())
+            if (!sleep (delayMs_ + route.delayMs))
                 return;
-            const auto& [status, body] = response;
-            const juce::String header = "HTTP/1.1 " + juce::String (status) +
-                                        " Test\r\nContent-Type: application/octet-stream\r\n"
-                                        "Content-Length: " +
-                                        juce::String (body.getSize()) +
+            const auto& body = route.body;
+            const juce::String header = "HTTP/1.1 " + juce::String (route.status) +
+                                        " Test\r\nContent-Type: application/octet-stream\r\n" +
+                                        route.headers +
+                                        "Content-Length: " + juce::String (body.getSize()) +
                                         "\r\nConnection: close\r\n\r\n";
             send (*client, header.toRawUTF8(), header.getNumBytesAsUTF8());
-            send (*client, body.getData(), body.getSize());
+            const auto* data = static_cast<const char*> (body.getData());
+            size_t sent = 0;
+            if (const size_t pause = pauseAfterBytes_; body.getSize() > pause)
+            {
+                send (*client, data, pause);
+                sent = pause;
+                if (!sleep (pauseMs_))
+                    return;
+            }
+            send (*client, data + sent, body.getSize() - sent);
             client->close();
         }
+    }
+
+    /// False when the server is shutting down.
+    bool sleep (int ms)
+    {
+        for (int waited = 0; waited < ms && !threadShouldExit(); waited += 10)
+            juce::Thread::sleep (10);
+        return !threadShouldExit();
     }
 
     static void send (juce::StreamingSocket& s, const void* data, size_t size)
@@ -119,10 +159,20 @@ private:
         }
     }
 
+    struct Route
+    {
+        int status = 404;
+        juce::MemoryBlock body;
+        juce::String headers; // extra header lines, each ending in CRLF
+        int delayMs = 0;
+    };
+
     juce::StreamingSocket socket_;
     std::atomic<int> delayMs_ { 0 };
+    std::atomic<size_t> pauseAfterBytes_ { SIZE_MAX };
+    std::atomic<int> pauseMs_ { 0 };
     mutable std::mutex lock_;
-    std::map<juce::String, std::pair<int, juce::MemoryBlock>> routes_;
+    std::map<juce::String, Route> routes_;
     juce::StringArray requests_;
 };
 

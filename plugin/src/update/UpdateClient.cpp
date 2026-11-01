@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 #include "UpdateClient.h"
 
+#include "DownloadMark.h"
+
+#include <chrono>
+#include <condition_variable>
+#include <thread>
+
 namespace sedef::update
 {
 namespace
@@ -20,6 +26,11 @@ Error errorForStatus (int status)
     return Error::BadResponse;
 }
 
+bool isRedirect (int status)
+{
+    return status == 301 || status == 302 || status == 303 || status == 307 || status == 308;
+}
+
 juce::String hostOf (const juce::String& url)
 {
     return juce::URL (url).getDomain();
@@ -37,6 +48,67 @@ juce::File numberedSibling (const juce::File& file)
             !candidate.exists())
             return candidate;
 }
+
+/// Calls `onTimeout` once `limitMs` pass without a touch(). The backends' own timeouts differ
+/// (some only cover connecting, some reset on every packet), and a blocked read only wakes when
+/// its stream is cancelled, so this thread does it.
+class Watchdog
+{
+public:
+    Watchdog (int limitMs, std::function<void()> onTimeout)
+        : limit_ (limitMs),
+          onTimeout_ (std::move (onTimeout)),
+          thread_ ([this] { run(); })
+    {
+    }
+
+    ~Watchdog()
+    {
+        {
+            const std::scoped_lock l (lock_);
+            done_ = true;
+        }
+        wake_.notify_all();
+        thread_.join();
+    }
+
+    void touch()
+    {
+        const std::scoped_lock l (lock_);
+        last_ = Clock::now();
+    }
+
+    bool fired() const noexcept { return fired_.load(); }
+
+private:
+    using Clock = std::chrono::steady_clock;
+
+    void run()
+    {
+        std::unique_lock l (lock_);
+        while (!done_)
+        {
+            if (const auto due = last_ + limit_; Clock::now() < due)
+            {
+                wake_.wait_until (l, due);
+                continue;
+            }
+            fired_ = true;
+            l.unlock();
+            onTimeout_();
+            return;
+        }
+    }
+
+    const std::chrono::milliseconds limit_;
+    const std::function<void()> onTimeout_;
+    std::mutex lock_;
+    std::condition_variable wake_;
+    Clock::time_point last_ = Clock::now(); // guarded by lock_
+    bool done_ = false;                     // guarded by lock_
+    std::atomic<bool> fired_ { false };
+    std::thread thread_; // last: starts once everything above exists
+};
 } // namespace
 
 juce::String toString (Error error)
@@ -74,6 +146,11 @@ juce::String toString (Error error)
 void Cancellation::cancel()
 {
     cancelled_ = true;
+    interrupt();
+}
+
+void Cancellation::interrupt()
+{
     const std::scoped_lock lock (lock_);
     if (stream_ != nullptr)
         stream_->cancel();
@@ -82,8 +159,10 @@ void Cancellation::cancel()
 bool Cancellation::attach (juce::WebInputStream* stream)
 {
     const std::scoped_lock lock (lock_);
+    if (cancelled_)
+        return false;
     stream_ = stream;
-    return !cancelled_;
+    return true;
 }
 
 void Cancellation::detach()
@@ -94,10 +173,12 @@ void Cancellation::detach()
 
 // Client ------------------------------------------------------------------------------------------
 
-Client::Client (juce::String appVersion, Platform platform, juce::String apiUrl)
+Client::Client (juce::String appVersion, Platform platform, juce::String apiUrl,
+                juce::String releasesUrl)
     : appVersion_ (std::move (appVersion)),
       platform_ (platform),
-      apiUrl_ (std::move (apiUrl))
+      apiUrl_ (std::move (apiUrl)),
+      releasesUrl_ (std::move (releasesUrl))
 {
 }
 
@@ -106,65 +187,103 @@ juce::String Client::userAgent() const
     return "SedefAmp/" + appVersion_ + " (" + platformName (platform_) + ")";
 }
 
-std::unique_ptr<juce::WebInputStream>
-Client::open (const juce::String& url, const juce::String& headers, int timeoutMs) const
-{
-    auto stream = std::make_unique<juce::WebInputStream> (juce::URL (url), false);
-    stream->withExtraHeaders (headers + "\r\nUser-Agent: " + userAgent())
-        .withConnectionTimeout (timeoutMs)
-        .withNumRedirectsToFollow (5); // asset downloads redirect to GitHub's CDN
-    return stream;
-}
-
-Client::Response Client::get (const juce::String& url, const juce::String& headers,
-                              juce::int64 maxBytes, Cancellation& cancel) const
+Client::Response Client::fetch (const juce::String& url, const char* headers, Limit limit,
+                                int limitMs, const Sink& sink, Cancellation& cancel) const
 {
     Response r;
-    const auto fail = [&r, &cancel] (Error error, juce::String detail) {
-        r.error = cancel.isCancelled() ? Error::Cancelled : error;
+    // Declared first, so it stops last: after the stream is detached and gone.
+    Watchdog watchdog (limitMs, [&cancel] { cancel.interrupt(); });
+    const auto fail = [&r, &cancel, &watchdog, limit, limitMs] (Error error, juce::String detail) {
+        if (cancel.isCancelled())
+        {
+            r.error = Error::Cancelled;
+        }
+        else if (watchdog.fired())
+        {
+            r.error = Error::Network;
+            const auto seconds = juce::String (limitMs / 1000) + " s";
+            detail =
+                limit == Limit::Total ? "timed out after " + seconds : "no data for " + seconds;
+        }
+        else
+        {
+            r.error = error;
+        }
         r.detail = std::move (detail);
         return r;
     };
-    const auto deadline = juce::Time::getMillisecondCounterHiRes() + kTimeoutMs;
 
-    auto stream = open (url, headers, kTimeoutMs);
-    if (!cancel.attach (stream.get()))
-        return fail (Error::Cancelled, {});
-    const juce::ScopeGuard detach { [&cancel] { cancel.detach(); } };
-
-    if (!stream->connect (nullptr))
-        return fail (Error::Network, "could not connect to " + hostOf (url));
-    r.status = stream->getStatusCode();
+    std::unique_ptr<juce::WebInputStream> stream;
+    const juce::ScopeGuard detach { [&cancel] { cancel.detach(); } }; // before the stream goes
+    auto address = url;
+    for (int redirects = 0;; ++redirects)
+    {
+        cancel.detach(); // the previous hop's stream is about to go
+        stream = std::make_unique<juce::WebInputStream> (juce::URL (address), false);
+        stream->withExtraHeaders (juce::String (headers) + "\r\nUser-Agent: " + userAgent())
+            .withConnectionTimeout (kTimeoutMs)
+            .withNumRedirectsToFollow (0); // each one is checked below
+        // A timeout that fired before this stream was attached could not interrupt it.
+        if (!cancel.attach (stream.get()) || watchdog.fired())
+            return fail (Error::Cancelled, {});
+        if (!stream->connect (nullptr))
+            return fail (Error::Network, "could not connect to " + hostOf (address));
+        r.status = stream->getStatusCode();
+        if (!isRedirect (r.status))
+            break;
+        if (redirects == kMaxRedirects)
+            return fail (Error::BadResponse, "too many redirects");
+        const auto location = stream->getResponseHeaders()["Location"];
+        address = redirectTarget (address, location);
+        if (address.isEmpty())
+            return fail (Error::BadResponse,
+                         "not following a redirect to \"" + location.substring (0, 100) + "\"");
+    }
     if (r.status != 200)
         return fail (errorForStatus (r.status), "HTTP " + juce::String (r.status));
-    if (stream->getTotalLength() > maxBytes)
-        return fail (Error::BadResponse, "the response is too large");
 
-    char buffer[16384];
+    std::vector<char> buffer (1 << 16);
     for (;;)
     {
-        if (cancel.isCancelled())
+        if (cancel.isCancelled() || watchdog.fired())
             return fail (Error::Cancelled, {});
-        if (juce::Time::getMillisecondCounterHiRes() > deadline)
-            return fail (Error::Network,
-                         "timed out after " + juce::String (kTimeoutMs / 1000) + " s");
-        const int n = stream->read (buffer, static_cast<int> (sizeof (buffer)));
+        const int n = stream->read (buffer.data(), static_cast<int> (buffer.size()));
         if (n <= 0)
             break;
-        r.body.append (buffer, static_cast<size_t> (n));
-        if (static_cast<juce::int64> (r.body.getSize()) > maxBytes)
-            return fail (Error::BadResponse, "the response is too large");
+        if (limit == Limit::Quiet)
+            watchdog.touch();
+        juce::String detail;
+        if (const auto error = sink (buffer.data(), n, detail); error != Error::None)
+            return fail (error, detail);
     }
-    if (cancel.isCancelled())
+    // A read that a timeout interrupted ends like the end of the body.
+    if (cancel.isCancelled() || watchdog.fired())
         return fail (Error::Cancelled, {});
     return r;
+}
+
+Client::Body Client::get (const juce::String& url, const char* headers, juce::int64 maxBytes,
+                          Cancellation& cancel) const
+{
+    Body b;
+    static_cast<Response&> (b) = fetch (
+        url, headers, Limit::Total, kTimeoutMs,
+        [&b, maxBytes] (const char* data, int size, juce::String& detail) {
+            b.data.append (data, static_cast<size_t> (size));
+            if (static_cast<juce::int64> (b.data.getSize()) <= maxBytes)
+                return Error::None;
+            detail = "the response is too large";
+            return Error::BadResponse;
+        },
+        cancel);
+    return b;
 }
 
 CheckResult Client::fetchLatest (Cancellation& cancel) const
 {
     CheckResult result;
     const auto r = get (apiUrl_, kApiHeaders, kMaxApiResponseBytes, cancel);
-    if (r.status == 404)
+    if (r.status == 404 && r.error != Error::Cancelled)
         return result; // no stable release published yet
     if (r.error != Error::None)
     {
@@ -173,7 +292,7 @@ CheckResult Client::fetchLatest (Cancellation& cancel) const
         return result;
     }
 
-    auto parsed = parseRelease (juce::JSON::parse (r.body.toString()));
+    auto parsed = parseRelease (juce::JSON::parse (r.data.toString()), releasesUrl_);
     switch (parsed.status)
     {
     case ParsedRelease::Status::Ok:
@@ -203,6 +322,16 @@ DownloadResult Client::downloadVerified (const Release& release, const Asset& as
         if (progress)
             progress (stage, received, asset.size);
     };
+    const auto finish = [&result, &asset, &release] (const juce::File& file) {
+        markAsDownloaded (file, asset.url, release.pageUrl); // best effort: see DownloadMark.h
+        result.file = file;
+        return result;
+    };
+
+    // 0. A size to hold the download to, and one the disk can take.
+    if (asset.size <= 0 || asset.size > kMaxInstallerBytes)
+        return fail (Error::BadResponse,
+                     asset.name + " lists a size of " + juce::String (asset.size) + " bytes");
 
     // 1. The expected checksum, from the same release.
     const auto* sums = release.findAsset (kChecksumsAssetName);
@@ -212,11 +341,11 @@ DownloadResult Client::downloadVerified (const Release& release, const Asset& as
     const auto list = get (sums->url, kBinaryHeaders, kMaxChecksumListBytes, cancel);
     if (list.error != Error::None)
         return fail (list.error, juce::String (kChecksumsAssetName) + ": " + list.detail);
-    const auto table = parseChecksums (list.body.toString());
+    const auto table = parseChecksums (list.data.toString());
     const auto entry = table.find (asset.name);
     if (entry == table.end())
         return fail (Error::NoChecksum,
-                     juce::String (kChecksumsAssetName) + " has no line for " + asset.name);
+                     juce::String (kChecksumsAssetName) + " has no single line for " + asset.name);
     const auto expected = entry->second;
 
     // 2. Where it goes. Never overwrite a file we did not verify.
@@ -226,55 +355,46 @@ DownloadResult Client::downloadVerified (const Release& release, const Asset& as
     if (target.existsAsFile())
     {
         if (matchesChecksum (target, expected))
-        {
-            result.file = target;
-            return result;
-        }
+            return finish (target);
         target = numberedSibling (target);
     }
-    if (asset.size > 0 && folder.getBytesFreeOnVolume() < asset.size)
+    if (folder.getBytesFreeOnVolume() < asset.size)
         return fail (Error::Disk, "not enough free space in " + folder.getFullPathName());
     const auto part = target.getSiblingFile (target.getFileName() + ".part");
     const juce::ScopeGuard removePart { [&part] { part.deleteFile(); } }; // a no-op once renamed
 
     // 3. Download.
-    auto stream = open (asset.url, kBinaryHeaders, kTimeoutMs);
-    if (!cancel.attach (stream.get()))
-        return fail (Error::Cancelled, {});
-    const juce::ScopeGuard detach { [&cancel] { cancel.detach(); } };
-    if (!stream->connect (nullptr))
-        return fail (Error::Network, "could not connect to " + hostOf (asset.url));
-    if (const int status = stream->getStatusCode(); status != 200)
-        return fail (errorForStatus (status), "HTTP " + juce::String (status));
-
     juce::int64 received = 0;
     {
         part.deleteFile();
         juce::FileOutputStream out (part);
         if (!out.openedOk())
             return fail (Error::Disk, out.getStatus().getErrorMessage());
-        std::vector<char> buffer (1 << 16);
-        for (;;)
-        {
-            if (cancel.isCancelled())
-                return fail (Error::Cancelled, {});
-            const int n = stream->read (buffer.data(), static_cast<int> (buffer.size()));
-            if (n <= 0)
-                break;
-            if (!out.write (buffer.data(), static_cast<size_t> (n)))
-                return fail (Error::Disk, "could not write " + part.getFullPathName());
-            received += n;
-            if (asset.size > 0 && received > asset.size)
-                return fail (Error::Incomplete, "more data than the release lists");
-            report (DownloadStage::Downloading, received);
-        }
+        const auto fetched = fetch (
+            asset.url, kBinaryHeaders, Limit::Quiet, stallTimeoutMs_,
+            [&] (const char* data, int size, juce::String& detail) {
+                if (!out.write (data, static_cast<size_t> (size)))
+                {
+                    detail = "could not write " + part.getFullPathName();
+                    return Error::Disk;
+                }
+                received += size;
+                if (received > asset.size)
+                {
+                    detail = "more data than the release lists";
+                    return Error::Incomplete;
+                }
+                report (DownloadStage::Downloading, received);
+                return Error::None;
+            },
+            cancel);
+        if (fetched.error != Error::None)
+            return fail (fetched.error, fetched.detail);
         out.flush();
         if (out.getStatus().failed())
             return fail (Error::Disk, out.getStatus().getErrorMessage());
     }
-    if (cancel.isCancelled())
-        return fail (Error::Cancelled, {});
-    if (asset.size > 0 ? received != asset.size : received == 0)
+    if (received != asset.size)
         return fail (Error::Incomplete, "received " + juce::String (received) + " of " +
                                             juce::String (asset.size) + " bytes");
 
@@ -285,8 +405,7 @@ DownloadResult Client::downloadVerified (const Release& release, const Asset& as
         return fail (Error::ChecksumMismatch, "expected " + expected + ", got " + actual);
     if (!part.moveFileTo (target))
         return fail (Error::Disk, "could not rename " + part.getFullPathName());
-    result.file = target;
-    return result;
+    return finish (target);
 }
 
 juce::File downloadsFolder()

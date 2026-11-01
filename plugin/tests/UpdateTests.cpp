@@ -91,6 +91,20 @@ TEST_CASE ("Malformed versions are rejected", "[update][version]")
     }
 }
 
+TEST_CASE ("Build metadata is dropped, but must be well-formed", "[update][version]")
+{
+    CHECK (v ("1.2.3+build.5-x").toString() == "1.2.3");
+    for (const auto* bad : { "1.2.3+", "1.2.3+a..b", "1.2.3+.a", "1.2.3+a/b", "1.2.3+a?b",
+                             "1.2.3+a#b", "1.2.3+%2e%2e", "1.2.3+a b", "1.2.3+a+b" })
+    {
+        INFO (bad);
+        CHECK_FALSE (Version::parse (bad).has_value());
+    }
+    // The tag goes into download URLs: one that could leave the release's folder is no release.
+    CHECK (parseRelease (releaseJson ("v0.2.0+x/../../../other/repo", {})).status ==
+           ParsedRelease::Status::Invalid);
+}
+
 TEST_CASE ("Version precedence follows semver", "[update][version]")
 {
     // The ordering example from semver.org, section 11.
@@ -211,6 +225,41 @@ TEST_CASE ("Only newer, unskipped releases are offered", "[update][release]")
     CHECK_FALSE (shouldNotify (r, v ("0.2.0"), ""));
 }
 
+TEST_CASE ("Redirects lead to GitHub's download hosts or stay where they are", "[update][release]")
+{
+    const auto from = kDownload + "v0.2.0/Sedef-Amp-macOS.dmg";
+    const juce::String cdn = "https://release-assets.githubusercontent.com/github-production-"
+                             "release-asset/1?sp=r&sig=a%2Bb";
+    CHECK (redirectTarget (from, cdn) == cdn);
+    CHECK (redirectTarget (from, "https://objects.githubusercontent.com/x") ==
+           "https://objects.githubusercontent.com/x");
+    CHECK (redirectTarget (from, " HTTPS://GitHub.com/x ") == "HTTPS://GitHub.com/x");
+    CHECK (redirectTarget (from, "//objects.githubusercontent.com/x") ==
+           "https://objects.githubusercontent.com/x");
+
+    // The same origin: a renamed repository on the API, or a path on the same (test) server.
+    const juce::String api = "https://api.github.com/repos/a/b/releases/latest";
+    CHECK (redirectTarget (api, "/repositories/1/releases/latest") ==
+           "https://api.github.com/repositories/1/releases/latest");
+    CHECK (redirectTarget (api, "https://api.github.com/repositories/1/releases/latest") ==
+           "https://api.github.com/repositories/1/releases/latest");
+    CHECK (redirectTarget ("http://127.0.0.1:8080/a", "/b") == "http://127.0.0.1:8080/b");
+
+    for (const auto* bad :
+         { "", "http://objects.githubusercontent.com/x", "http://github.com/x",
+           "https://evil.example/x", "https://github.com.evil.example/x",
+           "https://evil.example/github.com", "https://github.com@evil.example/x",
+           "https://user:pw@github.com/x", "https://github.com:8443/x", "relative/path",
+           "file:///etc/passwd", "javascript:alert(1)", "ftp://github.com/x",
+           "https://github.com/a b", "https://github.com\\@evil.example/", "https:///x" })
+    {
+        INFO (bad);
+        CHECK (redirectTarget (from, bad).isEmpty());
+    }
+    CHECK (redirectTarget ("http://127.0.0.1:8080/a", "http://127.0.0.1:9090/b").isEmpty());
+    CHECK (redirectTarget ("not a url", "/b").isEmpty());
+}
+
 // Installers --------------------------------------------------------------------------------------
 
 TEST_CASE ("Each OS gets its own installer", "[update][assets]")
@@ -241,6 +290,24 @@ TEST_CASE ("A release with the old zip names has no installer", "[update][assets
     CHECK (selectInstaller (r, Platform::Windows, true) == nullptr);
     CHECK (selectInstaller (r, Platform::Linux, true) == nullptr);
     CHECK (selectInstaller (parsed (releaseJson ("v0.2.0", {})), Platform::MacOS, true) == nullptr);
+}
+
+TEST_CASE ("An installer without a size to check is no installer", "[update][assets]")
+{
+    const auto withDmg = [] (const juce::var& dmg) {
+        return parsed (releaseJson ("v0.2.0", { dmg, asset ("SHA256SUMS.txt", "v0.2.0") }));
+    };
+    const auto dmg = [] (juce::int64 size) {
+        return asset ("Sedef-Amp-macOS.dmg", "v0.2.0", size);
+    };
+    CHECK (selectInstaller (withDmg (dmg (1)), Platform::MacOS, true) != nullptr);
+    CHECK (selectInstaller (withDmg (dmg (kMaxInstallerBytes)), Platform::MacOS, true) != nullptr);
+    CHECK (selectInstaller (withDmg (dmg (0)), Platform::MacOS, true) == nullptr);
+    CHECK (selectInstaller (withDmg (dmg (kMaxInstallerBytes + 1)), Platform::MacOS, true) ==
+           nullptr);
+    auto noSize = dmg (1);
+    noSize.getDynamicObject()->removeProperty ("size");
+    CHECK (selectInstaller (withDmg (noSize), Platform::MacOS, true) == nullptr);
 }
 
 TEST_CASE ("Platform names match the User-Agent and the UI", "[update][assets]")
@@ -274,6 +341,20 @@ TEST_CASE ("SHA256SUMS.txt is read in sha256sum format", "[update][checksums]")
     CHECK (isSha256Hex (a));
     CHECK_FALSE (isSha256Hex (a.dropLastCharacters (1)));
     CHECK_FALSE (isSha256Hex (juce::String::repeatedString ("g", 64)));
+}
+
+TEST_CASE ("A name listed twice with different hashes has no checksum", "[update][checksums]")
+{
+    const juce::String a (juce::String::repeatedString ("a", 64));
+    const juce::String b (juce::String::repeatedString ("b", 64));
+    const auto sums = parseChecksums (a + "  Sedef-Amp-macOS.dmg\n" +         //
+                                      b + "  Sedef-Amp-macOS.dmg\n" +         // conflicts
+                                      a + "  Sedef-Amp-Windows-Setup.exe\n" + //
+                                      a.toUpperCase() + " *Sedef-Amp-Windows-Setup.exe\n" + // same
+                                      " \t" + b + "  Sedef-Amp-Linux-x86_64.tar.gz \n");
+    CHECK (sums.count ("Sedef-Amp-macOS.dmg") == 0);
+    CHECK (sums.at ("Sedef-Amp-Windows-Setup.exe") == a);
+    CHECK (sums.at ("Sedef-Amp-Linux-x86_64.tar.gz") == b); // indented lines count
 }
 
 TEST_CASE ("Files are verified against their SHA-256", "[update][checksums]")

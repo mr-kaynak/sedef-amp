@@ -25,7 +25,8 @@ juce::String releasesPageUrl();
 // Versions ----------------------------------------------------------------------------------------
 
 /// A semantic version (semver.org 2.0). Parsing accepts a "v" prefix and a missing minor or patch
-/// number ("v1.2" is 1.2.0) and drops build metadata ("+abc"), which has no precedence.
+/// number ("v1.2" is 1.2.0) and drops build metadata ("+abc"), which has no precedence but must
+/// still be well-formed: a parsed tag only ever holds [0-9A-Za-z.+-], so it is safe in a URL path.
 struct Version
 {
     std::array<int, 3> numbers {}; // major, minor, patch
@@ -74,14 +75,22 @@ struct ParsedRelease
 /// Reads a release object as the GitHub REST API returns it (tag_name, name, body, html_url,
 /// published_at, draft, prerelease, assets[] with name, size and browser_download_url). The same
 /// shape is used for the cached copy (toVar). Assets that do not download from this repository's
-/// releases, or whose names are not plain file names, are dropped.
-ParsedRelease parseRelease (const juce::var& json);
+/// releases, or whose names are not plain file names, are dropped. Only tests pass another
+/// `releasesUrl`.
+ParsedRelease parseRelease (const juce::var& json,
+                            const juce::String& releasesUrl = releasesPageUrl());
 juce::var toVar (const Release& release);
 
 /// Whether `latest` is newer than the running version.
 bool isNewer (const Release& latest, const Version& current);
 /// Newer, and not the version the user chose to skip.
 bool shouldNotify (const Release& latest, const Version& current, const juce::String& skipped);
+
+/// Where a redirect from `from` with this Location header leads, if it may be followed: over https
+/// to GitHub's download hosts (github.com, objects.githubusercontent.com,
+/// release-assets.githubusercontent.com), or anywhere on the origin `from` is on. Empty for
+/// anything else, including relative paths that do not start with "/" and URLs with credentials.
+juce::String redirectTarget (const juce::String& from, const juce::String& location);
 
 // Installers --------------------------------------------------------------------------------------
 
@@ -99,13 +108,20 @@ juce::String platformName (Platform platform);
 /// The installer each release publishes for an OS (.github/workflows/release.yml); empty when
 /// there is none (Linux builds exist only for x86-64).
 juce::String installerAssetName (Platform platform, bool x64);
-/// The release's installer for this OS, or nullptr.
+
+/// No installer of ours comes near this; a release that lists more is not trusted with the disk.
+inline constexpr juce::int64 kMaxInstallerBytes = juce::int64 { 1 } << 30;
+
+/// The release's installer for this OS, or nullptr. An installer that lists no size (0), or more
+/// than kMaxInstallerBytes, counts as none: the download could not be checked against it.
 const Asset* selectInstaller (const Release& release, Platform platform, bool x64);
 
 // Checksums ---------------------------------------------------------------------------------------
 
 /// Parses `sha256sum` output: "<64 hex digits>  <name>" per line ("*<name>" in binary mode).
-/// Returns name -> lower-case hex. Blank, comment and malformed lines are skipped.
+/// Returns name -> lower-case hex. Blank, comment and malformed lines are skipped, white space
+/// around a line is ignored, and a name listed twice with different hashes is left out (it has no
+/// trustworthy checksum).
 std::map<juce::String, juce::String> parseChecksums (const juce::String& text);
 bool isSha256Hex (const juce::String& text);
 /// Lower-case hex SHA-256 of a file's contents; empty when it cannot be read.
@@ -139,9 +155,9 @@ struct Store
 
 juce::var toVar (const Store& store);
 /// Tolerant: anything missing or malformed falls back to the default.
-Store storeFromVar (const juce::var& json);
+Store storeFromVar (const juce::var& json, const juce::String& releasesUrl = releasesPageUrl());
 
-Store readStore (const juce::File& file);
+Store readStore (const juce::File& file, const juce::String& releasesUrl = releasesPageUrl());
 /// Writes to a temporary file and renames it over the target, so readers never see a torn file.
 bool writeStore (const juce::File& file, const Store& store);
 

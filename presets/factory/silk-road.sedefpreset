@@ -5,9 +5,10 @@
   "folder": "Crunch",
   "author": "Sedef",
   "tags": [
-    "crunch",
-    "boost"
+    "boost",
+    "rock"
   ],
+  "description": "Boosted crunch that stays tight. Classic rock rhythm and solos.",
   "parameters": {
     "ampModel": 1,
     "reefVoice": 1,

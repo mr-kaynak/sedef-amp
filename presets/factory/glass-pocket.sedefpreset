@@ -5,10 +5,12 @@
   "folder": "Clean",
   "author": "Sedef",
   "tags": [
-    "clean",
+    "compressor",
+    "delay",
     "neo-soul",
-    "compressor"
+    "funk"
   ],
+  "description": "Snappy compressed clean for funk comping, dotted-eighth echo underneath.",
   "parameters": {
     "ampModel": 0,
     "micAPosition": 0.4,

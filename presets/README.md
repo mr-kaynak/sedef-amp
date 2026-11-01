@@ -10,7 +10,8 @@ Each file is JSON:
   "name": "Nacre",
   "folder": "Clean",
   "author": "Sedef",
-  "tags": ["clean", "chorus", "plate"],
+  "tags": ["chorus", "compressor", "plate"],
+  "description": "Glassy, lightly squeezed clean with slow chorus and a short plate.",
   "parameters": { "ampModel": 0, "lagoonVolume": 0.45 }
 }
 ```
@@ -19,8 +20,28 @@ Each file is JSON:
   Anything left out takes its default, so a preset only lists what it changes.
 - Global parameters (input and output gain, tuner, metronome, tempo, stereo mode and the like) are
   never stored in a preset; switching presets must not change how the plugin sits in a session.
+- `folder` is the preset's category in the browser. `tags` are lower case, at most 8 of up to 24
+  characters. `description` is optional: one line of at most 140 characters, shown under the
+  name. Files without it (and older readers that don't know it) work as before, so the format
+  version stays 1.
 - User presets use the same format and live in the user folder (`Application Support/Sedef/Presets`
   on macOS, `%APPDATA%\Sedef\Presets` on Windows, `~/.config/Sedef/Presets` on Linux).
+
+## Categories and tags
+
+Factory presets use five categories: **Clean**, **Crunch** (edge of breakup to classic rock),
+**High Gain**, **Lead** and **Ambient**. Tags say what the category doesn't, from one vocabulary
+so the browser's chips stay useful (`ui/src/bridge/mock/factoryPresets.test.ts` checks both):
+
+- effects: `compressor`, `overdrive`, `boost`, `distortion`, `chorus`, `tremolo`, `vibrato`,
+  `delay`, `slapback`, `plate`, `hall`
+- feel and use: `edge of breakup`, `rhythm`, `solo`, `swell`, `drone`
+- styles: `blues`, `rock`, `metal`, `funk`, `neo-soul`, `surf`, `rockabilly`, `garage`
+
+Don't repeat the category as a tag. Descriptions are one line in a guitarist's words: what it
+sounds like, then what it is for ("Snappy compressed clean for funk comping, dotted-eighth echo
+underneath."). The browser shows the amp and the switched-on chain itself, so the description
+doesn't need to list them.
 
 ## Levels
 

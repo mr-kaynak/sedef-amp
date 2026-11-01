@@ -1,0 +1,157 @@
+# Updates
+
+Sedef Amp can tell you when a new version is out and fetch its installer for you. It never
+replaces its own files: a plug-in's binaries are loaded, and on Windows locked, by your DAW, and
+installers write to system plug-in folders. So "update" here means an automatic check plus a
+one-click download that is verified and then handed to the installer, which you run after
+quitting your DAW.
+
+![The Updates panel](images/updates.png)
+
+## What happens
+
+1. **Check.** When you open a Sedef window, and at most once a day, Sedef asks GitHub for the
+   project's latest release. Sedef doesn't check while your DAW scans or loads the plug-in, and the
+   check never runs on the audio thread or holds up the window. However many instances your session
+   holds, one check runs, and a small file (`update.json`, below) keeps other processes and later
+   sessions from repeating it. After a failed check Sedef waits an hour before trying again.
+2. **Notice.** When the latest stable release is newer than the one you run, a small pill (a
+   nacre dot and an arrow, named "Update available") appears next to Tuner in the header. Drafts
+   and pre-releases are never offered. The pill opens
+   the Updates panel (also in Settings → Updates) with the release notes and three choices:
+   **Download & install**, **Skip this version** (no pill for that version again) and **Later**
+   (no pill until you next open Sedef).
+3. **Download & install.** Sedef downloads `SHA256SUMS.txt` and this OS's installer from the
+   same release into your Downloads folder, verifies the installer's SHA-256 against that list,
+   and only then opens it:
+
+   | OS | File | What Sedef does |
+   | --- | --- | --- |
+   | macOS | `Sedef-Amp-macOS.dmg` | opens the disk image (like `open`); run the installer inside |
+   | Windows | `Sedef-Amp-Windows-Setup.exe` | starts the setup program |
+   | Linux (x86-64) | `Sedef-Amp-Linux-x86_64.tar.gz` | shows the archive in your file manager |
+
+   Quit your DAW before installing, and start it again afterwards so it loads the new version.
+   On Windows this is required: Windows keeps loaded plug-ins locked, so the installer can't
+   replace them while your DAW runs. If a release has no installer for your system (for example
+   on ARM Linux), or anything fails, the panel offers the releases page instead.
+
+The bytes go to `<name>.part` first. A failed, cancelled or mismatching download is deleted; a
+verified copy already in Downloads is reused; a different file that happens to have the same name
+is left alone and the download is saved as `<name> (2)`. Closing the last Sedef window cancels a
+download in progress.
+
+## What is sent
+
+One HTTPS request per check, and nothing else:
+
+```
+GET https://api.github.com/repos/mr-kaynak/sedef-amp/releases/latest
+Accept: application/vnd.github+json
+X-GitHub-Api-Version: 2022-11-28
+User-Agent: SedefAmp/0.2.0 (macOS)
+```
+
+The User-Agent carries the Sedef version and the OS family, nothing more: no identifier, no OS
+version, no host or DAW name, no settings, no cookies. Like any web request it reaches GitHub from
+your IP address; [GitHub's privacy statement](https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement)
+covers what GitHub does with it. Sedef keeps no record of you anywhere.
+
+Only when you click **Download & install**, Sedef fetches `SHA256SUMS.txt` and the installer
+from `https://github.com/mr-kaynak/sedef-amp/releases/download/<tag>/` (GitHub redirects these to
+its download servers), with the same User-Agent.
+
+## Turning it off
+
+- **In Sedef:** Settings → Updates, switch off **Check for updates automatically**. **Check now**
+  still works when you ask for it.
+- **Per machine or in CI:** set the environment variable `SEDEF_DISABLE_UPDATE_CHECK=1`. Sedef
+  then never checks on its own. The editor smoke test (`SEDEF_UI_SMOKE_TEST`) has the same effect.
+- **At build time:** configure with `-DSEDEF_UPDATE_CHECK=OFF`. The checker is not compiled in
+  at all, and the UI shows nothing about updates. Use this for distribution packages that update
+  through the package manager.
+
+## Where things are kept
+
+`update.json` holds the two settings (automatic checks, skipped version), the time of the last
+check and the release it found. It is global for your user account and never part of a DAW
+project: the plug-in state your DAW saves does not change.
+
+| OS | Folder |
+| --- | --- |
+| macOS | `~/Library/Application Support/Sedef/` |
+| Windows | `%APPDATA%\Sedef\` |
+| Linux | `~/.config/Sedef/` |
+
+It is written to a temporary file and renamed into place, under a lock shared between processes.
+Deleting it resets the settings and makes the next window open check again.
+
+Downloads go to `~/Downloads` (on Linux the `XDG_DOWNLOAD_DIR` folder), or to your home folder
+when there is none.
+
+## Threat model
+
+**What protects the download.** The request and the downloads use HTTPS with certificate checks by
+the system (NSURLSession on macOS, WinINet on Windows, libcurl on Linux). Sedef only downloads from
+this repository's release download URLs for the tag it found, and only links to this repository's
+releases page. The installer must match the SHA-256 that `SHA256SUMS.txt` of the same release
+lists, and the size the release lists, or it is deleted before it is ever opened. Response sizes
+are capped (2 MB for the API, 1 MB for the checksum list) and the check times out after 10 s.
+
+That catches corruption, truncated downloads, a cache or proxy serving the wrong bytes, and files
+from a different release.
+
+**What it does not protect against.** Someone who controls the GitHub account, the repository or
+a release workflow token can publish a malicious installer together with a matching
+`SHA256SUMS.txt`. The checksum comes from the same place as the file, so it proves the file is the
+one published, not who published it.
+
+**The next layers.**
+
+- **Code signing and notarization** (Developer ID and notarization on macOS, Authenticode on
+  Windows) make the OS check the publisher before the installer runs. The release workflow sets
+  this up once signing secrets exist; see the release documentation.
+- **A signed checksum list**: a signature over `SHA256SUMS.txt`, checked against a public key
+  built into Sedef, would make a compromised GitHub account insufficient on its own. Not
+  implemented yet.
+
+**Other properties.**
+
+- Nothing runs without a click, and Sedef never writes into plug-in folders itself.
+- On macOS, files Sedef downloads carry no quarantine flag (the same as files fetched with
+  `curl`), so Gatekeeper's download check does not run on them; the SHA-256 check stands in for it
+  until releases are signed and notarized.
+- Release notes are untrusted text. The panel renders a small Markdown subset (headings, lists,
+  bold, italics, code, links) as plain elements, never as HTML. Only `http(s)` links become links,
+  and they open in your browser through the plug-in, never inside its window.
+
+## For developers
+
+| Where | What |
+| --- | --- |
+| `plugin/src/update/UpdateLogic.*` | versions, the release model, installer names, checksum lists, the throttle, `update.json`: no network, no threads |
+| `plugin/src/update/UpdateClient.*` | the GET and the verified download (blocking, cancellable) |
+| `plugin/src/update/UpdateService.*` | the per-process service: worker thread, state, `update.json` locking |
+| `plugin/src/update/UpdateBridge.*` | the editor's `sedef_update_*` functions and `sedef:update` events |
+| `plugin/tests/` | `sedef_update_tests`: the logic, and the client against a local HTTP server |
+| `plugin/tools/sedef_update_check.cpp` | `sedef-update-check`: the same code against the real API |
+| `ui/src/features/updates/` | the header pill, the Updates panel, the Markdown renderer |
+| `ui/src/bridge/mock/updateSim.ts` | the mock backend's updates (`?update=` in the browser) |
+
+```sh
+cmake --build --preset release --target sedef_update_tests sedef-update-check
+ctest --test-dir build/release -R update
+build/release/plugin/sedef-update-check_artefacts/Release/sedef-update-check --current 0.0.1
+build/release/plugin/sedef-update-check_artefacts/Release/sedef-update-check --download /tmp/sedef-dl
+```
+
+`--download <folder>` fetches and verifies this OS's installer the way the plug-in does;
+`--asset <name>` picks another file that `SHA256SUMS.txt` lists, and `--platform`/`--arm` pretend
+to be another system. Each run makes one API request; GitHub allows 60 an hour without a token.
+
+In the browser preview, `?update=available` shows a pending update (also `current`, `skipped`,
+`error`, `noinstaller`, `mismatch` and `unsupported`).
+
+The installer names above are a contract with every installed copy of Sedef: renaming an asset in
+`.github/workflows/release.yml` breaks one-click updates for everyone who has not updated yet
+(they fall back to the releases page).

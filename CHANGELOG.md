@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Updates:** a daily check for new releases (one HTTPS request, version and OS only), an
+  Updates panel with release notes, and one-click download that verifies the installer's SHA-256
+  before opening it. Off in Settings, with `SEDEF_DISABLE_UPDATE_CHECK=1` or
+  `-DSEDEF_UPDATE_CHECK=OFF` ([docs/updates.md](docs/updates.md)).
+
 ## [0.1.0] - 2026-11-01
 
 The first public build: a complete guitar rig with a tuner and an intonation workbench.

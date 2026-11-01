@@ -6,6 +6,7 @@
 | [clap-juce-extensions](https://github.com/free-audio/clap-juce-extensions) | CLAP format | MIT |
 | [PFFFT](https://github.com/marton78/pffft) | FFT for convolution and pitch analysis | BSD-like (FFTPACK) |
 | [Catch2](https://github.com/catchorg/Catch2) | Unit tests (not shipped) | BSL-1.0 |
+| [libcurl](https://curl.se/libcurl/) | HTTPS for the update check on Linux: the system's copy, loaded at run time (not shipped) | curl (MIT-style) |
 | [CPM.cmake](https://github.com/cpm-cmake/CPM.cmake) | Dependency fetching (build only) | MIT |
 
 UI dependencies and their licences are listed in `ui/package.json`; run `pnpm licenses list` in

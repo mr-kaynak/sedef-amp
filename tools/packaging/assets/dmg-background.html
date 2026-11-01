@@ -1,0 +1,125 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<!--
+  Source of the macOS DMG window background (dmg-background.png and @2x), rendered by
+  render-assets.sh. The window is 720 x 440 points; dmg-settings.py places the icons at the
+  card centres below.
+
+  Finder draws the icon names itself, in black in light mode and in white in dark mode, and a
+  DMG can't choose. The cards are mid-tone (relative luminance about 0.18) so both colours keep
+  a contrast of about 4.5:1 under the names (render-assets.sh does not check this; measure
+  after changing the card colours).
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="../../../media/trailer/assets/fonts/fonts.css" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        width: 720px;
+        height: 440px;
+        overflow: hidden;
+      }
+      body {
+        position: relative;
+        background:
+          radial-gradient(520px 300px at 50% 0%, rgb(200 241 234 / 0.1), transparent 70%),
+          radial-gradient(600px 360px at 100% 100%, rgb(221 214 246 / 0.07), transparent 70%),
+          linear-gradient(180deg, #102635 0%, #0b1c27 55%, #061119 100%);
+        font-family: 'Archivo Variable', 'Helvetica Neue', Arial, sans-serif;
+        color: #ede6d6;
+      }
+      .lockup {
+        position: absolute;
+        left: 50%;
+        top: 30px;
+        height: 48px;
+        transform: translateX(-50%);
+      }
+      .tagline {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 94px;
+        text-align: center;
+        font-size: 14px;
+        font-weight: 450;
+        letter-spacing: 0.01em;
+        color: #bdb7a8;
+      }
+      .tagline b {
+        font-weight: 650;
+        color: #ede6d6;
+      }
+      .card {
+        position: absolute;
+        top: 132px;
+        height: 240px;
+        border-radius: 18px;
+        background: linear-gradient(135deg, #607b7d 0%, #6f748a 55%, #80727c 100%);
+        box-shadow:
+          0 1px 0 rgb(255 255 255 / 0.18) inset,
+          0 18px 40px -18px rgb(0 0 0 / 0.8);
+      }
+      .card::before {
+        /* A nacre hairline around the card. */
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        padding: 1px;
+        background: linear-gradient(135deg, #cdeeee, #ddd6f6, #f6dbe2, #f2e8cb);
+        -webkit-mask:
+          linear-gradient(#000 0 0) content-box,
+          linear-gradient(#000 0 0);
+        -webkit-mask-composite: xor;
+        mask-composite: exclude;
+        opacity: 0.35;
+      }
+      .card.main::before {
+        padding: 2px;
+        opacity: 0.85;
+      }
+      .card.main {
+        box-shadow:
+          0 1px 0 rgb(255 255 255 / 0.2) inset,
+          0 0 36px -6px rgb(200 241 234 / 0.28),
+          0 18px 40px -18px rgb(0 0 0 / 0.8);
+      }
+      .main {
+        left: 40px;
+        width: 300px;
+      }
+      .readme {
+        left: 360px;
+        width: 150px;
+      }
+      .uninstall {
+        left: 530px;
+        width: 150px;
+      }
+      .footer {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 386px;
+        text-align: center;
+        font-size: 11px;
+        letter-spacing: 0.02em;
+        color: #8f9b98;
+      }
+    </style>
+  </head>
+  <body>
+    <img class="lockup" src="../../../media/trailer/assets/lockup.svg" alt="" />
+    <div class="tagline">
+      Double-click <b>Install Sedef Amp</b>, then rescan plugins in your DAW.
+    </div>
+    <div class="card main"></div>
+    <div class="card readme"></div>
+    <div class="card uninstall"></div>
+    <div class="footer">Free and open source under the AGPL-3.0 · github.com/mr-kaynak/sedef-amp</div>
+  </body>
+</html>

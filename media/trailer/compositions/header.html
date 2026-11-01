@@ -1,0 +1,107 @@
+<template>
+  <style>
+    #root {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      background: #061119;
+    }
+    #hd-lens {
+      position: absolute;
+      inset: 0;
+    }
+    #hd-cam {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 1200px;
+      height: 760px;
+      transform-origin: 0 0;
+      box-shadow: 0 22px 58px rgba(0, 0, 0, 0.55);
+    }
+    #hd-cam img {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 1200px;
+      height: 760px;
+    }
+    #hd-open {
+      opacity: 0;
+    }
+    /* The pale world closing back into the Output knob's nacre cap (68 px across here). */
+    #hd-disc {
+      position: absolute;
+      left: 387px;
+      top: 71px;
+      width: 68px;
+      height: 68px;
+      border-radius: 50%;
+      overflow: hidden;
+      --sheen: 190deg;
+      background:
+        radial-gradient(90% 70% at 28% 22%, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0) 55%),
+        conic-gradient(from calc(60deg - var(--sheen) * 1.4) at 72% 66%, rgba(207, 233, 230, 0.85), rgba(243, 217, 223, 0.85), rgba(239, 226, 191, 0.85), rgba(221, 213, 238, 0.85), rgba(207, 233, 230, 0.85), rgba(243, 217, 223, 0.85), rgba(239, 226, 191, 0.85), rgba(221, 213, 238, 0.85), rgba(207, 233, 230, 0.85)),
+        conic-gradient(from var(--sheen) at 32% 38%, #f3d9df, #cfe9e6, #ddd5ee, #efe2bf, #f3d9df),
+        #f4efe6;
+    }
+    #hd-pale {
+      position: absolute;
+      inset: 0;
+      background: #f1ece3;
+      opacity: 0.96;
+    }
+    #hd-cur {
+      position: absolute;
+      left: -3px;
+      top: -3px;
+      width: 46px;
+      height: 64px;
+      opacity: 0;
+    }
+    #hd-cur svg {
+      filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.35));
+    }
+  </style>
+  <div data-hf-id="hf-kxfu" id="root" data-composition-id="header" data-width="1920" data-height="1080">
+    <div data-hf-id="hf-s38i" id="hd-lens">
+      <div data-hf-id="hf-e1cu" id="hd-cam" data-layout-allow-overflow>
+        <img data-hf-id="hf-7gez" src="assets/shots/fx.png" alt="Sedef header" />
+        <img data-hf-id="hf-dhmk" id="hd-open" src="assets/shots/inton-open.png" alt="Sedef intonation workbench" />
+      </div>
+      <div data-hf-id="hf-ihzp" id="hd-disc"><div data-hf-id="hf-wppi" id="hd-pale"></div></div>
+    </div>
+    <div data-hf-id="hf-1y88" id="hd-cur">
+      <svg data-hf-id="hf-f4e6" width="46" height="64" viewBox="0 0 23 32"><path data-hf-id="hf-th9t" d="M1.5 1.5 L1.5 25 L7.4 19.4 L11.4 28.6 L15.2 26.9 L11.3 17.9 L19.4 17.9 Z" fill="#fff" stroke="#061119" stroke-width="1" stroke-linejoin="round" /></svg>
+    </div>
+  </div>
+  <script>
+    const B = 1.6;
+    const F = (p) => ({ x: 960 - p.x * B * p.z, y: 540 - p.y * B * p.z, scale: B * p.z });
+    const at = (q, p) => ({ x: 960 + (q.x - p.x) * B * p.z, y: 540 + (q.y - p.y) * B * p.z });
+    const H = { x: 925, y: 150, z: 2.2 }; // header: Output knob to Intonation
+    const I0 = { x: 700, y: 400, z: 1.25 }; // the intonation workbench
+    const intonation = { x: 1106, y: 44 }; // lower right of the button, clear of its label
+    const tl = gsap.timeline({ paused: true });
+    tl.set("#hd-cam", F(H), 0);
+
+    // The pale world closes into the Output knob's cap, then the real cap shows.
+    tl.fromTo("#hd-disc", { scale: 54 }, { scale: 1, duration: 0.55, ease: "power3.out" }, 0);
+    tl.fromTo("#hd-pale", { opacity: 0.96 }, { opacity: 0, duration: 0.45, ease: "power2.out" }, 0);
+    tl.fromTo("#hd-disc", { "--sheen": "190deg" }, { "--sheen": "230deg", duration: 0.7, ease: "none" }, 0);
+    tl.to("#hd-disc", { opacity: 0, duration: 0.2, ease: "power1.inOut" }, 0.5);
+
+    // "one tool most rigs leave out: intonation." The click lands on the word (33.49 s).
+    const ib = at(intonation, H);
+    tl.fromTo("#hd-cur", { x: 1900, y: 760, opacity: 1 }, { x: ib.x, y: ib.y, opacity: 1, duration: 0.6, ease: "power3.out", immediateRender: false }, 1.65);
+    tl.fromTo("#hd-cur svg", { scale: 1 }, { scale: 0.86, duration: 0.06, yoyo: true, repeat: 1, ease: "power1.inOut", transformOrigin: "3px 3px", immediateRender: false }, 2.41);
+    tl.set("#hd-open", { opacity: 1 }, 2.47);
+
+    // Back to the workbench as the music drops out.
+    tl.to("#hd-cam", { ...F(I0), duration: 0.6, ease: "power2.inOut" }, 2.6);
+    tl.to("#hd-lens", { filter: "blur(4px)", duration: 0.3, ease: "power2.in" }, 2.6);
+    tl.to("#hd-lens", { filter: "blur(0px)", duration: 0.3, ease: "power2.out" }, 2.9);
+    tl.to("#hd-cur", { x: ib.x + 30, y: ib.y + 40, opacity: 0, duration: 0.25, ease: "power2.in" }, 2.65);
+    window.__timelines["header"] = tl;
+  </script>
+</template>

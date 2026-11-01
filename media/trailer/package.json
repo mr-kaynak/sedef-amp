@@ -3,10 +3,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "vo": "node --env-file=${ELEVENLABS_ENV:-.env.local} tools/vo.mjs",
-    "music": "node --env-file=${ELEVENLABS_ENV:-.env.local} tools/music.mjs",
+    "dev": "npx --yes hyperframes@0.8.192 preview",
     "check": "npx --yes hyperframes@0.8.192 check",
-    "render": "npx --yes hyperframes@0.8.192 render"
+    "render": "npx --yes hyperframes@0.8.192 render --quality delivery --output renders/sedef-trailer.mp4",
+    "vo": "node --env-file=${ELEVENLABS_ENV:-.env.local} tools/vo.mjs",
+    "cut-vo": "node tools/cut-vo.mjs",
+    "music": "node --env-file=${ELEVENLABS_ENV:-.env.local} tools/music.mjs"
   },
   "dependencies": {
     "@elevenlabs/elevenlabs-js": "^2.74.0"

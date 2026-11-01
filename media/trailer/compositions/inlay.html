@@ -1,0 +1,215 @@
+<template>
+  <style>
+    @font-face {
+      font-family: "Bodoni Moda Variable";
+      font-style: italic;
+      font-weight: 400 900;
+      src: url("assets/fonts/bodoni-moda-latin-opsz-italic.woff2") format("woff2");
+    }
+    #root {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      background: #2a1712;
+    }
+    #in-lens {
+      position: absolute;
+      inset: 0;
+    }
+    /* The fretboard, in board px: frets 9-13, two strings, the 12th-fret double dot. */
+    #in-world {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 3000px;
+      height: 1300px;
+      transform-origin: 0 0;
+      --sheen: 0deg;
+    }
+    #in-wood {
+      position: absolute;
+      left: 0;
+      top: 0;
+    }
+    .in-fret {
+      position: absolute;
+      top: 0;
+      width: 22px;
+      height: 1300px;
+      margin-left: -11px;
+      background: linear-gradient(90deg, #3d3730 0%, #857e72 16%, #b8b2a6 38%, #b8b2a6 47%, #f4f0e8 48%, #f4f0e8 52.5%, #b8b2a6 53.5%, #9e978b 72%, #4a443c 100%);
+      box-shadow: 12px 0 16px rgba(12, 5, 3, 0.55), -4px 0 8px rgba(12, 5, 3, 0.4);
+    }
+    /* Nacre: layered conic gradients over #f4efe6; --sheen turns them, --shim runs a highlight. */
+    .in-nacre {
+      --shim: -40%;
+      background:
+        linear-gradient(105deg, rgba(255, 255, 255, 0) calc(var(--shim) - 16%), rgba(255, 255, 255, 0.72) var(--shim), rgba(255, 255, 255, 0) calc(var(--shim) + 16%)),
+        radial-gradient(90% 70% at 28% 22%, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0) 55%),
+        conic-gradient(from calc(60deg - var(--sheen) * 1.4) at 72% 66%, rgba(207, 233, 230, 0.85), rgba(243, 217, 223, 0.85), rgba(239, 226, 191, 0.85), rgba(221, 213, 238, 0.85), rgba(207, 233, 230, 0.85), rgba(243, 217, 223, 0.85), rgba(239, 226, 191, 0.85), rgba(221, 213, 238, 0.85), rgba(207, 233, 230, 0.85)),
+        conic-gradient(from var(--sheen) at 32% 38%, #f3d9df, #cfe9e6, #ddd5ee, #efe2bf, #f3d9df),
+        #f4efe6;
+    }
+    .in-dot {
+      position: absolute;
+      width: 96px;
+      height: 96px;
+      margin: -48px 0 0 -48px;
+      border-radius: 50%;
+      box-shadow:
+        0 0 0 3px #160b08,
+        inset 0 3px 5px rgba(60, 30, 20, 0.28);
+    }
+    #in-word {
+      position: absolute;
+      left: 872px;
+      top: 470px;
+      width: 600px;
+      height: 360px;
+    }
+    .in-row {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: "Bodoni Moda Variable", serif;
+      font-style: italic;
+      font-weight: 500;
+      font-variation-settings: "opsz" 96;
+      font-size: 190px;
+      line-height: 1.5;
+      letter-spacing: -0.02em;
+      white-space: nowrap;
+    }
+    .in-row span {
+      display: inline-block;
+      padding: 0 0.2em;
+      margin: 0 -0.2em;
+    }
+    .in-cav span {
+      color: #160b08;
+      -webkit-text-stroke: 7px #160b08;
+      opacity: 0;
+    }
+    .in-nac span {
+      color: transparent;
+      -webkit-background-clip: text;
+      background-clip: text;
+      opacity: 0;
+    }
+    .in-string {
+      position: absolute;
+      left: 0;
+      width: 3000px;
+      border-radius: 9px;
+    }
+    #in-str-a {
+      top: 291px;
+      height: 18px;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0) 18%, rgba(255, 255, 255, 0.42) 38%, rgba(255, 255, 255, 0) 58%),
+        repeating-linear-gradient(112deg, #5b554c 0 3px, #cfc9bd 3px 7px, #8f897d 7px 9px),
+        #8f897d;
+      box-shadow: 0 16px 12px rgba(10, 4, 2, 0.5);
+    }
+    #in-str-b {
+      top: 994px;
+      height: 12px;
+      background: linear-gradient(180deg, #4d4842 0%, #a9a397 30%, #f3efe6 45%, #d6d0c4 55%, #8a8478 78%, #3f3a34 100%);
+      box-shadow: 0 14px 10px rgba(10, 4, 2, 0.5);
+    }
+    /* One raking light, 12% white, crossing the board left to right. */
+    #in-rake {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 1800px;
+      height: 1300px;
+      background: linear-gradient(100deg, rgba(255, 255, 255, 0) 30%, rgba(255, 255, 255, 0.12) 50%, rgba(255, 255, 255, 0) 70%);
+    }
+  </style>
+  <div data-hf-id="hf-jchy" id="root" data-composition-id="inlay" data-width="1920" data-height="1080">
+    <div data-hf-id="hf-4m7t" id="in-lens">
+      <div data-hf-id="hf-pzy6" id="in-world" data-layout-allow-overflow>
+        <svg data-hf-id="hf-iy5m" id="in-wood" width="3000" height="1300" viewBox="0 0 3000 1300" aria-hidden="true">
+          <defs data-hf-id="hf-mh0t">
+            <linearGradient data-hf-id="hf-bj26" id="in-tone" x1="0" y1="0" x2="0" y2="1">
+              <stop data-hf-id="hf-ry8y" offset="0" stop-color="#2a1712" />
+              <stop data-hf-id="hf-84qb" offset="0.42" stop-color="#3d2219" />
+              <stop data-hf-id="hf-4287" offset="0.7" stop-color="#341d15" />
+              <stop data-hf-id="hf-tud1" offset="1" stop-color="#2a1712" />
+            </linearGradient>
+            <filter data-hf-id="hf-zwlm" id="in-figure" x="0" y="0" width="1" height="1">
+              <feTurbulence data-hf-id="hf-eqha" type="fractalNoise" baseFrequency="0.0011 0.03" numOctaves="3" seed="11" />
+              <feColorMatrix data-hf-id="hf-ri91" values="0 0 0 0 0.07  0 0 0 0 0.03  0 0 0 0 0.02  2.4 0 0 0 -1.05" />
+            </filter>
+            <filter data-hf-id="hf-u53p" id="in-figure-lt" x="0" y="0" width="1" height="1">
+              <feTurbulence data-hf-id="hf-npck" type="fractalNoise" baseFrequency="0.0016 0.05" numOctaves="2" seed="4" />
+              <feColorMatrix data-hf-id="hf-zk7q" values="0 0 0 0 0.36  0 0 0 0 0.2  0 0 0 0 0.13  2.2 0 0 0 -1.1" />
+            </filter>
+            <filter data-hf-id="hf-k38l" id="in-grain" x="0" y="0" width="1" height="1">
+              <feTurbulence data-hf-id="hf-6i5e" type="fractalNoise" baseFrequency="0.85" numOctaves="1" seed="2" />
+              <feColorMatrix data-hf-id="hf-s6hd" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 1.6 -0.55" />
+            </filter>
+          </defs>
+          <rect data-hf-id="hf-7zc9" width="3000" height="1300" fill="url(#in-tone)" />
+          <rect data-hf-id="hf-ku3g" width="3000" height="1300" filter="url(#in-figure-lt)" opacity="0.5" />
+          <rect data-hf-id="hf-y9vo" width="3000" height="1300" filter="url(#in-figure)" opacity="0.8" />
+          <rect data-hf-id="hf-ha6f" width="3000" height="1300" filter="url(#in-grain)" opacity="0.06" />
+        </svg>
+        <div data-hf-id="hf-m0b9" id="in-word">
+          <div data-hf-id="hf-gtin" class="in-row in-cav" data-layout-ignore><span data-hf-id="hf-fmnq">S</span><span data-hf-id="hf-xwr0">e</span><span data-hf-id="hf-xifz">d</span><span data-hf-id="hf-pn38">e</span><span data-hf-id="hf-wptx">f</span></div>
+          <div data-hf-id="hf-emtm" class="in-row in-nac" data-layout-allow-occlusion><span data-hf-id="hf-e9bb" class="in-nacre">S</span><span data-hf-id="hf-8p0x" class="in-nacre">e</span><span data-hf-id="hf-93by" class="in-nacre">d</span><span data-hf-id="hf-clnp" class="in-nacre">e</span><span data-hf-id="hf-9vy0" class="in-nacre">f</span></div>
+        </div>
+        <div data-hf-id="hf-t6dl" id="in-dot-a" class="in-dot in-nacre" style="left: 1777px; top: 470px"></div>
+        <div data-hf-id="hf-b5q8" id="in-dot-b" class="in-dot in-nacre" style="left: 1777px; top: 830px"></div>
+        <div data-hf-id="hf-fgrs" class="in-fret" style="left: 200px"></div>
+        <div data-hf-id="hf-nujs" class="in-fret" style="left: 860px"></div>
+        <div data-hf-id="hf-h2fa" class="in-fret" style="left: 1483px"></div>
+        <div data-hf-id="hf-0llg" class="in-fret" style="left: 2071px"></div>
+        <div data-hf-id="hf-c54m" class="in-fret" style="left: 2626px"></div>
+        <div data-hf-id="hf-10o2" id="in-str-a" class="in-string"></div>
+        <div data-hf-id="hf-x2k1" id="in-str-b" class="in-string"></div>
+        <div data-hf-id="hf-l0u2" id="in-rake"></div>
+      </div>
+    </div>
+  </div>
+  <script>
+    // Camera on the board: frame board point p at zoom z (1 = 1 board px per screen px).
+    const Fw = (p) => ({ x: 960 - p.x * p.z, y: 540 - p.y * p.z, scale: p.z });
+    const C0 = { x: 1200, y: 650, z: 0.889 }; // frets 9-12, the name's fret centred
+    const C1 = { x: 1777, y: 650, z: 1.4 }; // the 12th fret and its double dot
+    const C2 = { x: 1777, y: 470, z: 30 }; // through the upper dot
+    const tl = gsap.timeline({ paused: true });
+    tl.set("#in-world", Fw(C0), 0);
+
+    // The raking light crosses the whole scene; the nacre turns with it.
+    tl.fromTo("#in-rake", { x: -700 }, { x: 1400, duration: 7, ease: "none" }, 0);
+    tl.fromTo("#in-world", { "--sheen": "0deg" }, { "--sheen": "160deg", duration: 7, ease: "none" }, 0);
+
+    // "This is Sedef." (0.98 s): each letter is routed into the wood, then the shell is pressed in.
+    tl.fromTo(".in-cav span", { opacity: 0 }, { opacity: 1, duration: 0.1, ease: "power2.out", stagger: 0.1 }, 0.68);
+    tl.fromTo(
+      ".in-nac span",
+      { opacity: 0, scale: 1.12, y: -8, filter: "blur(4px)" },
+      { opacity: 1, scale: 1, y: 0, filter: "blur(0px)", duration: 0.5, ease: "power3.out", stagger: 0.1 },
+      0.74,
+    );
+
+    // "mother-of-pearl" (2.58 s): a shimmer runs through the letters, then the dots.
+    tl.fromTo(".in-nac span", { "--shim": "-40%" }, { "--shim": "140%", duration: 0.7, ease: "power2.inOut", stagger: 0.07 }, 2.55);
+    tl.fromTo(".in-dot", { "--shim": "-40%" }, { "--shim": "140%", duration: 0.7, ease: "power2.inOut", stagger: 0.1 }, 2.95);
+
+    // "inlaid" (4.5 s): the camera moves to the 12th fret.
+    tl.to("#in-world", { ...Fw(C1), duration: 0.6, ease: "power2.inOut" }, 4.5);
+    tl.fromTo("#in-lens", { filter: "blur(0px)" }, { filter: "blur(4px)", duration: 0.3, ease: "power2.in" }, 4.5);
+    tl.to("#in-lens", { filter: "blur(0px)", duration: 0.3, ease: "power2.out" }, 4.8);
+    tl.fromTo("#in-dot-a", { "--shim": "-40%" }, { "--shim": "140%", duration: 0.8, ease: "power2.inOut", immediateRender: false }, 5.35);
+
+    // Into the upper dot until its nacre fills the frame (the next scene starts inside it).
+    tl.to("#in-world", { ...Fw(C2), duration: 0.85, ease: "power3.in" }, 6.15);
+    tl.to("#in-lens", { filter: "blur(6px)", duration: 0.25, ease: "power2.in" }, 6.75);
+    window.__timelines["inlay"] = tl;
+  </script>
+</template>

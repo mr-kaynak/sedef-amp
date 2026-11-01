@@ -1,0 +1,106 @@
+<template>
+  <style>
+    #root {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      background: #061119;
+    }
+    #fx-lens {
+      position: absolute;
+      inset: 0;
+    }
+    #fx-cam {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 1200px;
+      height: 760px;
+      transform-origin: 0 0;
+      box-shadow: 0 22px 58px rgba(0, 0, 0, 0.55);
+    }
+    #fx-prev {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 1200px;
+      height: 760px;
+      transform-origin: 0 0;
+      box-shadow: 0 22px 58px rgba(0, 0, 0, 0.55);
+    }
+    #fx-cam img,
+    #fx-prev img {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 1200px;
+      height: 760px;
+    }
+    /* Nacre over Fathom's decay knob cap; it grows past the frame into the pale formats world. */
+    #fx-disc {
+      position: absolute;
+      left: 892px;
+      top: 472px;
+      width: 136px;
+      height: 136px;
+      border-radius: 50%;
+      overflow: hidden;
+      opacity: 0;
+      --sheen: 40deg;
+      background:
+        radial-gradient(90% 70% at 28% 22%, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0) 55%),
+        conic-gradient(from calc(60deg - var(--sheen) * 1.4) at 72% 66%, rgba(207, 233, 230, 0.85), rgba(243, 217, 223, 0.85), rgba(239, 226, 191, 0.85), rgba(221, 213, 238, 0.85), rgba(207, 233, 230, 0.85), rgba(243, 217, 223, 0.85), rgba(239, 226, 191, 0.85), rgba(221, 213, 238, 0.85), rgba(207, 233, 230, 0.85)),
+        conic-gradient(from var(--sheen) at 32% 38%, #f3d9df, #cfe9e6, #ddd5ee, #efe2bf, #f3d9df),
+        #f4efe6;
+    }
+    #fx-pale {
+      position: absolute;
+      inset: 0;
+      background: #f1ece3;
+      opacity: 0;
+    }
+  </style>
+  <div data-hf-id="hf-h3gl" id="root" data-composition-id="fx" data-width="1920" data-height="1080">
+    <div data-hf-id="hf-svy0" id="fx-lens">
+      <div data-hf-id="hf-nv58" id="fx-prev" data-layout-allow-overflow><img data-hf-id="hf-0xjj" src="assets/shots/cab-mic-5.png" alt="Sedef cab page" /></div>
+      <div data-hf-id="hf-hqu0" id="fx-cam" data-layout-allow-overflow><img data-hf-id="hf-48vb" src="assets/shots/fx.png" alt="Sedef FX page: Drift tape echo and Fathom reverb" /></div>
+      <div data-hf-id="hf-9xmr" id="fx-disc"><div data-hf-id="hf-m5lw" id="fx-pale"></div></div>
+    </div>
+  </div>
+  <script>
+    const B = 1.6;
+    const F = (p) => ({ x: 960 - p.x * B * p.z, y: 540 - p.y * B * p.z, scale: B * p.z });
+    const D1 = { x: 340, y: 250, z: 1.8 }; // Drift: reels, heads, sync
+    const D2 = { x: 860, y: 250, z: 1.8 }; // Drift: "Repeats every 500 ms"
+    const FA = { x: 413, y: 535, z: 1.5 }; // Fathom
+    const PL = { x: 270, y: 580, z: 2.6 }; // Fathom: the plate's decay curve and its knobs
+    const DK = { x: 443, y: 599, z: 3.2 }; // the Decay knob cap, 136 px across
+    const tl = gsap.timeline({ paused: true });
+    const move = (p, t, d = 0.6) => {
+      tl.to("#fx-cam", { ...F(p), duration: d, ease: "power2.inOut" }, t);
+      tl.to("#fx-lens", { filter: "blur(4px)", duration: d / 2, ease: "power2.in" }, t);
+      tl.to("#fx-lens", { filter: "blur(0px)", duration: d / 2, ease: "power2.out" }, t + d / 2);
+    };
+
+    // The second half of the whip from the cab (cab.html plays the first) lands on Drift for
+    // "Tape echo" (20.05 s); the cab page leaves 2000 px ahead of it.
+    const S = { x: 600, y: 390, z: 1.75 }; // cab.html's last framing
+    tl.fromTo("#fx-cam", { ...F(D1), x: F(D1).x + 1000 }, { ...F(D1), duration: 0.2, ease: "power3.out" }, 0);
+    tl.fromTo("#fx-prev", { ...F(S), x: F(S).x - 1000 }, { ...F(S), x: F(S).x - 2000, duration: 0.2, ease: "power3.out" }, 0);
+    tl.fromTo("#fx-lens", { filter: "blur(14px)" }, { filter: "blur(0px)", duration: 0.2, ease: "power2.out" }, 0);
+    tl.set("#fx-prev", { opacity: 0 }, 0.22);
+    // "that drifts and breathes"
+    move(D2, 1.2);
+    // "Reverb" (22.77 s)
+    move(FA, 2.85);
+    // "as deep as you like"
+    move(PL, 3.6);
+    // Onto the Decay knob; its cap opens into the next world.
+    tl.to("#fx-cam", { ...F(DK), duration: 0.3, ease: "power2.inOut" }, 4.2);
+    tl.to("#fx-disc", { opacity: 1, duration: 0.08, ease: "none" }, 4.46);
+    tl.fromTo("#fx-disc", { scale: 1 }, { scale: 18, duration: 0.5, ease: "power3.in" }, 4.5);
+    tl.fromTo("#fx-disc", { "--sheen": "40deg" }, { "--sheen": "120deg", duration: 0.6, ease: "none" }, 4.4);
+    tl.to("#fx-pale", { opacity: 0.96, duration: 0.4, ease: "power2.in" }, 4.6);
+    window.__timelines["fx"] = tl;
+  </script>
+</template>

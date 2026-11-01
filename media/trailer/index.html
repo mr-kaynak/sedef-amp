@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en" data-resolution="landscape">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #061119;
+      }
+      #root {
+        position: relative;
+        width: 100%;
+        height: 100%;
+      }
+      #ground {
+        position: absolute;
+        inset: 0;
+        background: #061119;
+      }
+    </style>
+  </head>
+  <body>
+    <div data-hf-id="hf-ihoy" id="root" data-composition-id="main" data-start="0" data-duration="48" data-width="1920" data-height="1080">
+      <div data-hf-id="hf-7hg0" id="ground"></div>
+
+      <!-- Scenes (storyline A, "The inlay"): the fretboard, the rig, the formats, intonation, the mark. -->
+      <div data-hf-id="hf-s80l" id="inlay" data-composition-id="inlay" data-composition-src="compositions/inlay.html" data-start="0" data-duration="7" data-track-index="1" data-track-kind="graphics" data-width="1920" data-height="1080"></div>
+      <div data-hf-id="hf-r46c" id="rig" data-composition-id="rig" data-composition-src="compositions/rig.html" data-start="7" data-duration="3.7" data-track-index="1" data-track-kind="graphics" data-width="1920" data-height="1080"></div>
+      <div data-hf-id="hf-nogb" id="pedals" data-composition-id="pedals" data-composition-src="compositions/pedals.html" data-start="10.7" data-duration="4.7" data-track-index="1" data-track-kind="graphics" data-width="1920" data-height="1080"></div>
+      <div data-hf-id="hf-qcar" id="cab" data-composition-id="cab" data-composition-src="compositions/cab.html" data-start="15.4" data-duration="4.4" data-track-index="1" data-track-kind="graphics" data-width="1920" data-height="1080"></div>
+      <div data-hf-id="hf-msom" id="fx" data-composition-id="fx" data-composition-src="compositions/fx.html" data-start="19.8" data-duration="5" data-track-index="1" data-track-kind="graphics" data-width="1920" data-height="1080"></div>
+      <div data-hf-id="hf-i651" id="formats" data-composition-id="formats" data-composition-src="compositions/formats.html" data-start="24.8" data-duration="6.2" data-track-index="1" data-track-kind="graphics" data-width="1920" data-height="1080"></div>
+      <div data-hf-id="hf-7um1" id="header" data-composition-id="header" data-composition-src="compositions/header.html" data-start="31" data-duration="3.4" data-track-index="1" data-track-kind="graphics" data-width="1920" data-height="1080"></div>
+      <div data-hf-id="hf-spny" id="intonation" data-composition-id="intonation" data-composition-src="compositions/intonation.html" data-start="34.4" data-duration="9.6" data-track-index="1" data-track-kind="graphics" data-width="1920" data-height="1080"></div>
+      <div data-hf-id="hf-wewu" id="mark" data-composition-id="mark" data-composition-src="compositions/mark.html" data-start="44" data-duration="4" data-track-index="1" data-track-kind="graphics" data-width="1920" data-height="1080"></div>
+
+      <!-- Voice (ElevenLabs, Sarah, one take). vo-N is line N of assets/vo-align.json, cut from
+           0.05 s before its first word to 0.15 s after its last; line 1 starts at the take's 0. -->
+      <audio data-hf-id="hf-i331" id="vo1" class="clip" data-start="0.5" data-duration="6.35" data-track-index="2" data-volume="1" src="assets/vo-1.mp3"></audio>
+      <audio data-hf-id="hf-se8z" id="vo2" class="clip" data-start="7" data-duration="3.96" data-track-index="2" data-volume="1" src="assets/vo-2.mp3"></audio>
+      <audio data-hf-id="hf-g7nd" id="vo3" class="clip" data-start="11" data-duration="4.52" data-track-index="2" data-volume="1" src="assets/vo-3.mp3"></audio>
+      <audio data-hf-id="hf-6wy3" id="vo4" class="clip" data-start="15.6" data-duration="4.32" data-track-index="2" data-volume="1" src="assets/vo-4.mp3"></audio>
+      <audio data-hf-id="hf-fk52" id="vo5" class="clip" data-start="20" data-duration="4.68" data-track-index="2" data-volume="1" src="assets/vo-5.mp3"></audio>
+      <audio data-hf-id="hf-m097" id="vo8" class="clip" data-start="25" data-duration="6" data-track-index="2" data-volume="1" src="assets/vo-8.mp3"></audio>
+      <audio data-hf-id="hf-6jmd" id="vo6" class="clip" data-start="31.2" data-duration="3.24" data-track-index="2" data-volume="1" src="assets/vo-6.mp3"></audio>
+      <audio data-hf-id="hf-3att" id="vo7" class="clip" data-start="34.7" data-duration="6.52" data-track-index="2" data-volume="1" src="assets/vo-7.mp3"></audio>
+      <audio data-hf-id="hf-y80a" id="vo9" class="clip" data-start="44.1" data-duration="3.33" data-track-index="2" data-volume="1" src="assets/vo-9.mp3"></audio>
+
+      <!-- Music bed (ElevenLabs Music, 84 bpm): groove from 10.7 s, drops out at 33.7 s, swell from 44.1 s. -->
+      <audio data-hf-id="hf-dyvv" id="bgm" class="clip" data-start="0" data-duration="48" data-track-index="3" data-volume="0.15" data-fade-in="0.2" data-fade-out="0.8" src="assets/music.mp3"></audio>
+
+      <!-- Effects: each peaks one frame after its picture (click peaks 0.073 s in, whoosh 0.162 s). -->
+      <audio data-hf-id="hf-atw1" id="sfx-dive" class="clip" data-start="6.87" data-duration="0.57" data-track-index="4" data-volume="0.4" src="assets/sfx/whoosh.mp3"></audio>
+      <audio data-hf-id="hf-1vhg" id="sfx-pearl" class="clip" data-start="11.08" data-duration="0.37" data-track-index="4" data-volume="0.6" src="assets/sfx/click.mp3"></audio>
+      <audio data-hf-id="hf-w6no" id="sfx-abyss" class="clip" data-start="14.45" data-duration="0.37" data-track-index="4" data-volume="0.55" src="assets/sfx/click.mp3"></audio>
+      <audio data-hf-id="hf-3xze" id="sfx-cabtab" class="clip" data-start="15.3" data-duration="0.37" data-track-index="4" data-volume="0.55" src="assets/sfx/click.mp3"></audio>
+      <audio data-hf-id="hf-xua6" id="sfx-grab" class="clip" data-start="16.98" data-duration="0.37" data-track-index="4" data-volume="0.35" src="assets/sfx/click.mp3"></audio>
+      <audio data-hf-id="hf-yqve" id="sfx-drop" class="clip" data-start="18.49" data-duration="0.37" data-track-index="4" data-volume="0.3" src="assets/sfx/click.mp3"></audio>
+      <audio data-hf-id="hf-zrop" id="sfx-shell" class="clip" data-start="24.67" data-duration="0.57" data-track-index="4" data-volume="0.35" src="assets/sfx/whoosh.mp3"></audio>
+      <audio data-hf-id="hf-lf43" id="sfx-inton" class="clip" data-start="33.41" data-duration="0.37" data-track-index="4" data-volume="0.6" src="assets/sfx/click.mp3"></audio>
+    </div>
+    <script>
+      window.__timelines["main"] = gsap.timeline({ paused: true });
+    </script>
+  </body>
+</html>

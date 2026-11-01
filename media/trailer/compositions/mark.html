@@ -1,0 +1,204 @@
+<template>
+  <style>
+    @font-face {
+      font-family: "Archivo Variable";
+      font-style: normal;
+      font-weight: 100 900;
+      font-stretch: 62% 125%;
+      src: url("assets/fonts/archivo-latin-wdth-normal.woff2") format("woff2");
+    }
+    #root {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      background: #2a1712;
+    }
+    #mk-lens {
+      position: absolute;
+      inset: 0;
+    }
+    /* The same fretboard, back at the 12th fret: strings at 340 and 960, no double dot now. */
+    #mk-world {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 3000px;
+      height: 1300px;
+      transform-origin: 0 0;
+    }
+    #mk-wood {
+      position: absolute;
+      left: 0;
+      top: 0;
+    }
+    .mk-fret {
+      position: absolute;
+      top: 0;
+      width: 22px;
+      height: 1300px;
+      margin-left: -11px;
+      background: linear-gradient(90deg, #3d3730 0%, #857e72 16%, #b8b2a6 38%, #b8b2a6 47%, #f4f0e8 48%, #f4f0e8 52.5%, #b8b2a6 53.5%, #9e978b 72%, #4a443c 100%);
+      box-shadow: 12px 0 16px rgba(12, 5, 3, 0.55), -4px 0 8px rgba(12, 5, 3, 0.4);
+    }
+    .mk-string {
+      position: absolute;
+      left: 0;
+      width: 3000px;
+      border-radius: 9px;
+    }
+    #mk-str-a {
+      top: 331px;
+      height: 18px;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0) 18%, rgba(255, 255, 255, 0.42) 38%, rgba(255, 255, 255, 0) 58%),
+        repeating-linear-gradient(112deg, #5b554c 0 3px, #cfc9bd 3px 7px, #8f897d 7px 9px),
+        #8f897d;
+      box-shadow: 0 16px 12px rgba(10, 4, 2, 0.5);
+    }
+    #mk-str-b {
+      top: 954px;
+      height: 12px;
+      background: linear-gradient(180deg, #4d4842 0%, #a9a397 30%, #f3efe6 45%, #d6d0c4 55%, #8a8478 78%, #3f3a34 100%);
+      box-shadow: 0 14px 10px rgba(10, 4, 2, 0.5);
+    }
+    #mk-rake {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 1800px;
+      height: 1300px;
+      background: linear-gradient(100deg, rgba(255, 255, 255, 0) 30%, rgba(255, 255, 255, 0.12) 50%, rgba(255, 255, 255, 0) 70%);
+    }
+    /* The lockup in the 12th-fret space, in the brand lockup's proportions (star 92, gap 28.8). */
+    #mk-cavity {
+      position: absolute;
+      left: 1607.8px;
+      top: 538.3px;
+      width: 98.4px;
+      height: 98.4px;
+      background: #160b08;
+      -webkit-mask: url("assets/logo.svg") center / contain no-repeat;
+      mask: url("assets/logo.svg") center / contain no-repeat;
+      opacity: 0;
+    }
+    #mk-star {
+      position: absolute;
+      left: 1611px;
+      top: 541.5px;
+      width: 92px;
+      height: 92px;
+      opacity: 0;
+    }
+    #mk-shim {
+      position: absolute;
+      left: 1611px;
+      top: 541.5px;
+      width: 92px;
+      height: 92px;
+      --shim: -40%;
+      background: linear-gradient(105deg, rgba(255, 255, 255, 0) calc(var(--shim) - 16%), rgba(255, 255, 255, 0.7) var(--shim), rgba(255, 255, 255, 0) calc(var(--shim) + 16%));
+      -webkit-mask: url("assets/logo.svg") center / contain no-repeat;
+      mask: url("assets/logo.svg") center / contain no-repeat;
+    }
+    #mk-word {
+      position: absolute;
+      left: 1730.1px;
+      top: 552.1px;
+      width: 214.5px;
+      height: 87.7px;
+      clip-path: inset(0 100% 0 0);
+    }
+    .mk-line {
+      position: absolute;
+      left: 1483px;
+      width: 588px;
+      text-align: center;
+      font-family: "Archivo Variable", sans-serif;
+      color: #ede6d6;
+      white-space: nowrap;
+      opacity: 0;
+    }
+    #mk-free {
+      top: 702px;
+      font-size: 25px;
+      line-height: 33px;
+      font-weight: 500;
+      color: rgba(237, 230, 214, 0.82);
+    }
+    #mk-url {
+      top: 744px;
+      font-size: 30px;
+      line-height: 40px;
+      font-weight: 600;
+      letter-spacing: -0.005em;
+    }
+  </style>
+  <div data-hf-id="hf-gwze" id="root" data-composition-id="mark" data-width="1920" data-height="1080">
+    <div data-hf-id="hf-ch1q" id="mk-lens">
+      <div data-hf-id="hf-zmz7" id="mk-world" data-layout-allow-overflow>
+        <svg data-hf-id="hf-7j8b" id="mk-wood" width="3000" height="1300" viewBox="0 0 3000 1300" aria-hidden="true">
+          <defs data-hf-id="hf-mh0t">
+            <linearGradient data-hf-id="hf-x1x5" id="mk-tone" x1="0" y1="0" x2="0" y2="1">
+              <stop data-hf-id="hf-ry8y" offset="0" stop-color="#2a1712" />
+              <stop data-hf-id="hf-84qb" offset="0.42" stop-color="#3d2219" />
+              <stop data-hf-id="hf-4287" offset="0.7" stop-color="#341d15" />
+              <stop data-hf-id="hf-tud1" offset="1" stop-color="#2a1712" />
+            </linearGradient>
+            <filter data-hf-id="hf-f50l" id="mk-figure" x="0" y="0" width="1" height="1">
+              <feTurbulence data-hf-id="hf-eqha" type="fractalNoise" baseFrequency="0.0011 0.03" numOctaves="3" seed="11" />
+              <feColorMatrix data-hf-id="hf-ri91" values="0 0 0 0 0.07  0 0 0 0 0.03  0 0 0 0 0.02  2.4 0 0 0 -1.05" />
+            </filter>
+            <filter data-hf-id="hf-gtp8" id="mk-figure-lt" x="0" y="0" width="1" height="1">
+              <feTurbulence data-hf-id="hf-npck" type="fractalNoise" baseFrequency="0.0016 0.05" numOctaves="2" seed="4" />
+              <feColorMatrix data-hf-id="hf-zk7q" values="0 0 0 0 0.36  0 0 0 0 0.2  0 0 0 0 0.13  2.2 0 0 0 -1.1" />
+            </filter>
+            <filter data-hf-id="hf-5eqg" id="mk-grain" x="0" y="0" width="1" height="1">
+              <feTurbulence data-hf-id="hf-6i5e" type="fractalNoise" baseFrequency="0.85" numOctaves="1" seed="2" />
+              <feColorMatrix data-hf-id="hf-s6hd" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 1.6 -0.55" />
+            </filter>
+          </defs>
+          <rect data-hf-id="hf-9cbe" width="3000" height="1300" fill="url(#mk-tone)" />
+          <rect data-hf-id="hf-285p" width="3000" height="1300" filter="url(#mk-figure-lt)" opacity="0.5" />
+          <rect data-hf-id="hf-en3n" width="3000" height="1300" filter="url(#mk-figure)" opacity="0.8" />
+          <rect data-hf-id="hf-hj44" width="3000" height="1300" filter="url(#mk-grain)" opacity="0.06" />
+        </svg>
+        <div data-hf-id="hf-4il4" id="mk-cavity"></div>
+        <img data-hf-id="hf-dw3g" id="mk-star" src="assets/logo.svg" alt="Sedef star mark" />
+        <div data-hf-id="hf-cl41" id="mk-shim"></div>
+        <img data-hf-id="hf-sp1v" id="mk-word" src="assets/wordmark.svg" alt="Sedef" />
+        <div data-hf-id="hf-9hp9" id="mk-free" class="mk-line">Free &amp; open source</div>
+        <div data-hf-id="hf-uza8" id="mk-url" class="mk-line">github.com/mr-kaynak/sedef-amp</div>
+        <div data-hf-id="hf-jomj" class="mk-fret" style="left: 860px"></div>
+        <div data-hf-id="hf-dloz" class="mk-fret" style="left: 1483px"></div>
+        <div data-hf-id="hf-7ouh" class="mk-fret" style="left: 2071px"></div>
+        <div data-hf-id="hf-duav" class="mk-fret" style="left: 2626px"></div>
+        <div data-hf-id="hf-xtfo" id="mk-str-a" class="mk-string"></div>
+        <div data-hf-id="hf-8oxb" id="mk-str-b" class="mk-string"></div>
+        <div data-hf-id="hf-2rah" id="mk-rake"></div>
+      </div>
+    </div>
+  </div>
+  <script>
+    const Fw = (p) => ({ x: 960 - p.x * p.z, y: 540 - p.y * p.z, scale: p.z });
+    const E0 = { x: 1777, y: 650, z: 1.78 };
+    const E1 = { x: 1777, y: 650, z: 1.6 }; // the 12th-fret space, 941 px wide
+    const tl = gsap.timeline({ paused: true });
+
+    // Out of the diagram's strings onto the fretboard's, settling on the 12th fret.
+    tl.fromTo("#mk-world", Fw(E0), { ...Fw(E1), duration: 0.5, ease: "power3.out" }, 0);
+    tl.fromTo("#mk-lens", { filter: "blur(10px)" }, { filter: "blur(0px)", duration: 0.2, ease: "power2.out" }, 0);
+    tl.fromTo("#mk-rake", { x: 300 }, { x: 1300, duration: 4, ease: "none" }, 0);
+
+    // "Sedef." (44.15 s): the star is routed and set into the 12th fret, then catches the light.
+    tl.to("#mk-cavity", { opacity: 1, duration: 0.1, ease: "power2.out" }, 0.12);
+    tl.fromTo("#mk-star", { opacity: 0, scale: 1.14, filter: "blur(4px)" }, { opacity: 1, scale: 1, filter: "blur(0px)", duration: 0.5, ease: "power3.out" }, 0.17);
+    tl.fromTo("#mk-shim", { "--shim": "-40%" }, { "--shim": "140%", duration: 0.7, ease: "power2.inOut" }, 0.7);
+
+    // "Sound beautiful": the wordmark wipes in from the star.
+    tl.to("#mk-word", { clipPath: "inset(0 0% 0 0)", duration: 0.6, ease: "power3.out" }, 0.8);
+
+    // "Play in tune": what it is and where to get it, held to the end.
+    tl.fromTo(".mk-line", { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.2, ease: "power2.out", stagger: 0.1 }, 1.8);
+    window.__timelines["mark"] = tl;
+  </script>
+</template>

@@ -1,0 +1,160 @@
+<template>
+  <style>
+    #root {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      background: #061119;
+    }
+    #cb-lens {
+      position: absolute;
+      inset: 0;
+    }
+    #cb-cam {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 1200px;
+      height: 760px;
+      transform-origin: 0 0;
+      box-shadow: 0 22px 58px rgba(0, 0, 0, 0.55);
+    }
+    #cb-cam img,
+    #cb-next img,
+    .cb-crop {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 1200px;
+      height: 760px;
+      background-size: 1200px 760px;
+    }
+    #cb-next {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 1200px;
+      height: 760px;
+      transform-origin: 0 0;
+      box-shadow: 0 22px 58px rgba(0, 0, 0, 0.55);
+      opacity: 0;
+    }
+    #cb-mk {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 1200px;
+      height: 760px;
+    }
+    /* Five real captures with Mic A at position 1, 3, 5, 7, 9. During the drag the marker's path
+       shows a clean strip of the same cone (left half from capture 5, right half from capture 1)
+       and the marker itself is cut from the captures, so it can move between the five states. */
+    .cb-state {
+      opacity: 0;
+    }
+    #cb-b1 {
+      opacity: 1;
+    }
+    #cb-strip-l {
+      background-image: url("assets/shots/cab-mic-5.png");
+      clip-path: inset(327px 624px 385px 485px);
+    }
+    #cb-strip-r {
+      background-image: url("assets/shots/cab-mic-1.png");
+      clip-path: inset(327px 532px 385px 576px);
+    }
+    #cb-m1 {
+      background-image: url("assets/shots/cab-mic-1.png");
+      clip-path: circle(22.5px at 509px 351px);
+    }
+    #cb-m3 {
+      left: -67px;
+      background-image: url("assets/shots/cab-mic-3.png");
+      clip-path: circle(22.5px at 576px 351px);
+    }
+    #cb-path {
+      opacity: 0;
+    }
+    #cb-cur {
+      position: absolute;
+      left: -3px;
+      top: -3px;
+      width: 46px;
+      height: 64px;
+    }
+    #cb-cur svg {
+      filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.35));
+    }
+  </style>
+  <div data-hf-id="hf-gtoz" id="root" data-composition-id="cab" data-width="1920" data-height="1080">
+    <div data-hf-id="hf-zno7" id="cb-lens">
+      <div data-hf-id="hf-5zix" id="cb-cam" data-layout-allow-overflow>
+        <img data-hf-id="hf-5ez6" id="cb-b1" class="cb-state" src="assets/shots/cab-mic-1.png" alt="Sedef cab page, Mic A position 1" />
+        <img data-hf-id="hf-o5di" id="cb-b2" class="cb-state" src="assets/shots/cab-mic-2.png" alt="Sedef cab page, Mic A position 3" />
+        <img data-hf-id="hf-pdbe" id="cb-b3" class="cb-state" src="assets/shots/cab-mic-3.png" alt="Sedef cab page, Mic A position 5" />
+        <img data-hf-id="hf-m22q" id="cb-b4" class="cb-state" src="assets/shots/cab-mic-4.png" alt="Sedef cab page, Mic A position 7" />
+        <img data-hf-id="hf-4m36" id="cb-b5" class="cb-state" src="assets/shots/cab-mic-5.png" alt="Sedef cab page, Mic A position 9" />
+        <div data-hf-id="hf-tyn6" id="cb-path">
+          <div data-hf-id="hf-1lgt" id="cb-strip-l" class="cb-crop"></div>
+          <div data-hf-id="hf-uo37" id="cb-strip-r" class="cb-crop"></div>
+          <div data-hf-id="hf-7dur" id="cb-mk">
+            <div data-hf-id="hf-835a" id="cb-m1" class="cb-crop"></div>
+            <div data-hf-id="hf-3ddg" id="cb-m3" class="cb-crop"></div>
+          </div>
+        </div>
+      </div>
+      <div data-hf-id="hf-nzkn" id="cb-next" data-layout-allow-overflow><img data-hf-id="hf-u5l3" src="assets/shots/fx.png" alt="Sedef FX page" /></div>
+    </div>
+    <div data-hf-id="hf-g6tz" id="cb-cur">
+      <svg data-hf-id="hf-f4e6" width="46" height="64" viewBox="0 0 23 32"><path data-hf-id="hf-th9t" d="M1.5 1.5 L1.5 25 L7.4 19.4 L11.4 28.6 L15.2 26.9 L11.3 17.9 L19.4 17.9 Z" fill="#fff" stroke="#061119" stroke-width="1" stroke-linejoin="round" /></svg>
+    </div>
+  </div>
+  <script>
+    const B = 1.6;
+    const F = (p) => ({ x: 960 - p.x * B * p.z, y: 540 - p.y * B * p.z, scale: B * p.z });
+    const at = (q, p) => ({ x: 960 + (q.x - p.x) * B * p.z, y: 540 + (q.y - p.y) * B * p.z });
+    const A2 = { x: 600, y: 350, z: 1 }; // as the last scene left it: the Cab tab was clicked
+    const S = { x: 600, y: 390, z: 1.75 }; // the speaker and Mic A's controls
+    const cabTab = { x: 468, y: 100 };
+    const micA = { x: 515, y: 358 }; // grab point on Mic A at position 1; position 9 is 134 px right
+    const DRAG = 134;
+    const tl = gsap.timeline({ paused: true });
+    tl.set("#cb-cam", F(A2), 0);
+    const ct = at(cabTab, A2);
+    tl.set("#cb-cur", { x: ct.x, y: ct.y }, 0);
+
+    // "on the speaker": punch in on the cone.
+    tl.to("#cb-cam", { ...F(S), duration: 0.6, ease: "power2.inOut" }, 0.6);
+    tl.to("#cb-lens", { filter: "blur(4px)", duration: 0.3, ease: "power2.in" }, 0.6);
+    tl.to("#cb-lens", { filter: "blur(0px)", duration: 0.3, ease: "power2.out" }, 0.9);
+    const m = at(micA, S);
+    tl.to("#cb-cur", { x: m.x, y: m.y, duration: 0.65, ease: "power3.inOut" }, 0.75);
+
+    // "exactly where you'd place them": grab Mic A and drag it from the centre to the edge.
+    const t0 = 1.68;
+    const dur = 1.4;
+    tl.to("#cb-cur svg", { scale: 0.9, duration: 0.06, ease: "power1.in", transformOrigin: "3px 3px" }, 1.62);
+    tl.set("#cb-path", { opacity: 1 }, 1.66);
+    tl.fromTo("#cb-mk", { x: 0 }, { x: DRAG, duration: dur, ease: "sine.inOut" }, t0);
+    tl.to("#cb-cur", { x: m.x + DRAG * B * S.z, duration: dur, ease: "sine.inOut" }, t0);
+    tl.fromTo("#cb-m3", { opacity: 0 }, { opacity: 1, duration: 0.35, ease: "none" }, t0 + 0.1);
+    // Each real state takes over as the marker passes the midpoint to it (sine.inOut inverted).
+    [0.125, 0.375, 0.625, 0.875].forEach((p, i) => {
+      const t = t0 + (dur * Math.acos(1 - 2 * p)) / Math.PI;
+      tl.set(`#cb-b${i + 1}`, { opacity: 0 }, t);
+      tl.set(`#cb-b${i + 2}`, { opacity: 1 }, t);
+    });
+    tl.set("#cb-path", { opacity: 0 }, t0 + dur + 0.02);
+    tl.to("#cb-cur svg", { scale: 1, duration: 0.06, ease: "power1.out", transformOrigin: "3px 3px" }, 3.13);
+    tl.to("#cb-cur", { x: m.x + DRAG * B * S.z + 30, y: m.y + 40, opacity: 0, duration: 0.25, ease: "power2.in" }, 3.45);
+
+    // Whip on to the next tab (FX) as the line ends: the first half of a 0.4 s power3.inOut
+    // whip; fx.html plays the second half. The FX page rides 2000 px behind the cab.
+    const D1 = { x: 340, y: 250, z: 1.8 }; // fx.html's first framing
+    tl.set("#cb-next", { ...F(D1), x: F(D1).x + 2000, opacity: 1 }, 4.2);
+    tl.to("#cb-cam", { x: F(S).x - 1000, duration: 0.2, ease: "power3.in" }, 4.2);
+    tl.to("#cb-next", { x: F(D1).x + 1000, duration: 0.2, ease: "power3.in" }, 4.2);
+    tl.to("#cb-lens", { filter: "blur(14px)", duration: 0.2, ease: "power2.in" }, 4.2);
+    window.__timelines["cab"] = tl;
+  </script>
+</template>

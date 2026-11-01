@@ -1,0 +1,118 @@
+<template>
+  <style>
+    #root {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      background: #061119;
+    }
+    #pd-lens {
+      position: absolute;
+      inset: 0;
+    }
+    .pd-cam {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 1200px;
+      height: 760px;
+      transform-origin: 0 0;
+      box-shadow: 0 22px 58px rgba(0, 0, 0, 0.55);
+    }
+    .pd-cam img {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 1200px;
+      height: 760px;
+    }
+    #pd-on,
+    #pd-abyss,
+    #pd-amp {
+      opacity: 0;
+    }
+    /* macOS arrow, 64 px, white with a 2 px ink stroke; its tip is the element's origin. */
+    #pd-cur {
+      position: absolute;
+      left: -3px;
+      top: -3px;
+      width: 46px;
+      height: 64px;
+      opacity: 0;
+    }
+    #pd-cur svg {
+      filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.35));
+    }
+  </style>
+  <div data-hf-id="hf-xsgq" id="root" data-composition-id="pedals" data-width="1920" data-height="1080">
+    <div data-hf-id="hf-95ey" id="pd-lens">
+      <div data-hf-id="hf-ftgd" class="pd-cam" id="pd-ped" data-layout-allow-overflow>
+        <img data-hf-id="hf-0igi" src="assets/shots/pedals-off.png" alt="Sedef pedals, all off" />
+        <img data-hf-id="hf-am02" id="pd-on" src="assets/shots/pedals-pearl-on.png" alt="Sedef pedals, Pearl on" />
+      </div>
+      <div data-hf-id="hf-4xd8" class="pd-cam" id="pd-amp" data-layout-allow-overflow>
+        <img data-hf-id="hf-36d2" src="assets/shots/amp-lagoon.png" alt="Sedef amp page, Lagoon" />
+        <img data-hf-id="hf-7rvp" id="pd-abyss" src="assets/shots/amp-abyss.png" alt="Sedef amp page, Abyss" />
+      </div>
+    </div>
+    <div data-hf-id="hf-46cg" id="pd-cur">
+      <svg data-hf-id="hf-f4e6" width="46" height="64" viewBox="0 0 23 32"><path data-hf-id="hf-th9t" d="M1.5 1.5 L1.5 25 L7.4 19.4 L11.4 28.6 L15.2 26.9 L11.3 17.9 L19.4 17.9 Z" fill="#fff" stroke="#061119" stroke-width="1" stroke-linejoin="round" /></svg>
+    </div>
+  </div>
+  <script>
+    const B = 1.6;
+    const F = (p) => ({ x: 960 - p.x * B * p.z, y: 540 - p.y * B * p.z, scale: B * p.z });
+    // Screen position of design point q while the camera frames p.
+    const at = (q, p) => ({ x: 960 + (q.x - p.x) * B * p.z, y: 540 + (q.y - p.y) * B * p.z });
+    const W = { x: 600, y: 380, z: 0.86 }; // the whole window (where the last scene landed)
+    const R = { x: 600, y: 450, z: 1.09 }; // the four pedals
+    const A1 = { x: 600, y: 330, z: 1.3 }; // Lagoon's grille, the amp cards above it
+    const A2 = { x: 600, y: 350, z: 1 }; // header and tabs back in frame
+    const footswitch = { x: 467, y: 658 };
+    const abyssCard = { x: 834, y: 168 }; // the card's swatch, clear of its name
+    const cabTab = { x: 468, y: 100 };
+    const tl = gsap.timeline({ paused: true });
+    const press = (t) => tl.fromTo("#pd-cur svg", { scale: 1 }, { scale: 0.86, duration: 0.06, yoyo: true, repeat: 1, ease: "power1.inOut", transformOrigin: "3px 3px", immediateRender: false }, t);
+    const blurBump = (t, d, px = 4) => {
+      tl.to("#pd-lens", { filter: `blur(${px}px)`, duration: d / 2, ease: "power2.in" }, t);
+      tl.to("#pd-lens", { filter: "blur(0px)", duration: d / 2, ease: "power2.out" }, t + d / 2);
+    };
+    tl.set("#pd-ped", F(W), 0);
+    tl.set("#pd-amp", F(A1), 0);
+
+    // "Four pedals": the cursor comes in and switches Pearl on; its LED lights on the click.
+    const fs = at(footswitch, W);
+    tl.fromTo("#pd-cur", { x: 1560, y: 1160, opacity: 1 }, { x: fs.x, y: fs.y, opacity: 1, duration: 0.4, ease: "power3.out" }, 0);
+    press(0.36);
+    tl.set("#pd-on", { opacity: 1 }, 0.42);
+    // In to the row of four; the cursor stays on the footswitch, then leaves.
+    tl.to("#pd-ped", { ...F(R), duration: 0.6, ease: "power2.inOut" }, 0.5);
+    blurBump(0.5, 0.6);
+    const fs2 = at(footswitch, R);
+    tl.to("#pd-cur", { x: fs2.x, y: fs2.y, duration: 0.6, ease: "power2.inOut" }, 0.5);
+    tl.to("#pd-cur", { x: fs2.x + 24, y: fs2.y + 36, opacity: 0, duration: 0.2, ease: "power2.in" }, 1.15);
+
+    // "and three amps" (12.33 s): whip to the next tab; the amp page rides in 2000 px behind.
+    const WHIP = 2000;
+    tl.set("#pd-amp", { opacity: 1 }, 1.45);
+    tl.to("#pd-ped", { x: F(R).x - WHIP, duration: 0.4, ease: "power3.inOut" }, 1.45);
+    tl.fromTo("#pd-amp", { x: F(A1).x + WHIP }, { x: F(A1).x, duration: 0.4, ease: "power3.inOut", immediateRender: false }, 1.45);
+    tl.to("#pd-lens", { filter: "blur(14px)", duration: 0.2, ease: "power2.in" }, 1.45);
+    tl.to("#pd-lens", { filter: "blur(0px)", duration: 0.2, ease: "power2.out" }, 1.65);
+    tl.set("#pd-ped", { opacity: 0 }, 1.86);
+
+    // "to a singing lead" (14.49 s): the cursor picks Abyss.
+    const ab = at(abyssCard, A1);
+    tl.fromTo("#pd-cur", { x: 2000, y: 640, opacity: 1 }, { x: ab.x, y: ab.y, opacity: 1, duration: 0.6, ease: "power3.out", immediateRender: false }, 2.95);
+    press(3.73);
+    tl.set("#pd-abyss", { opacity: 1 }, 3.79);
+
+    // Back out to the tabs; the cursor goes to Cab and clicks (the cab page opens at 15.4 s).
+    tl.to("#pd-amp", { ...F(A2), duration: 0.6, ease: "power2.inOut" }, 3.9);
+    blurBump(3.9, 0.6);
+    const ct = at(cabTab, A2);
+    tl.to("#pd-cur", { x: ct.x, y: ct.y, duration: 0.6, ease: "power3.inOut" }, 3.95);
+    tl.fromTo("#pd-cur svg", { scale: 1 }, { scale: 0.86, duration: 0.06, ease: "power1.in", transformOrigin: "3px 3px", immediateRender: false }, 4.6);
+    window.__timelines["pedals"] = tl;
+  </script>
+</template>

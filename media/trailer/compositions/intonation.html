@@ -1,0 +1,81 @@
+<template>
+  <style>
+    #root {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      background: #061119;
+    }
+    #it-lens {
+      position: absolute;
+      inset: 0;
+    }
+    #it-cam {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 1200px;
+      height: 760px;
+      transform-origin: 0 0;
+      box-shadow: 0 22px 58px rgba(0, 0, 0, 0.55);
+    }
+    #it-cam img {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 1200px;
+      height: 760px;
+    }
+    #it-capture,
+    #it-result,
+    #it-summary {
+      opacity: 0;
+    }
+  </style>
+  <div data-hf-id="hf-qkku" id="root" data-composition-id="intonation" data-width="1920" data-height="1080">
+    <div data-hf-id="hf-iz8v" id="it-lens">
+      <div data-hf-id="hf-olfx" id="it-cam" data-layout-allow-overflow>
+        <img data-hf-id="hf-89sv" id="it-open" src="assets/shots/inton-open.png" alt="Intonation: tune the open string" />
+        <img data-hf-id="hf-yx82" id="it-capture" src="assets/shots/inton-capture.png" alt="Intonation: play the 12th fret" />
+        <img data-hf-id="hf-ug4y" id="it-result" src="assets/shots/inton-result.png" alt="Intonation: move the saddle back 1.42 mm" />
+        <img data-hf-id="hf-2l9j" id="it-summary" src="assets/shots/inton-summary.png" alt="Intonation: summary of all six strings" />
+      </div>
+    </div>
+  </div>
+  <script>
+    const B = 1.6;
+    const F = (p) => ({ x: 960 - p.x * B * p.z, y: 540 - p.y * B * p.z, scale: B * p.z });
+    const I0 = { x: 700, y: 400, z: 1.25 }; // string 6, tune the open string
+    const I1 = { x: 640, y: 360, z: 1.35 }; // the 12th-fret capture ring
+    const I2 = { x: 460, y: 390, z: 1.6 }; // the result and the saddle advice
+    const I3 = { x: 860, y: 380, z: 1.8 }; // the saddle diagram
+    const I4 = { x: 955, y: 288, z: 3 }; // "1.42 mm"
+    const I5 = { x: 700, y: 360, z: 1.3 }; // the summary of all strings
+    const I6 = { x: 936, y: 345, z: 4 }; // into the strings of the diagram
+    const tl = gsap.timeline({ paused: true });
+    const move = (p, t, d = 0.6) => {
+      tl.to("#it-cam", { ...F(p), duration: d, ease: "power2.inOut" }, t);
+      tl.to("#it-lens", { filter: "blur(4px)", duration: d / 2, ease: "power2.in" }, t);
+      tl.to("#it-lens", { filter: "blur(0px)", duration: d / 2, ease: "power2.out" }, t + d / 2);
+    };
+    tl.set("#it-cam", F(I0), 0);
+
+    // "play the twelfth fret" (36.15 s): the workbench moves on to the capture.
+    move(I1, 1.6);
+    tl.set("#it-capture", { opacity: 1 }, 1.75);
+    // "and Sedef tells you which way to move the saddle" (37.47 s)
+    move(I2, 2.95);
+    tl.set("#it-result", { opacity: 1 }, 3.07);
+    move(I3, 4.8);
+    // "and how far" (40.07 s)
+    move(I4, 5.65, 0.55);
+    // All six strings (41.4 s).
+    move(I5, 6.85);
+    tl.set("#it-summary", { opacity: 1 }, 6.98);
+
+    // Into the diagram's strings; they come out as the fretboard's.
+    tl.to("#it-cam", { ...F(I6), duration: 0.6, ease: "power3.in" }, 9.0);
+    tl.to("#it-lens", { filter: "blur(10px)", duration: 0.3, ease: "power2.in" }, 9.3);
+    window.__timelines["intonation"] = tl;
+  </script>
+</template>

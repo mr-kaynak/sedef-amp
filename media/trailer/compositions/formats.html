@@ -1,0 +1,103 @@
+<template>
+  <style>
+    @font-face {
+      font-family: "Bodoni Moda Variable";
+      font-style: italic;
+      font-weight: 400 900;
+      src: url("assets/fonts/bodoni-moda-latin-opsz-italic.woff2") format("woff2");
+    }
+    @font-face {
+      font-family: "Archivo Variable";
+      font-style: normal;
+      font-weight: 100 900;
+      font-stretch: 62% 125%;
+      src: url("assets/fonts/archivo-latin-wdth-normal.woff2") format("woff2");
+    }
+    #root {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      background: #f1ece3;
+    }
+    /* The decay knob's nacre, grown past the frame, left at 4% over the pale ground. */
+    #fm-sheen {
+      position: absolute;
+      left: -264px;
+      top: -684px;
+      width: 2448px;
+      height: 2448px;
+      border-radius: 50%;
+      opacity: 0.04;
+      --sheen: 120deg;
+      background:
+        radial-gradient(90% 70% at 28% 22%, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0) 55%),
+        conic-gradient(from calc(60deg - var(--sheen) * 1.4) at 72% 66%, rgba(207, 233, 230, 0.85), rgba(243, 217, 223, 0.85), rgba(239, 226, 191, 0.85), rgba(221, 213, 238, 0.85), rgba(207, 233, 230, 0.85), rgba(243, 217, 223, 0.85), rgba(239, 226, 191, 0.85), rgba(221, 213, 238, 0.85), rgba(207, 233, 230, 0.85)),
+        conic-gradient(from var(--sheen) at 32% 38%, #f3d9df, #cfe9e6, #ddd5ee, #efe2bf, #f3d9df),
+        #f4efe6;
+    }
+    #fm-type {
+      position: absolute;
+      left: 200px;
+      top: 214px;
+      color: #0b1a24;
+    }
+    .fm-line {
+      font-family: "Bodoni Moda Variable", serif;
+      font-style: italic;
+      font-weight: 500;
+      font-variation-settings: "opsz" 96;
+      font-size: 200px;
+      line-height: 1.12;
+      letter-spacing: -0.02em;
+      white-space: nowrap;
+    }
+    .fm-line span {
+      display: inline-block;
+      margin-right: 0.3em;
+      padding-right: 0.06em;
+      opacity: 0;
+    }
+    #fm-os {
+      margin-top: 56px;
+      font-family: "Archivo Variable", sans-serif;
+      font-weight: 500;
+      font-size: 56px;
+      letter-spacing: -0.005em;
+      white-space: nowrap;
+      opacity: 0;
+    }
+    #fm-os span {
+      color: #c9c1b4;
+    }
+  </style>
+  <div data-hf-id="hf-mv7p" id="root" data-composition-id="formats" data-width="1920" data-height="1080">
+    <div data-hf-id="hf-gme2" id="fm-sheen"></div>
+    <div data-hf-id="hf-06q7" id="fm-type">
+      <div data-hf-id="hf-j4uu" class="fm-line"><span data-hf-id="hf-i49e" id="fm-vst3">VST3</span><span data-hf-id="hf-fqy6" id="fm-au">AU</span><span data-hf-id="hf-5lxu" id="fm-clap">CLAP</span></div>
+      <div data-hf-id="hf-h8ai" class="fm-line"><span data-hf-id="hf-d03d" id="fm-sa">Standalone</span></div>
+      <div data-hf-id="hf-kzid" id="fm-os"><span data-hf-id="hf-0ijw" id="fm-mac">macOS</span><span data-hf-id="hf-bvhg" id="fm-d1"> · </span><span data-hf-id="hf-ruht" id="fm-win">Windows</span><span data-hf-id="hf-uyxx" id="fm-d2"> · </span><span data-hf-id="hf-06k7" id="fm-lin">Linux</span></div>
+    </div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo("#fm-sheen", { "--sheen": "120deg" }, { "--sheen": "190deg", duration: 6.2, ease: "none" }, 0);
+
+    // Each format lands on its word: "VST3" 25.05 s, "AU" 26.33, "CLAP" 27.05, "standalone" 27.69.
+    const land = (sel, t) =>
+      tl.fromTo(sel, { opacity: 0, scale: 1.05, filter: "blur(10px)" }, { opacity: 1, scale: 1, filter: "blur(0px)", duration: 0.2, ease: "power3.out", transformOrigin: "0% 80%" }, t);
+    land("#fm-vst3", 0.22);
+    land("#fm-au", 1.5);
+    land("#fm-clap", 2.22);
+    land("#fm-sa", 2.86);
+
+    // "On Mac, Windows and Linux": the line arrives grey on "On" (28.73 s), each name inks on its word.
+    tl.to("#fm-os", { opacity: 1, duration: 0.15, ease: "power2.out" }, 3.9);
+    tl.to(["#fm-mac", "#fm-d1"], { color: "#0b1a24", duration: 0.1, ease: "none" }, 4.06);
+    tl.to(["#fm-win", "#fm-d2"], { color: "#0b1a24", duration: 0.1, ease: "none" }, 4.62);
+    tl.to("#fm-lin", { color: "#0b1a24", duration: 0.1, ease: "none" }, 5.34);
+
+    // Out before the ground closes back into the app.
+    tl.to("#fm-type", { opacity: 0, filter: "blur(8px)", duration: 0.18, ease: "power2.in" }, 6.0);
+    window.__timelines["formats"] = tl;
+  </script>
+</template>

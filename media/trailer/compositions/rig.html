@@ -1,0 +1,79 @@
+<template>
+  <style>
+    #root {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      background: #061119;
+    }
+    #rg-lens {
+      position: absolute;
+      inset: 0;
+    }
+    /* A 3600x2280 capture shown on the 1200x760 design canvas; the camera scales it. */
+    #rg-cam {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 1200px;
+      height: 760px;
+      transform-origin: 0 0;
+      box-shadow: 0 22px 58px rgba(0, 0, 0, 0.55);
+    }
+    #rg-cam img {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 1200px;
+      height: 760px;
+    }
+    /* The fretboard's nacre, now the size of Pearl's gain knob cap at the opening zoom. */
+    #rg-disc {
+      position: absolute;
+      left: 875px;
+      top: 455px;
+      width: 170px;
+      height: 170px;
+      border-radius: 50%;
+      --sheen: 160deg;
+      background:
+        radial-gradient(90% 70% at 28% 22%, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0) 55%),
+        conic-gradient(from calc(60deg - var(--sheen) * 1.4) at 72% 66%, rgba(207, 233, 230, 0.85), rgba(243, 217, 223, 0.85), rgba(239, 226, 191, 0.85), rgba(221, 213, 238, 0.85), rgba(207, 233, 230, 0.85), rgba(243, 217, 223, 0.85), rgba(239, 226, 191, 0.85), rgba(221, 213, 238, 0.85), rgba(207, 233, 230, 0.85)),
+        conic-gradient(from var(--sheen) at 32% 38%, #f3d9df, #cfe9e6, #ddd5ee, #efe2bf, #f3d9df),
+        #f4efe6;
+    }
+  </style>
+  <div data-hf-id="hf-vd57" id="root" data-composition-id="rig" data-width="1920" data-height="1080">
+    <div data-hf-id="hf-9wa5" id="rg-lens">
+      <div data-hf-id="hf-szfn" id="rg-cam" data-layout-allow-overflow><img data-hf-id="hf-4jlp" id="rg-shot" src="assets/shots/pedals-off.png" alt="Sedef pedals page" /></div>
+      <div data-hf-id="hf-4pca" id="rg-disc"></div>
+    </div>
+  </div>
+  <script>
+    // Camera on a 1200x760 capture: frame design point p at zoom z (1 = 1.6x, the window 1920 wide).
+    const B = 1.6;
+    const F = (p) => ({ x: 960 - p.x * B * p.z, y: 540 - p.y * B * p.z, scale: B * p.z });
+    const K = { x: 417, y: 310, z: 4 }; // Pearl's gain knob cap, 170 px across
+    const P = { x: 467, y: 470, z: 1.35 }; // Pearl between Tide and Coral
+    const W = { x: 600, y: 380, z: 0.86 }; // the whole window
+    const move = (p, t, d = 0.6) => {
+      tl.to("#rg-cam", { ...F(p), duration: d, ease: "power2.inOut" }, t);
+      tl.to("#rg-lens", { filter: "blur(4px)", duration: d / 2, ease: "power2.in" }, t);
+      tl.to("#rg-lens", { filter: "blur(0px)", duration: d / 2, ease: "power2.out" }, t + d / 2);
+    };
+    const tl = gsap.timeline({ paused: true });
+
+    // Out of the inlay: the nacre shrinks onto the knob cap as the camera comes out of it.
+    tl.fromTo("#rg-cam", F({ ...K, z: 6.5 }), { ...F(K), duration: 0.6, ease: "power3.out" }, 0);
+    tl.fromTo("#rg-disc", { scale: 15.3 }, { scale: 1, duration: 0.6, ease: "power3.out" }, 0);
+    tl.fromTo("#rg-disc", { "--sheen": "160deg" }, { "--sheen": "200deg", duration: 0.7, ease: "none" }, 0);
+    tl.fromTo("#rg-lens", { filter: "blur(6px)" }, { filter: "blur(0px)", duration: 0.25, ease: "power2.out" }, 0);
+    tl.to("#rg-disc", { opacity: 0, duration: 0.2, ease: "power1.inOut" }, 0.52);
+
+    // "a complete guitar rig": back through the pedals...
+    move(P, 0.85);
+    // ...and the whole window lands on the drum entry (10.7 s).
+    move(W, 3.0, 0.7);
+    window.__timelines["rig"] = tl;
+  </script>
+</template>

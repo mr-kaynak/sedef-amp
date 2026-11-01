@@ -49,11 +49,19 @@ describe('App', () => {
     expect(h.mock.value('ampModel')).toBe(2);
   });
 
-  it('loads a preset from the browser', async () => {
+  it('auditions a preset in the browser over the rig and keeps it', async () => {
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: /Open preset browser/ }));
-    fireEvent.click(screen.getByRole('button', { name: /^Glass Pocket/ }));
+    await act(flush);
+    // The rig behind the browser is out of reach until it closes.
+    expect(screen.getByRole('tablist', { name: 'Rig sections' }).closest('[inert]')).not.toBeNull();
+    fireEvent.click(screen.getByRole('option', { name: /^Glass Pocket/ }));
     await act(flush);
     expect(screen.getByRole('button', { name: /Preset: Glass Pocket/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^Done/ }));
+    await act(flush);
+    expect(screen.queryByRole('dialog', { name: 'Preset browser' })).toBeNull();
+    expect(screen.getByRole('tablist', { name: 'Rig sections' }).closest('[inert]')).toBeNull();
+    expect(h.mock.value('tideEnabled')).toBe(1);
   });
 });

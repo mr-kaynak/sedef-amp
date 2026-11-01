@@ -109,6 +109,7 @@ juce_add_plugin(SedefAmp
     COMPANY_NAME "Sedef"
     COMPANY_WEBSITE "https://github.com/mr-kaynak/sedef-amp"
     BUNDLE_ID "io.github.mr-kaynak.sedef-amp"
+    ICON_BIG "${PROJECT_SOURCE_DIR}/tools/packaging/assets/icon-1024.png"
     VERSION ${PROJECT_VERSION}
     PLUGIN_MANUFACTURER_CODE Sedf
     PLUGIN_CODE Sda1

@@ -2,12 +2,13 @@
   "format": "sedef-preset",
   "version": 1,
   "name": "Mariana",
-  "folder": "Lead",
+  "folder": "High Gain",
   "author": "Sedef",
   "tags": [
-    "high gain",
-    "rhythm"
+    "rhythm",
+    "metal"
   ],
+  "description": "Tight modern high gain with shifted mids, for palm mutes and fast riffs.",
   "parameters": {
     "ampModel": 2,
     "abyssGain": 0.85,

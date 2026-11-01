@@ -198,16 +198,23 @@ juce::WebBrowserComponent::Options SedefEditor::makeOptions()
     fn ("sedef_presets_list", presetCall ([] (PresetManager& pm, const auto&) { pm.scan(); }));
     fn ("sedef_presets_load", presetCall ([] (PresetManager& pm, const auto& a) {
             if (!a.isEmpty())
-                pm.load (a[0].toString());
+                pm.load (a[0].toString(), a.size() > 1 && static_cast<bool> (a[1]));
+        }));
+    fn ("sedef_presets_markRecent", presetCall ([] (PresetManager& pm, const auto& a) {
+            if (!a.isEmpty())
+                pm.markRecent (a[0].toString());
         }));
     fn ("sedef_presets_save", presetCall ([] (PresetManager& pm, const auto& a) {
             pm.save (a.size() > 0 ? a[0].toString() : juce::String(),
-                     a.size() > 1 ? a[1].toString() : juce::String());
+                     a.size() > 1 ? a[1].toString() : juce::String(),
+                     a.size() > 2 ? a[2] : juce::var());
         }));
     fn ("sedef_presets_delete", presetCall ([] (PresetManager& pm, const auto& a) {
             if (!a.isEmpty())
                 pm.remove (a[0].toString());
         }));
+    fn ("sedef_presets_undoDelete",
+        presetCall ([] (PresetManager& pm, const auto&) { pm.undoRemove(); }));
     fn ("sedef_presets_rename", presetCall ([] (PresetManager& pm, const auto& a) {
             if (a.size() >= 2)
                 pm.rename (a[0].toString(), a[1].toString());
@@ -220,6 +227,23 @@ juce::WebBrowserComponent::Options SedefEditor::makeOptions()
             pm.step (a.isEmpty() ? 1 : static_cast<int> (a[0]));
         }));
     fn ("sedef_presets_init", presetCall ([] (PresetManager& pm, const auto&) { pm.loadInit(); }));
+    fn ("sedef_presets_snapshot", presetCall ([] (PresetManager& pm, const auto& a) {
+            if (const auto slot =
+                    PresetManager::slotFromString (a.isEmpty() ? juce::String() : a[0].toString()))
+                pm.snapshot (*slot);
+        }));
+    fn ("sedef_presets_restore", presetCall ([] (PresetManager& pm, const auto& a) {
+            if (const auto slot =
+                    PresetManager::slotFromString (a.isEmpty() ? juce::String() : a[0].toString()))
+                pm.restore (*slot);
+        }));
+    fn ("sedef_presets_compare", presetCall ([] (PresetManager& pm, const auto& a) {
+            const auto action = a.isEmpty() ? juce::String() : a[0].toString();
+            if (action == "switch")
+                pm.compareSwitch();
+            else if (action == "copy")
+                pm.compareCopy();
+        }));
     fn ("sedef_presets_revealFolder", [] (const juce::Array<juce::var>&, Completion done) {
         auto folder = PresetManager::userFolder();
         folder.createDirectory();
@@ -495,12 +519,93 @@ void SedefEditor::emitIrs()
 // -------------------------------------------------------------------------------------------------
 // UI smoke test
 
+namespace
+{
+/// Exercises the preset bridge the way the browser and A/B do, straight over JUCE's native
+/// function protocol, and leaves the outcome in window.__sedefSmokePresets. Auditions don't record
+/// Recent picks, so the test leaves the user's settings alone.
+constexpr const char* kSmokePresetScript = R"js((() => {
+  if (window.__sedefSmokePresetsStarted) return 'running';
+  window.__sedefSmokePresetsStarted = true;
+  const backend = window.__JUCE__.backend;
+  let nextId = 1000000; // far above the ids the UI's own bridge hands out
+  const call = (name, ...params) => new Promise((resolve, reject) => {
+    const resultId = nextId++;
+    const timer = setTimeout(() => reject(new Error(name + ' did not answer')), 10000);
+    const handle = backend.addEventListener('__juce__complete', (e) => {
+      if (!e || e.promiseId !== resultId) return;
+      clearTimeout(timer);
+      backend.removeEventListener(handle);
+      resolve(e.result);
+    });
+    backend.emitEvent('__juce__invoke', { name, params, resultId });
+  });
+  const values = async () => (await call('sedef_hello', 2)).values;
+  const differences = (a, b) => Object.keys(a).filter((k) => a[k] !== b[k]);
+  (async () => {
+    const hello = await call('sedef_hello', 2);
+    const before = hello.values;
+    const start = hello.presets;
+    await call('sedef_presets_snapshot', 'undo'); // the session as the host restored it
+
+    // The browser: audition a preset, then Esc back.
+    await call('sedef_presets_snapshot', 'browse');
+    const auditioned = await call('sedef_presets_load', 'factory:mariana', true);
+    const item = auditioned.items.find((p) => p.id === auditioned.currentId);
+    const metadata = !!item && item.amp === 2 && Array.isArray(item.blocks) &&
+      item.blocks.includes('gate') && typeof item.description === 'string';
+    const auditionChanged = differences(before, await values()).length;
+    const restored = await call('sedef_presets_restore', 'browse');
+    const restoreMismatches = differences(before, await values());
+    const restoredPreset = restored.currentId === start.currentId &&
+      restored.currentName === start.currentName && restored.dirty === start.dirty;
+
+    // Skewed ranges are where a normalised round trip can move a value by an ULP: restore from
+    // many random settings of them (a fixed LCG keeps runs comparable).
+    const skewed = hello.schema.filter((p) => p.kind === 'float' && p.skew !== 1);
+    let seed = 20261101;
+    const random = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+    const stressMismatches = [];
+    for (let round = 0; round < 24; ++round) {
+      for (const p of skewed) await call('sedef_setParam', p.id, p.min + (p.max - p.min) * random());
+      const set = await values();
+      await call('sedef_presets_snapshot', 'browse');
+      await call('sedef_presets_load', round % 2 ? 'factory:mariana' : 'factory:undertow', true);
+      await call('sedef_presets_restore', 'browse');
+      stressMismatches.push(...differences(set, await values()));
+    }
+    await call('sedef_presets_restore', 'undo');
+    const undoMismatches = differences(before, await values());
+
+    // A/B: B starts as A, gets another preset, and switching back brings A back exactly.
+    await call('sedef_presets_compare', 'switch');
+    await call('sedef_presets_load', 'factory:riptide', true);
+    const back = await call('sedef_presets_compare', 'switch');
+    const compareMismatches = differences(before, await values());
+    // Let the processor's 20 Hz timer mirror the preset into the state the host will read.
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    const compare = back.compare.active === 'A' && !!back.compare.other &&
+      back.compare.other.name === 'Riptide' && back.currentName === start.currentName;
+    const ok = metadata && auditionChanged > 0 && restoreMismatches.length === 0 &&
+      restoredPreset && stressMismatches.length === 0 && undoMismatches.length === 0 &&
+      compareMismatches.length === 0 && compare;
+    window.__sedefSmokePresets = { ok, metadata, auditionChanged, restoreMismatches,
+      restoredPreset, skewed: skewed.length, stressMismatches, undoMismatches, compareMismatches,
+      compare };
+  })().catch((error) => { window.__sedefSmokePresets = { ok: false, error: String(error) }; });
+  return 'started';
+})())js";
+} // namespace
+
 void SedefEditor::smokeTestTick()
 {
     if (++smokeTicks_ > kSmokeTimeoutTicks)
     {
-        finishSmokeTest (false, pageReady_ ? "The page called sedef_hello but never rendered"
-                                           : "The page never called sedef_hello");
+        if (smokePage_.isVoid())
+            finishSmokeTest (false, pageReady_ ? "The page called sedef_hello but never rendered"
+                                               : "The page never called sedef_hello");
+        else
+            finishSmokeTest (false, smokePage_, "The preset check never finished");
         return;
     }
     if (!pageReady_)
@@ -510,32 +615,64 @@ void SedefEditor::smokeTestTick()
     if (smokeEvaluating_ || smokeTicks_ - smokeReadyAt_ < kSmokeSettleTicks)
         return;
 
-    smokeEvaluating_ = true; // one evaluation; the callback (or the timeout) writes the result
-    const juce::String script =
-        "JSON.stringify({ controls: document.querySelectorAll('button, input, select, "
-        "[role=slider]').length, alerts: Array.from(document.querySelectorAll('[role=alert]'))"
-        ".map(e => e.textContent), title: document.title, "
-        "text: (document.body.innerText || '').slice(0, 160) })";
-    browser_->evaluateJavascript (script, [safe = juce::Component::SafePointer<SedefEditor> (
-                                               this)] (auto result) {
-        if (safe == nullptr)
-            return;
-        if (const auto* error = result.getError())
-        {
-            safe->finishSmokeTest (false, "JavaScript error: " + error->message);
-            return;
-        }
-        const auto* value = result.getResult();
-        const auto page = juce::JSON::parse (value != nullptr ? value->toString() : juce::String());
-        const int controls = page.getProperty ("controls", 0);
-        const auto* alerts = page.getProperty ("alerts", juce::var()).getArray();
-        // The editor shows dozens of knobs and switches; a handful means it failed to render.
-        // Any alert means the page fell back to an error message (bridge or render failure).
-        safe->finishSmokeTest (controls >= 20 && (alerts == nullptr || alerts->isEmpty()), page);
-    });
+    // One evaluation in flight at a time: the page check, then the preset check, then polls for
+    // its result. A JavaScript error ends the test.
+    smokeEvaluating_ = true;
+    const auto evaluate = [this] (const juce::String& script, auto onResult) {
+        browser_->evaluateJavascript (
+            script, [safe = juce::Component::SafePointer<SedefEditor> (this), onResult] (auto r) {
+                if (safe == nullptr)
+                    return;
+                safe->smokeEvaluating_ = false;
+                if (const auto* error = r.getError())
+                {
+                    safe->finishSmokeTest (false, safe->smokePage_,
+                                           "JavaScript error: " + error->message);
+                    return;
+                }
+                const auto* value = r.getResult();
+                onResult (*safe, value != nullptr ? value->toString() : juce::String());
+            });
+    };
+
+    if (smokePage_.isVoid())
+    {
+        evaluate (
+            "JSON.stringify({ controls: document.querySelectorAll('button, input, select, "
+            "[role=slider]').length, alerts: Array.from(document.querySelectorAll('[role=alert]'))"
+            ".map(e => e.textContent), title: document.title, "
+            "text: (document.body.innerText || '').slice(0, 160) })",
+            [] (SedefEditor& self, const juce::String& text) {
+                const auto page = juce::JSON::parse (text);
+                const int controls = page.getProperty ("controls", 0);
+                const auto* alerts = page.getProperty ("alerts", juce::var()).getArray();
+                // The editor shows dozens of knobs and switches; a handful means it failed to
+                // render. Any alert means the page fell back to an error message (bridge or
+                // render failure).
+                self.smokePageOk_ = controls >= 20 && (alerts == nullptr || alerts->isEmpty());
+                self.smokePage_ = page.isObject() ? page : juce::var (text);
+            });
+    }
+    else if (!smokePresetsStarted_)
+    {
+        evaluate (kSmokePresetScript, [] (SedefEditor& self, const juce::String&) {
+            self.smokePresetsStarted_ = true;
+        });
+    }
+    else
+    {
+        evaluate ("JSON.stringify(window.__sedefSmokePresets ?? null)",
+                  [] (SedefEditor& self, const juce::String& text) {
+                      const auto presets = juce::JSON::parse (text);
+                      if (presets.isObject())
+                          self.finishSmokeTest (self.smokePageOk_ &&
+                                                    static_cast<bool> (presets["ok"]),
+                                                self.smokePage_, presets);
+                  });
+    }
 }
 
-void SedefEditor::finishSmokeTest (bool ok, const juce::var& details)
+void SedefEditor::finishSmokeTest (bool ok, const juce::var& page, const juce::var& presets)
 {
     if (smokeDone_)
         return;
@@ -545,7 +682,8 @@ void SedefEditor::finishSmokeTest (bool ok, const juce::var& details)
     result->setProperty ("protocol", kProtocolVersion);
     result->setProperty ("wrapper",
                          juce::AudioProcessor::getWrapperTypeDescription (processor_.wrapperType));
-    result->setProperty ("page", details);
+    result->setProperty ("page", page);
+    result->setProperty ("presets", presets);
     smokeResult_.replaceWithText (juce::JSON::toString (juce::var (result)));
 
     if (processor_.isStandalone())

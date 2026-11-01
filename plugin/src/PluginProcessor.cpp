@@ -329,6 +329,9 @@ void SedefProcessor::setStateInformation (const void* data, int size)
         if (wrapperType == wrapperType_Undefined)
             updateHostDisplay (ChangeDetails().withParameterInfoChanged (true));
     }
+    // Snapshots the editor took (browser, undo, A/B) belong to the state just replaced. This only
+    // bumps an atomic; it comes after the values changed, so a snapshot taken meanwhile is dropped.
+    presets_.invalidateSnapshots();
 
     // This can run on any thread (Logic and AUHost restore AU state off the message thread), so
     // only lock-guarded and atomic members are written here; the preset manager is updated on the

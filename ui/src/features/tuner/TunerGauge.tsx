@@ -31,12 +31,28 @@ function tickPath(cents: number, inner: number, outer: number): string {
 const TICKS = Array.from({ length: 21 }, (_, i) => (i - 10) * 5);
 const CHROMATIC: GaugeTarget = { kind: 'chromatic' };
 
+/** Arc of the in-tune zone, ±cents around the centre of the dial. */
+function zonePath(cents: number): string {
+  const point = (c: number) => {
+    const a = ((c / 50) * SWEEP_DEG - 90) * (Math.PI / 180);
+    return `${(CX + Math.cos(a) * R).toFixed(1)} ${(CY + Math.sin(a) * R).toFixed(1)}`;
+  };
+  return `M${point(-cents)} A ${R} ${R} 0 0 1 ${point(cents)}`;
+}
+
 export function TunerGauge({
   target = CHROMATIC,
   compact = false,
+  inTuneCents = IN_TUNE_CENTS,
 }: {
   target?: GaugeTarget;
   compact?: boolean;
+  /**
+   * Readings within this many cents show as in tune: the band on the dial, the colour and what a
+   * screen reader hears. The tuner keeps its precision default; the intonation workbench passes
+   * the tolerance it accepts for the open string.
+   */
+  inTuneCents?: number;
 }) {
   const needleRef = useRef<SVGGElement>(null);
   const centsRef = useRef<HTMLSpanElement>(null);
@@ -53,7 +69,7 @@ export function TunerGauge({
   const state = useLiveSelector(pitch, (e) => {
     const c = centsFor(e, target);
     if (c === null) return 'idle';
-    if (Math.abs(c) <= IN_TUNE_CENTS) return 'in-tune';
+    if (Math.abs(c) <= inTuneCents) return 'in-tune';
     return c > 0 ? 'sharp' : 'flat';
   });
 
@@ -85,7 +101,7 @@ export function TunerGauge({
     const heard =
       cents === null || !e
         ? ''
-        : spokenReading(target.kind === 'target' ? target.midi : e.midiNote, cents);
+        : spokenReading(target.kind === 'target' ? target.midi : e.midiNote, cents, inTuneCents);
     s.heardFor = heard === s.heard ? s.heardFor + dt : 0;
     s.heard = heard;
     s.sinceAnnounced += dt;
@@ -114,10 +130,7 @@ export function TunerGauge({
         height={H}
         aria-hidden="true"
       >
-        <path
-          className={styles.zone}
-          d={`M${CX + Math.cos(((-IN_TUNE_CENTS / 50) * SWEEP_DEG - 90) * (Math.PI / 180)) * R} ${CY + Math.sin(((-IN_TUNE_CENTS / 50) * SWEEP_DEG - 90) * (Math.PI / 180)) * R} A ${R} ${R} 0 0 1 ${CX + Math.cos(((IN_TUNE_CENTS / 50) * SWEEP_DEG - 90) * (Math.PI / 180)) * R} ${CY + Math.sin(((IN_TUNE_CENTS / 50) * SWEEP_DEG - 90) * (Math.PI / 180)) * R}`}
-        />
+        <path className={styles.zone} d={zonePath(inTuneCents)} />
         {TICKS.map((c) => (
           <path
             key={c}

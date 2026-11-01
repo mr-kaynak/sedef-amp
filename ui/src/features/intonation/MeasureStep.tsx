@@ -4,10 +4,11 @@ import { useShallow } from 'zustand/react/shallow';
 import buttons from '../../controls/Button.module.css';
 import { Icon } from '../../controls/Icon';
 import { centsBetween, midiLabel } from '../../lib/music';
-import { pitch, useLiveFrame } from '../../state/live';
+import { pitch, useLiveFrame, useLiveSelector } from '../../state/live';
 import { TunerGauge } from '../tuner/TunerGauge';
 import { stringNumber } from './instruments';
 import { adjustmentFor, formatCents, formatMm, IN_TUNE_CENTS, VERDICT_TEXT } from './math';
+import { TUNE_TOLERANCE_CENTS } from './controller';
 import { ProgressRing } from './ProgressRing';
 import { SaddleDiagram } from './SaddleDiagram';
 import {
@@ -16,6 +17,7 @@ import {
   useIntonationStore,
   useScaleLength,
   useStringNotes,
+  type PluckStatus,
   type StringStep,
 } from './store';
 import styles from './Workbench.module.css';
@@ -46,13 +48,12 @@ function StepTrail({ step }: { step: StringStep }) {
   );
 }
 
-function HoldBar() {
-  const progress = useIntonationStore((s) => s.tuneProgress);
+function HoldBar({ progress }: { progress: number }) {
   return (
     <div
       className={styles.hold}
       role="progressbar"
-      aria-label="Holding in tune"
+      aria-label="Measuring the open string"
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={Math.round(progress * 100)}
@@ -62,16 +63,92 @@ function HoldBar() {
   );
 }
 
+/** "7.2 cents flat, tune up a little" */
+function offBy(cents: number): string {
+  const amount = `${Math.abs(cents).toFixed(1)} cents ${cents < 0 ? 'flat' : 'sharp'}`;
+  const way = cents < 0 ? 'up' : 'down';
+  return `${amount}, tune ${way}${Math.abs(cents) <= 15 ? ' a little' : ''}`;
+}
+
+/** While nothing is being measured: what the tuner hears, as guidance towards the target. */
+function ListeningText({ midi, missed }: { midi: number; missed: boolean }) {
+  const heard = useLiveSelector(pitch, (e) => (e?.valid ? e.midiNote : null));
+  if (heard === null) return <>Pluck the open string and let it ring.</>;
+  if (heard === midi) return <>{missed ? 'Pluck it again to measure.' : 'Listening…'}</>;
+  // A note or two away is this string out of tune; further is probably another string.
+  if (Math.abs(heard - midi) > 2) {
+    return (
+      <>
+        That&apos;s {midiLabel(heard)}, not {midiLabel(midi)}.
+      </>
+    );
+  }
+  return (
+    <>
+      That&apos;s {midiLabel(heard)}. Tune {heard < midi ? 'up' : 'down'} to {midiLabel(midi)}.
+    </>
+  );
+}
+
+function TuneProgress({ midi }: { midi: number }) {
+  const { pluck, progress, close, offer } = useIntonationStore(
+    useShallow((s) => ({
+      pluck: s.pluck,
+      progress: s.tuneProgress,
+      close: s.tuneClose,
+      offer: s.tuneOffer,
+    })),
+  );
+  // One live region for the measurement; the guidance below it follows every pluck and stays out
+  // of it.
+  const measuring = pluck === 'measuring';
+  const announced = offer
+    ? `${offBy(offer.cents)}.`
+    : measuring
+      ? close
+        ? 'Good enough, measuring…'
+        : 'Measuring…'
+      : '';
+  const state = offer ? 'offer' : measuring ? (close ? 'close' : 'off') : pluck;
+  return (
+    <div className={styles.tuneStatus} data-state={state}>
+      {!offer && <HoldBar progress={progress} />}
+      <p className={styles.tuneText} role="status">
+        {announced}
+      </p>
+      {offer ? (
+        <>
+          <button
+            type="button"
+            className={buttons.solid}
+            onClick={() => intonationActions.acceptTuning()}
+          >
+            Use this tuning
+          </button>
+          <p className={styles.small}>Or tune it and pluck again.</p>
+        </>
+      ) : (
+        !measuring && (
+          <p className={styles.tuneText}>
+            <ListeningText midi={midi} missed={pluck === 'missed'} />
+          </p>
+        )
+      )}
+    </div>
+  );
+}
+
 function TuneStep({ midi }: { midi: number }) {
   const target = useMemo(() => ({ kind: 'target' as const, midi }), [midi]);
   return (
     <div className={styles.tune}>
       <p className={styles.instruction}>
-        Play the open string and bring it to <strong>{midiLabel(midi)}</strong>. Hold it within one
-        cent for a second and the workbench moves on by itself.
+        Play the open string and tune it to <strong>{midiLabel(midi)}</strong>. Within{' '}
+        {TUNE_TOLERANCE_CENTS} cents is plenty: the 12th fret is checked against what the string
+        actually plays, so it doesn&apos;t have to be spot on.
       </p>
-      <TunerGauge target={target} compact />
-      <HoldBar />
+      <TunerGauge target={target} compact inTuneCents={TUNE_TOLERANCE_CENTS} />
+      <TuneProgress midi={midi} />
     </div>
   );
 }
@@ -92,15 +169,22 @@ function LiveOctaveError({ openHz }: { openHz: number }) {
   return <span ref={ref}>—</span>;
 }
 
+const RING_HINT: Record<PluckStatus, string> = {
+  listening: 'Listening',
+  measuring: 'Hold it…',
+  missed: 'Pluck again',
+};
+
 function CaptureRing({ midi, openHz }: { midi: number; openHz: number }) {
   const progress = useIntonationStore((s) => s.captureProgress);
+  const pluck = useIntonationStore((s) => s.pluck);
   return (
     <ProgressRing value={progress} label="Capturing the 12th-fret note" size={196}>
       <span className={styles.ringNote}>{midiLabel(midi + 12)}</span>
       <span className={styles.ringLive}>
         <LiveOctaveError openHz={openHz} />
       </span>
-      <span className={styles.ringHint}>{progress > 0 ? 'Hold it…' : 'Listening'}</span>
+      <span className={styles.ringHint}>{RING_HINT[pluck]}</span>
     </ProgressRing>
   );
 }
@@ -115,8 +199,8 @@ function FretStep({ midi, openHz }: { midi: number; openHz: number }) {
           would, right behind the fret, and pluck with the same strength as before.
         </p>
         <p className={styles.small}>
-          The open string read {openHz.toFixed(2)} Hz. The ring fills once the reading is steady; a
-          new pluck starts it again.
+          The open string read {openHz.toFixed(2)} Hz. The ring fills over a second while the note
+          rings; if the reading wavers, pluck again.
         </p>
         <button
           type="button"

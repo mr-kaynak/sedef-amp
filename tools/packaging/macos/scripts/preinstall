@@ -1,0 +1,20 @@
+#!/bin/sh
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Runs before each Sedef Amp component installs. Removes the bundle being replaced so files from
+# an older version can't linger inside it and break its code signature.
+# Installer passes the component's install location as $2.
+
+dest="${2:-}"
+case "$dest" in
+    */Applications | */Library/Audio/Plug-Ins/VST3 | */Library/Audio/Plug-Ins/Components | \
+        */Library/Audio/Plug-Ins/CLAP) ;;
+    *) exit 0 ;;
+esac
+
+for bundle in "Sedef Amp.app" "Sedef Amp.vst3" "Sedef Amp.component" "Sedef Amp.clap"; do
+    if [ -d "$dest/$bundle" ]; then
+        rm -rf "${dest:?}/$bundle"
+    fi
+done
+exit 0

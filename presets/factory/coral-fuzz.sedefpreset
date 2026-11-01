@@ -2,11 +2,14 @@
   "format": "sedef-preset",
   "version": 1,
   "name": "Coral Fuzz",
-  "folder": "Crunch",
+  "folder": "High Gain",
   "author": "Sedef",
   "tags": [
-    "distortion"
+    "distortion",
+    "rhythm",
+    "garage"
   ],
+  "description": "Hard-clipped distortion into a gritty amp. Raw, compressed garage riffs.",
   "parameters": {
     "ampModel": 1,
     "reefGain": 0.35,

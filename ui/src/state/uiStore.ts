@@ -13,7 +13,7 @@ export const SECTION_LABELS: Record<Section, string> = {
 };
 
 export type Overlay = 'tuner' | 'intonation' | null;
-export type Popover = 'presets' | 'settings' | 'metronome' | null;
+export type Popover = 'settings' | 'metronome' | null;
 export const SCALES = [0.75, 1, 1.25, 1.5, 2] as const;
 
 interface UiStore {

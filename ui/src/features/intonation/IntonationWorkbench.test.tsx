@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { pitchEvent } from '../../app/demoHook';
+import { pitch } from '../../state/live';
 import { setupMock, type Harness } from '../../test/harness';
 import { IntonationWorkbench } from './IntonationWorkbench';
 import { useIntonationStore, type StringResult } from './store';
@@ -41,7 +43,7 @@ describe('Intonation workbench', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Start measuring' }));
 
     expect(screen.getByText('String 6')).toBeInTheDocument();
-    expect(screen.getByText(/bring it to/)).toBeInTheDocument();
+    expect(screen.getByText(/tune it to/)).toBeInTheDocument();
 
     playUntil(() => useIntonationStore.getState().step === 'fret');
     expect(
@@ -61,6 +63,71 @@ describe('Intonation workbench', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Next string' }));
     playUntil(() => useIntonationStore.getState().step === 'result');
     expect(screen.getByText('In tune, leave the saddle where it is')).toBeInTheDocument();
+  }, 15_000); // a whole string through the simulated player; slow on a loaded machine
+
+  describe('tuning the open string', () => {
+    const startMeasuring = async (options: {
+      tuningOffsets: number[];
+      intonationErrors?: number[];
+    }) => {
+      h.dispose();
+      h = await setupMock({ intonationErrors: [1.5], ...options });
+      render(<IntonationWorkbench />);
+      fireEvent.click(screen.getByRole('radio', { name: /6-string, standard/ }));
+      fireEvent.click(screen.getByRole('button', { name: 'Start measuring' }));
+    };
+
+    it('moves on from a string that is close, though it never sits still', async () => {
+      await startMeasuring({ tuningOffsets: [2.5] });
+      playUntil(() => screen.queryByText('Good enough, measuring…') !== null);
+      expect(screen.getByText('Good enough, measuring…')).toBeInTheDocument();
+      // The gauge agrees: 2.5 cents sharp is inside its good-enough zone, not "sharp".
+      act(() => pitch.publish(pitchEvent(40, 2.5)));
+      expect(document.querySelector('[data-state="in-tune"]')).not.toBeNull();
+      expect(
+        screen.getByRole('progressbar', { name: 'Measuring the open string' }),
+      ).toBeInTheDocument();
+      playUntil(() => useIntonationStore.getState().step === 'fret');
+      expect(
+        screen.getByRole('progressbar', { name: 'Capturing the 12th-fret note' }),
+      ).toBeInTheDocument();
+    });
+
+    it('offers a string 8 cents flat as it is, and measures against it', async () => {
+      await startMeasuring({ tuningOffsets: [-8] });
+      playUntil(() => screen.queryByRole('button', { name: 'Use this tuning' }) !== null);
+      expect(screen.getByText(/^[89]\.\d cents flat, tune up a little\.$/)).toBeInTheDocument();
+      const offered = useIntonationStore.getState().tuneOffer?.hz;
+      fireEvent.click(screen.getByRole('button', { name: 'Use this tuning' }));
+      expect(useIntonationStore.getState().step).toBe('fret');
+      expect(useIntonationStore.getState().openHz).toBe(offered);
+      expect(
+        screen.getByText(new RegExp(`open string read ${offered?.toFixed(2)} Hz`)),
+      ).toBeInTheDocument();
+
+      playUntil(() => useIntonationStore.getState().step === 'result');
+      // The 1.5-cent error, measured against the string as it is rather than against E2.
+      expect(screen.getByLabelText('+1.5¢ cents')).toBeInTheDocument();
+    });
+
+    it('keeps guiding towards the note when the string is on the wrong one', async () => {
+      await startMeasuring({ tuningOffsets: [70] });
+      playUntil(() => false);
+      expect(useIntonationStore.getState().step).toBe('tune');
+      expect(screen.queryByRole('button', { name: 'Use this tuning' })).toBeNull();
+      expect(screen.getByText(/That's F2\. Tune down to E2\./)).toBeInTheDocument();
+    });
+
+    it('reports the octave against the open string as measured', async () => {
+      await startMeasuring({ tuningOffsets: [3], intonationErrors: [-2] });
+      playUntil(() => useIntonationStore.getState().step === 'result');
+      const r = useIntonationStore.getState().results[0];
+      expect(r?.openHz).toBeGreaterThan(82.45);
+      expect(
+        screen.getByText(new RegExp(`against an open ${r?.openHz.toFixed(2)} Hz`)),
+      ).toBeInTheDocument();
+      expect(screen.getByLabelText('\u22122.0¢ cents')).toBeInTheDocument();
+    });
   });
 
   it('summarises measured strings and offers re-measurement', () => {

@@ -104,7 +104,9 @@ every 5 ms hop:
   so it follows the slow flat drift of a decaying string with a lag of about
   0.36 s (half the span plus half the settled window). In the tests, two
   strings ringing together never reach the clarity for `stable`, so nothing is
-  captured from a mixture.
+  captured from a mixture. A string wobbling by a cent drops `stable` now and
+  then during its sustain; the intonation workbench needs it once per capture,
+  not throughout ([../intonation.md](../intonation.md)).
 - **Validity.** At least two detections in the median buffer, the latest
   within 50 cents of the median, and no gap over 3 hops. Readings near 50, 60,
   100 or 120 Hz below -40 dBFS are ignored as mains hum. None of these is
@@ -166,6 +168,12 @@ attack glide of +9 cents decaying with tau = 50 ms, a pick-noise burst and a
   the new string is read and nothing else; a legato change starts a new
   segment within 100 ms.
 - Arbitrary push block sizes, `reset`, re-`prepare` at another rate.
+- The intonation workbench end to end (`PitchIntonationTests.cpp`, tag `[intonation]`): open
+  strings and 12th-fret octaves with glide, +-1 cent of random wobble (`Wobble` in
+  `PitchTestSignals.h`), flat drift, decay, noise and hum, read at 60 Hz and captured with the
+  workbench's rule: every note stable by 0.8 s, every octave within 0.3 cent (0.6 cent with a
+  wobble as slow as 0.4 Hz). Hidden `[.report]` compares the rule with the previous one; see
+  [../intonation.md](../intonation.md).
 
 Measured (48 kHz; 44.1 and 96 kHz are within 0.01 cent):
 

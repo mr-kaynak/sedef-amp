@@ -5,9 +5,10 @@
   "folder": "Crunch",
   "author": "Sedef",
   "tags": [
-    "crunch",
-    "rhythm"
+    "rhythm",
+    "rock"
   ],
+  "description": "Thick, mid-forward crunch for chords and riffs.",
   "parameters": {
     "ampModel": 1,
     "reefVoice": 2,

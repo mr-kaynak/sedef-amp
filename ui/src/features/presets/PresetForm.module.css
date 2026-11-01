@@ -1,0 +1,252 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+.scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  justify-content: flex-end;
+  background: rgb(4 11 17 / 0.55);
+  animation: fade var(--dur-2) var(--ease-out);
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+.sheet {
+  width: 420px;
+  height: 100%;
+  overflow-y: auto;
+  background: linear-gradient(180deg, #13293a, #0d1f2c);
+  box-shadow:
+    -24px 0 60px -30px rgb(0 0 0 / 0.8),
+    inset 1px 0 0 var(--line-strong);
+  animation: slide var(--dur-2) var(--ease-out);
+}
+
+@keyframes slide {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px 24px 20px;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--t-18);
+  font-style: italic;
+  font-weight: 500;
+}
+
+.lede {
+  margin: -8px 0 0;
+  color: var(--bone-3);
+  font-size: var(--t-12);
+}
+
+.row {
+  display: flex;
+  gap: 12px;
+}
+
+.row > * {
+  flex: 1;
+  min-width: 0;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.label {
+  color: var(--bone-2);
+  font-size: var(--t-11);
+  font-stretch: var(--legend-stretch);
+}
+
+.labelRow {
+  display: flex;
+  justify-content: space-between;
+}
+
+.counter {
+  color: var(--bone-3);
+  font-size: var(--t-10);
+}
+
+.field input,
+.field select,
+.tagBox {
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-ctl);
+  background: var(--ink-0);
+  color: var(--bone);
+  font-size: var(--t-14);
+}
+
+.field select {
+  appearance: none;
+  padding-right: 28px;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%238f9b98' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6.5 8 10.5l4-4'/%3E%3C/svg%3E")
+      right 8px center / 14px no-repeat,
+    var(--ink-0);
+}
+
+.field input:focus,
+.field select:focus,
+.tagBox:focus-within {
+  border-color: rgb(205 238 238 / 0.5);
+}
+
+.field input:focus-visible,
+.field select:focus-visible {
+  box-shadow: 0 0 0 3px rgb(205 238 238 / 0.1);
+}
+
+.field input[aria-invalid='true'] {
+  border-color: rgb(233 199 125 / 0.55);
+}
+
+.field input::placeholder {
+  color: var(--bone-3);
+}
+
+.tagBox {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 6px;
+  cursor: text;
+}
+
+.tagBox input {
+  flex: 1;
+  min-width: 120px;
+  min-height: 22px;
+  padding: 0 4px;
+  border: none;
+  background: transparent;
+  font-size: var(--t-12);
+}
+
+.tagBox input:focus-visible {
+  box-shadow: none;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 22px;
+  padding: 0 2px 0 9px;
+  border-radius: 11px;
+  background: rgb(205 238 238 / 0.1);
+  box-shadow: inset 0 0 0 1px rgb(205 238 238 / 0.25);
+  color: var(--bone);
+  font-size: var(--t-11);
+}
+
+.tag button {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--bone-3);
+}
+
+.tag button:hover {
+  color: var(--bone);
+  background: rgb(237 230 214 / 0.1);
+}
+
+.suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.suggestion {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 9px 0 7px;
+  border: none;
+  border-radius: 11px;
+  background: rgb(237 230 214 / 0.04);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--bone-3);
+  font-size: var(--t-11);
+}
+
+.suggestion:hover {
+  color: var(--bone);
+  background: rgb(237 230 214 / 0.08);
+}
+
+.warn,
+.note,
+.error {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: -8px 0 0;
+  font-size: var(--t-12);
+}
+
+.warn {
+  padding: 8px 10px;
+  border-radius: var(--r-ctl);
+  background: rgb(233 199 125 / 0.08);
+  box-shadow: inset 0 0 0 1px rgb(233 199 125 / 0.3);
+  color: var(--amber);
+}
+
+.warn svg {
+  flex: none;
+  margin-top: 1px;
+}
+
+.warn span {
+  color: var(--bone);
+}
+
+.note {
+  color: var(--bone-3);
+}
+
+.error {
+  color: var(--coral);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.actions button {
+  height: 30px;
+  padding: 0 14px;
+  font-size: var(--t-12);
+}

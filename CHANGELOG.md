@@ -8,10 +8,43 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **Preset browser:** a panel over the rig with a library rail (all, favourites, recent, factory,
+  user), categories, tag chips, search across names, notes, tags, amps and blocks, and sorting by
+  name, recency or category. Rows show the amp, the switched-on chain, a one-line note, tags and
+  the author.
+- **Audition:** a click or the arrow keys play a preset while the browser stays open; Enter or a
+  double-click keeps it, and Esc restores exactly the sound you had when it opened, unsaved edits
+  included.
+- **Undo:** loading over unsaved edits (from the browser or prev/next) and deleting a user preset
+  offer Undo in a toast (also ⌘/Ctrl+Z).
+- **A/B compare** next to the preset bar, with copy between the slots and an edit marker per slot.
+- **Saving:** ⌘/Ctrl+S saves (Save as for factory presets), ⌘/Ctrl+Shift+S is Save as. Save as
+  takes a category (or a new one), tags with suggestions and an optional note, and warns inline
+  before replacing a preset.
+- Presets may carry a one-line `description`; every factory preset has one, and the factory
+  categories and tags follow one vocabulary (`presets/README.md`).
 - **Updates:** a daily check for new releases (one HTTPS request, version and OS only), an
   Updates panel with release notes, and one-click download that verifies the installer's SHA-256
   before opening it. Off in Settings, with `SEDEF_DISABLE_UPDATE_CHECK=1` or
   `-DSEDEF_UPDATE_CHECK=OFF` ([docs/updates.md](docs/updates.md)).
+
+### Changed
+
+- **Installers:** one download per OS with a stable name: a macOS disk image with an installer
+  (no more copying bundles or clearing quarantine flags), a Windows setup program and a Linux
+  archive with an install script. Each lets you pick the formats; the app now has an icon.
+- Bridge protocol 2: presets report their amp, cab, active blocks and description; Recent, A/B,
+  snapshots and undoing a delete are new native functions.
+- Factory presets: Mariana and Coral Fuzz moved to a new High Gain category, Morning Ritual to
+  Crunch. Sounds and levels are unchanged.
+
+### Fixed
+
+- **Intonation workbench:** the open-string step no longer waits for a reading held within one
+  cent for a second, which a real plucked string never gives. Within 5 cents it moves on by
+  itself; further off on the right note it says how far and offers **Use this tuning**. Both
+  notes are now captured the same way from one pluck (one second from 0.6 s after it), which also
+  fixes 12th-fret captures that restarted late on a wobbling note and read up to 1.5 cents off.
 
 ## [0.1.0] - 2026-11-01
 

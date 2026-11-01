@@ -5,9 +5,11 @@
   "folder": "Lead",
   "author": "Sedef",
   "tags": [
-    "lead",
-    "delay"
+    "delay",
+    "hall",
+    "solo"
   ],
+  "description": "Singing lead with a quarter-note echo and a little hall.",
   "parameters": {
     "ampModel": 2,
     "abyssGain": 0.6,

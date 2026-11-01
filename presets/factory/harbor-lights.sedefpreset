@@ -5,9 +5,10 @@
   "folder": "Crunch",
   "author": "Sedef",
   "tags": [
-    "crunch",
-    "slapback"
+    "slapback",
+    "rockabilly"
   ],
+  "description": "Mid-gain crunch with a tape slapback, for rockabilly and early rock.",
   "parameters": {
     "ampModel": 1,
     "reefGain": 0.55,

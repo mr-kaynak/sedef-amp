@@ -65,7 +65,9 @@ ui/src/
   controls/             Knob, VSlider, Footswitch, Toggle, Segmented, ChoiceLever, ChoiceSelect,
                         Led, Popover, Icon
   features/
-    header/             brand, preset bar + browser, gain + level meters
+    header/             brand, preset bar with A/B compare, gain + level meters
+    presets/            preset browser: library model, list, Save as/Rename, session (audition,
+                        Esc, Undo); see ui/presets.md
     pedals/ amp/ eq/ cab/ fx/
     tuner/              needle + strobe gauge, overlay
     intonation/         math.ts, store, controller, wizard steps, saddle diagram
@@ -155,6 +157,9 @@ tolerance. The mock starts on Nacre.
 - **Telemetry**: a player strumming every couple of seconds, shaped by input/output gain, the gate
   threshold and the compressor; metronome steps at the current tempo and signature; the effective
   Drift time for Free/Host/Tap sync.
+- **Presets**: the plugin's snapshots (`browse`, `undo`), A/B slots, Recent, undo of a delete,
+  save details and the per-preset `amp`/`cab`/`blocks` summary follow the same rules
+  (`mock/describePreset.ts` mirrors `PresetManager::describe`).
 - **Pitch**: a virtual player modelled on what the C++ `PitchTracker` reports
   (`docs/dsp/tuner.md`), at the editor's 60 Hz — plucks with an attack glide, a jittery reading,
   and settled detections at 200 per second from 0.25 s after the pluck whose last 0.4 s give
@@ -182,18 +187,19 @@ Design canvas: 1200 × 760 CSS px, scaled uniformly to the window (`app/Stage.ts
 resizes its window to the canvas times the chosen scale (75–200 %, `sedef_ui_setScale`); in a
 browser the canvas fits the window. Everything is vector or text, so it stays crisp at any scale.
 
-| Screen     | Notes                                                                                                                                                                                                                                    |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Header     | logo, preset bar (prev/next, dirty dot, browser with search, Factory/User/Favourites, save, save as, rename, delete, new), input/output gain with peak meters and clip latches, Tuner, Intonation, Metronome (standalone only), Settings |
-| Tabs       | Pedals · Amp · EQ · Cab · FX, keys 1–5 and arrow keys; each tab shows what is switched on inside it                                                                                                                                      |
-| Pedals     | Gate (threshold, open/closed lamp), Transpose, Tide/Pearl/Coral/Ripple enclosures with LEDs and footswitches, Tide gain reduction, Ripple rate lamp                                                                                      |
-| Amp        | Lagoon/Reef/Abyss faceplates; Reef 3-way voice lever; Abyss bright/shift levers; amp/cab link                                                                                                                                            |
-| EQ         | the current amp's bank: 9 faders on a log axis under a live response curve, low/high cut, on/off, flatten                                                                                                                                |
-| Cab        | cab picker (shows the link), speaker with draggable Mic A/B markers (sideways = position, up/down = distance ring), per-mic type for the current cab, level, pan, phase, room, custom IR load/clear                                      |
-| FX         | Drift (heads, Free/Host/Tap sync with tap button, time or note value, the effective time from telemetry, tape controls), Fathom (plate/hall with an envelope sketch), Doubler                                                            |
-| Tuner      | needle + strobe, note and octave, cents, Hz, reference 420–460 Hz, mute; in tune within ±1 cent                                                                                                                                          |
-| Intonation | instrument → measure each string (tune open, capture 12th fret, result with saddle diagram) → summary with copy as text                                                                                                                  |
-| Metronome  | play/stop, tempo knob + tap, signature, sound, volume, step grid (off/normal/accent/soft), live beat                                                                                                                                     |
+| Screen     | Notes                                                                                                                                                                                                              |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Header     | logo, preset bar (prev/next, name with dirty dot, A/B compare with copy), input/output gain with peak meters and clip latches, Tuner, Intonation, Metronome (standalone only), Settings                            |
+| Presets    | browser over the rig ([details](ui/presets.md)): library and category rail, tag chips, search, sort, rows with amp, chain and note; click or arrows audition, Enter keeps, Esc goes back exactly; Undo for deletes |
+| Tabs       | Pedals · Amp · EQ · Cab · FX, keys 1–5 and arrow keys; each tab shows what is switched on inside it                                                                                                                |
+| Pedals     | Gate (threshold, open/closed lamp), Transpose, Tide/Pearl/Coral/Ripple enclosures with LEDs and footswitches, Tide gain reduction, Ripple rate lamp                                                                |
+| Amp        | Lagoon/Reef/Abyss faceplates; Reef 3-way voice lever; Abyss bright/shift levers; amp/cab link                                                                                                                      |
+| EQ         | the current amp's bank: 9 faders on a log axis under a live response curve, low/high cut, on/off, flatten                                                                                                          |
+| Cab        | cab picker (shows the link), speaker with draggable Mic A/B markers (sideways = position, up/down = distance ring), per-mic type for the current cab, level, pan, phase, room, custom IR load/clear                |
+| FX         | Drift (heads, Free/Host/Tap sync with tap button, time or note value, the effective time from telemetry, tape controls), Fathom (plate/hall with an envelope sketch), Doubler                                      |
+| Tuner      | needle + strobe, note and octave, cents, Hz, reference 420–460 Hz, mute; in tune within ±1 cent                                                                                                                    |
+| Intonation | instrument → measure each string (tune open, capture 12th fret, result with saddle diagram) → summary with copy as text                                                                                            |
+| Metronome  | play/stop, tempo knob + tap, signature, sound, volume, step grid (off/normal/accent/soft), live beat                                                                                                               |
 | Updates    | header pill when a newer release is out; panel with versions, last check, Check now, the automatic-check switch, release notes, Download & install with progress and Cancel, Skip this version, Later ([updates.md](updates.md)) |
 
 ### EQ curve
@@ -247,8 +253,10 @@ something is alive.
 - **Accessibility**: every control is reachable by keyboard with a visible focus ring; knobs and
   faders are ARIA sliders with real values and readable `aria-valuetext`; arrows, Page Up/Down,
   Home/End, Delete (reset), shift for fine control. Radio groups have one tab stop and arrow,
-  Home and End keys (`controls/useRadioGroup.ts`). Opening and closing a form in the preset
-  browser keeps focus inside it. The tuner announces a settled reading ("E 2, in tune") through
+  Home and End keys (`controls/useRadioGroup.ts`). The preset browser has a full keyboard path
+  (`/` or ⌘/Ctrl+F to search, arrows to audition, Enter, Esc, F for favourite; see
+  [ui/presets.md](ui/presets.md)); digit keys never switch sections while you type or while it is
+  open, and toasts are a polite live region that never takes focus. The tuner announces a settled reading ("E 2, in tune") through
   a polite live region, at most every 2 s, rather than every pluck. Text meets WCAG AA (4.5:1):
   `--bone-3` is the quietest text colour (`--bone-4` is for lines and fills only), and the
   enclosure legends' dim tone is strong enough on every paint. `prefers-reduced-motion` disables

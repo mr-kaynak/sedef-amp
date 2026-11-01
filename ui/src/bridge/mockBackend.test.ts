@@ -112,6 +112,102 @@ describe('MockBackend', () => {
     expect(state.items.some((p) => p.id === 'factory:glass-pocket')).toBe(true);
   });
 
+  it('describes every preset: amp, cab and the switched-on chain with defaults applied', async () => {
+    mock = new MockBackend();
+    const { items } = await mock.call('sedef_presets_list');
+    const nacre = items.find((p) => p.id === 'factory:nacre');
+    expect(nacre).toMatchObject({ amp: 0, cab: 0 });
+    expect(nacre?.blocks).toEqual(['gate', 'tide', 'ripple', 'fathom']);
+    expect(nacre?.description).toMatch(/clean/i);
+    const mariana = items.find((p) => p.id === 'factory:mariana');
+    expect(mariana).toMatchObject({ amp: 2, cab: 2, folder: 'High Gain' });
+
+    // An EQ counts only when the amp's bank is on and shapes the sound.
+    await mock.call('sedef_presets_load', 'factory:brine');
+    await mock.call('sedef_setParam', 'eqReefBand5', 3);
+    let state = await mock.call('sedef_presets_save', 'Mids', '');
+    expect(state.items.find((p) => p.name === 'Mids')?.blocks).toContain('eq');
+    await mock.call('sedef_setParam', 'eqReefEnabled', 0);
+    state = await mock.call('sedef_presets_save', 'Mids', '');
+    expect(state.items.find((p) => p.name === 'Mids')?.blocks).not.toContain('eq');
+  });
+
+  it('restores a snapshot exactly, edits and dirty state included', async () => {
+    mock = new MockBackend();
+    await mock.call('sedef_setParam', 'lagoonVolume', 0.81);
+    await mock.call('sedef_setParam', 'rippleSpeed', 1.234567);
+    const before = (await mock.hello()).values;
+    await mock.call('sedef_presets_snapshot', 'browse');
+    await mock.call('sedef_presets_load', 'factory:mariana', true);
+    await mock.call('sedef_presets_load', 'factory:undertow', true);
+    await mock.call('sedef_setParam', 'inputGain', 4); // global: not part of a preset
+    const state = await mock.call('sedef_presets_restore', 'browse');
+    const after = (await mock.hello()).values;
+    expect({ ...after, inputGain: before.inputGain }).toEqual(before);
+    expect(after.inputGain).toBe(4);
+    expect(state).toMatchObject({ currentId: 'factory:nacre', currentName: 'Nacre', dirty: true });
+  });
+
+  it('counts picks, not auditions, as Recent', async () => {
+    mock = new MockBackend();
+    let state = await mock.call('sedef_presets_load', 'factory:riptide', true);
+    expect(state.recent).toEqual([]);
+    state = await mock.call('sedef_presets_step', 1);
+    expect(state.recent).toEqual([]);
+    state = await mock.call('sedef_presets_markRecent', 'factory:riptide');
+    expect(state.recent).toEqual(['factory:riptide']);
+    await mock.call('sedef_presets_load', 'factory:brine');
+    state = await mock.call('sedef_presets_load', 'factory:riptide');
+    expect(state.recent).toEqual(['factory:riptide', 'factory:brine']);
+  });
+
+  it('compares A and B, each with its own preset and edits', async () => {
+    mock = new MockBackend();
+    let state = await mock.call('sedef_presets_compare', 'switch');
+    // B starts as a copy of A.
+    expect(state.compare).toEqual({ active: 'B', other: { name: 'Nacre', dirty: false } });
+    expect(state.currentName).toBe('Nacre');
+    await mock.call('sedef_presets_load', 'factory:riptide');
+    await mock.call('sedef_setParam', 'abyssGain', 0.9);
+    state = await mock.call('sedef_presets_compare', 'switch');
+    expect(state).toMatchObject({ currentName: 'Nacre', dirty: false });
+    expect(state.compare).toEqual({ active: 'A', other: { name: 'Riptide', dirty: true } });
+    expect(mock.value('ampModel')).toBe(0);
+    state = await mock.call('sedef_presets_compare', 'switch');
+    expect(state).toMatchObject({ currentName: 'Riptide', dirty: true });
+    expect(mock.value('abyssGain')).toBe(0.9);
+    // Copy puts the live slot into the other one.
+    state = await mock.call('sedef_presets_compare', 'copy');
+    expect(state.compare).toEqual({ active: 'B', other: { name: 'Riptide', dirty: true } });
+  });
+
+  it('saves details, keeps them on a plain overwrite, and undoes a delete', async () => {
+    mock = new MockBackend();
+    let state = await mock.call('sedef_presets_save', 'Encore', 'Live', {
+      tags: [' Big ', 'big', 'LEAD', ''],
+      description: 'Line one\nline two',
+    });
+    const id = 'user:Live/Encore.sedefpreset';
+    expect(state.items.find((p) => p.id === id)).toMatchObject({
+      tags: ['big', 'lead'],
+      description: 'Line one line two',
+    });
+    expect(state.recent[0]).toBe(id);
+    await mock.call('sedef_setParam', 'lagoonVolume', 0.2);
+    state = await mock.call('sedef_presets_save', 'encore', 'Live');
+    expect(
+      state.items.filter((p) => p.folder === 'Live' && p.name.toLowerCase() === 'encore'),
+    ).toHaveLength(1);
+    expect(state.items.find((p) => p.id === id)?.tags).toEqual(['big', 'lead']);
+
+    state = await mock.call('sedef_presets_delete', id);
+    expect(state.items.some((p) => p.id === id)).toBe(false);
+    expect(state.currentId).toBeNull();
+    state = await mock.call('sedef_presets_undoDelete');
+    expect(state.items.some((p) => p.id === id)).toBe(true);
+    expect(state.currentId).toBe(id);
+  });
+
   it('steps through presets and wraps around', async () => {
     mock = new MockBackend({ initialPresetId: null });
     const first = await mock.call('sedef_presets_step', 1);
@@ -142,7 +238,7 @@ describe('MockBackend', () => {
   });
 
   it('simulates a 12th-fret capture with the configured error', async () => {
-    mock = new MockBackend({ intonationErrors: [4] });
+    mock = new MockBackend({ intonationErrors: [4], tuningOffsets: [0] });
     await mock.call('sedef_tuner_setActive', true);
     mock.simulator.setIntent({ kind: 'fret', midi: 52, stringIndex: 0 });
     let last: PitchEvent | null = null;
@@ -151,7 +247,10 @@ describe('MockBackend', () => {
     const e = last as PitchEvent | null;
     expect(e?.stable).toBe(true);
     const target = 440 * Math.pow(2, (52 - 69) / 12);
-    expect(1200 * Math.log2((e?.stableHz ?? 0) / target)).toBeCloseTo(4, 0);
+    // 4 cents, less the slow flat sag of a note 1.3 s after the pluck.
+    const cents = 1200 * Math.log2((e?.stableHz ?? 0) / target);
+    expect(cents).toBeGreaterThan(3);
+    expect(cents).toBeLessThan(4.2);
   });
 
   it('produces telemetry including the effective Drift time', () => {

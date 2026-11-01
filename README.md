@@ -29,10 +29,22 @@ around them.
 | **EQ** | 9-band graphic EQ with low/high cut, one bank per amp |
 | **Post** | **Drift** multi-head tape echo with wow, flutter and tape saturation · **Fathom** plate and hall reverbs · double-tracking **Doubler** |
 | **Tools** | precision tuner · **intonation workbench** · metronome with odd meters (standalone) |
+| **Presets** | browser with categories, tags and search · click to audition, Esc to go back · A/B compare · Undo when a load or delete would lose work |
 
 <img src="docs/images/amp.png" alt="The amp section" width="100%">
 
 <img src="docs/images/cab.png" alt="Cab section with movable microphones" width="49%"> <img src="docs/images/fx.png" alt="Tape echo and reverb" width="49%">
+
+## Presets
+
+Click a preset and it plays at once, while the browser stays open; the arrow keys walk the list
+the same way. Enter keeps it. Esc puts back exactly what you had when you opened the browser,
+unsaved tweaks included. Every row tells you the amp, the chain that's switched on, a line about
+the sound and its tags, so you can read a rig before you hear it. Compare two versions with A/B,
+save your own with a category, tags and a note, and never lose edits: loads and deletes come with
+Undo. See [docs/ui/presets.md](docs/ui/presets.md) for the design.
+
+<img src="docs/images/presets.png" alt="Preset browser with library, categories, tags and rows showing each preset's amp and signal chain" width="100%">
 
 ## The intonation workbench
 
@@ -52,18 +64,26 @@ See [docs/intonation.md](docs/intonation.md) for the method and its limits.
 
 ## Install
 
-Download the zip for your OS from [Releases](https://github.com/mr-kaynak/sedef-amp/releases)
-and copy the formats you use:
+### [Download for macOS](https://github.com/mr-kaynak/sedef-amp/releases/latest/download/Sedef-Amp-macOS.dmg)
 
-| OS | VST3 | AU | CLAP |
-|---|---|---|---|
-| macOS | `~/Library/Audio/Plug-Ins/VST3` | `~/Library/Audio/Plug-Ins/Components` | `~/Library/Audio/Plug-Ins/CLAP` |
-| Windows | `C:\Program Files\Common Files\VST3` | — | `C:\Program Files\Common Files\CLAP` |
-| Linux | `~/.vst3` | — | `~/.clap` |
+macOS 11 or later, Apple silicon and Intel. Open the disk image and double-click
+**Install Sedef Amp**. The installer isn't notarized yet, so the first time macOS stops it: open
+**System Settings → Privacy & Security** and click **Open Anyway**.
 
-Builds are not notarized yet, so macOS quarantines them after download. Clear the flag once:
-`xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/"Sedef Amp.vst3"` (and the same for
-the AU, CLAP and app). Details for every OS are in [docs/install.md](docs/install.md).
+### [Download for Windows](https://github.com/mr-kaynak/sedef-amp/releases/latest/download/Sedef-Amp-Windows-Setup.exe)
+
+Windows 10 or 11, x64. Run the installer. If SmartScreen says *Windows protected your PC*, click
+**More info**, then **Run anyway** (the installer isn't code-signed yet).
+
+### [Download for Linux](https://github.com/mr-kaynak/sedef-amp/releases/latest/download/Sedef-Amp-Linux-x86_64.tar.gz)
+
+x86_64 with WebKitGTK 4.1. Unpack the archive and run `./install.sh` (add `--system` to install
+for every user).
+
+Each installer lets you pick VST3, CLAP and the standalone app, plus AU on macOS. Rescan plugins in
+your DAW afterwards; Sedef shows up as **Sedef Amp** by **Sedef**. Install paths, uninstalling and
+manual installs are in [docs/install.md](docs/install.md); older versions are on the
+[releases page](https://github.com/mr-kaynak/sedef-amp/releases).
 
 ## Build from source
 

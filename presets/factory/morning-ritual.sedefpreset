@@ -2,12 +2,14 @@
   "format": "sedef-preset",
   "version": 1,
   "name": "Morning Ritual",
-  "folder": "Clean",
+  "folder": "Crunch",
   "author": "Sedef",
   "tags": [
     "edge of breakup",
-    "overdrive"
+    "overdrive",
+    "blues"
   ],
+  "description": "Edge of breakup: dig in for grit, roll the volume back to clean up.",
   "parameters": {
     "ampModel": 0,
     "micAPosition": 0.4,

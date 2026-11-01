@@ -2,7 +2,7 @@
 // The preset browser's model, as pure functions: which presets a library view holds, the
 // categories and tags it offers, search, sorting, and the signal-chain summary of a row.
 import type { PresetBlock, PresetInfo } from '../../bridge/protocol';
-import { AMP_NAMES } from '../../params/schema';
+import { AMP_NAMES, bundledSchema } from '../../params/schema';
 
 export type Library = 'all' | 'favorites' | 'recent' | 'factory' | 'user';
 export type SortKey = 'name' | 'recent' | 'category';
@@ -114,8 +114,10 @@ export const BLOCK_LABELS: Record<PresetBlock, string> = {
   fathom: 'Fathom',
 };
 
-/** Short cab names, in cabModel order. */
-export const CAB_LABELS = ['1x12', '2x12', '4x12'] as const;
+/** Cab names in cabModel order ("1x12 Open Back"…), and their short form ("1x12"). */
+export const CAB_NAMES: readonly string[] = bundledSchema.find((s) => s.id === 'cabModel')
+  ?.choices ?? ['1x12', '2x12', '4x12'];
+export const CAB_LABELS: readonly string[] = CAB_NAMES.map((c) => c.split(' ')[0] ?? c);
 
 const PRE_AMP: readonly PresetBlock[] = ['tide', 'pearl', 'coral', 'ripple'];
 
@@ -143,6 +145,23 @@ export function chainParts(p: Pick<PresetInfo, 'amp' | 'cab' | 'blocks'>): Chain
     { kind: 'amp', label: ampName(p), detail: CAB_LABELS[p.cab] ?? '' },
     ...post.map(block),
   ];
+}
+
+/** The chain as the detail pane lists it: pedals, amp, cab, then EQ and effects. */
+export function chainGroups(p: Pick<PresetInfo, 'amp' | 'cab' | 'blocks'>): {
+  pedals: string[];
+  amp: string;
+  cab: string;
+  fx: string[];
+} {
+  const parts = chainParts(p);
+  const at = parts.findIndex((part) => part.kind === 'amp');
+  return {
+    pedals: parts.slice(0, at).map((part) => part.label),
+    amp: ampName(p),
+    cab: CAB_NAMES[p.cab] ?? '',
+    fx: parts.slice(at + 1).map((part) => part.label),
+  };
 }
 
 /** "Tide → Pearl → Reef 2x12 → Drift → Fathom" */

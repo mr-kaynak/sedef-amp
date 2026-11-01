@@ -1,6 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { useEffect } from 'react';
-import { presetBrowser, saveCurrent, useBrowserStore } from '../features/presets/session';
+import {
+  compareSwitch,
+  presetBrowser,
+  saveCurrent,
+  stepPreset,
+  useBrowserStore,
+} from '../features/presets/session';
+import { usePresetStore } from '../state/presetStore';
 import { runToastAction } from '../state/toastStore';
 import { SECTIONS, uiActions, useUiStore } from '../state/uiStore';
 
@@ -10,10 +17,12 @@ function isTyping(target: EventTarget | null): boolean {
 }
 
 /**
- * Global keys. ⌘/Ctrl+S saves (Save as for factory presets), ⌘/Ctrl+Shift+S is Save as, / and
- * ⌘/Ctrl+F search presets, ⌘/Ctrl+Z runs a toast's Undo. Without modifiers and outside text
- * fields, 1–5 switch sections (not while the preset browser covers them), and Escape closes the
- * open popover, then the open overlay. The browser handles its own Escape.
+ * Global keys (listed for people in shortcuts.ts). ⌘/Ctrl+S saves (Save as for factory presets),
+ * ⌘/Ctrl+Shift+S is Save as, / and ⌘/Ctrl+F search presets, ⌘/Ctrl+Z runs a toast's Undo.
+ * Without modifiers and never while a text field has focus: P opens or closes the preset browser,
+ * [ and ] step presets, A and B pick the compare slot, 1–5 switch sections (not while the browser
+ * covers them), and Escape closes the open popover, then the open overlay. The browser handles
+ * its own Escape.
  */
 export function useShortcuts(): void {
   useEffect(() => {
@@ -38,10 +47,29 @@ export function useShortcuts(): void {
       }
 
       if (typing) return;
-      if (e.key === '/') {
+      const preset = (action: () => void) => {
         e.preventDefault();
-        presetBrowser.open('list', { focusSearch: true });
-        return;
+        action();
+      };
+      switch (e.key) {
+        case '/':
+          return preset(() => presetBrowser.open('list', { focusSearch: true }));
+        case 'p':
+        case 'P':
+          return preset(() => presetBrowser.toggle());
+        case '[':
+          return preset(() => void stepPreset(-1));
+        case ']':
+          return preset(() => void stepPreset(1));
+        case 'a':
+        case 'A':
+        case 'b':
+        case 'B': {
+          const slot = key.toUpperCase();
+          return preset(() => {
+            if (usePresetStore.getState().state.compare.active !== slot) void compareSwitch();
+          });
+        }
       }
       const index = Number(e.key) - 1;
       const section = SECTIONS[index];

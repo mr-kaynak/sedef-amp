@@ -6,6 +6,7 @@ import {
   allTags,
   browse,
   categoryFacets,
+  chainGroups,
   chainText,
   DEFAULT_FILTER,
   libraryCounts,
@@ -125,5 +126,16 @@ describe('preset library', () => {
       chainText(preset({ amp: 1, cab: 1, blocks: ['gate', 'pearl', 'coral', 'eq', 'drift'] })),
     ).toBe('Pearl → Coral → Reef 2x12 → EQ → Drift');
     expect(chainText(preset({ amp: 2, cab: 0, blocks: [] }))).toBe('Abyss 1x12');
+  });
+
+  it('groups the chain for the detail pane', () => {
+    expect(
+      chainGroups(preset({ amp: 1, cab: 2, blocks: ['gate', 'pearl', 'eq', 'drift'] })),
+    ).toEqual({
+      pedals: ['Pearl'],
+      amp: 'Reef',
+      cab: '4x12 Closed Back',
+      fx: ['EQ', 'Drift'],
+    });
   });
 });

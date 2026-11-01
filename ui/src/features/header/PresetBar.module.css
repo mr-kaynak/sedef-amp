@@ -54,10 +54,25 @@
 }
 
 .where {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   color: var(--bone-3);
   font-size: var(--t-10);
   font-stretch: 112%;
   line-height: 1;
+}
+
+.category {
+  height: 14px;
+  padding: 0 5px;
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  color: var(--bone-2);
+  font-size: var(--t-10);
+  font-stretch: var(--legend-stretch);
+  font-weight: 560;
+  line-height: 14px;
 }
 
 .nameRow {
@@ -100,10 +115,10 @@
 
 /* A/B compare --------------------------------------------------------------------------------- */
 
-.compare {
+.tools {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 3px;
   height: 42px;
   padding: 0 5px;
   border-radius: var(--r-panel);
@@ -111,6 +126,42 @@
   box-shadow:
     inset 0 1px 3px rgb(0 0 0 / 0.6),
     0 1px 0 rgb(255 255 255 / 0.05);
+}
+
+.compare {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.rule {
+  width: 1px;
+  height: 20px;
+  background: var(--line);
+}
+
+.save {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--r-ctl);
+  background: transparent;
+  color: var(--bone-3);
+  transition:
+    color var(--dur-1),
+    background var(--dur-1);
+}
+
+.save:hover {
+  color: var(--bone);
+  background: rgb(237 230 214 / 0.06);
+}
+
+/* Unsaved edits: the save button picks up the dirty dot's amber. */
+.save[data-dirty] {
+  color: var(--amber);
 }
 
 .slots {

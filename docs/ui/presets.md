@@ -23,6 +23,10 @@ We studied a few well-liked libraries for interaction patterns only (no code or 
   [choose a patch](https://support.apple.com/guide/garageband/gbndbd9d9b33/mac))
 - Plugin preset browsers in general: star favourites, tag filters, an A/B compare pair in the
   header, and a "back to where I was" when browsing goes nowhere.
+- A separate prototype exploration of this UI (built from our own screenshots) contributed the
+  three-pane layout with a detail pane, the hint that teaches auditioning, `#tag` rows, a
+  "playing" lamp on the loaded row, single-key shortcuts and Save beside the preset bar. We kept
+  our own palette, type and hardware language.
 
 ## What we adopted, and why
 
@@ -46,14 +50,27 @@ stores one folder per user preset).
 
 ### Opening and closing
 
-- Open: click the preset name, press `/` or ⌘/Ctrl+F (focus goes to search), or ⌘/Ctrl+S on a
-  factory preset (opens straight into Save as). On open the plugin takes a **browse snapshot**.
-- The panel covers the section tabs and the rig (they are `inert` while it is open). The current
-  preset starts in the middle of the list, highlighted with a nacre edge and "Playing".
-- **Keep** (close and keep what plays): Enter, double-click a row, **Done**, clicking the preset
-  name again, or opening the tuner or intonation workbench.
-- **Back** (close and restore the browse snapshot): Esc or the "Back to …" button in the footer.
-  If nothing was auditioned, it just closes. A toast confirms "Back to Nacre".
+- Open: click the preset name or press `P`, press `/` or ⌘/Ctrl+F (focus goes to search), or
+  ⌘/Ctrl+S on a factory preset (opens straight into Save as). On open the plugin takes a
+  **browse snapshot**.
+- The panel covers the section tabs and the rig (they are `inert` while it is open):
+  - left, the rail: the title, Library and Categories with counts;
+  - centre, search (its placeholder teaches "↑↓ audition · ↵ keep") and sort, tag chips with
+    "Clear filters", the count, and the list; the current preset starts in the middle,
+    highlighted with a nacre edge and a lit "Playing" lamp ("· edited" in amber when dirty);
+  - right, the detail pane for the highlighted preset: "Category · Author", the name in Bodoni
+    italic, Playing and Factory/User, the note, the chain as a definition list (Pedals, Amp, Cab,
+    FX), tags (a click filters by that tag), the favourite toggle, and at the bottom **Use &
+    close** (or **Load preset** when it is not the one playing), Save, Save as…, and for your
+    own presets Rename and Delete;
+  - the footer: a hint box, "Click or ↑↓ to audition — the browser stays open. Esc returns to
+    Nacre", where the Esc part is itself the Back button; New; the preset folder (plugin only);
+    and **Shortcuts**, which lists every key.
+- **Keep** (close and keep what plays): Enter, double-click a row, **Use & close**, `P` or a click
+  on the preset name, or opening the tuner or intonation workbench.
+- **Back** (close and restore the browse snapshot): Esc or the Esc button in the hint. If nothing
+  was auditioned, it just closes. A toast confirms "Back to Nacre". With the shortcut list open,
+  Esc closes the list first.
 - If the sound you opened on had unsaved edits and you keep something else, a toast says
   "Loaded Riptide" with **Undo**, which restores the browse snapshot, edits included.
 
@@ -91,6 +108,13 @@ With the browser closed, prev/next on an edited sound keep an **undo snapshot** 
 - **Recent** holds presets you _picked_: kept from the browser, loaded directly or saved. Auditions
   and prev/next steps don't count. It lives next to the favourites in `settings.json` (12 at
   most), so it spans sessions and plugin instances.
+
+### The preset bar
+
+Previous and next, then the preset: a category chip and Factory/User (or "Unsaved") above the
+name and its amber dirty dot. Next to it, one inset group holds the A/B slots, the copy button
+and **Save** (the floppy icon turns amber while there are unsaved edits; for a factory preset it
+opens Save as).
 
 ### A/B compare
 
@@ -144,11 +168,12 @@ every value exactly, and the saved state must not change (`plugin/smoke/HostSmok
 
 ### Accessibility
 
-- The browser is a labelled dialog; the rail is two radio groups; tag chips are toggle buttons;
+- The browser is a labelled dialog; the rail is two radio groups; the detail pane is a labelled
+  complementary region whose chain is a definition list; tag chips are toggle buttons;
   the list is a listbox whose options carry the whole row as their name ("Nacre, playing. Tide →
   Ripple → Lagoon 1x12 → Fathom. Glassy, lightly squeezed clean… Factory Clean. tags chorus,
   compressor, plate"). Rows hold no focusable controls; the star is a mouse shortcut for F and
-  for the footer's Favourite button.
+  for the detail pane's favourite button.
 - A/B is a radio group (arrow keys switch) with the slot's preset and edit state in its name.
 - Toasts are a polite live region, never take focus, stay 8 s (4 s without an action) and pause
   while hovered or focused.

@@ -1,0 +1,58 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+.anchor {
+  position: relative;
+}
+
+.panel {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 10px);
+  z-index: 3;
+  width: 360px;
+  padding: 14px 16px 6px;
+  border-radius: var(--r-pop);
+  background: linear-gradient(180deg, #13293a, #0d1f2c);
+  box-shadow: var(--shadow-pop);
+  animation: rise var(--dur-2) var(--ease-out);
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+.heading {
+  margin: 0 0 6px;
+  color: var(--bone-3);
+  font-size: var(--t-10);
+  font-stretch: var(--legend-stretch);
+  font-weight: 560;
+  letter-spacing: 0.04em;
+}
+
+.list {
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  gap: 6px 12px;
+  align-items: center;
+  margin: 0 0 12px;
+  font-size: var(--t-12);
+}
+
+.list dt {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.list dd {
+  margin: 0;
+  color: var(--bone-2);
+}
+
+.or {
+  color: var(--bone-4);
+  font-size: var(--t-10);
+}

@@ -346,6 +346,92 @@ describe('PresetBrowser', () => {
     expect(useUiStore.getState().section).toBe('eq');
   });
 
+  it('details the highlighted preset: chain by stage, tags that filter, and its actions', async () => {
+    render(<Shell />);
+    await openBrowser();
+    const pane = within(screen.getByRole('complementary', { name: 'Preset details' }));
+    expect(pane.getByRole('heading', { name: 'Nacre' })).toBeInTheDocument();
+    expect(pane.getByText('Clean · Sedef')).toBeInTheDocument();
+    const chain = Object.fromEntries(
+      pane.getAllByRole('term').map((t) => [t.textContent, t.nextElementSibling?.textContent]),
+    );
+    expect(chain).toEqual({
+      Pedals: 'Tide → Ripple',
+      Amp: 'Lagoon',
+      Cab: '1x12 Open Back',
+      FX: 'Fathom',
+    });
+    // Factory presets can be saved as a copy, not renamed or deleted.
+    expect(pane.getByRole('button', { name: 'Save as…' })).toBeInTheDocument();
+    expect(pane.queryByRole('button', { name: 'Delete' })).toBeNull();
+
+    fireEvent.click(pane.getByRole('button', { name: 'plate', pressed: false }));
+    expect(useBrowserStore.getState().filter.tags).toEqual(['plate']);
+
+    fireEvent.click(option('Tidewater'));
+    await settle();
+    expect(pane.getByRole('heading', { name: 'Tidewater' })).toBeInTheDocument();
+    fireEvent.click(pane.getByRole('button', { name: /^Use & close/ }));
+    await settle();
+    expect(dialog()).toBeNull();
+    expect(presets().currentName).toBe('Tidewater');
+  });
+
+  it('has single-key shortcuts that never fire while typing, and lists them', async () => {
+    render(<Shell />);
+    const key = (k: string, target: Element | Window = window) =>
+      fireEvent.keyDown(target, { key: k });
+
+    key(']');
+    await settle();
+    expect(presets().currentName).toBe('Tidewater');
+    key('[');
+    await settle();
+    expect(presets().currentName).toBe('Nacre');
+
+    key('b');
+    await settle();
+    expect(presets().compare.active).toBe('B');
+    key('a');
+    await settle();
+    expect(presets().compare.active).toBe('A');
+
+    key('p');
+    await settle();
+    expect(dialog()).toBeInTheDocument();
+    for (const k of ['p', '[', ']', 'b', '3']) key(k, search());
+    await settle();
+    expect(dialog()).toBeInTheDocument();
+    expect(presets()).toMatchObject({ currentName: 'Nacre', compare: { active: 'A' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Shortcuts' }));
+    const list = within(screen.getByRole('group', { name: 'Shortcuts' }));
+    expect(list.getByText('Previous or next preset')).toBeInTheDocument();
+    expect(list.getByText('Compare slot A or B')).toBeInTheDocument();
+    // Esc closes the list first, then the browser.
+    fireEvent.keyDown(search(), { key: 'Escape' });
+    expect(screen.queryByRole('group', { name: 'Shortcuts' })).toBeNull();
+    expect(dialog()).toBeInTheDocument();
+    key('p', screen.getByRole('listbox', { name: 'Presets' }));
+    expect(dialog()).toBeNull();
+  });
+
+  it('saves from the header: Save as for a factory preset, in place for a user one', async () => {
+    const save = vi.spyOn(presetActions, 'save');
+    render(<Shell />);
+    expect(screen.getByRole('button', { name: /Open preset browser/ })).toHaveTextContent(
+      /^Clean\s*Factory/,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Save as a user preset' }));
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveFocus();
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Name' }), { key: 'Escape' });
+
+    await act(() => presetActions.load(SUNDAY));
+    fireEvent.click(screen.getByRole('button', { name: 'Save Sunday set' }));
+    await settle();
+    expect(save).toHaveBeenCalledWith('Sunday set', 'Live');
+  });
+
   it('keeps focus inside the browser when it switches between the list and a form', async () => {
     render(<Shell />);
     await openBrowser();

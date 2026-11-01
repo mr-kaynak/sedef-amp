@@ -130,6 +130,12 @@ the film uses: `logo.svg` (the star), `wordmark.svg`, `lockup.svg` and the bundl
 The shots are gitignored (`media/trailer/.gitignore`), so run the command before previewing or
 rendering. They are the only product images in the film.
 
+When the UI changes, retake the shots and check every scene that aims at a control. The header
+scene (`compositions/header.html`) places the nacre disc over the Output knob's cap and lands the
+cursor on the Intonation button by canvas coordinates; for 0.2.0, which added the A/B group to the
+header, both were re-measured from the built UI's DOM (`getBoundingClientRect` of the Output Gain
+slider and the Intonation button) and the film was rendered again with the same voice and music.
+
 ## Scenes and camera
 
 `media/trailer/index.html` holds nine scene hosts, the voice, the music and the effects. Each scene

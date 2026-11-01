@@ -5,6 +5,7 @@
 #include "sedef/core/Math.h"
 #include "sedef/core/Random.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <vector>
@@ -17,13 +18,50 @@ inline double centsError (double hz, double refHz)
     return 1200.0 * std::log2 (hz / refHz);
 }
 
+/// Slow random pitch movement of a real string: fretting pressure, the neck flexing under the
+/// player's arm, the body moving. A few sinusoids with log-uniform rates between `minHz` and
+/// `maxHz` and random phases, scaled so that the largest excursion over `spanSeconds` is exactly
+/// `peakCents`. A default-constructed Wobble is zero.
+struct Wobble
+{
+    static constexpr int kComponents = 5;
+    double hz[kComponents] {}, phase[kComponents] {}, amp[kComponents] {};
+
+    Wobble() = default;
+    Wobble (double peakCents, std::uint32_t seed, double minHz = 0.4, double maxHz = 8.0,
+            double spanSeconds = 3.0)
+    {
+        Random rng (seed * 7919u + 13u);
+        for (int k = 0; k < kComponents; ++k)
+        {
+            hz[k] = minHz * std::pow (maxHz / minHz, static_cast<double> (rng.unipolar()));
+            phase[k] = kTwoPiD * rng.unipolar();
+            amp[k] = 1.0;
+        }
+        double peak = 0.0;
+        for (double t = 0.0; t < spanSeconds; t += 1.0e-3)
+            peak = std::max (peak, std::abs (centsAt (t)));
+        for (auto& a : amp)
+            a *= peak > 0.0 ? peakCents / peak : 0.0;
+    }
+
+    double centsAt (double t) const
+    {
+        double c = 0.0;
+        for (int k = 0; k < kComponents; ++k)
+            c += amp[k] * std::sin (kTwoPiD * hz[k] * t + phase[k]);
+        return c;
+    }
+};
+
 /// Additive model of a plucked, slightly stiff string; just enough physics for the tuner tests.
 /// - Partial n sits at n f1 sqrt ((1 + B n^2) / (1 + B)): the fundamental partial is exactly f1
 ///   (the "true pitch") and the upper partials are stretched sharp by the stiffness B.
 /// - Amplitudes sin (n pi p) / n for a pluck at fraction p of the length (velocity pickup).
 /// - Exponential decay, faster for higher partials.
 /// - Attack glide: every partial starts `glideCents` sharp, decaying with `glideTau` (the tension
-///   of a large displacement), plus an optional slow drift during the sustain.
+///   of a large displacement), plus an optional slow drift during the sustain and an optional
+///   random wobble.
 /// - A short pick-noise burst. Background noise is added separately (addNoise).
 struct Pluck
 {
@@ -34,6 +72,7 @@ struct Pluck
     double glideCents = 8.0;
     double glideTau = 0.05; ///< the glide is gone (< 0.5 cent) about 150 ms after the pick
     double driftCentsPerSecond = 0.0;
+    Wobble wobble; ///< none by default
     float peak = 0.3f;
     float pickNoise = 0.05f;
     double maxPartialHz = 7000.0;
@@ -43,7 +82,8 @@ struct Pluck
     /// Instantaneous frequency of the fundamental partial t seconds after the pick.
     double hzAt (double t) const
     {
-        return f1 * std::exp2 ((glideCents * std::exp (-t / glideTau) + driftCentsPerSecond * t) /
+        return f1 * std::exp2 ((glideCents * std::exp (-t / glideTau) + driftCentsPerSecond * t +
+                                wobble.centsAt (t)) /
                                1200.0);
     }
 };

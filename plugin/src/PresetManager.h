@@ -71,6 +71,8 @@ public:
     void invalidateSnapshots() noexcept { generation_.fetch_add (1); }
 
     bool isDirty() const;
+    /// The browser's view of the library. Each call carries a higher "revision", so the editor
+    /// can drop an answer that arrives after a newer broadcast.
     juce::var stateAsVar();
 
     juce::String currentId() const { return currentId_; }
@@ -140,6 +142,7 @@ private:
     std::optional<Removed> removed_;
     std::atomic<int> generation_ { 0 };
     int seenGeneration_ = 0;
+    juce::int64 revision_ = 0;
 };
 
 } // namespace sedef::plugin

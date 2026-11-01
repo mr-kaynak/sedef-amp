@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // The toast area: one polite live region above the status bar. A toast stays for a while, longer
 // while the pointer or focus is on it, and never takes focus itself.
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Icon } from '../controls/Icon';
 import { dismissToast, runToastAction, useToastStore } from '../state/toastStore';
 import { modKey } from './platform';
@@ -12,10 +12,11 @@ const SHOW_WITH_ACTION_MS = 8000;
 
 export function Toasts() {
   const toast = useToastStore((s) => s.toast);
-  const [held, setHeld] = useState(false);
-  const hover = useRef(false);
-  const focus = useRef(false);
-  const hold = () => setHeld(hover.current || focus.current);
+  // Which toast the pointer or focus is on, by id: a toast that replaces a held one starts its
+  // own timer even though no pointerleave or blur arrives for the one that went.
+  const [hoverId, setHoverId] = useState<number | null>(null);
+  const [focusId, setFocusId] = useState<number | null>(null);
+  const held = toast !== null && (hoverId === toast.id || focusId === toast.id);
 
   useEffect(() => {
     if (!toast || held) return;
@@ -32,22 +33,10 @@ export function Toasts() {
         <div
           key={toast.id}
           className={styles.toast}
-          onPointerEnter={() => {
-            hover.current = true;
-            hold();
-          }}
-          onPointerLeave={() => {
-            hover.current = false;
-            hold();
-          }}
-          onFocus={() => {
-            focus.current = true;
-            hold();
-          }}
-          onBlur={() => {
-            focus.current = false;
-            hold();
-          }}
+          onPointerEnter={() => setHoverId(toast.id)}
+          onPointerLeave={() => setHoverId(null)}
+          onFocus={() => setFocusId(toast.id)}
+          onBlur={() => setFocusId(null)}
         >
           <span className={styles.message}>{toast.message}</span>
           {toast.action && (

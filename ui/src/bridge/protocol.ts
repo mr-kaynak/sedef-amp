@@ -84,6 +84,11 @@ export interface PresetState {
    */
   recent: string[];
   compare: CompareState;
+  /**
+   * Counts up with every state the plugin sends. An action's answer can arrive after a newer
+   * broadcast, so the editor drops a state older than the one it has.
+   */
+  revision?: number;
 }
 
 /** Optional metadata stored with a user preset. */

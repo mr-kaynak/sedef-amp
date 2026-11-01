@@ -69,10 +69,16 @@ stores one folder per user preset).
 - **Keep** (close and keep what plays): Enter, double-click a row, **Use & close**, `P` or a click
   on the preset name, or opening the tuner or intonation workbench.
 - **Back** (close and restore the browse snapshot): Esc or the Esc button in the hint. If nothing
-  was auditioned, it just closes. A toast confirms "Back to Nacre". With the shortcut list open,
-  Esc closes the list first.
+  was auditioned, it just closes. A toast confirms "Back to Nacre" (unless an Undo toast is
+  showing, which a plain notice never replaces). With the shortcut list open, Esc closes the
+  list first.
 - If the sound you opened on had unsaved edits and you keep something else, a toast says
   "Loaded Riptide" with **Undo**, which restores the browse snapshot, edits included.
+- Preset commands go out one at a time, in order, so a restore or snapshot always follows the
+  loads before it. Arrowing faster than the plugin answers sends only the newest waiting load,
+  and the highlighted row runs ahead of the playing preset meanwhile. Every state the plugin
+  sends carries a rising `revision`; the editor drops one older than what it has, so an answer
+  that arrives after a newer broadcast can't roll the browser back.
 
 ### Auditioning
 
@@ -91,6 +97,10 @@ stores one folder per user preset).
 The search field is a combobox that points at the list (`aria-activedescendant`), so the arrows
 work while typing. Every word of the query must match the name, category, tags, note, author,
 amp, cab or a block name ("abyss drift" finds high-gain presets with echo).
+
+Outside the browser's search field, ⌘/Ctrl+S, ⌘/Ctrl+F and the single keys do nothing while a
+text field has focus; there they keep their editing meaning. A held key does not repeat, except
+`[` and `]`, which step through presets.
 
 Prev/next in the preset bar while the browser is open are auditions too (Esc still goes back).
 With the browser closed, prev/next on an edited sound keep an **undo snapshot** and show
@@ -141,7 +151,12 @@ Two slots next to the preset bar. The active slot is what you hear; the plugin h
   ("“Sunday set” is already in User / Live. Saving replaces it.", and the button becomes
   "Replace “Sunday set”"); a factory preset with the same name (a note only, as yours lives under
   User); a new category without a name disables saving.
-- After a save inside the browser, the saved preset becomes the state Esc returns to.
+- ⌘/Ctrl+S while the browser auditions over unsaved edits saves nothing: it is not clear whether
+  you mean the edits or the audition, so a toast asks "Choose first: Enter keeps Riptide, Esc
+  goes back to Nacre with your edits. Then save."
+- After a save, rename or delete inside the browser before anything was auditioned, what plays
+  becomes the state Esc returns to. After an audition, Esc still goes back to the sound the
+  browser opened on; a rename of that preset carries over to the snapshot.
 - **Delete** (user presets) happens at once with an Undo toast; the plugin keeps the file's text
   and writes it back on Undo, so the id, favourite and Recent entry survive.
 - **Rename** (user presets) refuses a name another preset in the folder already has, inline.
@@ -176,7 +191,11 @@ every value exactly, and the saved state must not change (`plugin/smoke/HostSmok
   for the detail pane's favourite button.
 - A/B is a radio group (arrow keys switch) with the slot's preset and edit state in its name.
 - Toasts are a polite live region, never take focus, stay 8 s (4 s without an action) and pause
-  while hovered or focused.
+  while hovered or focused (a toast that replaces a held one starts its own timer). An Undo that
+  would put back a snapshot goes as soon as the snapshot stops applying: "browse" when the
+  browser opens again, both on an A/B switch or copy. A delete's Undo stays.
+- The Save as clash note sits in a status region that is always in the page, so it is announced
+  when it appears.
 - Focus moves into forms and back to the search field, and to the preset bar when the browser
   closes. `prefers-reduced-motion` turns the panel, sheet and toast animations off.
 

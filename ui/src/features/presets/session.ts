@@ -5,7 +5,7 @@
 // drop unsaved edits outside the browser keep an "undo" snapshot and offer it in a toast.
 import { create } from 'zustand';
 import { currentPreset, presetActions, usePresetStore } from '../../state/presetStore';
-import { dismissToast, showToast } from '../../state/toastStore';
+import { dismissToastRestoring, showToast } from '../../state/toastStore';
 import { uiActions } from '../../state/uiStore';
 import { DEFAULT_FILTER, type BrowseFilter } from './library';
 
@@ -22,14 +22,12 @@ interface BrowserState {
   mode: BrowserMode;
   /** Where the form returns to: the list, or out of the browser when it was opened to save. */
   formReturn: 'list' | 'close';
-  /** The sound when the browser opened (Esc goes back to it). */
+  /** The sound in the "browse" snapshot, which Esc goes back to. */
   origin: Origin | null;
   /** True once something else was loaded during this session. */
   auditioned: boolean;
-  /** The highlighted row. Follows the current preset, ahead of it while a load is in flight. */
+  /** The highlighted row. Follows the current preset, ahead of it while a load is on its way. */
   cursor: string | null;
-  /** Loads requested by the browser that have not answered yet. */
-  pending: number;
   filter: BrowseFilter;
   /** Bumped to ask the browser to focus its search field. */
   searchFocus: number;
@@ -42,7 +40,6 @@ const closedState = {
   origin: null,
   auditioned: false,
   cursor: null,
-  pending: 0,
 };
 
 export const useBrowserStore = create<BrowserState>()(() => ({
@@ -63,8 +60,61 @@ function originNow(): Origin {
 /** Focus goes back to the preset bar when the browser closes. */
 export const BROWSER_TRIGGER_ID = 'preset-browser-trigger';
 
-/** The browser's latest load; keeping waits for it so Recent and the toast name the right preset. */
-let lastLoad: Promise<void> = Promise.resolve();
+// The plugin runs calls in the order they arrive. To keep a snapshot, a restore or an A/B switch
+// behind the loads asked for before it, preset commands go out one at a time, in order; arrowing
+// through the list faster than the plugin answers sends only the newest of the waiting loads.
+
+let chain: Promise<void> = Promise.resolve();
+/** Commands queued or on their way. */
+let commands = 0;
+/** The load at the end of the chain that has not been sent yet; a newer audition replaces its id. */
+let waitingLoad: { id: string } | null = null;
+/** Loads queued or on their way; the cursor runs ahead of the current preset meanwhile. */
+let loads = 0;
+/**
+ * Counts browser sessions and A/B switches. Keeping records Recent and offers its Undo only if
+ * neither happened while the loads it waits for landed.
+ */
+let epoch = 0;
+
+function enqueue(task: () => Promise<void>): Promise<void> {
+  waitingLoad = null;
+  commands += 1;
+  const done = chain.then(task).finally(() => {
+    commands -= 1;
+  });
+  chain = done.catch(() => undefined); // one failed command must not stop the ones after it
+  return done;
+}
+
+function requestLoad(id: string): Promise<void> {
+  if (waitingLoad) {
+    waitingLoad.id = id;
+    return chain;
+  }
+  const load = { id };
+  loads += 1;
+  const done = enqueue(async () => {
+    if (waitingLoad === load) waitingLoad = null;
+    try {
+      await presetActions.load(load.id, true);
+    } finally {
+      loads -= 1;
+    }
+  });
+  waitingLoad = load;
+  return done;
+}
+
+/** Test helper: forgets the session, the queue and the counters. */
+export function resetBrowserSession(): void {
+  chain = Promise.resolve();
+  commands = 0;
+  waitingLoad = null;
+  loads = 0;
+  epoch = 0;
+  useBrowserStore.setState({ ...closedState, filter: DEFAULT_FILTER, searchFocus: 0 });
+}
 
 function close(): void {
   set({ ...closedState });
@@ -80,8 +130,10 @@ export const presetBrowser = {
       set({ mode, formReturn: 'list', searchFocus });
       return;
     }
-    dismissToast();
+    // A new snapshot is about to replace the one an earlier Undo would put back.
+    dismissToastRestoring('browse');
     uiActions.setPopover(null);
+    const session = ++epoch;
     set({
       open: true,
       mode,
@@ -89,10 +141,13 @@ export const presetBrowser = {
       origin: originNow(),
       auditioned: false,
       cursor: presets().currentId,
-      pending: 0,
       searchFocus,
     });
-    void presetActions.snapshot('browse');
+    // Taken after any load still on its way, so Esc goes back to what is actually playing.
+    void enqueue(async () => {
+      await presetActions.snapshot('browse');
+      if (session === epoch && get().open) set({ origin: originNow() });
+    });
   },
 
   toggle(): void {
@@ -100,33 +155,38 @@ export const presetBrowser = {
     else presetBrowser.open();
   },
 
-  /** Plays a preset while the browser stays open. */
-  async audition(id: string): Promise<void> {
+  /** Plays a preset while the browser stays open. Asking for the highlighted row again is a no-op. */
+  audition(id: string): Promise<void> {
     const s = get();
+    if (id === s.cursor && (loads > 0 || presets().currentId === id)) return chain;
     set({ cursor: id });
-    if (s.pending === 0 && presets().currentId === id) return;
-    set({ auditioned: true, pending: s.pending + 1 });
-    const load = presetActions.load(id, true);
-    lastLoad = load;
-    await load;
-    set({ pending: Math.max(0, get().pending - 1) });
+    if (loads === 0 && presets().currentId === id) return chain;
+    set({ auditioned: true });
+    return requestLoad(id);
   },
 
-  /** Closes and keeps what is playing. */
-  keep(): void {
+  /**
+   * Closes and keeps what is playing. Recent records it once its load has landed, and when the
+   * browser opened on unsaved edits a toast offers them back (not after an A/B switch, which
+   * passes `undo: false`: the snapshot belongs to the other slot by then).
+   */
+  keep(options: { undo?: boolean } = {}): void {
     const s = get();
     if (!s.open) return;
     close();
     if (!s.auditioned) return;
-    void lastLoad.then(() => {
+    const session = epoch;
+    void chain.then(() => {
+      if (session !== epoch) return;
       const now = presets();
       if (now.currentId) void presetActions.markRecent(now.currentId);
       // The edits that were playing when the browser opened are only in the snapshot now.
-      if (s.origin?.dirty) {
-        showToast(`Loaded ${now.currentName}`, {
-          label: 'Undo',
-          run: () => void presetActions.restore('browse'),
-        });
+      if (options.undo !== false && s.origin?.dirty) {
+        showToast(
+          `Loaded ${now.currentName}`,
+          { label: 'Undo', run: () => void enqueue(() => presetActions.restore('browse')) },
+          'browse',
+        );
       }
     });
   },
@@ -136,20 +196,27 @@ export const presetBrowser = {
     const s = get();
     if (!s.open) return;
     if (s.auditioned) {
-      void presetActions.restore('browse');
+      void enqueue(() => presetActions.restore('browse'));
       if (s.origin) showToast(`Back to ${s.origin.name}`);
     }
     close();
   },
 
   /**
-   * After a save, rename or delete inside the browser the library changed under the snapshot:
-   * what plays now becomes the state Esc returns to.
+   * After a save, rename or delete inside the browser. Before any audition, what plays now
+   * becomes the state Esc returns to. After one, Esc still goes back to the sound the browser
+   * opened on, so the snapshot stays.
    */
   async rebase(): Promise<void> {
-    if (!get().open) return;
-    await presetActions.snapshot('browse');
-    set({ origin: originNow(), auditioned: false, cursor: presets().currentId });
+    if (!get().open || get().auditioned) return;
+    await enqueue(() => presetActions.snapshot('browse'));
+    if (get().open && !get().auditioned) set({ origin: originNow(), cursor: presets().currentId });
+  },
+
+  /** A preset was renamed: the snapshot follows it in the plugin, so the origin follows here. */
+  renamed(from: string, to: string, name: string): void {
+    const origin = get().origin;
+    if (origin?.id === from) set({ origin: { ...origin, id: to, name } });
   },
 
   /** Leaves a form: back to the list, or out of the browser when it was opened to save. */
@@ -164,8 +231,7 @@ export const presetBrowser = {
 
   /** Keeps the highlighted row on the current preset when it changes from elsewhere. */
   syncCursor(): void {
-    const s = get();
-    if (s.open && s.pending === 0) set({ cursor: presets().currentId });
+    if (get().open && loads === 0) set({ cursor: presets().currentId });
   },
 
   /** Marks the session as changed by a load that did not come from a row (prev/next, New). */
@@ -180,19 +246,22 @@ export const presetBrowser = {
 export async function stepPreset(delta: number): Promise<void> {
   if (get().open) {
     presetBrowser.noteAudition();
-    await presetActions.step(delta);
+    await enqueue(() => presetActions.step(delta));
     presetBrowser.syncCursor();
     return;
   }
-  if (!presets().dirty) {
+  await enqueue(async () => {
+    if (!presets().dirty) {
+      await presetActions.step(delta);
+      return;
+    }
+    await presetActions.snapshot('undo');
     await presetActions.step(delta);
-    return;
-  }
-  await presetActions.snapshot('undo');
-  await presetActions.step(delta);
-  showToast(`Loaded ${presets().currentName}`, {
-    label: 'Undo',
-    run: () => void presetActions.restore('undo'),
+    showToast(
+      `Loaded ${presets().currentName}`,
+      { label: 'Undo', run: () => void enqueue(() => presetActions.restore('undo')) },
+      'undo',
+    );
   });
 }
 
@@ -200,51 +269,80 @@ export async function stepPreset(delta: number): Promise<void> {
 export async function newPreset(): Promise<void> {
   if (get().open) {
     presetBrowser.noteAudition();
-    await presetActions.init();
+    await enqueue(() => presetActions.init());
     presetBrowser.syncCursor();
     return;
   }
-  const dirty = presets().dirty;
-  if (dirty) await presetActions.snapshot('undo');
-  await presetActions.init();
-  if (dirty)
-    showToast('Started from Init', {
-      label: 'Undo',
-      run: () => void presetActions.restore('undo'),
-    });
+  await enqueue(async () => {
+    const dirty = presets().dirty;
+    if (dirty) await presetActions.snapshot('undo');
+    await presetActions.init();
+    if (dirty)
+      showToast(
+        'Started from Init',
+        { label: 'Undo', run: () => void enqueue(() => presetActions.restore('undo')) },
+        'undo',
+      );
+  });
 }
 
-/** ⌘S: saves a user preset in place; anything else (factory, Init) goes to Save as. */
+/**
+ * ⌘S: saves a user preset in place; anything else (factory, Init) goes to Save as. While the
+ * browser auditions over unsaved edits it is not clear which sound is meant, so it asks first.
+ */
 export async function saveCurrent(): Promise<void> {
-  const state = presets();
-  const current = currentPreset(state);
+  if (commands > 0) await chain; // decide on the preset that is about to play
+  const browser = get();
+  if (browser.open && browser.auditioned && browser.origin?.dirty) {
+    showToast(
+      `Choose first: Enter keeps ${presets().currentName}, Esc goes back to ` +
+        `${browser.origin.name} with your edits. Then save.`,
+    );
+    return;
+  }
+  const current = currentPreset(presets());
   if (current?.category !== 'User') {
     presetBrowser.open('saveAs');
     return;
   }
-  await presetActions.save(current.name, current.folder);
+  await enqueue(() => presetActions.save(current.name, current.folder));
   await presetBrowser.rebase();
   showToast(`Saved ${current.name}`);
 }
 
-/** A/B switch. The browser keeps what it auditioned first, so Esc can't cross slots. */
+/**
+ * A/B switch. The browser keeps what it auditioned first, so Esc can't cross slots, and Undo
+ * offers that would put back a snapshot from this slot go.
+ */
 export function compareSwitch(): Promise<void> {
-  presetBrowser.keep();
-  return presetActions.compare('switch');
+  presetBrowser.keep({ undo: false });
+  return enqueue(async () => {
+    epoch += 1;
+    dismissToastRestoring('browse', 'undo');
+    await presetActions.compare('switch');
+  });
 }
 
 export function compareCopy(): Promise<void> {
-  return presetActions.compare('copy');
+  return enqueue(async () => {
+    dismissToastRestoring('browse', 'undo');
+    await presetActions.compare('copy');
+  });
 }
 
 /** Deletes a user preset, with Undo instead of a confirmation. */
 export async function deletePreset(id: string): Promise<void> {
   const preset = presets().items.find((p) => p.id === id);
   if (!preset || preset.category !== 'User') return;
-  await presetActions.remove(id);
+  await enqueue(() => presetActions.remove(id));
   await presetBrowser.rebase();
   showToast(`Deleted ${preset.name}`, {
     label: 'Undo',
-    run: () => void presetActions.undoDelete().then(() => presetBrowser.rebase()),
+    run: () => void enqueue(() => presetActions.undoDelete()).then(() => presetBrowser.rebase()),
   });
+}
+
+/** Save as and Rename from the browser's forms, in order with the other preset commands. */
+export function sendPresetCommand(task: () => Promise<void>): Promise<void> {
+  return enqueue(task);
 }

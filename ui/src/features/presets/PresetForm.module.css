@@ -203,13 +203,22 @@
   background: rgb(237 230 214 / 0.08);
 }
 
+.status {
+  margin-top: -8px;
+}
+
+/* Empty, it takes no room: the negative margin cancels the form's gap. */
+.status:empty {
+  margin-top: -16px;
+}
+
 .warn,
 .note,
 .error {
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  margin: -8px 0 0;
+  margin: 0;
   font-size: var(--t-12);
 }
 
@@ -235,6 +244,7 @@
 }
 
 .error {
+  margin-top: -8px;
   color: var(--coral);
 }
 

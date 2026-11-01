@@ -469,4 +469,160 @@ describe('PresetBrowser', () => {
     expect(presets().currentName).toBe('Sunday best');
     expect(option('Sunday best')).toHaveAttribute('aria-selected', 'true');
   });
+
+  it('sends one load per row however fast the keys come, and keeps the last one', async () => {
+    const load = vi.spyOn(presetActions, 'load');
+    render(<Shell />);
+    await openBrowser();
+    for (let i = 0; i < 6; i++) fireEvent.keyDown(search(), { key: 'ArrowDown' });
+    fireEvent.keyDown(search(), { key: 'Enter' });
+    await settle();
+    // Keys faster than the plugin answers: only the newest waiting load is sent.
+    expect(load.mock.calls.map(([id]) => id)).toEqual(['factory:undertow']);
+    expect(presets()).toMatchObject({ currentName: 'Undertow', recent: ['factory:undertow'] });
+
+    load.mockClear();
+    await openBrowser();
+    fireEvent.click(option('Riptide'));
+    fireEvent.click(option('Riptide'));
+    fireEvent.doubleClick(option('Riptide'));
+    await settle();
+    expect(load).toHaveBeenCalledTimes(1);
+    expect(presets().currentName).toBe('Riptide');
+  });
+
+  it('lands on the picked preset when answers arrive out of order', async () => {
+    cleanup();
+    h.dispose();
+    h = await setupMock({ jitter: { maxMs: 10, seed: 7 } });
+    render(<Shell />);
+    await openBrowser();
+    for (let i = 0; i < 4; i++) fireEvent.keyDown(search(), { key: 'ArrowDown' });
+    fireEvent.click(option('Mariana'));
+    fireEvent.keyDown(search(), { key: 'ArrowUp' });
+    fireEvent.keyDown(search(), { key: 'Enter' });
+    await act(() => new Promise((resolve) => setTimeout(resolve, 120)));
+    const truth = await h.mock.call('sedef_presets_list');
+    expect(truth).toMatchObject({ currentName: 'Harbor Lights' });
+    expect(presets()).toMatchObject({ currentName: 'Harbor Lights', recent: truth.recent });
+  });
+
+  it('offers no Undo across A/B slots', async () => {
+    await editNacre();
+    render(<Shell />);
+    const slot = (s: 'A' | 'B') => screen.getByRole('radio', { name: new RegExp(`^${s}:`) });
+    await openBrowser();
+    fireEvent.click(option('Riptide'));
+    fireEvent.click(slot('B'));
+    await settle();
+    expect(dialog()).toBeNull();
+    expect(presets()).toMatchObject({ currentName: 'Riptide', compare: { active: 'B' } });
+    expect(screen.queryByRole('button', { name: /Undo/ })).toBeNull();
+
+    // An Undo from prev/next goes too: its snapshot belongs to the slot left behind.
+    await act(async () => {
+      await h.mock.call('sedef_setParam', 'abyssGain', 0.91);
+      await flush();
+    });
+    fireEvent.keyDown(window, { key: ']' });
+    await settle();
+    expect(screen.getByRole('button', { name: /Undo/ })).toBeInTheDocument();
+    fireEvent.click(slot('A'));
+    await settle();
+    expect(screen.queryByRole('button', { name: /Undo/ })).toBeNull();
+    // The first switch copied the live sound, so A holds Riptide as it was then.
+    expect(presets()).toMatchObject({ currentName: 'Riptide', dirty: false });
+  });
+
+  it('keeps ⌘S out of other text fields and held keys, and asks first while auditioning', async () => {
+    const save = vi.spyOn(presetActions, 'save');
+    await act(() => presetActions.load(SUNDAY));
+    render(
+      <>
+        <Shell />
+        <input aria-label="Other field" />
+      </>,
+    );
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Other field' }), {
+      key: 's',
+      metaKey: true,
+    });
+    fireEvent.keyDown(window, { key: 's', metaKey: true, repeat: true });
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Other field' }), {
+      key: 'f',
+      metaKey: true,
+    });
+    await settle();
+    expect(save).not.toHaveBeenCalled();
+    expect(dialog()).toBeNull();
+
+    // In the browser over unsaved edits, it is not clear which sound ⌘S means.
+    await act(async () => {
+      await h.mock.call('sedef_setParam', 'lagoonVolume', 0.81);
+      await flush();
+    });
+    await openBrowser();
+    fireEvent.click(option('Riptide'));
+    await settle();
+    fireEvent.keyDown(search(), { key: 's', metaKey: true });
+    await settle();
+    expect(save).not.toHaveBeenCalled();
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Choose first: Enter keeps Riptide, Esc goes back to Sunday set with your edits. Then save.',
+    );
+    expect(dialog()).toBeInTheDocument();
+  });
+
+  it("keeps a delete's Undo through Esc and the next session", async () => {
+    render(<Shell />);
+    await openBrowser();
+    fireEvent.click(option('Sunday set'));
+    await settle();
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    await settle();
+    expect(screen.getByRole('status')).toHaveTextContent('Deleted Sunday set');
+
+    fireEvent.keyDown(search(), { key: 'Escape' });
+    await settle();
+    expect(presets().currentName).toBe('Nacre');
+    expect(screen.getByRole('status')).toHaveTextContent('Deleted Sunday set');
+    await openBrowser();
+    fireEvent.keyDown(search(), { key: 'Escape' });
+    expect(screen.getByRole('status')).toHaveTextContent('Deleted Sunday set');
+
+    fireEvent.click(screen.getByRole('button', { name: /Undo/ }));
+    await settle();
+    expect(presets().items.some((p) => p.id === SUNDAY)).toBe(true);
+    expect(presets().currentName).toBe('Nacre');
+  });
+
+  it('follows a rename of the preset Esc goes back to, edits and all', async () => {
+    await act(async () => {
+      await presetActions.load(SUNDAY);
+      await h.mock.call('sedef_setParam', 'lagoonVolume', 0.81);
+      await flush();
+    });
+    render(<Shell />);
+    await openBrowser();
+    fireEvent.click(option('Riptide'));
+    fireEvent.click(option('Sunday set'));
+    await settle();
+    fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
+    const input = screen.getByRole('textbox', { name: 'New name' });
+    fireEvent.change(input, { target: { value: 'Sunday late' } });
+    fireEvent.submit(input);
+    await settle();
+    fireEvent.click(option('Riptide'));
+    await settle();
+
+    fireEvent.keyDown(search(), { key: 'Escape' });
+    await settle();
+    expect(presets()).toMatchObject({
+      currentId: 'user:Live/Sunday late.sedefpreset',
+      currentName: 'Sunday late',
+      dirty: true,
+    });
+    expect(h.mock.value('lagoonVolume')).toBe(0.81);
+    expect(screen.getByRole('status')).toHaveTextContent('Back to Sunday late');
+  });
 });

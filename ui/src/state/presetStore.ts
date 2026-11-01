@@ -58,7 +58,14 @@ export function normalisePresetState(state: PresetState): PresetState {
   };
 }
 
+/**
+ * Takes a state from the plugin unless it is older than the one we have: an action's answer can
+ * arrive after a broadcast the plugin sent later. A state without a revision always applies.
+ */
 export function applyPresetState(state: PresetState): void {
+  const have = usePresetStore.getState().state.revision;
+  if (typeof state.revision === 'number' && typeof have === 'number' && state.revision < have)
+    return;
   usePresetStore.setState({ state: normalisePresetState(state) });
 }
 

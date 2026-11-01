@@ -21,7 +21,8 @@ All notable changes to this project are documented here. The format follows
 - **A/B compare** next to the preset bar, with copy between the slots and an edit marker per slot,
   and a Save button beside it; the bar shows the preset's category.
 - **Shortcuts:** `P` opens the browser, `[` and `]` step presets, `A` and `B` pick the compare
-  slot (never while typing); the browser lists every shortcut.
+  slot (never while typing, and ⌘/Ctrl+S and ⌘/Ctrl+F only in the preset search among text
+  fields); the browser lists every shortcut.
 - **Saving:** ⌘/Ctrl+S saves (Save as for factory presets), ⌘/Ctrl+Shift+S is Save as. Save as
   takes a category (or a new one), tags with suggestions and an optional note, and warns inline
   before replacing a preset.
@@ -38,7 +39,8 @@ All notable changes to this project are documented here. The format follows
   (no more copying bundles or clearing quarantine flags), a Windows setup program and a Linux
   archive with an install script. Each lets you pick the formats; the app now has an icon.
 - Bridge protocol 2: presets report their amp, cab, active blocks and description; Recent, A/B,
-  snapshots and undoing a delete are new native functions.
+  snapshots and undoing a delete are new native functions. Each preset state carries a rising
+  `revision`, so the editor ignores an answer that arrives after a newer broadcast.
 - Factory presets: Mariana and Coral Fuzz moved to a new High Gain category, Morning Ritual to
   Crunch. Sounds and levels are unchanged.
 

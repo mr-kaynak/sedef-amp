@@ -636,6 +636,7 @@ juce::var PresetManager::stateAsVar()
     root->setProperty ("dirty", isDirty());
     root->setProperty ("recent", toVarArray (recent_));
     root->setProperty ("compare", juce::var (compare));
+    root->setProperty ("revision", ++revision_);
     return juce::var (root);
 }
 

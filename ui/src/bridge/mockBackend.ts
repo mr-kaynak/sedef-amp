@@ -29,6 +29,7 @@ import {
   type MockPreset,
 } from './mock/factoryPresets';
 import { PitchSimulator } from './mock/pitchSim';
+import { createRandom } from './mock/random';
 import { TelemetrySimulator } from './mock/telemetrySim';
 import { UpdateSimulator, type UpdateScenario } from './mock/updateSim';
 
@@ -53,6 +54,12 @@ export interface MockOptions {
   overrides?: ParamValues;
   /** What the update checker finds (docs/updates.md). Defaults to "current": nothing newer. */
   update?: UpdateScenario;
+  /**
+   * Delays each native call's answer and each preset broadcast by a random 0..maxMs (seeded).
+   * Calls still run in the order they were made, as in the plugin, but their answers can arrive
+   * out of order; tests use it to shake out ordering bugs.
+   */
+  jitter?: { maxMs: number; seed?: number };
 }
 // The plugin editor's timer: telemetry every other 60 Hz tick, pitch on every tick.
 const TELEMETRY_HZ = 30;
@@ -107,6 +114,9 @@ export class MockBackend implements Backend {
   private snapshots: Partial<Record<SnapshotSlot, Snapshot>> = {};
   private compareOther: Snapshot | null = null;
   private removed: { preset: MockPreset; wasCurrent: boolean } | null = null;
+  /** PresetState.revision: counts every state handed out. */
+  private revision = 0;
+  private readonly jitterRandom: (() => number) | null;
   private ir: IrState = {
     slots: [0, 1].flatMap((mic) =>
       [0, 1, 2].map((cab) => ({
@@ -128,6 +138,7 @@ export class MockBackend implements Backend {
   readonly updates: UpdateSimulator;
 
   constructor(private readonly options: MockOptions = {}) {
+    this.jitterRandom = options.jitter ? createRandom(options.jitter.seed) : null;
     this.uiState = options.uiState ?? this.loadPersistedUiState();
     this.pitchSim = new PitchSimulator({
       getReferenceHz: () => this.value('tunerReference'),
@@ -172,11 +183,15 @@ export class MockBackend implements Backend {
 
   call<K extends NativeName>(name: K, ...args: NativeArgs<K>): Promise<NativeResult<K>> {
     const handler = this.handlers[name] as (...a: NativeArgs<K>) => NativeResult<K>;
+    let result: NativeResult<K>;
     try {
-      return Promise.resolve(handler(...args));
+      result = handler(...args);
     } catch (error) {
       return Promise.reject(error);
     }
+    const delay = this.jitterDelay();
+    if (delay === null) return Promise.resolve(result);
+    return new Promise((resolve) => setTimeout(() => resolve(result), delay));
   }
 
   on<E extends EventName>(event: E, fn: (payload: Events[E]) => void): () => void {
@@ -346,11 +361,19 @@ export class MockBackend implements Backend {
       ) {
         const nextId = renamedPresetId(id, trimmed);
         preset.info = { ...preset.info, name: trimmed, id: nextId };
+        const recent = this.presetState.recent.map((r) => (r === id ? nextId : r));
         this.presetState = {
           ...this.presetState,
-          recent: this.presetState.recent.map((r) => (r === id ? nextId : r)),
+          recent: recent.filter((r, i) => recent.indexOf(r) === i),
           ...(this.presetState.currentId === id ? { currentId: nextId, currentName: trimmed } : {}),
         };
+        // Snapshots and the other A/B slot follow the preset to its new name.
+        for (const snapshot of [...Object.values(this.snapshots), this.compareOther]) {
+          if (snapshot?.currentId === id) {
+            snapshot.currentId = nextId;
+            snapshot.currentName = trimmed;
+          }
+        }
       }
       return this.publishPresets();
     },
@@ -534,9 +557,11 @@ export class MockBackend implements Backend {
       this.values[id] = value;
     }
     this.loaded = { ...snapshot.loaded };
+    // A preset deleted since the snapshot leaves its sound behind, no longer a preset.
+    const exists = this.presets.some((p) => p.info.id === snapshot.currentId);
     this.presetState = {
       ...this.presetState,
-      currentId: snapshot.currentId,
+      currentId: exists ? snapshot.currentId : null,
       currentName: snapshot.currentName,
     };
     if (Object.keys(changed).length) this.emit('sedef:params', { values: changed });
@@ -569,6 +594,7 @@ export class MockBackend implements Backend {
       items: s.items.map((p) => ({ ...p, tags: [...p.tags], blocks: [...p.blocks] })),
       recent: [...s.recent],
       compare: { active: s.compare.active, other: s.compare.other && { ...s.compare.other } },
+      revision: ++this.revision,
     };
   }
 
@@ -585,7 +611,14 @@ export class MockBackend implements Backend {
 
   /** Events from the real bridge arrive asynchronously; mirror that so ordering bugs show up. */
   private emit<E extends EventName>(event: E, payload: Events[E]): void {
-    queueMicrotask(() => this.emitter.emit(event, payload));
+    const delay = event === 'sedef:presets' ? this.jitterDelay() : null;
+    if (delay === null) queueMicrotask(() => this.emitter.emit(event, payload));
+    else setTimeout(() => this.emitter.emit(event, payload), delay);
+  }
+
+  private jitterDelay(): number | null {
+    const max = this.options.jitter?.maxMs;
+    return this.jitterRandom && max ? Math.floor(this.jitterRandom() * max) : null;
   }
 
   private loadPersistedUiState(): UiState | null {

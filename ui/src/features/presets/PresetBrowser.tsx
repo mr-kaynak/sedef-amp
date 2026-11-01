@@ -218,9 +218,10 @@ function BrowserPanel() {
   };
 
   const keepCursor = () => {
-    // The highlighted row, or the best match when the playing preset is filtered out.
+    // The highlighted row, or the best match when the playing preset is filtered out. Auditioning
+    // the row that is already on its way (or playing) sends nothing.
     const target = visible.find((p) => p.id === cursor) ?? visible[0];
-    if (target && target.id !== state.currentId) void presetBrowser.audition(target.id);
+    if (target) void presetBrowser.audition(target.id);
     presetBrowser.keep();
   };
 
@@ -298,6 +299,7 @@ function BrowserPanel() {
                 ref={searchRef}
                 type="search"
                 role="combobox"
+                data-command-keys
                 aria-label="Search presets"
                 aria-controls={LIST_ID}
                 aria-expanded="true"
@@ -384,7 +386,7 @@ function BrowserPanel() {
             }
             onAudition={(id) => void presetBrowser.audition(id)}
             onKeep={(id) => {
-              if (id !== state.currentId) void presetBrowser.audition(id);
+              void presetBrowser.audition(id);
               presetBrowser.keep();
             }}
             onKeyDown={(e) => onListKeys(e, false)}

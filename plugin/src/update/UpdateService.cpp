@@ -19,10 +19,13 @@ bool openInstaller (const juce::File& file, Platform platform)
 {
     switch (platform)
     {
-    case Platform::MacOS:   // mounts the disk image and shows it, like `open`
-    case Platform::Windows: // runs the setup program, which asks for elevation itself
+    case Platform::MacOS: // mounts the disk image and shows it, like `open`
         return file.startAsProcess();
-    case Platform::Linux: // an archive: show it; its README explains the install
+    case Platform::Windows:
+        // Interactive, never with /SILENT: the wizard asks for elevation, lists a DAW that holds
+        // the plug-in and offers to close it, which a silent install would do unasked.
+        return file.startAsProcess();
+    case Platform::Linux: // an archive: show it; install.sh and its README do the rest
         file.revealToUser();
         return true;
     }

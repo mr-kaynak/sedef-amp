@@ -15,8 +15,8 @@ quitting your DAW.
    check never runs on the audio thread or holds up the window. However many instances your session
    holds, one check runs, and a small file (`update.json`, below) keeps other processes and later
    sessions from repeating it. After a failed check Sedef waits an hour before trying again.
-2. **Notice.** When the latest stable release is newer than the one you run, a small pill (a
-   nacre dot and an arrow, named "Update available") appears next to Tuner in the header. Drafts
+2. **Notice.** When the latest stable release is newer than the one you run, a small "Update
+   available" pill appears at the right end of the section tabs, under the header's tools. Drafts
    and pre-releases are never offered. The pill opens
    the Updates panel (also in Settings → Updates) with the release notes and three choices:
    **Download & install**, **Skip this version** (no pill for that version again) and **Later**
@@ -32,9 +32,12 @@ quitting your DAW.
    | Linux (x86-64) | `Sedef-Amp-Linux-x86_64.tar.gz` | shows the archive in your file manager |
 
    Quit your DAW before installing, and start it again afterwards so it loads the new version.
-   On Windows this is required: Windows keeps loaded plug-ins locked, so the installer can't
-   replace them while your DAW runs. If a release has no installer for your system (for example
-   on ARM Linux), or anything fails, the panel offers the releases page instead.
+   On Windows this matters most: Windows keeps loaded plug-ins locked. Sedef starts the installer
+   normally, never with silent switches, so if your DAW still holds the plug-in the installer
+   lists it and offers to close it (save your project first), or finishes the update when you
+   restart Windows. Both installers ask for an administrator password. If a release has no
+   installer for your system (for example on ARM Linux, or v0.1.0, which shipped zips), or
+   anything fails, the panel offers the releases page instead.
 
 The bytes go to `<name>.part` first. A failed, cancelled or mismatching download is deleted; a
 verified copy already in Downloads is reused; a different file that happens to have the same name
@@ -70,6 +73,10 @@ its download servers), with the same User-Agent.
 - **At build time:** configure with `-DSEDEF_UPDATE_CHECK=OFF`. The checker is not compiled in
   at all, and the UI shows nothing about updates. Use this for distribution packages that update
   through the package manager.
+
+On Linux the check uses the system's libcurl (`libcurl.so.4`: `libcurl4` on Debian and Ubuntu,
+`libcurl` on Fedora), loaded only when a check runs. Without it Sedef works as usual and the
+Updates panel says it couldn't reach GitHub.
 
 ## Where things are kept
 
@@ -109,8 +116,9 @@ one published, not who published it.
 **The next layers.**
 
 - **Code signing and notarization** (Developer ID and notarization on macOS, Authenticode on
-  Windows) make the OS check the publisher before the installer runs. The release workflow sets
-  this up once signing secrets exist; see the release documentation.
+  Windows) make the OS check the publisher before the installer runs. The release workflow turns
+  them on once signing secrets exist; until then the installers are unsigned. The current state
+  is in [docs/releasing.md](releasing.md#signing-status).
 - **A signed checksum list**: a signature over `SHA256SUMS.txt`, checked against a public key
   built into Sedef, would make a compromised GitHub account insufficient on its own. Not
   implemented yet.

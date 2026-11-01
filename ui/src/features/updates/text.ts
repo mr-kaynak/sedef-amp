@@ -31,7 +31,7 @@ export const BEFORE_INSTALL: Record<UpdatePlatform, string> = {
   macOS:
     'Sedef downloads the disk image, checks it and opens it. Quit your DAW before you run the installer, and restart it afterwards.',
   Windows:
-    'Sedef downloads the installer, checks it and starts it. Quit your DAW before you click Install (Windows keeps loaded plug-ins locked), and restart it afterwards.',
+    'Sedef downloads the installer, checks it and starts it. Save your work and quit your DAW before you click Install (Windows keeps loaded plug-ins locked), then restart it.',
   Linux:
     'Sedef downloads the archive, checks it and shows it in your file manager. Quit your DAW before you install, and restart it afterwards.',
 };
@@ -41,9 +41,9 @@ export const AFTER_DOWNLOAD: Record<UpdatePlatform, string> = {
   macOS:
     'The disk image is open. Quit your DAW, run the installer inside it, then start your DAW again.',
   Windows:
-    "The installer is running. Quit your DAW before you click Install: Windows can't replace plug-ins your DAW has loaded. Start your DAW again afterwards.",
+    "The installer is running. Save your project and quit your DAW before you click Install; if it's still open, the installer offers to close it, or finishes the update when you restart Windows. Start your DAW again afterwards.",
   Linux:
-    'The archive is in your file manager. Quit your DAW, install the plug-ins as its README describes, then start your DAW again.',
+    'The archive is in your file manager. Quit your DAW, extract it and run install.sh (its README has the details), then start your DAW again.',
 };
 
 export function formatBytes(bytes: number): string {

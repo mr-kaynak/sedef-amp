@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // The header's update slot: a quiet pill when a newer release is out, and the Updates panel while
-// it is open. Renders nothing otherwise, and nothing at all in builds without the checker. The
-// header has about 46 px to spare (standalone, with the metronome), so the pill shows a nacre dot
-// and an arrow; its name and tooltip say "Update available".
+// it is open. Renders nothing otherwise, and nothing at all in builds without the checker.
+//
+// The header row has no width to spare, so the pill takes none: it is positioned against the
+// header and hangs at the right end of the section tabs line below it, which is empty.
 import { selectShowPill, selectSupported, updateActions, useUpdateStore } from './updateStore';
 import { UpdatesPanel } from './UpdatesPanel';
 import styles from './UpdateSlot.module.css';
@@ -21,24 +22,11 @@ export function UpdateSlot() {
           aria-haspopup="dialog"
           aria-expanded={open}
           aria-label={`Update available: Sedef Amp ${version}`}
-          title={`Update available: Sedef Amp ${version}`}
+          title={`Sedef Amp ${version} is available`}
           onClick={updateActions.openPanel}
         >
           <span className={styles.dot} aria-hidden="true" />
-          <svg
-            width={12}
-            height={12}
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={1.6}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-            focusable="false"
-          >
-            <path d="M8 2v8.5M4.5 7.5 8 11l3.5-3.5M3 14h10" />
-          </svg>
+          Update available
         </button>
       )}
       {open && <UpdatesPanel />}

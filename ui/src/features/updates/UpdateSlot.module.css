@@ -1,12 +1,16 @@
 /* SPDX-License-Identifier: AGPL-3.0-or-later */
-/* Quiet on purpose: a hairline pill with one small nacre dot, the only thing in it that is alive. */
+/* Quiet on purpose: a hairline pill with one small nacre dot, the only thing in it that is alive.
+   Absolutely placed against the header (position: relative), so it takes no room in the header
+   row: it sits at the right end of the section tabs line, vertically centred in it. */
 .pill {
+  position: absolute;
+  top: calc(100% + 9px);
+  right: 16px;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 7px;
   height: 24px;
-  margin-right: 2px;
-  padding: 0 7px;
+  padding: 0 10px 0 8px;
   border: 1px solid rgb(205 238 238 / 0.24);
   border-radius: 12px;
   background: rgb(205 238 238 / 0.05);
@@ -28,8 +32,8 @@
 }
 
 .dot {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: var(--nacre);
   box-shadow: 0 0 6px rgb(200 241 234 / 0.45);

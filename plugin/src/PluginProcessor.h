@@ -100,6 +100,16 @@ private:
     juce::String uiStateJson_;                     // guarded by extraLock_
     juce::String savedPresetId_, savedPresetName_; // guarded; mirrored from presets_ by the timer
     int pendingPresetRestores_ = 0;                // guarded; restores not yet applied to presets_
+
+    /// Per parameter: the value text of the last loaded state, and the value it became once
+    /// applied. Guarded by extraLock_.
+    struct LoadedValue
+    {
+        double saved = 0.0;
+        float applied = 0.0f;
+        bool valid = false;
+    };
+    std::array<LoadedValue, kNumParams> loaded_ {};
     std::array<std::uint8_t, 13> metronomePattern_ { 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
     std::atomic<double> uiScale_ { 1.0 };
     std::array<double, 4> taps_ {};

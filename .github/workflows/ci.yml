@@ -168,6 +168,8 @@ jobs:
         run: tools/ci/fetch-validators.sh "$RUNNER_TEMP/validators"
       - name: Validate
         shell: bash
+        env:
+          VALIDATOR_OUTPUT: ${{ runner.temp }}/clap-validator-output
         run: |
           artefacts=build/release/plugin/SedefAmp_artefacts/Release
           if [ "$RUNNER_OS" = "Linux" ]; then
@@ -175,6 +177,13 @@ jobs:
           else
             tools/ci/validate-plugins.sh "$artefacts"
           fi
+      - name: Keep validator output on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: validator-output-${{ runner.os }}
+          path: ${{ runner.temp }}/clap-validator-output
+          if-no-files-found: ignore
       # upload-artifact drops executable bits, so ship a zip that keeps the bundles runnable.
       - name: Pack build
         shell: bash

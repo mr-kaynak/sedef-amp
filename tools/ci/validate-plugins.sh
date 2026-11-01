@@ -17,7 +17,14 @@ echo "::group::pluginval (VST3)"
 echo "::endgroup::"
 
 echo "::group::clap-validator"
-"$clap_validator" validate "$dir/CLAP/Sedef Amp.clap"
+# clap-validator writes the states it compares under the temp folder; CI keeps them on failure.
+if [[ -n "${VALIDATOR_OUTPUT:-}" ]]; then
+    mkdir -p "$VALIDATOR_OUTPUT"
+    TMPDIR="$VALIDATOR_OUTPUT" TMP="$VALIDATOR_OUTPUT" TEMP="$VALIDATOR_OUTPUT" \
+        "$clap_validator" validate "$dir/CLAP/Sedef Amp.clap"
+else
+    "$clap_validator" validate "$dir/CLAP/Sedef Amp.clap"
+fi
 echo "::endgroup::"
 
 if [[ "$(uname)" == "Darwin" ]]; then

@@ -12,7 +12,9 @@ if(MSVC)
 else()
     target_compile_options(sedef_compiler_settings INTERFACE
         -Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wno-sign-conversion
-        -Wnon-virtual-dtor -Woverloaded-virtual -Wnull-dereference
+        -Wnon-virtual-dtor -Woverloaded-virtual
+        # GCC reports false positives inside libstdc++ (streambuf, std::sort) at -O2/-O3.
+        $<$<CXX_COMPILER_ID:Clang,AppleClang>:-Wnull-dereference>
         $<$<CONFIG:Release,RelWithDebInfo>:-O3>
         -fno-math-errno)
     if(SEDEF_WARNINGS_AS_ERRORS)

@@ -244,7 +244,21 @@ void SedefProcessor::getStateInformation (juce::MemoryBlock& dest)
 {
     juce::ValueTree root ("SedefState");
     root.setProperty ("version", 1, nullptr);
-    root.appendChild (state_.copyState(), nullptr);
+    auto params = state_.copyState();
+    {
+        // A parameter untouched since the last load is written back exactly as it was loaded.
+        // JUCE stores denormalise (normalise (x)), which can differ from x in the last bit for
+        // skewed ranges, and load-then-save must reproduce a state byte for byte.
+        const std::scoped_lock lock (extraLock_);
+        for (auto child : params)
+            if (const auto id = findParam (child.getProperty ("id").toString().toStdString()))
+            {
+                const auto i = index (*id);
+                if (loaded_[i].valid && juce::exactlyEqual (paramValue (*id), loaded_[i].applied))
+                    child.setProperty ("value", loaded_[i].saved, nullptr);
+            }
+    }
+    root.appendChild (params, nullptr);
 
     // Hosts call this from any thread: everything below comes from atomics or extraLock_.
     juce::ValueTree extra ("Extra");
@@ -296,6 +310,14 @@ void SedefProcessor::setStateInformation (const void* data, int size)
         state_.replaceState (params);
         lastPrev_ = paramValue (ParamId::presetPrevious) >= 0.5f;
         lastNext_ = paramValue (ParamId::presetNext) >= 0.5f;
+        {
+            const std::scoped_lock lock (extraLock_);
+            loaded_ = {};
+            for (const auto& child : params)
+                if (const auto id = findParam (child.getProperty ("id").toString().toStdString()))
+                    loaded_[index (*id)] = { static_cast<double> (child.getProperty ("value")),
+                                             paramValue (*id), true };
+        }
         // The CLAP wrapper only tells the host to re-read parameter values after a "parameter
         // info changed" notification (VST3 and AU hosts pick restored values up by themselves).
         if (wrapperType == wrapperType_Undefined)

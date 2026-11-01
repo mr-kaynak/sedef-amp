@@ -8,11 +8,11 @@
 namespace sedef::plugin
 {
 
-/// Hosts the web UI and implements the bridge protocol (ui/src/bridge/protocol.ts, version 1).
+/// Hosts the web UI and implements the bridge protocol (ui/src/bridge/protocol.ts, version 2).
 class SedefEditor final : public juce::AudioProcessorEditor, private juce::Timer
 {
 public:
-    static constexpr int kProtocolVersion = 1;
+    static constexpr int kProtocolVersion = 2;
 
     explicit SedefEditor (SedefProcessor& processor);
     ~SedefEditor() override;
@@ -39,12 +39,15 @@ private:
 
     // UI smoke test (SEDEF_UI_SMOKE_TEST=<result file>): see smokeTestTick().
     void smokeTestTick();
-    void finishSmokeTest (bool ok, const juce::var& details);
+    void finishSmokeTest (bool ok, const juce::var& page, const juce::var& presets = {});
     juce::File smokeResult_;
     int smokeTicks_ = 0;
     int smokeReadyAt_ = -1;
     bool smokeEvaluating_ = false;
     bool smokeDone_ = false;
+    juce::var smokePage_; ///< the page check's report, once it ran
+    bool smokePageOk_ = false;
+    bool smokePresetsStarted_ = false;
 
     SedefProcessor& processor_;
     std::unique_ptr<Browser> browser_;

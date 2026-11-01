@@ -2,7 +2,9 @@
 //
 // sedef-host-smoke: loads the built VST3 the way a DAW does, opens its editor in a window and
 // waits for the editor's UI smoke test (SEDEF_UI_SMOKE_TEST) to report. No audio device is opened,
-// so it also runs on machines and CI runners without working audio.
+// so it also runs on machines and CI runners without working audio. Besides the page, the editor
+// exercises preset auditions, snapshot restores and A/B over the real bridge; this host checks
+// that they leave the session's parameters exactly as they were, and that state round-trips.
 //
 //   sedef-host-smoke "<path>/Sedef Amp.vst3"
 
@@ -55,6 +57,13 @@ public:
 
         plugin_->setPlayConfigDetails (1, 2, 48000.0, 512);
         plugin_->prepareToPlay (48000.0, 512);
+        // The editor's smoke test auditions presets and goes back (also from random settings,
+        // then returns to the session through a snapshot), and switches A/B there and back.
+        // Starting from a restored session, the preset part of the state must come out exactly as
+        // it went in.
+        plugin_->setStateInformation (savedState_.getData(),
+                                      static_cast<int> (savedState_.getSize()));
+        plugin_->getStateInformation (beforeEditor_);
         auto* editor = plugin_->createEditorAndMakeActive();
         if (editor == nullptr)
             return fail ("The plugin has no editor");
@@ -106,19 +115,58 @@ private:
         p.processBlock (buffer, midi);
     }
 
-    /// Extracts the plugin's own XML from a hosted VST3 state blob, for a readable diff.
-    static juce::StringArray stateLines (const juce::MemoryBlock& blob)
+    /// The plugin's own XML from a hosted VST3 state blob: the host stores a VST3PluginState
+    /// element (as binary XML) whose IComponent holds what the plugin's getStateInformation wrote.
+    static std::unique_ptr<juce::XmlElement> pluginXml (const juce::MemoryBlock& blob)
     {
-        juce::StringArray lines;
-        if (const auto outer = juce::parseXML (blob.toString()))
+        const auto binaryXml = [] (const juce::MemoryBlock& b) {
+            return juce::AudioProcessor::getXmlFromBinary (b.getData(),
+                                                           static_cast<int> (b.getSize()));
+        };
+        if (const auto outer = binaryXml (blob))
             if (const auto* component = outer->getChildByName ("IComponent"))
             {
                 juce::MemoryBlock inner;
                 inner.fromBase64Encoding (component->getAllSubText());
-                const auto text = inner.toString();
-                lines.addLines (text.substring (text.indexOf ("<?xml")));
+                return binaryXml (inner);
             }
+        return nullptr;
+    }
+
+    /// The plugin's state as lines (one element per line), for a readable diff.
+    static juce::StringArray stateLines (const juce::MemoryBlock& blob)
+    {
+        juce::StringArray lines;
+        if (const auto xml = pluginXml (blob))
+            lines.addLines (xml->toString());
         return lines;
+    }
+
+    /// What presets and A/B decide: every parameter, and the preset the session names.
+    static juce::StringArray presetLines (const juce::MemoryBlock& blob)
+    {
+        juce::StringArray lines;
+        if (const auto xml = pluginXml (blob))
+        {
+            if (const auto* params = xml->getChildByName ("SedefParameters"))
+                lines.addLines (params->toString());
+            if (const auto* extra = xml->getChildByName ("Extra"))
+                lines.add ("preset " + extra->getStringAttribute ("presetId").quoted() + " " +
+                           extra->getStringAttribute ("presetName").quoted());
+        }
+        return lines;
+    }
+
+    static void printDiff (const juce::StringArray& a, const juce::StringArray& b)
+    {
+        int shown = 0;
+        for (int i = 0; i < juce::jmax (a.size(), b.size()) && shown < 12; ++i)
+            if (a[i] != b[i])
+            {
+                std::fprintf (stderr, "- %s\n+ %s\n", a[i].trim().toRawUTF8(),
+                              b[i].trim().toRawUTF8());
+                ++shown;
+            }
     }
 
     bool checkState()
@@ -132,16 +180,28 @@ private:
                          static_cast<int> (again.getSize()));
             return true;
         }
-        const auto a = stateLines (savedState_), b = stateLines (again);
-        int shown = 0;
-        for (int i = 0; i < juce::jmax (a.size(), b.size()) && shown < 12; ++i)
-            if (a[i] != b[i])
-            {
-                std::fprintf (stderr, "- %s\n+ %s\n", a[i].trim().toRawUTF8(),
-                              b[i].trim().toRawUTF8());
-                ++shown;
-            }
+        printDiff (stateLines (savedState_), stateLines (again));
         fail ("The state saved after a reload differs from the state that was loaded");
+        return false;
+    }
+
+    bool checkPresetState()
+    {
+        juce::MemoryBlock after;
+        plugin_->getStateInformation (after);
+        const auto a = presetLines (beforeEditor_), b = presetLines (after);
+        if (a.isEmpty())
+        {
+            fail ("Could not read the plugin's parameters from its state");
+            return false;
+        }
+        if (a == b)
+        {
+            std::printf ("preset state after auditions and A/B: identical (%d lines)\n", a.size());
+            return true;
+        }
+        printDiff (a, b);
+        fail ("Auditioning and going back, or switching A/B there and back, changed the state");
         return false;
     }
 
@@ -156,6 +216,8 @@ private:
             std::printf ("%s\n", text.toRawUTF8());
             const bool ok = static_cast<bool> (juce::JSON::parse (text).getProperty ("ok", false));
             result_.deleteFile();
+            if (!checkPresetState())
+                return;
             setApplicationReturnValue (ok ? 0 : 1);
             quit();
         }
@@ -174,7 +236,7 @@ private:
 
     juce::File result_;
     std::unique_ptr<juce::AudioPluginInstance> plugin_, restored_;
-    juce::MemoryBlock savedState_;
+    juce::MemoryBlock savedState_, beforeEditor_;
     std::unique_ptr<juce::DocumentWindow> window_;
     int ticks_ = 0;
 };

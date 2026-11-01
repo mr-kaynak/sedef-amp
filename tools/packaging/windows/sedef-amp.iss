@@ -1,0 +1,74 @@
+; SPDX-License-Identifier: AGPL-3.0-or-later
+;
+; Inno Setup script for Sedef-Amp-Windows-Setup.exe (x64). build-installer.sh runs it as
+;   iscc /DAppVersion=<x.y.z> /DArtefactsDir=<JUCE artefacts folder> /O<output folder> sedef-amp.iss
+; Needs Inno Setup 6.
+
+#ifndef AppVersion
+  #error Define AppVersion, e.g. iscc /DAppVersion=0.2.0
+#endif
+#ifndef ArtefactsDir
+  #define ArtefactsDir SourcePath + "..\..\..\build\release\plugin\SedefAmp_artefacts\Release"
+#endif
+#define RepoDir SourcePath + "..\..\.."
+#define AssetsDir SourcePath + "..\assets"
+#define AppName "Sedef Amp"
+#define AppExe "Sedef Amp.exe"
+
+[Setup]
+; AppId identifies the installation for upgrades and the uninstaller; never change it.
+AppId={{8F234EBD-87BC-4821-9789-4BF2E8D8AB79}
+AppName={#AppName}
+AppVersion={#AppVersion}
+AppVerName={#AppName} {#AppVersion}
+AppPublisher=Sedef
+AppPublisherURL=https://github.com/mr-kaynak/sedef-amp
+AppSupportURL=https://github.com/mr-kaynak/sedef-amp/issues
+AppUpdatesURL=https://github.com/mr-kaynak/sedef-amp/releases
+VersionInfoVersion={#AppVersion}
+VersionInfoProductName={#AppName}
+VersionInfoDescription={#AppName} Setup
+DefaultDirName={autopf}\{#AppName}
+DisableProgramGroupPage=yes
+LicenseFile={#RepoDir}\LICENSE
+SetupIconFile={#AssetsDir}\icon.ico
+UninstallDisplayIcon={app}\sedef-amp.ico
+UninstallDisplayName={#AppName}
+OutputBaseFilename=Sedef-Amp-Windows-Setup
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
+PrivilegesRequired=admin
+MinVersion=10.0
+WizardStyle=modern
+Compression=lzma2/ultra64
+SolidCompression=yes
+
+[Messages]
+FinishedLabel=Sedef Amp is installed.%n%nRescan plugins in your DAW and look for Sedef Amp by Sedef. The standalone app is in the Start menu.
+
+[Types]
+Name: "full"; Description: "Everything"
+Name: "custom"; Description: "Choose formats"; Flags: iscustom
+
+[Components]
+Name: "vst3"; Description: "VST3 plugin (Common Files\VST3)"; Types: full custom
+Name: "clap"; Description: "CLAP plugin (Common Files\CLAP)"; Types: full custom
+Name: "standalone"; Description: "Standalone app with a Start menu shortcut"; Types: full custom
+
+[InstallDelete]
+; Clear an older VST3 bundle, including one copied there by hand, so no stale files remain in it.
+Type: filesandordirs; Name: "{commoncf64}\VST3\Sedef Amp.vst3"; Components: vst3
+
+[Files]
+Source: "{#ArtefactsDir}\VST3\Sedef Amp.vst3\*"; DestDir: "{commoncf64}\VST3\Sedef Amp.vst3"; Components: vst3; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#ArtefactsDir}\CLAP\Sedef Amp.clap"; DestDir: "{commoncf64}\CLAP"; Components: clap; Flags: ignoreversion
+Source: "{#ArtefactsDir}\Standalone\{#AppExe}"; DestDir: "{app}"; Components: standalone; Flags: ignoreversion
+Source: "{#RepoDir}\LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"; Flags: ignoreversion
+Source: "{#RepoDir}\THIRD_PARTY_NOTICES.md"; DestDir: "{app}"; DestName: "THIRD_PARTY_NOTICES.txt"; Flags: ignoreversion
+Source: "{#AssetsDir}\icon.ico"; DestDir: "{app}"; DestName: "sedef-amp.ico"; Flags: ignoreversion
+
+[Icons]
+Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExe}"; Components: standalone
+
+[Run]
+Filename: "{app}\{#AppExe}"; Description: "Open {#AppName} now"; Components: standalone; Flags: nowait postinstall skipifsilent unchecked runasoriginaluser

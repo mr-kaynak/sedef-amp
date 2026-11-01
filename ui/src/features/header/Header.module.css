@@ -3,7 +3,9 @@
   position: relative;
   z-index: 30;
   display: grid;
-  grid-template-columns: 176px 396px 1fr auto;
+  /* The meters give way first, so the tools keep the row's right padding (the standalone app adds
+     the metronome button). */
+  grid-template-columns: 176px 396px minmax(0, 1fr) auto;
   align-items: center;
   gap: 20px;
   height: 68px;
@@ -17,12 +19,14 @@
   display: flex;
   justify-content: center;
   gap: 18px;
+  min-width: 0;
 }
 
 .gain {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
 }
 
 .gain > :first-child {

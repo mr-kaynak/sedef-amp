@@ -112,8 +112,8 @@ cd sedef-amp-*-linux-x86_64
 
 The interface needs WebKitGTK 4.1 (`libwebkit2gtk-4.1-0` on Debian and Ubuntu, `webkit2gtk4.1`
 on Fedora); `install.sh` warns if it's missing. The standalone app uses ALSA or JACK. The update
-check uses libcurl (`libcurl4` on Debian and Ubuntu, `libcurl` on Fedora); without it Sedef works
-but can't check for updates.
+check loads `libcurl.so.4` when it runs (`libcurl4` on Debian and Ubuntu, `libcurl` on Fedora);
+without it Sedef works but can't check for updates.
 
 To uninstall, run `~/.local/share/sedef-amp/uninstall.sh`, or
 `/usr/local/share/sedef-amp/uninstall.sh --system` for a system-wide install.

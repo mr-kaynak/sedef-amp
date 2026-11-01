@@ -3,7 +3,9 @@
 // it is open. Renders nothing otherwise, and nothing at all in builds without the checker.
 //
 // The header row has no width to spare, so the pill takes none: it is positioned against the
-// header and hangs at the right end of the section tabs line below it, which is empty.
+// header and hangs at the right end of the section tabs line below it, which is empty. The preset
+// browser covers that line (and the header stacks above it), so the pill steps aside meanwhile.
+import { useBrowserStore } from '../presets/session';
 import { selectShowPill, selectSupported, updateActions, useUpdateStore } from './updateStore';
 import { UpdatesPanel } from './UpdatesPanel';
 import styles from './UpdateSlot.module.css';
@@ -12,10 +14,11 @@ export function UpdateSlot() {
   const show = useUpdateStore(selectShowPill);
   const version = useUpdateStore((s) => selectSupported(s)?.latest?.version ?? '');
   const open = useUpdateStore((s) => s.open);
+  const browsing = useBrowserStore((s) => s.open);
 
   return (
     <>
-      {show && (
+      {show && !browsing && (
         <button
           type="button"
           className={styles.pill}

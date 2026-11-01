@@ -233,7 +233,9 @@ export function UpdatesPanel() {
   const dialogRef = useRef<HTMLDivElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
 
-  // Focus moves into the panel and back to where it came from; Escape closes it.
+  // Focus moves into the panel and back to where it came from; Escape closes it. The listener
+  // sits on window in the capture phase so it runs before the preset browser's (document,
+  // capture), which then sees the key handled and stays open.
   useEffect(() => {
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     headingRef.current?.focus({ preventScroll: true });
@@ -243,9 +245,9 @@ export function UpdatesPanel() {
       e.stopPropagation();
       updateActions.closePanel();
     };
-    document.addEventListener('keydown', onKeyDown, true);
+    window.addEventListener('keydown', onKeyDown, true);
     return () => {
-      document.removeEventListener('keydown', onKeyDown, true);
+      window.removeEventListener('keydown', onKeyDown, true);
       const target = opener?.isConnected ? opener : fallbackFocus();
       target?.focus({ preventScroll: true });
     };

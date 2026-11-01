@@ -11,6 +11,9 @@
 # When MACOS_SIGN_APP_IDENTITY names a "Developer ID Application" identity, the image is signed.
 
 set -euo pipefail
+# Bash 5.2 turns & in the replacement of ${var//pattern/replacement} into the match; the
+# substituted texts contain "Privacy & Security". Older versions have no such option.
+shopt -u patsub_replacement 2>/dev/null || true
 
 DMGBUILD_VERSION=1.6.7
 DS_STORE_VERSION=1.3.3

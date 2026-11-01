@@ -10,6 +10,9 @@
 # advice to the notarized wording.
 
 set -euo pipefail
+# Bash 5.2 turns & in the replacement of ${var//pattern/replacement} into the match; the
+# substituted texts contain "Privacy & Security". Older versions have no such option.
+shopt -u patsub_replacement 2>/dev/null || true
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 tag="${1:-}"

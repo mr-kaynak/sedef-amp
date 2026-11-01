@@ -134,7 +134,9 @@ jobs:
         env:
           # Matches the macOS build: with the signing secrets it notarizes or fails.
           MACOS_NOTARIZED: ${{ secrets.MACOS_DEVELOPER_ID_APP_P12 != '' }}
-        run: tools/packaging/release-notes.sh "${{ github.ref_type == 'tag' && github.ref_name || '' }}" > notes.md
+          # Empty for a dry run: the notes then use the version from CMakeLists.txt.
+          TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+        run: tools/packaging/release-notes.sh "$TAG" > notes.md
       - uses: actions/upload-artifact@v4
         with:
           name: release-preview

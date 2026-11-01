@@ -1,6 +1,6 @@
 [Desktop Entry]
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# install.sh replaces @EXEC@ with the installed binary's full path.
+# install.sh fills in Exec with the installed binary's full path.
 Type=Application
 Name=Sedef Amp
 GenericName=Guitar Amp and Effects

@@ -58,7 +58,7 @@ echo "Using $iscc"
 
 # ISCC is a Windows program: hand it Windows paths and keep MSYS from rewriting the /D and /O
 # switches as POSIX paths.
-MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' "$iscc" /Qp \
+MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' "$iscc" \
     "/DAppVersion=$version" \
     "/DArtefactsDir=$(cygpath -w "$artefacts")" \
     "/O$(cygpath -w "$outdir")" \

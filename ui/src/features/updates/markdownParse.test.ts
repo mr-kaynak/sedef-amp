@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { describe, expect, it } from 'vitest';
-import { parseInline, parseMarkdown, safeHref, type Inline } from './markdownParse';
+import { parseInline, parseMarkdown, safeHref, type Block, type Inline } from './markdownParse';
 
 const text = (t: string): Inline => ({ kind: 'text', text: t });
 
@@ -132,5 +132,63 @@ describe('parseMarkdown', () => {
   it('shows a pathologically long paragraph as text', () => {
     const source = '*a '.repeat(5000);
     expect(parseMarkdown(source)).toEqual([{ kind: 'paragraph', children: [text(source.trim())] }]);
+  });
+});
+
+describe('parseMarkdown on hostile input', () => {
+  // Each of these took seconds when blocks were matched with backtracking patterns, comments
+  // stripped with a lazy one, or blank lines rescanned what followed them. Now each takes a few
+  // milliseconds; the bound is loose for busy CI machines.
+  const quickly = (source: string): Block[] => {
+    const started = performance.now();
+    const blocks = parseMarkdown(source);
+    expect(performance.now() - started).toBeLessThan(1000);
+    return blocks;
+  };
+  const plain = (line: string): Block[] => [{ kind: 'paragraph', children: [text(line.trim())] }];
+
+  it('shows a line over 1000 characters as plain text', () => {
+    const line = `# **Heading** ${'x'.repeat(1000)}`;
+    expect(quickly(line)).toEqual(plain(line));
+  });
+
+  it('keeps table rules linear', () => {
+    const rule = `|-${' '.repeat(990)}x`;
+    expect(quickly(`a | b\n${rule}`)).toEqual([
+      { kind: 'paragraph', children: [text(`a | b ${rule}`)] },
+    ]);
+    expect(quickly(`a | b\n|${'-|'.repeat(490)}`)[0]?.kind).toBe('table');
+    const long = `|-${' '.repeat(60000)}x`;
+    expect(quickly(`a | b\n${long}`)).toEqual([
+      { kind: 'paragraph', children: [text('a | b')] },
+      ...plain(long),
+    ]);
+  });
+
+  it('keeps headings linear', () => {
+    expect(quickly(`#${' '.repeat(990)}x`)).toEqual([
+      { kind: 'heading', level: 1, children: [text('x')] },
+    ]);
+    expect(quickly(`# a${' #'.repeat(490)}x`)[0]?.kind).toBe('heading');
+    expect(quickly(`${'#'.repeat(7)}${' '.repeat(990)}x`)[0]?.kind).toBe('paragraph');
+  });
+
+  it('keeps rules linear', () => {
+    expect(quickly(`-${' -'.repeat(490)}`)).toEqual([{ kind: 'rule' }]);
+    expect(quickly(`-${' -'.repeat(490)}x`)[0]?.kind).toBe('list');
+  });
+
+  it('skips a run of blank lines once', () => {
+    expect(quickly(`- a${'\n'.repeat(60000)}- b`)).toEqual([
+      { kind: 'list', ordered: false, items: [[text('a')], [text('b')]] },
+    ]);
+    expect(quickly('\n \n'.repeat(30000))).toEqual([]);
+  });
+
+  it('strips comments in one pass, unclosed ones too', () => {
+    expect(quickly('a<!-- hidden -->b')).toEqual(plain('ab'));
+    expect(quickly(`a\n${'<!--\n'.repeat(64000)}`)).toEqual([
+      { kind: 'paragraph', children: [text(`a ${'<!-- '.repeat(64000).trim()}`)] },
+    ]);
   });
 });

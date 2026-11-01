@@ -6,6 +6,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-01
+
+A preset browser you can audition from, an intonation workbench that works with a real guitar,
+one-click installers, and updates that come to you.
+
 ### Added
 
 - **Preset browser:** a three-pane panel over the rig: a library rail (all, favourites, recent,
@@ -92,5 +97,6 @@ The first public build: a complete guitar rig with a tuner and an intonation wor
 - Every CI build is checked with pluginval (strictness 8), clap-validator and auval, and a smoke
   test opens the editor in a real host and WebView on every OS.
 
-[Unreleased]: https://github.com/mr-kaynak/sedef-amp/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/mr-kaynak/sedef-amp/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/mr-kaynak/sedef-amp/releases/tag/v0.1.0

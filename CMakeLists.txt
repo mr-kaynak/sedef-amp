@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.25)
 
 project(SedefAmp
-    VERSION 0.1.0
+    VERSION 0.2.0
     DESCRIPTION "Open-source guitar amp and effects suite"
     HOMEPAGE_URL "https://github.com/mr-kaynak/sedef-amp"
     LANGUAGES C CXX)

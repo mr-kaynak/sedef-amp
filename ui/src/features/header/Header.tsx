@@ -8,6 +8,7 @@ import { useAppStore } from '../../state/appStore';
 import { uiActions, useUiStore } from '../../state/uiStore';
 import { MetronomePanel } from '../metronome/MetronomePanel';
 import { SettingsPanel } from '../settings/SettingsPanel';
+import { UpdateSlot } from '../updates/UpdateSlot';
 import { Brand } from './Brand';
 import { LevelMeter } from './LevelMeter';
 import { PresetBar } from './PresetBar';
@@ -47,6 +48,7 @@ export function Header() {
         <GainStrip param="outputGain" which="output" label="Output" />
       </div>
       <nav className={styles.tools} aria-label="Tools">
+        <UpdateSlot />
         <button
           type="button"
           className={buttons.ghost}

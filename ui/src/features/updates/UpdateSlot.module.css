@@ -1,0 +1,36 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Quiet on purpose: a hairline pill with one small nacre dot, the only thing in it that is alive. */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  margin-right: 2px;
+  padding: 0 7px;
+  border: 1px solid rgb(205 238 238 / 0.24);
+  border-radius: 12px;
+  background: rgb(205 238 238 / 0.05);
+  color: var(--bone-2);
+  font-size: var(--t-11);
+  font-weight: 540;
+  white-space: nowrap;
+  transition:
+    color var(--dur-1),
+    border-color var(--dur-1),
+    background var(--dur-1);
+}
+
+.pill:hover,
+.pill[aria-expanded='true'] {
+  color: var(--bone);
+  border-color: rgb(205 238 238 / 0.42);
+  background: rgb(205 238 238 / 0.09);
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--nacre);
+  box-shadow: 0 0 6px rgb(200 241 234 / 0.45);
+}

@@ -74,6 +74,67 @@ export interface IrState {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Updates (docs/updates.md). The settings live in a per-user file, never in the plugin state.
+
+export type UpdatePlatform = 'macOS' | 'Windows' | 'Linux';
+
+export interface ReleaseInfo {
+  /** Semver without the "v", e.g. "0.2.0". */
+  version: string;
+  tag: string;
+  name: string;
+  /** Markdown from the release. Untrusted: render with features/updates/markdown.tsx only. */
+  notes: string;
+  /** The release page, always under https://github.com/mr-kaynak/sedef-amp/releases. */
+  url: string;
+  /** ISO 8601; may be empty. */
+  publishedAt: string;
+  /** This OS's installer, or null when the release has none (then: the releases page). */
+  installer: { name: string; size: number } | null;
+  hasChecksums: boolean;
+}
+
+export type UpdatePhase = 'idle' | 'checking' | 'downloading' | 'verifying' | 'done' | 'error';
+
+export type UpdateErrorCode =
+  | 'network'
+  | 'rateLimited'
+  | 'badResponse'
+  | 'noInstaller'
+  | 'noChecksum'
+  | 'checksumMismatch'
+  | 'incomplete'
+  | 'disk'
+  | 'openFailed';
+
+export type UpdateState =
+  /** Built with SEDEF_UPDATE_CHECK=OFF: the UI shows nothing about updates. */
+  | { supported: false; currentVersion: string }
+  | {
+      supported: true;
+      currentVersion: string;
+      platform: UpdatePlatform;
+      autoCheck: boolean;
+      /** False when SEDEF_DISABLE_UPDATE_CHECK (or the UI smoke test) turns automatic checks off. */
+      autoCheckAllowed: boolean;
+      /** '' when none. */
+      skippedVersion: string;
+      /** Last successful check, ms since the epoch; null when there was none. */
+      lastChecked: number | null;
+      phase: UpdatePhase;
+      /** The latest stable release from the last successful check. */
+      latest: ReleaseInfo | null;
+      /** latest is newer than currentVersion (whether or not it was skipped). */
+      updateAvailable: boolean;
+      error: { code: UpdateErrorCode; detail: string } | null;
+      /** Bytes, while downloading or verifying. */
+      progress: { received: number; total: number } | null;
+      /** The verified installer, once downloaded. */
+      download: { fileName: string; opened: boolean } | null;
+      releasesUrl: string;
+    };
+
+// ---------------------------------------------------------------------------------------------
 // Hello (initial handshake)
 
 export type WrapperType = 'Standalone' | 'VST3' | 'AudioUnit' | 'CLAP' | 'Browser';
@@ -145,6 +206,19 @@ export interface NativeFunctions {
   /** Requests a new editor size in CSS pixels at scale 1 multiplied by scale. */
   sedef_ui_setScale(scale: number): void;
   sedef_openUrl(url: string): void;
+
+  /** The update state; also runs the automatic check when it is on and due (once a day). */
+  sedef_update_getState(): UpdateState;
+  /** Checks now, ignoring the once-a-day limit. */
+  sedef_update_check(): UpdateState;
+  sedef_update_setAutoCheck(enabled: boolean): UpdateState;
+  /** Stops offering a version; '' offers it again. */
+  sedef_update_skip(version: string): UpdateState;
+  /** Downloads this OS's installer, verifies its SHA-256, then opens it. Progress: sedef:update. */
+  sedef_update_download(): UpdateState;
+  sedef_update_cancel(): UpdateState;
+  /** Shows the downloaded installer in the file manager. */
+  sedef_update_reveal(): UpdateState;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -193,6 +267,8 @@ export interface Events {
   'sedef:pitch': PitchEvent;
   'sedef:presets': PresetState;
   'sedef:ir': IrState;
+  /** Update checks and downloads (state changes and download progress, at most ~10 Hz). */
+  'sedef:update': UpdateState;
 }
 
 export type EventName = keyof Events;

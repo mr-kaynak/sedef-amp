@@ -9,6 +9,7 @@ import { applyHello, useAppStore } from '../state/appStore';
 import { invoke, setBackend } from '../state/backendRef';
 import { pitch, telemetry } from '../state/live';
 import { applyPresetState } from '../state/presetStore';
+import { connectUpdates } from '../features/updates/updateStore';
 import { useUiStore } from '../state/uiStore';
 import type { DemoFlags } from './demo';
 import { hydrateUiState, startPersistence } from './persistence';
@@ -24,6 +25,7 @@ export async function createBackend(flags: DemoFlags): Promise<Backend> {
     persistKey: flags.fresh || flags.freeze ? null : 'sedef-mock-ui-state',
     ...(flags.preset ? { initialPresetId: `factory:${flags.preset}` } : {}),
     overrides: flags.overrides,
+    ...(flags.update ? { update: flags.update } : {}),
   });
 }
 
@@ -60,5 +62,6 @@ export async function connect(backend: Backend): Promise<() => void> {
   }
 
   offs.push(startPersistence());
+  offs.push(connectUpdates(backend));
   return () => offs.forEach((off) => off());
 }

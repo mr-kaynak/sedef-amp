@@ -14,13 +14,28 @@ publishes a GitHub release. The same scripts run locally.
 | `SHA256SUMS.txt` | `sha256sum` output for the three packages |
 
 The names carry no version on purpose: the README and docs link to
-`https://github.com/mr-kaynak/sedef-amp/releases/latest/download/<asset>`. Renaming an asset
-breaks those links, so change the README, [install.md](install.md) and
-[.github/release-notes.md](../.github/release-notes.md) with it.
+`https://github.com/mr-kaynak/sedef-amp/releases/latest/download/<asset>`, and the in-app update
+check downloads these exact names and refuses a file without a matching line in that release's
+`SHA256SUMS.txt`. Keep the names and the checksum file in every release; renaming an asset means
+changing the README, [install.md](install.md), [.github/release-notes.md](../.github/release-notes.md)
+and the update check with it. The update check also skips tags with a pre-release suffix, so a
+regular release tag is `vX.Y.Z`.
 
 Some identifiers must stay fixed so upgrades and uninstalls find earlier installs: the Inno Setup
 `AppId` in `tools/packaging/windows/sedef-amp.iss` and the macOS package IDs
 `io.github.mr-kaynak.sedef-amp.{app,vst3,au,clap}`.
+
+## Signing status
+
+| Package | Today | Once set up |
+|---|---|---|
+| macOS | Bundles ad hoc signed; installer and disk image unsigned and not notarized | Developer ID signatures with hardened runtime, notarized and stapled ([below](#macos-signing-and-notarization)); switches on when the secrets exist |
+| Windows | Installer and binaries unsigned; SmartScreen warns | Code signing, not planned in detail yet ([below](#windows-code-signing)) |
+| Linux | Unsigned archive | No signing planned |
+
+Until then, the only integrity check on a download is `SHA256SUMS.txt`, which comes from the same
+GitHub release as the files. It catches a broken or swapped download, but not a compromised
+release or repository. The release notes say which state each release is in.
 
 ## Cutting a release
 

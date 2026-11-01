@@ -6,6 +6,8 @@ namespace sedef::update
 namespace
 {
 constexpr juce::uint32 kProgressMessageIntervalMs = 100; // the UI hears at most ~10 per second
+constexpr int kStoreLockTimeoutMs = 2000;
+constexpr int kClosingLockTimeoutMs = 250; // settings still unsaved when the service closes
 
 juce::var object (std::initializer_list<std::pair<const char*, juce::var>> props)
 {
@@ -33,11 +35,14 @@ bool openInstaller (const juce::File& file, Platform platform)
 }
 } // namespace
 
-Service::Service (juce::File store, juce::String apiUrl)
+Service::Service (juce::File store, juce::String apiUrl, juce::String releasesUrl,
+                  juce::File downloads)
     : juce::Thread ("Sedef updates"),
       file_ (std::move (store)),
+      releasesUrl_ (std::move (releasesUrl)),
+      downloads_ (std::move (downloads)),
       platform_ (currentPlatform()),
-      client_ (SEDEF_VERSION, platform_, std::move (apiUrl))
+      client_ (SEDEF_VERSION, platform_, std::move (apiUrl), releasesUrl_)
 {
 }
 
@@ -45,6 +50,8 @@ Service::~Service()
 {
     cancelPendingUpdate();
     {
+        // The worker makes cancel_ in the same step as it takes a job, so a job is either still
+        // pending here or already cancellable.
         const std::scoped_lock l (lock_);
         pending_ = Job::None;
         if (cancel_ != nullptr)
@@ -115,7 +122,7 @@ juce::var Service::state()
             installer_ == juce::File()
                 ? juce::var()
                 : object ({ { "fileName", installer_.getFileName() }, { "opened", opened_ } }) },
-          { "releasesUrl", releasesPageUrl() } });
+          { "releasesUrl", releasesUrl_ } });
 }
 
 // Requests from the UI (message thread) -----------------------------------------------------------
@@ -139,12 +146,13 @@ bool Service::startAutomaticCheckIfDue()
 
 void Service::pageOpened()
 {
-    // Another process may have checked, or changed a setting, since this one last looked.
-    auto store = readStore (file_);
+    // Another process may have checked, or changed a setting, since this one last looked. The
+    // file is replaced by renaming, so reading it needs no lock.
+    auto store = readStore (file_, releasesUrl_);
     bool start = false;
     {
         const std::scoped_lock l (lock_);
-        store_ = std::move (store);
+        adopt (std::move (store));
         start = startAutomaticCheckIfDue();
     }
     if (start)
@@ -169,15 +177,15 @@ void Service::checkNow()
 
 void Service::setAutoCheck (bool enabled)
 {
-    auto store = updateStore (500, [enabled] (Store& s) {
-        s.autoCheck = enabled;
-        return true;
-    });
-    bool start = false;
     {
         const std::scoped_lock l (lock_);
-        store_ = std::move (store);
-        start = startAutomaticCheckIfDue();
+        unsaved_.autoCheck = enabled;
+        unsaved_.applyTo (store_);
+    }
+    bool start = !saveSettings (0); // the file is busy: the worker saves it
+    {
+        const std::scoped_lock l (lock_);
+        start = startAutomaticCheckIfDue() || start;
     }
     if (start)
         wake();
@@ -187,15 +195,13 @@ void Service::setAutoCheck (bool enabled)
 void Service::skip (const juce::String& version)
 {
     const auto parsed = Version::parse (version);
-    const auto value = parsed ? parsed->toString() : juce::String();
-    auto store = updateStore (500, [&value] (Store& s) {
-        s.skippedVersion = value;
-        return true;
-    });
     {
         const std::scoped_lock l (lock_);
-        store_ = std::move (store);
+        unsaved_.skippedVersion = parsed ? parsed->toString() : juce::String();
+        unsaved_.applyTo (store_);
     }
+    if (!saveSettings (0))
+        wake();
     sendChangeMessage();
 }
 
@@ -299,35 +305,93 @@ void Service::run()
     while (!threadShouldExit())
     {
         Job job = Job::None;
+        bool unsaved = false;
+        std::shared_ptr<Cancellation> cancel;
         {
             const std::scoped_lock l (lock_);
             job = std::exchange (pending_, Job::None);
+            unsaved = unsaved_.any();
+            if (job != Job::None)
+                cancel_ = cancel = std::make_shared<Cancellation>();
         }
+        if (unsaved)
+            saveSettings (kStoreLockTimeoutMs);
         switch (job)
         {
         case Job::None:
-            wait (-1);
+            if (!unsaved)
+                wait (-1);
             break;
         case Job::Check:
-            runCheck (false);
+            runCheck (false, *cancel);
             break;
         case Job::ForcedCheck:
-            runCheck (true);
+            runCheck (true, *cancel);
             break;
         case Job::Download:
-            runDownload();
+            runDownload (*cancel);
             break;
         }
     }
+    saveSettings (kClosingLockTimeoutMs); // closing: a setting the user changed is not lost
+}
+
+void Service::Unsaved::applyTo (Store& store) const
+{
+    if (autoCheck)
+        store.autoCheck = *autoCheck;
+    if (skippedVersion)
+        store.skippedVersion = *skippedVersion;
+}
+
+void Service::adopt (Store store)
+{
+    store_ = std::move (store);
+    unsaved_.applyTo (store_);
+}
+
+bool Service::saveSettings (int timeoutMs)
+{
+    Unsaved settings;
+    {
+        const std::scoped_lock l (lock_);
+        settings = unsaved_;
+    }
+    if (!settings.any())
+        return true;
+    auto store = updateStore (timeoutMs, [&settings] (Store& s) {
+        settings.applyTo (s);
+        return true;
+    });
+    if (!store)
+        return false;
+    {
+        const std::scoped_lock l (lock_);
+        // Only what was written: the user may have changed a setting again meanwhile.
+        if (unsaved_.autoCheck == settings.autoCheck)
+            unsaved_.autoCheck.reset();
+        if (unsaved_.skippedVersion == settings.skippedVersion)
+            unsaved_.skippedVersion.reset();
+        adopt (std::move (*store));
+    }
+    if (timeoutMs > 0)
+        sendChangeMessage();
+    return true;
 }
 
 template <typename Modify>
-Store Service::updateStore (int timeoutMs, Modify&& modify)
+std::optional<Store> Service::updateStore (int timeoutMs, Modify&& modify)
 {
-    const std::scoped_lock l (fileMutex_);
-    // Best effort across processes: the write itself is atomic either way.
+    std::unique_lock l (fileMutex_, std::defer_lock);
+    if (timeoutMs > 0)
+        l.lock();
+    else if (!l.try_lock())
+        return std::nullopt;
+    // Best effort across processes once we have waited: the write itself is atomic either way.
     const bool locked = fileLock_.enter (timeoutMs);
-    auto store = readStore (file_);
+    if (!locked && timeoutMs <= 0)
+        return std::nullopt;
+    auto store = readStore (file_, releasesUrl_);
     if (modify (store))
         writeStore (file_, store);
     if (locked)
@@ -335,31 +399,27 @@ Store Service::updateStore (int timeoutMs, Modify&& modify)
     return store;
 }
 
-void Service::runCheck (bool forced)
+void Service::runCheck (bool forced, Cancellation& cancel)
 {
-    auto cancel = std::make_shared<Cancellation>();
-    {
-        const std::scoped_lock l (lock_);
-        cancel_ = cancel;
-    }
-
     // Claim the check before the request, so other processes that open an editor meanwhile
     // see a recent attempt and skip theirs.
     const auto now = juce::Time::currentTimeMillis();
-    bool due = true;
-    auto store = updateStore (2000, [&] (Store& s) {
-        due = forced || isCheckDue (now, s.lastAttemptMs, s.lastSuccessMs);
-        if (due)
-            s.lastAttemptMs = now;
-        return due;
-    });
+    bool due = false;
+    std::optional<Store> store;
+    if (!threadShouldExit() && !cancel.isCancelled())
+        store = updateStore (kStoreLockTimeoutMs, [&] (Store& s) {
+            due = forced || isCheckDue (now, s.lastAttemptMs, s.lastSuccessMs);
+            if (due)
+                s.lastAttemptMs = now;
+            return due;
+        });
 
     CheckResult result;
-    if (due)
+    if (due && !threadShouldExit())
     {
-        result = client_.fetchLatest (*cancel);
-        if (result.error == Error::None)
-            store = updateStore (2000, [&result] (Store& s) {
+        result = client_.fetchLatest (cancel);
+        if (result.error == Error::None && !threadShouldExit())
+            store = updateStore (kStoreLockTimeoutMs, [&result] (Store& s) {
                 s.lastSuccessMs = juce::Time::currentTimeMillis();
                 s.latest = result.release;
                 return true;
@@ -369,7 +429,8 @@ void Service::runCheck (bool forced)
     {
         const std::scoped_lock l (lock_);
         cancel_.reset();
-        store_ = std::move (store);
+        if (store)
+            adopt (std::move (*store));
         const bool failed = result.error != Error::None && result.error != Error::Cancelled;
         phase_ = failed ? Phase::Error : Phase::Idle;
         error_ = failed ? result.error : Error::None;
@@ -378,19 +439,21 @@ void Service::runCheck (bool forced)
     sendChangeMessage();
 }
 
-void Service::runDownload()
+void Service::runDownload (Cancellation& cancel)
 {
-    auto cancel = std::make_shared<Cancellation>();
     std::optional<Release> release;
     {
         const std::scoped_lock l (lock_);
-        cancel_ = cancel;
         release = store_.latest;
     }
 
     DownloadResult result;
     const auto* asset = release ? selectInstaller (*release, platform_, isX64()) : nullptr;
-    if (asset == nullptr)
+    if (threadShouldExit() || cancel.isCancelled())
+    {
+        result.error = Error::Cancelled;
+    }
+    else if (asset == nullptr)
     {
         result.error = Error::NoInstaller;
     }
@@ -412,8 +475,9 @@ void Service::runDownload()
                 sendChangeMessage();
             }
         };
-        result =
-            client_.downloadVerified (*release, *asset, downloadsFolder(), onProgress, *cancel);
+        result = client_.downloadVerified (
+            *release, *asset, downloads_ == juce::File() ? downloadsFolder() : downloads_,
+            onProgress, cancel);
     }
 
     {

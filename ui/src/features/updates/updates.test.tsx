@@ -231,7 +231,9 @@ describe('Download & install', () => {
     await step();
     expect(within(panel).queryByRole('progressbar')).toBeNull();
     expect(within(panel).getByText('Sedef-Amp-macOS.dmg')).toBeInTheDocument();
-    expect(within(panel).getByText(/The disk image is open\. Quit your DAW/)).toBeInTheDocument();
+    expect(within(panel).getByText(/The disk image is open\. Quit your DAW/)).toHaveTextContent(
+      'Privacy & Security and click Open Anyway',
+    );
     expect(within(panel).getByRole('button', { name: 'Show in folder' })).toBeInTheDocument();
     expect(within(panel).getByRole('status')).toHaveTextContent('Download verified');
   });

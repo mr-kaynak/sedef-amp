@@ -2,6 +2,7 @@
 // The update client's requests, downloads and checks against canned responses from a local HTTP
 // server, so every failure path runs without GitHub. (tools/sedef_update_check.cpp runs the same
 // code against the real API.)
+#include "DownloadMark.h"
 #include "LocalServer.h"
 #include "UpdateClient.h"
 
@@ -148,6 +149,47 @@ TEST_CASE ("A server that is not there is a network error", "[update][client]")
     CHECK (client.fetchLatest (cancel).error == Error::Network);
 }
 
+TEST_CASE ("Redirects are followed by hand, only where they may lead", "[update][client]")
+{
+    Fixture f;
+    // The API moved (a renamed repository): same origin, followed.
+    f.server.redirect ("/repos/x/releases/latest", 301, "/repositories/1/releases/latest");
+    f.server.serve ("/repositories/1/releases/latest", 200, R"({"tag_name": "v0.2.0"})");
+    const auto check = f.client.fetchLatest (f.cancel);
+    CHECK (check.error == Error::None);
+    CHECK (check.release.has_value());
+
+    // An asset on another server: GitHub's CDN would be https on its own hosts.
+    const auto release = localRelease (f.server, 300000);
+    for (const auto& elsewhere : { f.server.url ("/cdn").replace ("127.0.0.1", "localhost"),
+                                   juce::String ("https://evil.example/x"),
+                                   juce::String ("http://objects.githubusercontent.com/x") })
+    {
+        f.server.redirect ("/Sedef-Amp-macOS.dmg", 302, elsewhere);
+        const auto result = f.download (release);
+        INFO (elsewhere);
+        CHECK (result.error == Error::BadResponse);
+        CHECK (result.detail.contains ("redirect"));
+    }
+    CHECK (f.server.hits ("/cdn") == 0);
+
+    // A loop ends.
+    f.server.redirect ("/loop", 307, "/loop");
+    auto looping = release;
+    looping.assets[0].url = f.server.url ("/loop");
+    const auto loop = f.download (looping);
+    CHECK (loop.error == Error::BadResponse);
+    CHECK (loop.detail.contains ("too many redirects"));
+    CHECK (f.server.hits ("/loop") == Client::kMaxRedirects + 1);
+    CHECK (f.filesInFolder().isEmpty());
+
+    // A path on the same server is followed, and the download still has to verify.
+    f.server.redirect ("/Sedef-Amp-macOS.dmg", 302, "/cdn/Sedef-Amp-macOS.dmg");
+    f.server.serve ("/cdn/Sedef-Amp-macOS.dmg", 200, f.installer);
+    CHECK (f.download (release).error == Error::None);
+    CHECK (f.server.hits ("/cdn/Sedef-Amp-macOS.dmg") == 1);
+}
+
 TEST_CASE ("A cancelled check does not run", "[update][client]")
 {
     Fixture f;
@@ -221,6 +263,62 @@ TEST_CASE ("Download HTTP errors are reported", "[update][client]")
     f.server.serve ("/SHA256SUMS.txt", 403, juce::String());
     CHECK (f.download (localRelease (f.server, 300000)).error == Error::RateLimited);
     CHECK (f.filesInFolder().isEmpty());
+}
+
+TEST_CASE ("A release without a usable installer size downloads nothing", "[update][client]")
+{
+    Fixture f;
+    for (const auto size : { juce::int64 { 0 }, kMaxInstallerBytes + 1 })
+    {
+        const auto result = f.download (localRelease (f.server, size));
+        CHECK (result.error == Error::BadResponse);
+        CHECK (result.detail.contains ("size"));
+    }
+    CHECK (f.server.requests().isEmpty());
+    CHECK (f.filesInFolder().isEmpty());
+}
+
+TEST_CASE ("A stalled download fails instead of hanging", "[update][client]")
+{
+    // The server stalls for less than the backends' own 10 s timeouts, which would also end it.
+    // One fixture each: the test server serves one connection at a time, stall included.
+    const auto stalled = [] (auto&& stall) {
+        Fixture f;
+        f.client.setStallTimeout (1000);
+        stall (f.server);
+        const auto started = juce::Time::getMillisecondCounterHiRes();
+        const auto result = f.download (localRelease (f.server, 300000));
+        CHECK (juce::Time::getMillisecondCounterHiRes() - started < 6000.0);
+        CHECK (f.filesInFolder().isEmpty());
+        return result;
+    };
+
+    const auto midway = stalled ([] (LocalServer& s) { s.pauseAfter (100000, 8000); });
+    CHECK (midway.error == Error::Network);
+    CHECK (midway.detail.contains ("no data"));
+
+    const auto silent =
+        stalled ([] (LocalServer& s) { s.delay ("/Sedef-Amp-macOS.dmg", 8000); }); // no headers
+    CHECK (silent.error == Error::Network);
+}
+
+TEST_CASE ("Downloads carry the OS's downloaded-file mark", "[update][client]")
+{
+    Fixture f;
+    const bool marks = currentPlatform() != Platform::Linux;
+    const auto release = localRelease (f.server, 300000);
+    const auto result = f.download (release);
+    REQUIRE (result.error == Error::None);
+    CHECK (hasDownloadMark (result.file) == marks);
+
+    // A verified copy that came without one (copied in by hand) gets it before it is opened.
+    REQUIRE (result.file.deleteFile());
+    REQUIRE (result.file.replaceWithData (f.installer.getData(), f.installer.getSize()));
+    REQUIRE_FALSE (hasDownloadMark (result.file));
+    REQUIRE (f.download (release).error == Error::None);
+    CHECK (f.server.hits ("/Sedef-Amp-macOS.dmg") == 1); // reused, not fetched again
+    CHECK (hasDownloadMark (result.file) == marks);
+    CHECK (f.filesInFolder() == juce::StringArray { "Sedef-Amp-macOS.dmg" }); // no stray stream
 }
 
 TEST_CASE ("Cancelling mid-download removes the partial file", "[update][client]")

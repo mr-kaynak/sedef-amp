@@ -36,12 +36,15 @@ export const BEFORE_INSTALL: Record<UpdatePlatform, string> = {
     'Sedef downloads the archive, checks it and shows it in your file manager. Quit your DAW before you install, and restart it afterwards.',
 };
 
-/** Shown once the installer is open. */
+/**
+ * Shown once the installer is open. The download carries the OS's downloaded-file mark, so the OS
+ * asks before the installer runs, and stops an unsigned one (docs/releasing.md#signing-status).
+ */
 export const AFTER_DOWNLOAD: Record<UpdatePlatform, string> = {
   macOS:
-    'The disk image is open. Quit your DAW, run the installer inside it, then start your DAW again.',
+    "The disk image is open. Quit your DAW and run the installer inside it. If macOS says it can't open the installer, go to System Settings → Privacy & Security and click Open Anyway. Then start your DAW again.",
   Windows:
-    "The installer is running. Save your project and quit your DAW before you click Install; if it's still open, the installer offers to close it, or finishes the update when you restart Windows. Start your DAW again afterwards.",
+    "The installer is starting. If Windows says it protected your PC, click More info, then Run anyway. Save your project and quit your DAW before you click Install; if it's still open, the installer offers to close it, or finishes the update when you restart Windows. Start your DAW again afterwards.",
   Linux:
     'The archive is in your file manager. Quit your DAW, extract it and run install.sh (its README has the details), then start your DAW again.',
 };

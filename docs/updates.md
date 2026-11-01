@@ -31,6 +31,12 @@ quitting your DAW.
    | Windows | `Sedef-Amp-Windows-Setup.exe` | starts the setup program |
    | Linux (x86-64) | `Sedef-Amp-Linux-x86_64.tar.gz` | shows the archive in your file manager |
 
+   The installer carries the same "downloaded from the internet" mark a browser gives it, so
+   your OS checks it before it runs, as with any download. Until releases are signed
+   ([signing status](releasing.md#signing-status)), macOS says it can't open the installer: go to
+   **System Settings → Privacy & Security** and click **Open Anyway**. On Windows, SmartScreen
+   may say *Windows protected your PC*: click **More info**, then **Run anyway**.
+
    Quit your DAW before installing, and start it again afterwards so it loads the new version.
    On Windows this matters most: Windows keeps loaded plug-ins locked. Sedef starts the installer
    normally, never with silent switches, so if your DAW still holds the plug-in the installer
@@ -56,13 +62,18 @@ User-Agent: SedefAmp/0.2.0 (macOS)
 ```
 
 The User-Agent carries the Sedef version and the OS family, nothing more: no identifier, no OS
-version, no host or DAW name, no settings, no cookies. Like any web request it reaches GitHub from
-your IP address; [GitHub's privacy statement](https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement)
+version, no host or DAW name, no settings. Sedef adds no cookies. On Windows and Linux the
+system's HTTP stack keeps none either; on macOS requests go through the system's URL loading,
+which shares the host application's cookie store, so a cookie GitHub set for these addresses
+would be sent back on later requests (GitHub sets none for them today). Like any web request
+the check reaches GitHub from your IP address; [GitHub's privacy statement](https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement)
 covers what GitHub does with it. Sedef keeps no record of you anywhere.
 
 Only when you click **Download & install**, Sedef fetches `SHA256SUMS.txt` and the installer
-from `https://github.com/mr-kaynak/sedef-amp/releases/download/<tag>/` (GitHub redirects these to
-its download servers), with the same User-Agent.
+from `https://github.com/mr-kaynak/sedef-amp/releases/download/<tag>/`, with the same
+User-Agent. GitHub redirects these to its download servers. Sedef follows a redirect only over
+HTTPS to `github.com`, `objects.githubusercontent.com` or `release-assets.githubusercontent.com`,
+or within the server it asked, at most five times.
 
 ## Turning it off
 
@@ -91,7 +102,9 @@ project: the plug-in state your DAW saves does not change.
 | Linux | `~/.config/Sedef/` |
 
 It is written to a temporary file and renamed into place, under a lock shared between processes.
-Deleting it resets the settings and makes the next window open check again.
+The window never waits for that lock: if another process holds it when you change a setting, the
+setting applies at once and Sedef's update thread writes it. Deleting the file resets the
+settings and makes the next window open check again.
 
 Downloads go to `~/Downloads` (on Linux the `XDG_DOWNLOAD_DIR` folder), or to your home folder
 when there is none.
@@ -101,9 +114,12 @@ when there is none.
 **What protects the download.** The request and the downloads use HTTPS with certificate checks by
 the system (NSURLSession on macOS, WinINet on Windows, libcurl on Linux). Sedef only downloads from
 this repository's release download URLs for the tag it found, and only links to this repository's
-releases page. The installer must match the SHA-256 that `SHA256SUMS.txt` of the same release
-lists, and the size the release lists, or it is deleted before it is ever opened. Response sizes
-are capped (2 MB for the API, 1 MB for the checksum list) and the check times out after 10 s.
+releases page, and follows redirects only to GitHub's download hosts (above). The installer must
+match the SHA-256 that `SHA256SUMS.txt` of the same release lists, and the size the release lists,
+or it is deleted before it is ever opened. A release whose installer lists no size or more than
+1 GiB is not downloaded, and a checksum list that names a file twice with different hashes counts
+as no checksum. Response sizes are capped (2 MB for the API, 1 MB for the checksum list), the
+check and the checksum list time out after 10 s, and a download fails after 60 s without data.
 
 That catches corruption, truncated downloads, a cache or proxy serving the wrong bytes, and files
 from a different release.
@@ -126,19 +142,24 @@ one published, not who published it.
 **Other properties.**
 
 - Nothing runs without a click, and Sedef never writes into plug-in folders itself.
-- On macOS, files Sedef downloads carry no quarantine flag (the same as files fetched with
-  `curl`), so Gatekeeper's download check does not run on them; the SHA-256 check stands in for it
-  until releases are signed and notarized.
+- The installer gets the OS's downloaded-file mark, as a browser download would: the quarantine
+  attribute on macOS (Gatekeeper checks it before it opens), the `Zone.Identifier` stream with
+  the Internet zone on Windows (SmartScreen and the attachment manager check it). A file that
+  already has a mark keeps it. File systems without extended attributes or alternate streams
+  (FAT32, some network drives) cannot carry the mark; the SHA-256 check still applies.
 - Release notes are untrusted text. The panel renders a small Markdown subset (headings, lists,
-  bold, italics, code, links) as plain elements, never as HTML. Only `http(s)` links become links,
-  and they open in your browser through the plug-in, never inside its window.
+  bold, italics, code, links) as plain elements, never as HTML. Only `https` links become links,
+  and they open in your browser through the plug-in, never inside its window. The parser does
+  linear work per line, and shows lines over 1000 characters as plain text, so hostile notes
+  cannot stall the panel.
 
 ## For developers
 
 | Where | What |
 | --- | --- |
 | `plugin/src/update/UpdateLogic.*` | versions, the release model, installer names, checksum lists, the throttle, `update.json`: no network, no threads |
-| `plugin/src/update/UpdateClient.*` | the GET and the verified download (blocking, cancellable) |
+| `plugin/src/update/UpdateClient.*` | the GET and the verified download (blocking, cancellable, redirects checked by hand) |
+| `plugin/src/update/DownloadMark.*` | the quarantine attribute (macOS) and `Zone.Identifier` stream (Windows) on downloads |
 | `plugin/src/update/UpdateService.*` | the per-process service: worker thread, state, `update.json` locking |
 | `plugin/src/update/UpdateBridge.*` | the editor's `sedef_update_*` functions and `sedef:update` events |
 | `plugin/tests/` | `sedef_update_tests`: the logic, and the client against a local HTTP server |

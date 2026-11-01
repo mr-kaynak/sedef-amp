@@ -181,12 +181,27 @@ export function parseInline(src: string, links = true): Inline[] {
 
 // --- Blocks -------------------------------------------------------------------------------------
 
+// Longer lines are shown as plain text, so no block pattern ever runs on more than this.
+const MAX_LINE = 1000;
 const FENCE = /^ {0,3}(`{3,}|~{3,})/;
 const HEADING = /^ {0,3}(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$/;
 const RULE = /^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$/;
 const ITEM = /^[ \t]*([-*+]|\d{1,9}[.)])[ \t]+(.*)$/;
 const QUOTE = /^ {0,3}>[ \t]?(.*)$/;
-const TABLE_RULE = /^[ \t]*\|?[ \t]*:?-+:?[ \t]*(?:\|[ \t]*:?-+:?[ \t]*)*\|?[ \t]*$/;
+const ALIGNMENT = /^:?-+:?$/;
+
+/** Drops HTML comments (invisible on GitHub too) in one pass; an unclosed one stays as text. */
+function stripComments(source: string): string {
+  let out = '';
+  let from = 0;
+  for (;;) {
+    const open = source.indexOf('<!--', from);
+    const close = open === -1 ? -1 : source.indexOf('-->', open + 4);
+    if (close === -1) return out + source.slice(from);
+    out += source.slice(from, open);
+    from = close + 3;
+  }
+}
 
 /** Splits a table row on unescaped pipes. */
 function cells(line: string): string[] {
@@ -211,11 +226,13 @@ function cells(line: string): string[] {
   return out;
 }
 
+/** The line under a table's header: "|---|:--:|", cell by cell rather than one pattern. */
+function isTableRule(line: string): boolean {
+  return line.includes('|') && cells(line).every((cell) => ALIGNMENT.test(cell));
+}
+
 export function parseMarkdown(source: string): Block[] {
-  const lines = source
-    .replace(/\r\n?/g, '\n')
-    .replace(/<!--[\s\S]*?-->/g, '') // invisible on GitHub too
-    .split('\n');
+  const lines = stripComments(source.replace(/\r\n?/g, '\n')).split('\n');
   const blocks: Block[] = [];
   let paragraph: string[] = [];
   let list: { ordered: boolean; items: string[] } | null = null;
@@ -253,10 +270,18 @@ export function parseMarkdown(source: string): Block[] {
 
     if (!current.trim()) {
       endParagraph();
-      // A blank line between two items keeps the list going.
+      // A blank line between two items keeps the list going. The run is skipped as a whole.
       let n = i + 1;
       while (n < lines.length && !line(n).trim()) n += 1;
-      if (!ITEM.test(line(n))) endList();
+      if (line(n).length > MAX_LINE || !ITEM.test(line(n))) endList();
+      i = n - 1;
+      continue;
+    }
+
+    if (current.length > MAX_LINE) {
+      endParagraph();
+      endList();
+      blocks.push({ kind: 'paragraph', children: [{ kind: 'text', text: current.trim() }] });
       continue;
     }
 
@@ -279,12 +304,14 @@ export function parseMarkdown(source: string): Block[] {
       continue;
     }
 
-    if (current.includes('|') && line(i + 1).includes('|') && TABLE_RULE.test(line(i + 1))) {
+    const next = line(i + 1);
+    if (current.includes('|') && next.length <= MAX_LINE && isTableRule(next)) {
       endParagraph();
       endList();
       const head = cells(current).map((c) => parseInline(c));
       const rows: Inline[][][] = [];
-      for (i += 2; i < lines.length && line(i).includes('|') && line(i).trim(); i += 1)
+      const isRow = (row: string) => row.includes('|') && row.trim() && row.length <= MAX_LINE;
+      for (i += 2; i < lines.length && isRow(line(i)); i += 1)
         rows.push(cells(line(i)).map((c) => parseInline(c)));
       i -= 1;
       blocks.push({ kind: 'table', head, rows });
@@ -306,7 +333,7 @@ export function parseMarkdown(source: string): Block[] {
       endParagraph();
       endList();
       const quoted = [quote[1] ?? ''];
-      while (i + 1 < lines.length && QUOTE.test(line(i + 1)))
+      while (i + 1 < lines.length && line(i + 1).length <= MAX_LINE && QUOTE.test(line(i + 1)))
         quoted.push(QUOTE.exec(line((i += 1)))?.[1] ?? '');
       blocks.push({ kind: 'quote', children: parseInline(quoted.join(' ').trim()) });
       continue;

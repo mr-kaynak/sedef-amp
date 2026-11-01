@@ -140,7 +140,8 @@ target_sources(SedefAmp PRIVATE ${SEDEF_PLUGIN_SOURCES})
 set(SEDEF_UPDATE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/update)
 set(SEDEF_UPDATE_CORE_SOURCES
     ${SEDEF_UPDATE_DIR}/UpdateLogic.cpp ${SEDEF_UPDATE_DIR}/UpdateLogic.h
-    ${SEDEF_UPDATE_DIR}/UpdateClient.cpp ${SEDEF_UPDATE_DIR}/UpdateClient.h)
+    ${SEDEF_UPDATE_DIR}/UpdateClient.cpp ${SEDEF_UPDATE_DIR}/UpdateClient.h
+    ${SEDEF_UPDATE_DIR}/DownloadMark.cpp ${SEDEF_UPDATE_DIR}/DownloadMark.h)
 target_sources(SedefAmp PRIVATE ${SEDEF_UPDATE_DIR}/UpdateBridge.cpp ${SEDEF_UPDATE_DIR}/UpdateBridge.h)
 if(SEDEF_UPDATE_CHECK)
     target_sources(SedefAmp PRIVATE ${SEDEF_UPDATE_CORE_SOURCES}

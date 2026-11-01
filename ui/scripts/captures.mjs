@@ -32,7 +32,7 @@ const settle =
 
 async function startMeasuring(page) {
   await page.getByRole('button', { name: 'Start measuring' }).click();
-  await page.getByText('String 6').waitFor();
+  await page.getByRole('heading', { name: /^String 6/ }).waitFor();
 }
 
 const result = (cents) => ({

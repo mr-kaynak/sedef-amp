@@ -32,8 +32,8 @@
     /* The pale world closing back into the Output knob's nacre cap (68 px across here). */
     #hd-disc {
       position: absolute;
-      left: 387.4px;
-      top: 59.3px;
+      left: 482.3px;
+      top: 54px;
       width: 68px;
       height: 68px;
       border-radius: 50%;
@@ -81,7 +81,7 @@
     const at = (q, p) => ({ x: 960 + (q.x - p.x) * B * p.z, y: 540 + (q.y - p.y) * B * p.z });
     const H = { x: 925, y: 153.41, z: 2.2 }; // header from the window's top edge: Output knob to Intonation
     const W2 = { x: 600, y: 337.5, z: 1 }; // the window full width, header to workbench
-    const intonation = { x: 1106, y: 44 }; // lower right of the button, clear of its label
+    const intonation = { x: 1116, y: 44 }; // lower right of the button, clear of its label
     const tl = gsap.timeline({ paused: true });
     tl.set("#hd-cam", F(H), 0);
 

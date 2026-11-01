@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<!-- Installer layout for "Install Sedef Amp.pkg". build-pkg.sh substitutes the version. -->
+<installer-gui-script minSpecVersion="2">
+    <title>Sedef Amp @VERSION@</title>
+    <product id="io.github.mr-kaynak.sedef-amp" version="@VERSION@"/>
+    <welcome file="welcome.html" mime-type="text/html"/>
+    <license file="LICENSE.txt" mime-type="text/plain"/>
+    <conclusion file="conclusion.html" mime-type="text/html"/>
+    <background file="background.png" mime-type="image/png" alignment="bottomleft" scaling="none"/>
+    <background-darkAqua file="background.png" mime-type="image/png" alignment="bottomleft" scaling="none"/>
+
+    <!-- customize="always" opens the list of formats instead of hiding it behind a button.
+         hostArchitectures keeps Installer from asking for Rosetta on Apple silicon. -->
+    <options customize="always" require-scripts="false" hostArchitectures="arm64,x86_64"/>
+    <domains enable_localSystem="true" enable_currentUserHome="false" enable_anywhere="false"/>
+    <allowed-os-versions>
+        <os-version min="11.0"/>
+    </allowed-os-versions>
+
+    <choices-outline>
+        <line choice="app"/>
+        <line choice="vst3"/>
+        <line choice="au"/>
+        <line choice="clap"/>
+    </choices-outline>
+
+    <choice id="app" start_selected="true" title="Standalone app"
+            description="Sedef Amp.app in /Applications. Plays your guitar without a DAW.">
+        <pkg-ref id="io.github.mr-kaynak.sedef-amp.app"/>
+    </choice>
+    <choice id="vst3" start_selected="true" title="VST3 plugin"
+            description="Sedef Amp.vst3 in /Library/Audio/Plug-Ins/VST3.">
+        <pkg-ref id="io.github.mr-kaynak.sedef-amp.vst3"/>
+    </choice>
+    <choice id="au" start_selected="true" title="Audio Unit (AU) plugin"
+            description="Sedef Amp.component in /Library/Audio/Plug-Ins/Components, for Logic Pro, GarageBand and other AU hosts.">
+        <pkg-ref id="io.github.mr-kaynak.sedef-amp.au"/>
+    </choice>
+    <choice id="clap" start_selected="true" title="CLAP plugin"
+            description="Sedef Amp.clap in /Library/Audio/Plug-Ins/CLAP.">
+        <pkg-ref id="io.github.mr-kaynak.sedef-amp.clap"/>
+    </choice>
+
+    <pkg-ref id="io.github.mr-kaynak.sedef-amp.app" version="@VERSION@" onConclusion="none">sedef-amp-app.pkg</pkg-ref>
+    <pkg-ref id="io.github.mr-kaynak.sedef-amp.vst3" version="@VERSION@" onConclusion="none">sedef-amp-vst3.pkg</pkg-ref>
+    <pkg-ref id="io.github.mr-kaynak.sedef-amp.au" version="@VERSION@" onConclusion="none">sedef-amp-au.pkg</pkg-ref>
+    <pkg-ref id="io.github.mr-kaynak.sedef-amp.clap" version="@VERSION@" onConclusion="none">sedef-amp-clap.pkg</pkg-ref>
+</installer-gui-script>

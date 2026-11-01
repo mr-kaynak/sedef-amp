@@ -1,0 +1,8 @@
+#!/bin/sh
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Runs after the Audio Unit installs: restarting the AU registrar makes hosts see the new
+# component without a log-out.
+
+killall -9 AudioComponentRegistrar 2>/dev/null || true
+exit 0

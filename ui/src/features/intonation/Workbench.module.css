@@ -477,6 +477,13 @@ li[data-state='done'] > .trailDot {
   gap: 14px;
 }
 
+.fretHint {
+  margin: 0;
+  color: var(--amber);
+  font-size: var(--t-14);
+  line-height: 1.5;
+}
+
 .ringNote {
   font-family: var(--font-display);
   font-size: var(--t-36);

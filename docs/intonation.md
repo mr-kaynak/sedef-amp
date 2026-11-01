@@ -62,6 +62,10 @@ pluck does to the pitch happens the same way in both and drops out of the octave
   less than 3 in a second; a turned peg moves more), no gap over 0.25 s. The tracker must call the
   note `stable` (spread under 0.5 cent, high clarity) at least once during the second, which keeps
   a mixture of two ringing strings out.
+- The open string counts when its nearest note is the target. The 12th-fret note counts within
+  half a semitone of twice the open string as measured, not by the note grid: an open string used
+  40 cents sharp with a saddle 12 cents sharp puts the octave nearer the next semitone. Further off
+  is another note (another fret, the next string), and the workbench says what it hears.
 - A pluck is captured once. If its reading stops being steady, or is not steady by 1 s after the
   pluck, the workbench asks you to pluck again rather than measure a later, drifted stretch.
 

@@ -91,6 +91,23 @@ describe('intonation measurement with the simulated guitar', () => {
     expect(state().results[0]?.cents).toBeCloseTo(2, 0);
   });
 
+  it.each([
+    [40, 12],
+    [-40, -12],
+  ])(
+    'measures the octave of a string used %d cents off with a %d-cent saddle error',
+    async (offset, error) => {
+      // The octave lands more than half a semitone from the nominal 12th-fret note.
+      await setup({ tuningOffsets: [offset], intonationErrors: [error] });
+      run(10, () => state().tuneOffer !== null);
+      expect(Math.abs(state().tuneOffer?.cents ?? 0)).toBeGreaterThan(38);
+      intonationActions.acceptTuning();
+      run(10, () => state().step === 'result');
+      expect(state().step).toBe('result');
+      expect(Math.abs((state().results[0]?.cents ?? 0) - error)).toBeLessThan(0.3);
+    },
+  );
+
   it('measures the octave against the open string as it was tuned', async () => {
     await setup({ tuningOffsets: [2.5], intonationErrors: [1.2] });
     run(20, () => state().step === 'result');
@@ -252,6 +269,20 @@ describe('intonation capture against the tracker', () => {
     it('ignores a steady reading of another note', () => {
       feed(0, 3, () => fretted(3, { stableHz: OPEN_HZ }));
       expect(state().step).toBe('fret');
+      // The 7th fret, a fifth above the open string.
+      feed(0, 3, () => reading(LOW_E + 7, 0, { onsetId: 2 }));
+      expect(state().step).toBe('fret');
+      expect(state().pluck).toBe('missed');
+    });
+
+    it('judges the octave against the open string as measured, not the note grid', () => {
+      // Open string used 42 cents sharp, saddle 12 cents sharp: 54 cents over E3, nearer F3.
+      const openHz = OPEN_HZ * Math.pow(2, 42 / 1200);
+      useIntonationStore.setState({ openHz });
+      feed(0, 2, () => fretted(54));
+      expect(state().step).toBe('result');
+      expect(state().results[0]?.cents).toBeCloseTo(12, 6);
+      expect(state().results[0]?.openHz).toBe(openHz);
     });
 
     it('times captures with the clock, not the number of events', () => {

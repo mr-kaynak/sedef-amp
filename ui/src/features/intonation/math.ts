@@ -19,6 +19,18 @@ export function octaveErrorCents(openHz: number, frettedHz: number): number {
   return 1200 * Math.log2(frettedHz / (2 * openHz));
 }
 
+/**
+ * The 12th-fret note is judged against the open string as measured, not against the note grid:
+ * an open string used 40 cents sharp with a saddle 12 cents sharp puts the octave 52 cents above
+ * the nominal note, nearer the next semitone. Anything further than this from twice the open
+ * string is another note (another fret, a neighbouring string), not an intonation error.
+ */
+export const OCTAVE_WINDOW_CENTS = 50;
+
+export function isOctaveOf(hz: number, openHz: number): boolean {
+  return Math.abs(octaveErrorCents(openHz, hz)) < OCTAVE_WINDOW_CENTS;
+}
+
 export function saddleOffsetMm(scaleLengthMm: number, cents: number): number {
   return scaleLengthMm * (Math.pow(2, cents / 1200) - 1);
 }

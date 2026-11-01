@@ -7,7 +7,14 @@ import { centsBetween, midiLabel } from '../../lib/music';
 import { pitch, useLiveFrame, useLiveSelector } from '../../state/live';
 import { TunerGauge } from '../tuner/TunerGauge';
 import { stringNumber } from './instruments';
-import { adjustmentFor, formatCents, formatMm, IN_TUNE_CENTS, VERDICT_TEXT } from './math';
+import {
+  adjustmentFor,
+  formatCents,
+  formatMm,
+  IN_TUNE_CENTS,
+  isOctaveOf,
+  VERDICT_TEXT,
+} from './math';
 import { TUNE_TOLERANCE_CENTS } from './controller';
 import { ProgressRing } from './ProgressRing';
 import { SaddleDiagram } from './SaddleDiagram';
@@ -189,6 +196,19 @@ function CaptureRing({ midi, openHz }: { midi: number; openHz: number }) {
   );
 }
 
+/** When the tuner hears something other than the octave of the open string, says what. */
+function FretGuidance({ midi, openHz }: { midi: number; openHz: number }) {
+  const heard = useLiveSelector(pitch, (e) =>
+    e?.valid && !isOctaveOf(e.frequencyHz, openHz) ? e.midiNote : null,
+  );
+  if (heard === null) return null;
+  return (
+    <p className={styles.fretHint}>
+      That&apos;s {midiLabel(heard)}; play the 12th fret of the {midiLabel(midi)} string.
+    </p>
+  );
+}
+
 function FretStep({ midi, openHz }: { midi: number; openHz: number }) {
   return (
     <div className={styles.fret}>
@@ -198,6 +218,7 @@ function FretStep({ midi, openHz }: { midi: number; openHz: number }) {
           Fret the string at the <strong>12th fret</strong> and let it ring. Press as you normally
           would, right behind the fret, and pluck with the same strength as before.
         </p>
+        <FretGuidance midi={midi} openHz={openHz} />
         <p className={styles.small}>
           The open string read {openHz.toFixed(2)} Hz. The ring fills over a second while the note
           rings; if the reading wavers, pluck again.

@@ -110,6 +110,21 @@ describe('Intonation workbench', () => {
       expect(screen.getByLabelText('+1.5¢ cents')).toBeInTheDocument();
     });
 
+    it('says what it hears when the 12th-fret step hears another note', async () => {
+      await startMeasuring({ tuningOffsets: [2] });
+      playUntil(() => useIntonationStore.getState().step === 'fret');
+      act(() => pitch.publish(pitchEvent(59, 0)));
+      expect(
+        screen.getByText("That's B3; play the 12th fret of the E2 string."),
+      ).toBeInTheDocument();
+      // The octave itself, even half a semitone from the grid, is not called a wrong note.
+      const openHz = useIntonationStore.getState().openHz ?? 0;
+      act(() =>
+        pitch.publish({ ...pitchEvent(52, 0), frequencyHz: 2 * openHz * Math.pow(2, 30 / 1200) }),
+      );
+      expect(screen.queryByText(/play the 12th fret/)).toBeNull();
+    });
+
     it('keeps guiding towards the note when the string is on the wrong one', async () => {
       await startMeasuring({ tuningOffsets: [70] });
       playUntil(() => false);

@@ -112,7 +112,9 @@ struct Captured
 /// The workbench's capture (capture.ts): the mean stableHz over one second from 0.6 s after the
 /// pluck (starting by 1 s at the latest), while the reading stays steady: spread within a cent, no
 /// more than four cents of movement, no gap over 0.25 s. The tracker must call the note stable at
-/// least once in that second. A pluck whose reading stops being steady is not measured.
+/// least once in that second. A pluck whose reading stops being steady is not measured. Readings
+/// count within half a semitone of `targetHz`: the open string's note, or for the 12th fret twice
+/// the open string as measured.
 std::optional<Captured> workbenchCapture (const std::vector<Poll>& polls, double targetHz)
 {
     constexpr double kFrom = 0.6, kLatestStart = 1.0, kSeconds = 1.0;
@@ -242,7 +244,8 @@ TEST_CASE ("Workbench capture measures a realistic 12th-fret octave within 0.3 c
             const auto open = poll (realisticPluck (s, false, seed, 1.5));
             const auto fretted = poll (realisticPluck (s, true, seed, 1.5));
             const auto a = workbenchCapture (open, s.hz);
-            const auto b = workbenchCapture (fretted, 2.0 * s.hz);
+            // The 12th fret counts near twice the open string as measured.
+            const auto b = a ? workbenchCapture (fretted, 2.0 * a->hz) : std::nullopt;
             CAPTURE (s.name, seed, firstStable (open), firstStable (fretted));
             // The tracker calls both notes stable at its earliest (0.6 s; 0.65 s for E2) or soon
             // after, despite the wobble.
@@ -275,7 +278,8 @@ TEST_CASE ("Workbench capture finishes on time when the pitch wanders slowly",
         {
             const auto a = workbenchCapture (poll (realisticPluck (s, false, seed, 0.4)), s.hz);
             const auto b =
-                workbenchCapture (poll (realisticPluck (s, true, seed, 0.4)), 2.0 * s.hz);
+                a ? workbenchCapture (poll (realisticPluck (s, true, seed, 0.4)), 2.0 * a->hz)
+                  : std::nullopt;
             CAPTURE (s.name, seed);
             REQUIRE (a.has_value());
             REQUIRE (b.has_value());

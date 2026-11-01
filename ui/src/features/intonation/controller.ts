@@ -8,8 +8,8 @@ import { getBackend } from '../../state/backendRef';
 import { pitch } from '../../state/live';
 import { acquirePitchAnalysis } from '../../state/pitchLease';
 import { centsBetween, hzToMidi, midiToHz } from '../../lib/music';
-import { StableCapture, type CaptureStatus } from './capture';
-import { octaveErrorCents } from './math';
+import { StableCapture } from './capture';
+import { isOctaveOf, octaveErrorCents } from './math';
 import { intonationActions, stringNotes, useIntonationStore } from './store';
 
 /**
@@ -40,21 +40,17 @@ export class IntonationController {
     if (target === undefined) return;
 
     if (s.step === 'tune') this.handleTune(e, target, t);
-    else if (s.step === 'fret' && s.openHz) this.handleFret(e, target + 12, s.openHz, t);
+    else if (s.step === 'fret' && s.openHz) this.handleFret(e, s.openHz, t);
   }
 
   reset(): void {
     this.capture.reset();
   }
 
-  /** Captures the note `midi`: readings whose nearest semitone is another note do not count. */
-  private feed(e: PitchEvent, midi: number, t: number): CaptureStatus {
-    const reference = getValue('tunerReference');
-    return this.capture.feed(e, t, (hz) => Math.round(hzToMidi(hz, reference)) === midi);
-  }
-
   private handleTune(e: PitchEvent, target: number, t: number): void {
-    const status = this.feed(e, target, t);
+    // The open string counts on the right note: its nearest semitone is the target.
+    const reference = getValue('tunerReference');
+    const status = this.capture.feed(e, t, (hz) => Math.round(hzToMidi(hz, reference)) === target);
     const targetHz = midiToHz(target, getValue('tunerReference'));
     switch (status.kind) {
       case 'captured': {
@@ -82,8 +78,9 @@ export class IntonationController {
     }
   }
 
-  private handleFret(e: PitchEvent, octaveMidi: number, openHz: number, t: number): void {
-    const status = this.feed(e, octaveMidi, t);
+  private handleFret(e: PitchEvent, openHz: number, t: number): void {
+    // The octave counts near twice the open string as measured, wherever that falls on the grid.
+    const status = this.capture.feed(e, t, (hz) => isOctaveOf(hz, openHz));
     if (status.kind === 'captured') {
       const { hz, stdCents } = status.result;
       this.reset();

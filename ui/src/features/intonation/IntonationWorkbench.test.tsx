@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { pitchEvent } from '../../app/demoHook';
+import { pitch } from '../../state/live';
 import { setupMock, type Harness } from '../../test/harness';
 import { IntonationWorkbench } from './IntonationWorkbench';
 import { useIntonationStore, type StringResult } from './store';
@@ -79,6 +81,9 @@ describe('Intonation workbench', () => {
       await startMeasuring({ tuningOffsets: [2.5] });
       playUntil(() => screen.queryByText('Good enough, measuring…') !== null);
       expect(screen.getByText('Good enough, measuring…')).toBeInTheDocument();
+      // The gauge agrees: 2.5 cents sharp is inside its good-enough zone, not "sharp".
+      act(() => pitch.publish(pitchEvent(40, 2.5)));
+      expect(document.querySelector('[data-state="in-tune"]')).not.toBeNull();
       expect(
         screen.getByRole('progressbar', { name: 'Measuring the open string' }),
       ).toBeInTheDocument();

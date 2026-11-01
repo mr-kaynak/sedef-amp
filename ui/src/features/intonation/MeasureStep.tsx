@@ -147,7 +147,7 @@ function TuneStep({ midi }: { midi: number }) {
         {TUNE_TOLERANCE_CENTS} cents is plenty: the 12th fret is checked against what the string
         actually plays, so it doesn&apos;t have to be spot on.
       </p>
-      <TunerGauge target={target} compact />
+      <TunerGauge target={target} compact inTuneCents={TUNE_TOLERANCE_CENTS} />
       <TuneProgress midi={midi} />
     </div>
   );

@@ -89,7 +89,13 @@ jobs:
           if [ "$RUNNER_OS" = "macOS" ]; then cp -R build/release/plugin/SedefAmp_artefacts/Release/AU "$stage/"; fi
           cp LICENSE README.md THIRD_PARTY_NOTICES.md docs/install.md "$stage/"
           cd "$RUNNER_TEMP"
-          7z a "$GITHUB_WORKSPACE/SedefAmp-${GITHUB_REF_NAME}-${{ matrix.name }}.zip" "Sedef Amp ${GITHUB_REF_NAME}"
+          zip="$GITHUB_WORKSPACE/SedefAmp-${GITHUB_REF_NAME}-${{ matrix.name }}.zip"
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            # ditto keeps bundle symlinks, permissions and signatures intact.
+            ditto -c -k --sequesterRsrc --keepParent "Sedef Amp ${GITHUB_REF_NAME}" "$zip"
+          else
+            7z a "$zip" "Sedef Amp ${GITHUB_REF_NAME}"
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: release-${{ matrix.name }}

@@ -23,6 +23,10 @@ We studied a few well-liked libraries for interaction patterns only (no code or 
   [choose a patch](https://support.apple.com/guide/garageband/gbndbd9d9b33/mac))
 - Plugin preset browsers in general: star favourites, tag filters, an A/B compare pair in the
   header, and a "back to where I was" when browsing goes nowhere.
+- A separate prototype exploration of this UI (built from our own screenshots) contributed the
+  three-pane layout with a detail pane, the hint that teaches auditioning, `#tag` rows, a
+  "playing" lamp on the loaded row, single-key shortcuts and Save beside the preset bar. We kept
+  our own palette, type and hardware language.
 
 ## What we adopted, and why
 
@@ -46,16 +50,35 @@ stores one folder per user preset).
 
 ### Opening and closing
 
-- Open: click the preset name, press `/` or ⌘/Ctrl+F (focus goes to search), or ⌘/Ctrl+S on a
-  factory preset (opens straight into Save as). On open the plugin takes a **browse snapshot**.
-- The panel covers the section tabs and the rig (they are `inert` while it is open). The current
-  preset starts in the middle of the list, highlighted with a nacre edge and "Playing".
-- **Keep** (close and keep what plays): Enter, double-click a row, **Done**, clicking the preset
-  name again, or opening the tuner or intonation workbench.
-- **Back** (close and restore the browse snapshot): Esc or the "Back to …" button in the footer.
-  If nothing was auditioned, it just closes. A toast confirms "Back to Nacre".
+- Open: click the preset name or press `P`, press `/` or ⌘/Ctrl+F (focus goes to search), or
+  ⌘/Ctrl+S on a factory preset (opens straight into Save as). On open the plugin takes a
+  **browse snapshot**.
+- The panel covers the section tabs and the rig (they are `inert` while it is open):
+  - left, the rail: the title, Library and Categories with counts;
+  - centre, search (its placeholder teaches "↑↓ audition · ↵ keep") and sort, tag chips with
+    "Clear filters", the count, and the list; the current preset starts in the middle,
+    highlighted with a nacre edge and a lit "Playing" lamp ("· edited" in amber when dirty);
+  - right, the detail pane for the highlighted preset: "Category · Author", the name in Bodoni
+    italic, Playing and Factory/User, the note, the chain as a definition list (Pedals, Amp, Cab,
+    FX), tags (a click filters by that tag), the favourite toggle, and at the bottom **Use &
+    close** (or **Load preset** when it is not the one playing), Save, Save as…, and for your
+    own presets Rename and Delete;
+  - the footer: a hint box, "Click or ↑↓ to audition — the browser stays open. Esc returns to
+    Nacre", where the Esc part is itself the Back button; New; the preset folder (plugin only);
+    and **Shortcuts**, which lists every key.
+- **Keep** (close and keep what plays): Enter, double-click a row, **Use & close**, `P` or a click
+  on the preset name, or opening the tuner or intonation workbench.
+- **Back** (close and restore the browse snapshot): Esc or the Esc button in the hint. If nothing
+  was auditioned, it just closes. A toast confirms "Back to Nacre" (unless an Undo toast is
+  showing, which a plain notice never replaces). With the shortcut list open, Esc closes the
+  list first.
 - If the sound you opened on had unsaved edits and you keep something else, a toast says
   "Loaded Riptide" with **Undo**, which restores the browse snapshot, edits included.
+- Preset commands go out one at a time, in order, so a restore or snapshot always follows the
+  loads before it. Arrowing faster than the plugin answers sends only the newest waiting load,
+  and the highlighted row runs ahead of the playing preset meanwhile. Every state the plugin
+  sends carries a rising `revision`; the editor drops one older than what it has, so an answer
+  that arrives after a newer broadcast can't roll the browser back.
 
 ### Auditioning
 
@@ -75,6 +98,10 @@ The search field is a combobox that points at the list (`aria-activedescendant`)
 work while typing. Every word of the query must match the name, category, tags, note, author,
 amp, cab or a block name ("abyss drift" finds high-gain presets with echo).
 
+Outside the browser's search field, ⌘/Ctrl+S, ⌘/Ctrl+F and the single keys do nothing while a
+text field has focus; there they keep their editing meaning. A held key does not repeat, except
+`[` and `]`, which step through presets.
+
 Prev/next in the preset bar while the browser is open are auditions too (Esc still goes back).
 With the browser closed, prev/next on an edited sound keep an **undo snapshot** and show
 "Loaded Tidewater · Undo".
@@ -91,6 +118,13 @@ With the browser closed, prev/next on an edited sound keep an **undo snapshot** 
 - **Recent** holds presets you _picked_: kept from the browser, loaded directly or saved. Auditions
   and prev/next steps don't count. It lives next to the favourites in `settings.json` (12 at
   most), so it spans sessions and plugin instances.
+
+### The preset bar
+
+Previous and next, then the preset: a category chip and Factory/User (or "Unsaved") above the
+name and its amber dirty dot. Next to it, one inset group holds the A/B slots, the copy button
+and **Save** (the floppy icon turns amber while there are unsaved edits; for a factory preset it
+opens Save as).
 
 ### A/B compare
 
@@ -117,7 +151,12 @@ Two slots next to the preset bar. The active slot is what you hear; the plugin h
   ("“Sunday set” is already in User / Live. Saving replaces it.", and the button becomes
   "Replace “Sunday set”"); a factory preset with the same name (a note only, as yours lives under
   User); a new category without a name disables saving.
-- After a save inside the browser, the saved preset becomes the state Esc returns to.
+- ⌘/Ctrl+S while the browser auditions over unsaved edits saves nothing: it is not clear whether
+  you mean the edits or the audition, so a toast asks "Choose first: Enter keeps Riptide, Esc
+  goes back to Nacre with your edits. Then save."
+- After a save, rename or delete inside the browser before anything was auditioned, what plays
+  becomes the state Esc returns to. After an audition, Esc still goes back to the sound the
+  browser opened on; a rename of that preset carries over to the snapshot.
 - **Delete** (user presets) happens at once with an Undo toast; the plugin keeps the file's text
   and writes it back on Undo, so the id, favourite and Recent entry survive.
 - **Rename** (user presets) refuses a name another preset in the folder already has, inline.
@@ -134,9 +173,26 @@ Two slots next to the preset bar. The active slot is what you hear; the plugin h
   left alone, a changed one gets the normalised value (searched a few ULPs around the stored one)
   that lands on the stored float, so a session saved after "audition, then Esc" is byte for byte
   the session saved before.
-- A host `setStateInformation` (any thread) only bumps an atomic generation after replacing the
-  values; the message thread drops snapshots and A/B taken before it on its next preset call, so
-  nothing from an old session is ever restored over a new one.
+- A host `setStateInformation` (any thread) replaces the values under a lock that preset loads
+  and snapshot restores take too, so their values never mix. It leaves the preset the session
+  names for the message thread, where every preset call first takes it over (`sync()`) and drops
+  the snapshots and A/B slots taken before it. Nothing from an old session is restored over a
+  new one, and a load made after the restore is never overwritten by it.
+- After every preset call the processor mirrors the current preset into what the host saves, at
+  once.
+- Preset loads and snapshot restores change each parameter that moves as a gesture of its own,
+  so hosts recording automation (touch, latch, write) see them like turns of the controls. Tap
+  tempo and the preset footswitches springing back are gestures too.
+- Float parameters start from a default the normalised round trip leaves alone (an ULP from the
+  schema's at most), so a fresh instance comes back exactly from "audition, then Esc" as well.
+  The host smoke test runs the editor check on a restored session and on a fresh instance.
+- Favourites and Recent live in `settings.json`; every change reads, edits and writes it under an
+  inter-process lock, and a file that is there but doesn't parse is left alone rather than
+  written over with empty lists.
+- File names: a preset or category name loses the characters file systems refuse and any
+  leading or trailing dots and spaces, so ".." can't leave the presets folder; an empty result
+  saves as "Untitled". Renaming to the same name in other capitals renames the file on macOS and
+  Windows too, and a rename that can't write the new file leaves the old one.
 
 The browser mock (`ui/src/bridge/mockBackend.ts`) implements the same rules, and the host smoke
 test drives the real bridge in a real WebView: audition, restore and compare must give back
@@ -144,14 +200,19 @@ every value exactly, and the saved state must not change (`plugin/smoke/HostSmok
 
 ### Accessibility
 
-- The browser is a labelled dialog; the rail is two radio groups; tag chips are toggle buttons;
+- The browser is a labelled dialog; the rail is two radio groups; the detail pane is a labelled
+  complementary region whose chain is a definition list; tag chips are toggle buttons;
   the list is a listbox whose options carry the whole row as their name ("Nacre, playing. Tide →
   Ripple → Lagoon 1x12 → Fathom. Glassy, lightly squeezed clean… Factory Clean. tags chorus,
   compressor, plate"). Rows hold no focusable controls; the star is a mouse shortcut for F and
-  for the footer's Favourite button.
+  for the detail pane's favourite button.
 - A/B is a radio group (arrow keys switch) with the slot's preset and edit state in its name.
 - Toasts are a polite live region, never take focus, stay 8 s (4 s without an action) and pause
-  while hovered or focused.
+  while hovered or focused (a toast that replaces a held one starts its own timer). An Undo that
+  would put back a snapshot goes as soon as the snapshot stops applying: "browse" when the
+  browser opens again, both on an A/B switch or copy. A delete's Undo stays.
+- The Save as clash note sits in a status region that is always in the page, so it is announced
+  when it appears.
 - Focus moves into forms and back to the search field, and to the preset bar when the browser
   closes. `prefers-reduced-motion` turns the panel, sheet and toast animations off.
 

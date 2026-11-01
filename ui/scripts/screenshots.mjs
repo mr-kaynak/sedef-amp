@@ -77,6 +77,16 @@ const SHOTS = {
       await page.getByRole('combobox', { name: 'Search presets' }).press('ArrowDown');
       await page.getByRole('option', { name: /^Riptide, playing/ }).waitFor();
       await page.waitForTimeout(400);
+      // Centring the playing row can leave the list cut mid-row; start it on a whole row.
+      await page.getByRole('listbox', { name: 'Presets' }).evaluate((list) => {
+        const scroller = list.parentElement;
+        const top =
+          scroller.getBoundingClientRect().top + parseFloat(getComputedStyle(scroller).paddingTop);
+        const rows = [...list.querySelectorAll('[role="option"]')];
+        const first = rows.find((row) => row.getBoundingClientRect().bottom > top + 1);
+        if (first) scroller.scrollTop += first.getBoundingClientRect().top - top;
+      });
+      await page.waitForTimeout(100);
     },
   },
   updates: {

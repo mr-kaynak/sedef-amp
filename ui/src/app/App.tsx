@@ -8,7 +8,7 @@ import { FxSection } from '../features/fx/FxSection';
 import { IntonationWorkbench } from '../features/intonation/IntonationWorkbench';
 import { PedalsSection } from '../features/pedals/PedalsSection';
 import { PresetBrowser } from '../features/presets/PresetBrowser';
-import { useBrowserStore } from '../features/presets/session';
+import { presetBrowser, useBrowserStore } from '../features/presets/session';
 import { TunerOverlay } from '../features/tuner/TunerOverlay';
 import { useAppStore } from '../state/appStore';
 import { useUiStore, type Section } from '../state/uiStore';
@@ -67,7 +67,13 @@ export function App() {
               </ErrorBoundary>
             </main>
           </div>
-          <ErrorBoundary resetKey="presets">
+          {/* A broken browser still covers the rig (it is inert behind it): Close keeps the sound
+              and gives the rig back; the next open draws the browser afresh. */}
+          <ErrorBoundary
+            resetKey={browsing ? 'open' : 'closed'}
+            className={styles.browserFallback}
+            onClose={() => presetBrowser.keep()}
+          >
             <PresetBrowser />
           </ErrorBoundary>
           <Toasts />

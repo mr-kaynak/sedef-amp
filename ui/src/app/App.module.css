@@ -49,6 +49,14 @@
   flex-direction: column;
 }
 
+/* Where the preset browser would be, when it failed to draw. */
+.browserFallback {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  background: var(--ink-1);
+}
+
 .main {
   position: relative;
   flex: 1;

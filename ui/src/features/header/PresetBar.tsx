@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// The header's preset bar: previous/next, the current preset (opens the browser) with its dirty
-// dot, and A/B compare.
+// The header's preset bar: previous/next, the current preset (opens the browser) with its
+// category and dirty dot, A/B compare and Save. Shortcuts: [ ] P A B ⌘S.
+import { modKey } from '../../app/platform';
 import { Icon } from '../../controls/Icon';
 import { useRadioGroup } from '../../controls/useRadioGroup';
 import { currentPreset, usePresetStore } from '../../state/presetStore';
@@ -9,6 +10,7 @@ import {
   compareCopy,
   compareSwitch,
   presetBrowser,
+  saveCurrent,
   stepPreset,
   useBrowserStore,
 } from '../presets/session';
@@ -46,7 +48,8 @@ function CompareSwitch() {
               className={styles.slot}
               data-empty={s.empty || undefined}
               aria-label={`${s.slot}: ${description}`}
-              title={`${s.slot}: ${description}`}
+              aria-keyshortcuts={s.slot}
+              title={`${s.slot}: ${description} (${s.slot})`}
               {...radio(i)}
             >
               {s.slot}
@@ -68,11 +71,30 @@ function CompareSwitch() {
   );
 }
 
+function SaveButton() {
+  const state = usePresetStore((s) => s.state);
+  const isUser = currentPreset(state)?.category === 'User';
+  const mod = modKey();
+  const label = isUser ? `Save ${state.currentName}` : 'Save as a user preset';
+  return (
+    <button
+      type="button"
+      className={styles.save}
+      data-dirty={state.dirty || undefined}
+      aria-label={label}
+      aria-keyshortcuts={`${mod.aria}+S`}
+      title={`${label} (${mod.symbol}S)`}
+      onClick={() => void saveCurrent()}
+    >
+      <Icon name="save" size={15} />
+    </button>
+  );
+}
+
 export function PresetBar() {
   const state = usePresetStore((s) => s.state);
   const open = useBrowserStore((s) => s.open);
   const preset = currentPreset(state);
-  const where = preset ? [preset.category, preset.folder].filter(Boolean).join(' / ') : 'Unsaved';
 
   return (
     <div className={styles.group}>
@@ -81,6 +103,8 @@ export function PresetBar() {
           type="button"
           className={styles.step}
           aria-label="Previous preset"
+          aria-keyshortcuts="["
+          title="Previous preset ([)"
           onClick={() => void stepPreset(-1)}
         >
           <Icon name="prev" />
@@ -91,10 +115,15 @@ export function PresetBar() {
           className={styles.current}
           aria-haspopup="dialog"
           aria-expanded={open}
+          aria-keyshortcuts="P"
+          title="Presets (P)"
           aria-label={`Preset: ${state.currentName}${state.dirty ? ', modified' : ''}. ${open ? 'Close' : 'Open'} preset browser`}
           onClick={() => presetBrowser.toggle()}
         >
-          <span className={styles.where}>{where}</span>
+          <span className={styles.where}>
+            {preset?.folder && <span className={styles.category}>{preset.folder}</span>}
+            {preset ? preset.category : 'Unsaved'}
+          </span>
           <span className={styles.nameRow}>
             <span className={styles.name}>{state.currentName}</span>
             {state.dirty && <span className={styles.dirty} title="Modified since it was loaded" />}
@@ -105,12 +134,18 @@ export function PresetBar() {
           type="button"
           className={styles.step}
           aria-label="Next preset"
+          aria-keyshortcuts="]"
+          title="Next preset (])"
           onClick={() => void stepPreset(1)}
         >
           <Icon name="next" />
         </button>
       </div>
-      <CompareSwitch />
+      <div className={styles.tools}>
+        <CompareSwitch />
+        <span className={styles.rule} aria-hidden="true" />
+        <SaveButton />
+      </div>
     </div>
   );
 }

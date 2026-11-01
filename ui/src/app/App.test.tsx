@@ -58,7 +58,7 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('option', { name: /^Glass Pocket/ }));
     await act(flush);
     expect(screen.getByRole('button', { name: /Preset: Glass Pocket/ })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /^Done/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^Use & close/ }));
     await act(flush);
     expect(screen.queryByRole('dialog', { name: 'Preset browser' })).toBeNull();
     expect(screen.getByRole('tablist', { name: 'Rig sections' }).closest('[inert]')).toBeNull();

@@ -16,7 +16,7 @@ import {
 import { currentPreset, presetActions, usePresetStore } from '../../state/presetStore';
 import { showToast } from '../../state/toastStore';
 import { allCategories, allTags } from './library';
-import { presetBrowser, type BrowserMode } from './session';
+import { presetBrowser, sendPresetCommand, type BrowserMode } from './session';
 import styles from './PresetForm.module.css';
 
 const NEW_CATEGORY = '__new-category__';
@@ -95,7 +95,9 @@ function SaveAsForm() {
     e.preventDefault();
     if (invalid) return;
     const allTagsNow = tagText.trim() ? cleanTags([...tags, ...tagText.split(',')]) : tags;
-    await presetActions.save(trimmed, folder, { tags: allTagsNow, description });
+    await sendPresetCommand(() =>
+      presetActions.save(trimmed, folder, { tags: allTagsNow, description }),
+    );
     await presetBrowser.rebase();
     presetBrowser.endForm();
     showToast(`Saved ${trimmed} to ${['User', folder].filter(Boolean).join(' / ')}`);
@@ -129,20 +131,23 @@ function SaveAsForm() {
           onChange={(e) => setName(e.target.value)}
         />
       </label>
-      {target && (
-        <p id={`${ids}-name`} className={styles.warn} role="status">
-          <Icon name="info" size={14} />
-          <span>
-            “{target.name}” is already in {['User', target.folder].filter(Boolean).join(' / ')}.
-            Saving replaces it.
-          </span>
-        </p>
-      )}
-      {factoryTwin && (
-        <p id={`${ids}-name`} className={styles.note} role="status">
-          A factory preset has this name too. Yours is saved under User.
-        </p>
-      )}
+      {/* Always in the page, so screen readers announce what appears in it. */}
+      <div id={`${ids}-name`} className={styles.status} role="status">
+        {target && (
+          <p className={styles.warn}>
+            <Icon name="info" size={14} />
+            <span>
+              “{target.name}” is already in {['User', target.folder].filter(Boolean).join(' / ')}.
+              Saving replaces it.
+            </span>
+          </p>
+        )}
+        {factoryTwin && (
+          <p className={styles.note}>
+            A factory preset has this name too. Yours is saved under User.
+          </p>
+        )}
+      </div>
 
       <div className={styles.row}>
         <label className={styles.field}>
@@ -271,7 +276,10 @@ function RenameForm() {
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (clash || !current || !name.trim()) return;
-    await presetActions.rename(current.id, name.trim());
+    await sendPresetCommand(() => presetActions.rename(current.id, name.trim()));
+    const now = usePresetStore.getState().state;
+    if (now.currentId && now.currentId !== current.id)
+      presetBrowser.renamed(current.id, now.currentId, now.currentName);
     await presetBrowser.rebase();
     presetBrowser.endForm();
   };

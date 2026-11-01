@@ -1,6 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { useEffect } from 'react';
-import { presetBrowser, saveCurrent, useBrowserStore } from '../features/presets/session';
+import {
+  compareSwitch,
+  presetBrowser,
+  saveCurrent,
+  stepPreset,
+  useBrowserStore,
+} from '../features/presets/session';
+import { usePresetStore } from '../state/presetStore';
 import { runToastAction } from '../state/toastStore';
 import { SECTIONS, uiActions, useUiStore } from '../state/uiStore';
 
@@ -9,11 +16,19 @@ function isTyping(target: EventTarget | null): boolean {
   return target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName);
 }
 
+/** A field where ⌘S and ⌘F mean nothing to the text (the preset search) lets them through. */
+const takesCommandKeys = (target: EventTarget | null) =>
+  target instanceof HTMLElement && target.hasAttribute('data-command-keys');
+
 /**
- * Global keys. ⌘/Ctrl+S saves (Save as for factory presets), ⌘/Ctrl+Shift+S is Save as, / and
- * ⌘/Ctrl+F search presets, ⌘/Ctrl+Z runs a toast's Undo. Without modifiers and outside text
- * fields, 1–5 switch sections (not while the preset browser covers them), and Escape closes the
- * open popover, then the open overlay. The browser handles its own Escape.
+ * Global keys (listed for people in shortcuts.ts). ⌘/Ctrl+S saves (Save as for factory presets),
+ * ⌘/Ctrl+Shift+S is Save as, / and ⌘/Ctrl+F search presets, ⌘/Ctrl+Z runs a toast's Undo; none
+ * of them while a text field has focus (they keep their editing meaning there), except ⌘S and
+ * ⌘F in the preset search. Without modifiers and never while a text field has focus: P opens or
+ * closes the preset browser, [ and ] step presets, A and B pick the compare slot, 1–5 switch
+ * sections (not while the browser covers them), and Escape closes the open popover, then the
+ * open overlay. The browser handles its own Escape. A held key repeats only where that means
+ * something ([ and ]).
  */
 export function useShortcuts(): void {
   useEffect(() => {
@@ -23,12 +38,15 @@ export function useShortcuts(): void {
       const key = e.key.toLowerCase();
 
       if (e.metaKey || e.ctrlKey) {
+        const editing = typing && !takesCommandKeys(e.target);
         if (key === 's') {
+          // Never the browser's "save page", even where saving a preset is not on offer.
           e.preventDefault();
+          if (editing || e.repeat) return;
           if (useBrowserStore.getState().mode !== 'list') return; // a form is open
           if (e.shiftKey) presetBrowser.open('saveAs');
           else void saveCurrent();
-        } else if (key === 'f' && !e.shiftKey) {
+        } else if (key === 'f' && !e.shiftKey && !editing) {
           e.preventDefault();
           presetBrowser.open('list', { focusSearch: true });
         } else if (key === 'z' && !e.shiftKey && !typing && runToastAction()) {
@@ -38,10 +56,30 @@ export function useShortcuts(): void {
       }
 
       if (typing) return;
-      if (e.key === '/') {
+      const preset = (action: () => void) => {
         e.preventDefault();
-        presetBrowser.open('list', { focusSearch: true });
-        return;
+        if (!e.repeat) action();
+      };
+      switch (e.key) {
+        case '/':
+          return preset(() => presetBrowser.open('list', { focusSearch: true }));
+        case 'p':
+        case 'P':
+          return preset(() => presetBrowser.toggle());
+        case '[':
+        case ']':
+          e.preventDefault();
+          void stepPreset(e.key === ']' ? 1 : -1);
+          return;
+        case 'a':
+        case 'A':
+        case 'b':
+        case 'B': {
+          const slot = key.toUpperCase();
+          return preset(() => {
+            if (usePresetStore.getState().state.compare.active !== slot) void compareSwitch();
+          });
+        }
       }
       const index = Number(e.key) - 1;
       const section = SECTIONS[index];

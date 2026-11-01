@@ -4,7 +4,8 @@
 // waits for the editor's UI smoke test (SEDEF_UI_SMOKE_TEST) to report. No audio device is opened,
 // so it also runs on machines and CI runners without working audio. Besides the page, the editor
 // exercises preset auditions, snapshot restores and A/B over the real bridge; this host checks
-// that they leave the session's parameters exactly as they were, and that state round-trips.
+// that they leave the session's parameters exactly as they were, and that state round-trips. The
+// editor check runs twice: on a restored session, then on a fresh instance (nothing loaded).
 //
 //   sedef-host-smoke "<path>/Sedef Amp.vst3"
 
@@ -23,27 +24,22 @@ public:
     void initialise (const juce::String& commandLine) override
     {
         const auto pluginPath = commandLine.unquoted().trim();
-        result_ = juce::File::getSpecialLocation (juce::File::tempDirectory)
-                      .getNonexistentChildFile ("sedef-host-smoke", ".json");
-        // The plugin reads the variable from this process's environment.
-        setEnv ("SEDEF_UI_SMOKE_TEST", result_.getFullPathName());
-
-        juce::VST3PluginFormat format;
         juce::OwnedArray<juce::PluginDescription> types;
-        format.findAllTypesForFile (types, pluginPath);
+        format_.findAllTypesForFile (types, pluginPath);
         if (types.isEmpty())
             return fail ("No VST3 plugin found at " + pluginPath);
+        description_ = *types[0];
 
         juce::String error;
-        plugin_ = format.createInstanceFromDescription (*types[0], 48000.0, 512, error);
+        plugin_ = format_.createInstanceFromDescription (description_, 48000.0, 512, error);
         if (plugin_ == nullptr)
             return fail ("Could not load the plugin: " + error);
 
         // State round trip: random parameters -> save -> new instance -> load. The second save is
         // taken after the message loop has run for a while (timers, async restores), and both
         // saves must be identical byte for byte.
-        auto source = format.createInstanceFromDescription (*types[0], 48000.0, 512, error);
-        restored_ = format.createInstanceFromDescription (*types[0], 48000.0, 512, error);
+        auto source = format_.createInstanceFromDescription (description_, 48000.0, 512, error);
+        restored_ = format_.createInstanceFromDescription (description_, 48000.0, 512, error);
         if (source == nullptr || restored_ == nullptr)
             return fail ("Could not create instances for the state check: " + error);
         juce::Random random (1234);
@@ -63,24 +59,49 @@ public:
         // it went in.
         plugin_->setStateInformation (savedState_.getData(),
                                       static_cast<int> (savedState_.getSize()));
-        plugin_->getStateInformation (beforeEditor_);
-        auto* editor = plugin_->createEditorAndMakeActive();
-        if (editor == nullptr)
-            return fail ("The plugin has no editor");
-
         window_ = std::make_unique<juce::DocumentWindow> (
             "Sedef host smoke test", juce::Colours::black, juce::DocumentWindow::closeButton);
         window_->setUsingNativeTitleBar (true);
-        window_->setContentNonOwned (editor, true);
-        window_->centreWithSize (editor->getWidth(), editor->getHeight());
-        window_->setVisible (true);
-
+        if (!openEditor ("restored session"))
+            return;
         startTimer (250);
     }
 
     void shutdown() override
     {
         stopTimer();
+        closePlugin();
+        window_.reset();
+        restored_.reset();
+    }
+
+    void systemRequestedQuit() override { quit(); }
+
+private:
+    /// Opens plugin_'s editor in the window, with the editor's smoke test reporting to a new file.
+    bool openEditor (const juce::String& label)
+    {
+        label_ = label;
+        runStart_ = ticks_;
+        result_ = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                      .getNonexistentChildFile ("sedef-host-smoke", ".json");
+        // The plugin reads the variable from this process's environment when the editor opens.
+        setEnv ("SEDEF_UI_SMOKE_TEST", result_.getFullPathName());
+        plugin_->getStateInformation (beforeEditor_);
+        auto* editor = plugin_->createEditorAndMakeActive();
+        if (editor == nullptr)
+        {
+            fail ("The plugin has no editor");
+            return false;
+        }
+        window_->setContentNonOwned (editor, true);
+        window_->centreWithSize (editor->getWidth(), editor->getHeight());
+        window_->setVisible (true);
+        return true;
+    }
+
+    void closePlugin()
+    {
         if (window_ != nullptr)
             window_->clearContentComponent();
         if (plugin_ != nullptr)
@@ -88,14 +109,25 @@ public:
             delete plugin_->getActiveEditor();
             plugin_->releaseResources();
         }
-        window_.reset();
-        restored_.reset();
         plugin_.reset();
     }
 
-    void systemRequestedQuit() override { quit(); }
+    /// The same editor check on an instance nobody restored a state into: its defaults, Init.
+    bool startFreshRun()
+    {
+        closePlugin();
+        juce::String error;
+        plugin_ = format_.createInstanceFromDescription (description_, 48000.0, 512, error);
+        if (plugin_ == nullptr)
+        {
+            fail ("Could not create a fresh instance: " + error);
+            return false;
+        }
+        plugin_->setPlayConfigDetails (1, 2, 48000.0, 512);
+        plugin_->prepareToPlay (48000.0, 512);
+        return openEditor ("fresh instance");
+    }
 
-private:
     static void setEnv (const char* name, const juce::String& value)
     {
 #if JUCE_WINDOWS
@@ -197,11 +229,13 @@ private:
         }
         if (a == b)
         {
-            std::printf ("preset state after auditions and A/B: identical (%d lines)\n", a.size());
+            std::printf ("preset state after auditions and A/B (%s): identical (%d lines)\n",
+                         label_.toRawUTF8(), a.size());
             return true;
         }
         printDiff (a, b);
-        fail ("Auditioning and going back, or switching A/B there and back, changed the state");
+        fail ("Auditioning and going back, or switching A/B there and back, changed the state (" +
+              label_ + ")");
         return false;
     }
 
@@ -218,12 +252,18 @@ private:
             result_.deleteFile();
             if (!checkPresetState())
                 return;
+            if (ok && !freshDone_)
+            {
+                freshDone_ = true;
+                startFreshRun();
+                return;
+            }
             setApplicationReturnValue (ok ? 0 : 1);
             quit();
         }
-        else if (ticks_ > 4 * 90)
+        else if (ticks_ - runStart_ > 4 * 90)
         {
-            fail ("Timed out waiting for the editor's smoke test result");
+            fail ("Timed out waiting for the editor's smoke test result (" + label_ + ")");
         }
     }
 
@@ -234,11 +274,15 @@ private:
         quit();
     }
 
+    juce::VST3PluginFormat format_;
+    juce::PluginDescription description_;
     juce::File result_;
     std::unique_ptr<juce::AudioPluginInstance> plugin_, restored_;
     juce::MemoryBlock savedState_, beforeEditor_;
     std::unique_ptr<juce::DocumentWindow> window_;
-    int ticks_ = 0;
+    juce::String label_;
+    int ticks_ = 0, runStart_ = 0;
+    bool freshDone_ = false;
 };
 } // namespace
 

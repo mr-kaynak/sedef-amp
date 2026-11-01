@@ -189,7 +189,7 @@ juce::WebBrowserComponent::Options SedefEditor::makeOptions()
     const auto presetCall = [this, &proc] (auto action) {
         return [this, &proc, action] (const juce::Array<juce::var>& a, Completion done) {
             action (proc.presets(), a);
-            ++proc.presetRevision;
+            proc.presetsChanged(); // also what the host saves, at once
             lastPresetRevision_ = proc.presetRevision.load();
             lastDirty_ = proc.presets().isDirty();
             done (proc.presets().stateAsVar());
@@ -546,7 +546,7 @@ constexpr const char* kSmokePresetScript = R"js((() => {
     const hello = await call('sedef_hello', 2);
     const before = hello.values;
     const start = hello.presets;
-    await call('sedef_presets_snapshot', 'undo'); // the session as the host restored it
+    await call('sedef_presets_snapshot', 'undo'); // the session as the host has it
 
     // The browser: audition a preset, then Esc back.
     await call('sedef_presets_snapshot', 'browse');
@@ -582,8 +582,6 @@ constexpr const char* kSmokePresetScript = R"js((() => {
     await call('sedef_presets_load', 'factory:riptide', true);
     const back = await call('sedef_presets_compare', 'switch');
     const compareMismatches = differences(before, await values());
-    // Let the processor's 20 Hz timer mirror the preset into the state the host will read.
-    await new Promise((resolve) => setTimeout(resolve, 250));
     const compare = back.compare.active === 'A' && !!back.compare.other &&
       back.compare.other.name === 'Riptide' && back.currentName === start.currentName;
     const ok = metadata && auditionChanged > 0 && restoreMismatches.length === 0 &&

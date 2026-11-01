@@ -346,6 +346,92 @@ describe('PresetBrowser', () => {
     expect(useUiStore.getState().section).toBe('eq');
   });
 
+  it('details the highlighted preset: chain by stage, tags that filter, and its actions', async () => {
+    render(<Shell />);
+    await openBrowser();
+    const pane = within(screen.getByRole('complementary', { name: 'Preset details' }));
+    expect(pane.getByRole('heading', { name: 'Nacre' })).toBeInTheDocument();
+    expect(pane.getByText('Clean · Sedef')).toBeInTheDocument();
+    const chain = Object.fromEntries(
+      pane.getAllByRole('term').map((t) => [t.textContent, t.nextElementSibling?.textContent]),
+    );
+    expect(chain).toEqual({
+      Pedals: 'Tide → Ripple',
+      Amp: 'Lagoon',
+      Cab: '1x12 Open Back',
+      FX: 'Fathom',
+    });
+    // Factory presets can be saved as a copy, not renamed or deleted.
+    expect(pane.getByRole('button', { name: 'Save as…' })).toBeInTheDocument();
+    expect(pane.queryByRole('button', { name: 'Delete' })).toBeNull();
+
+    fireEvent.click(pane.getByRole('button', { name: 'plate', pressed: false }));
+    expect(useBrowserStore.getState().filter.tags).toEqual(['plate']);
+
+    fireEvent.click(option('Tidewater'));
+    await settle();
+    expect(pane.getByRole('heading', { name: 'Tidewater' })).toBeInTheDocument();
+    fireEvent.click(pane.getByRole('button', { name: /^Use & close/ }));
+    await settle();
+    expect(dialog()).toBeNull();
+    expect(presets().currentName).toBe('Tidewater');
+  });
+
+  it('has single-key shortcuts that never fire while typing, and lists them', async () => {
+    render(<Shell />);
+    const key = (k: string, target: Element | Window = window) =>
+      fireEvent.keyDown(target, { key: k });
+
+    key(']');
+    await settle();
+    expect(presets().currentName).toBe('Tidewater');
+    key('[');
+    await settle();
+    expect(presets().currentName).toBe('Nacre');
+
+    key('b');
+    await settle();
+    expect(presets().compare.active).toBe('B');
+    key('a');
+    await settle();
+    expect(presets().compare.active).toBe('A');
+
+    key('p');
+    await settle();
+    expect(dialog()).toBeInTheDocument();
+    for (const k of ['p', '[', ']', 'b', '3']) key(k, search());
+    await settle();
+    expect(dialog()).toBeInTheDocument();
+    expect(presets()).toMatchObject({ currentName: 'Nacre', compare: { active: 'A' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Shortcuts' }));
+    const list = within(screen.getByRole('group', { name: 'Shortcuts' }));
+    expect(list.getByText('Previous or next preset')).toBeInTheDocument();
+    expect(list.getByText('Compare slot A or B')).toBeInTheDocument();
+    // Esc closes the list first, then the browser.
+    fireEvent.keyDown(search(), { key: 'Escape' });
+    expect(screen.queryByRole('group', { name: 'Shortcuts' })).toBeNull();
+    expect(dialog()).toBeInTheDocument();
+    key('p', screen.getByRole('listbox', { name: 'Presets' }));
+    expect(dialog()).toBeNull();
+  });
+
+  it('saves from the header: Save as for a factory preset, in place for a user one', async () => {
+    const save = vi.spyOn(presetActions, 'save');
+    render(<Shell />);
+    expect(screen.getByRole('button', { name: /Open preset browser/ })).toHaveTextContent(
+      /^Clean\s*Factory/,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Save as a user preset' }));
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveFocus();
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Name' }), { key: 'Escape' });
+
+    await act(() => presetActions.load(SUNDAY));
+    fireEvent.click(screen.getByRole('button', { name: 'Save Sunday set' }));
+    await settle();
+    expect(save).toHaveBeenCalledWith('Sunday set', 'Live');
+  });
+
   it('keeps focus inside the browser when it switches between the list and a form', async () => {
     render(<Shell />);
     await openBrowser();
@@ -382,5 +468,161 @@ describe('PresetBrowser', () => {
     expect(rename).toHaveBeenCalledWith(SUNDAY, 'Sunday best');
     expect(presets().currentName).toBe('Sunday best');
     expect(option('Sunday best')).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('sends one load per row however fast the keys come, and keeps the last one', async () => {
+    const load = vi.spyOn(presetActions, 'load');
+    render(<Shell />);
+    await openBrowser();
+    for (let i = 0; i < 6; i++) fireEvent.keyDown(search(), { key: 'ArrowDown' });
+    fireEvent.keyDown(search(), { key: 'Enter' });
+    await settle();
+    // Keys faster than the plugin answers: only the newest waiting load is sent.
+    expect(load.mock.calls.map(([id]) => id)).toEqual(['factory:undertow']);
+    expect(presets()).toMatchObject({ currentName: 'Undertow', recent: ['factory:undertow'] });
+
+    load.mockClear();
+    await openBrowser();
+    fireEvent.click(option('Riptide'));
+    fireEvent.click(option('Riptide'));
+    fireEvent.doubleClick(option('Riptide'));
+    await settle();
+    expect(load).toHaveBeenCalledTimes(1);
+    expect(presets().currentName).toBe('Riptide');
+  });
+
+  it('lands on the picked preset when answers arrive out of order', async () => {
+    cleanup();
+    h.dispose();
+    h = await setupMock({ jitter: { maxMs: 10, seed: 7 } });
+    render(<Shell />);
+    await openBrowser();
+    for (let i = 0; i < 4; i++) fireEvent.keyDown(search(), { key: 'ArrowDown' });
+    fireEvent.click(option('Mariana'));
+    fireEvent.keyDown(search(), { key: 'ArrowUp' });
+    fireEvent.keyDown(search(), { key: 'Enter' });
+    await act(() => new Promise((resolve) => setTimeout(resolve, 120)));
+    const truth = await h.mock.call('sedef_presets_list');
+    expect(truth).toMatchObject({ currentName: 'Harbor Lights' });
+    expect(presets()).toMatchObject({ currentName: 'Harbor Lights', recent: truth.recent });
+  });
+
+  it('offers no Undo across A/B slots', async () => {
+    await editNacre();
+    render(<Shell />);
+    const slot = (s: 'A' | 'B') => screen.getByRole('radio', { name: new RegExp(`^${s}:`) });
+    await openBrowser();
+    fireEvent.click(option('Riptide'));
+    fireEvent.click(slot('B'));
+    await settle();
+    expect(dialog()).toBeNull();
+    expect(presets()).toMatchObject({ currentName: 'Riptide', compare: { active: 'B' } });
+    expect(screen.queryByRole('button', { name: /Undo/ })).toBeNull();
+
+    // An Undo from prev/next goes too: its snapshot belongs to the slot left behind.
+    await act(async () => {
+      await h.mock.call('sedef_setParam', 'abyssGain', 0.91);
+      await flush();
+    });
+    fireEvent.keyDown(window, { key: ']' });
+    await settle();
+    expect(screen.getByRole('button', { name: /Undo/ })).toBeInTheDocument();
+    fireEvent.click(slot('A'));
+    await settle();
+    expect(screen.queryByRole('button', { name: /Undo/ })).toBeNull();
+    // The first switch copied the live sound, so A holds Riptide as it was then.
+    expect(presets()).toMatchObject({ currentName: 'Riptide', dirty: false });
+  });
+
+  it('keeps ⌘S out of other text fields and held keys, and asks first while auditioning', async () => {
+    const save = vi.spyOn(presetActions, 'save');
+    await act(() => presetActions.load(SUNDAY));
+    render(
+      <>
+        <Shell />
+        <input aria-label="Other field" />
+      </>,
+    );
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Other field' }), {
+      key: 's',
+      metaKey: true,
+    });
+    fireEvent.keyDown(window, { key: 's', metaKey: true, repeat: true });
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Other field' }), {
+      key: 'f',
+      metaKey: true,
+    });
+    await settle();
+    expect(save).not.toHaveBeenCalled();
+    expect(dialog()).toBeNull();
+
+    // In the browser over unsaved edits, it is not clear which sound ⌘S means.
+    await act(async () => {
+      await h.mock.call('sedef_setParam', 'lagoonVolume', 0.81);
+      await flush();
+    });
+    await openBrowser();
+    fireEvent.click(option('Riptide'));
+    await settle();
+    fireEvent.keyDown(search(), { key: 's', metaKey: true });
+    await settle();
+    expect(save).not.toHaveBeenCalled();
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Choose first: Enter keeps Riptide, Esc goes back to Sunday set with your edits. Then save.',
+    );
+    expect(dialog()).toBeInTheDocument();
+  });
+
+  it("keeps a delete's Undo through Esc and the next session", async () => {
+    render(<Shell />);
+    await openBrowser();
+    fireEvent.click(option('Sunday set'));
+    await settle();
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    await settle();
+    expect(screen.getByRole('status')).toHaveTextContent('Deleted Sunday set');
+
+    fireEvent.keyDown(search(), { key: 'Escape' });
+    await settle();
+    expect(presets().currentName).toBe('Nacre');
+    expect(screen.getByRole('status')).toHaveTextContent('Deleted Sunday set');
+    await openBrowser();
+    fireEvent.keyDown(search(), { key: 'Escape' });
+    expect(screen.getByRole('status')).toHaveTextContent('Deleted Sunday set');
+
+    fireEvent.click(screen.getByRole('button', { name: /Undo/ }));
+    await settle();
+    expect(presets().items.some((p) => p.id === SUNDAY)).toBe(true);
+    expect(presets().currentName).toBe('Nacre');
+  });
+
+  it('follows a rename of the preset Esc goes back to, edits and all', async () => {
+    await act(async () => {
+      await presetActions.load(SUNDAY);
+      await h.mock.call('sedef_setParam', 'lagoonVolume', 0.81);
+      await flush();
+    });
+    render(<Shell />);
+    await openBrowser();
+    fireEvent.click(option('Riptide'));
+    fireEvent.click(option('Sunday set'));
+    await settle();
+    fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
+    const input = screen.getByRole('textbox', { name: 'New name' });
+    fireEvent.change(input, { target: { value: 'Sunday late' } });
+    fireEvent.submit(input);
+    await settle();
+    fireEvent.click(option('Riptide'));
+    await settle();
+
+    fireEvent.keyDown(search(), { key: 'Escape' });
+    await settle();
+    expect(presets()).toMatchObject({
+      currentId: 'user:Live/Sunday late.sedefpreset',
+      currentName: 'Sunday late',
+      dirty: true,
+    });
+    expect(h.mock.value('lagoonVolume')).toBe(0.81);
+    expect(screen.getByRole('status')).toHaveTextContent('Back to Sunday late');
   });
 });

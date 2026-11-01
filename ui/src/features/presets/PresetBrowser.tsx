@@ -9,7 +9,7 @@ import buttons from '../../controls/Button.module.css';
 import segmented from '../../controls/Segmented.module.css';
 import { useRadioGroup } from '../../controls/useRadioGroup';
 import { useAppStore } from '../../state/appStore';
-import { currentPreset, presetActions, usePresetStore } from '../../state/presetStore';
+import { presetActions, usePresetStore } from '../../state/presetStore';
 import { useUiStore } from '../../state/uiStore';
 import { modKey } from '../../app/platform';
 import {
@@ -23,11 +23,13 @@ import {
 } from './library';
 import { LIST_ID, optionId } from './ids';
 import { PresetList } from './PresetList';
+import { PresetDetail } from './PresetDetail';
 import { PresetForm } from './PresetForm';
-import { deletePreset, newPreset, presetBrowser, saveCurrent, useBrowserStore } from './session';
+import { newPreset, presetBrowser, useBrowserStore } from './session';
+import { ShortcutList } from './ShortcutList';
 import styles from './PresetBrowser.module.css';
 
-const SHOWN_TAGS = 12;
+const SHOWN_TAGS = 9;
 
 export function PresetBrowser() {
   const open = useBrowserStore((s) => s.open);
@@ -66,6 +68,7 @@ function LibraryRail() {
 
   return (
     <nav className={styles.rail} aria-label="Preset library">
+      <h2 className={styles.title}>Presets</h2>
       <h3 className={styles.railHeading} id="preset-rail-library">
         Library
       </h3>
@@ -148,8 +151,10 @@ function BrowserPanel() {
   const canReveal = useAppStore((s) => s.session.backend === 'juce');
   const searchRef = useRef<HTMLInputElement>(null);
   const [allTags, setAllTags] = useState(false);
-  const current = currentPreset(state);
-  const isUser = current?.category === 'User';
+  const [showKeys, setShowKeys] = useState(false);
+  // The detail pane shows the highlighted row, which is the playing preset unless a load is on
+  // its way; nothing when the sound isn't a preset (Init).
+  const detail = state.items.find((p) => p.id === (cursor ?? state.currentId));
 
   // Library, category and search narrow the list first; the chips offer what is left.
   const scoped = useMemo(
@@ -179,19 +184,21 @@ function BrowserPanel() {
     if (mode === 'list') searchRef.current?.focus({ preventScroll: true });
   }, [mode, searchFocus]);
 
-  // Esc: a form goes back to the list, the browser goes back to the sound it opened on. Capture
-  // phase, so it runs before the global shortcuts; an open popover gets the key first.
+  // Esc: the shortcut list closes, a form goes back to the list, the browser goes back to the
+  // sound it opened on. Capture phase, so it runs before the global shortcuts; an open popover
+  // gets the key first.
   useEffect(() => {
     const onKeyDown = (e: globalThis.KeyboardEvent) => {
       if (e.key !== 'Escape' || e.defaultPrevented || useUiStore.getState().popover) return;
       e.preventDefault();
       e.stopPropagation();
-      if (useBrowserStore.getState().mode !== 'list') presetBrowser.endForm();
+      if (showKeys) setShowKeys(false);
+      else if (useBrowserStore.getState().mode !== 'list') presetBrowser.endForm();
       else presetBrowser.cancel();
     };
     document.addEventListener('keydown', onKeyDown, true);
     return () => document.removeEventListener('keydown', onKeyDown, true);
-  }, []);
+  }, [showKeys]);
 
   const move = (to: 'next' | 'prev' | 'first' | 'last') => {
     if (!visible.length) return;
@@ -211,9 +218,10 @@ function BrowserPanel() {
   };
 
   const keepCursor = () => {
-    // The highlighted row, or the best match when the playing preset is filtered out.
+    // The highlighted row, or the best match when the playing preset is filtered out. Auditioning
+    // the row that is already on its way (or playing) sends nothing.
     const target = visible.find((p) => p.id === cursor) ?? visible[0];
-    if (target && target.id !== state.currentId) void presetBrowser.audition(target.id);
+    if (target) void presetBrowser.audition(target.id);
     presetBrowser.keep();
   };
 
@@ -280,89 +288,73 @@ function BrowserPanel() {
       aria-label="Preset browser"
       aria-describedby="preset-browser-help"
     >
-      <p id="preset-browser-help" className="visually-hidden">
-        Arrow keys play the next or previous preset. Enter keeps it. Escape goes back to{' '}
-        {origin?.name ?? state.currentName}.
-      </p>
-      <div className={styles.top} inert={mode !== 'list'}>
-        <h2 className={styles.title}>Presets</h2>
-        <div className={styles.search}>
-          <Icon name="search" size={15} />
-          <input
-            ref={searchRef}
-            type="search"
-            role="combobox"
-            aria-label="Search presets"
-            aria-controls={LIST_ID}
-            aria-expanded="true"
-            aria-autocomplete="list"
-            aria-activedescendant={activeOption || undefined}
-            aria-keyshortcuts={`/ ${mod.aria}+F`}
-            placeholder="Search names, sounds, tags"
-            value={filter.query}
-            onChange={(e) => presetBrowser.setFilter({ query: e.target.value })}
-            onKeyDown={(e) => onListKeys(e, true)}
-          />
-          {filter.query && (
-            <button
-              type="button"
-              className={styles.clearSearch}
-              aria-label="Clear search"
-              onClick={() => {
-                presetBrowser.setFilter({ query: '' });
-                searchRef.current?.focus();
-              }}
-            >
-              <Icon name="close" size={12} />
-            </button>
-          )}
-          <kbd className={styles.searchKey} aria-hidden="true">
-            /
-          </kbd>
-        </div>
-        <SortSwitch />
-        <button
-          type="button"
-          className={`${buttons.solid} ${styles.done}`}
-          aria-label={`Done, keep ${state.currentName}`}
-          aria-keyshortcuts="Enter"
-          onClick={() => presetBrowser.keep()}
-        >
-          Done
-          <kbd aria-hidden="true">↵</kbd>
-        </button>
-      </div>
-
       <div className={styles.body} inert={mode !== 'list'}>
         <LibraryRail />
+
         <div className={styles.results}>
-          <div className={styles.filters}>
-            {tags.length > 0 && (
-              <div className={styles.chips} role="group" aria-label="Filter by tag">
-                {shownTags.map((t) => (
-                  <button
-                    key={t.name}
-                    type="button"
-                    className={styles.chip}
-                    aria-pressed={filter.tags.includes(t.name)}
-                    onClick={() => toggleTag(t.name)}
-                  >
-                    {t.name}
-                  </button>
-                ))}
-                {tags.length > shownTags.length || allTags ? (
-                  <button
-                    type="button"
-                    className={styles.moreChips}
-                    aria-expanded={allTags}
-                    onClick={() => setAllTags(!allTags)}
-                  >
-                    {allTags ? 'Fewer tags' : `${tags.length - shownTags.length} more`}
-                  </button>
-                ) : null}
-              </div>
-            )}
+          <div className={styles.searchRow}>
+            <div className={styles.search}>
+              <Icon name="search" size={15} />
+              <input
+                ref={searchRef}
+                type="search"
+                role="combobox"
+                data-command-keys
+                aria-label="Search presets"
+                aria-controls={LIST_ID}
+                aria-expanded="true"
+                aria-autocomplete="list"
+                aria-activedescendant={activeOption || undefined}
+                aria-keyshortcuts={`/ ${mod.aria}+F`}
+                placeholder="Search name, tag, style…   ↑↓ audition · ↵ keep"
+                value={filter.query}
+                onChange={(e) => presetBrowser.setFilter({ query: e.target.value })}
+                onKeyDown={(e) => onListKeys(e, true)}
+              />
+              {filter.query && (
+                <button
+                  type="button"
+                  className={styles.clearSearch}
+                  aria-label="Clear search"
+                  onClick={() => {
+                    presetBrowser.setFilter({ query: '' });
+                    searchRef.current?.focus();
+                  }}
+                >
+                  <Icon name="close" size={12} />
+                </button>
+              )}
+              <kbd className={styles.searchKey} aria-hidden="true">
+                /
+              </kbd>
+            </div>
+            <SortSwitch />
           </div>
+          {tags.length > 0 && (
+            <div className={styles.chips} role="group" aria-label="Filter by tag">
+              {shownTags.map((t) => (
+                <button
+                  key={t.name}
+                  type="button"
+                  className={styles.chip}
+                  aria-pressed={filter.tags.includes(t.name)}
+                  onClick={() => toggleTag(t.name)}
+                >
+                  {t.name}
+                </button>
+              ))}
+              {tags.length > shownTags.length || allTags ? (
+                <button
+                  type="button"
+                  className={styles.moreChips}
+                  aria-expanded={allTags}
+                  onClick={() => setAllTags(!allTags)}
+                >
+                  {allTags ? 'Fewer tags' : `${tags.length - shownTags.length} more`}
+                </button>
+              ) : null}
+            </div>
+          )}
           <div className={styles.resultHead}>
             <span className={styles.count} aria-live="polite">
               {visible.length === 1 ? '1 preset' : `${visible.length} presets`}
@@ -394,68 +386,45 @@ function BrowserPanel() {
             }
             onAudition={(id) => void presetBrowser.audition(id)}
             onKeep={(id) => {
-              if (id !== state.currentId) void presetBrowser.audition(id);
+              void presetBrowser.audition(id);
               presetBrowser.keep();
             }}
             onKeyDown={(e) => onListKeys(e, false)}
           />
         </div>
+
+        <PresetDetail preset={detail} />
       </div>
 
       <footer className={styles.foot} inert={mode !== 'list'}>
-        <button
-          type="button"
-          className={styles.back}
-          data-armed={auditioned || undefined}
-          aria-label={`Back to ${origin?.name ?? state.currentName}${origin?.dirty ? ' with your edits' : ''}`}
-          aria-keyshortcuts="Escape"
-          onClick={() => presetBrowser.cancel()}
-        >
-          <kbd>Esc</kbd>
+        <div className={styles.hint} id="preset-browser-help">
           <span>
-            Back to <strong>{origin?.name ?? state.currentName}</strong>
-            {origin?.dirty && <span className={styles.edited}> with your edits</span>}
+            Click or <kbd>↑</kbd>
+            <kbd>↓</kbd> to audition — the browser stays open.
           </span>
-        </button>
-        <span className={styles.keys} aria-hidden="true">
-          <kbd>↑</kbd>
-          <kbd>↓</kbd> play <kbd>↵</kbd> keep
-        </span>
+          <button
+            type="button"
+            className={styles.back}
+            data-armed={auditioned || undefined}
+            aria-label={`Back to ${origin?.name ?? state.currentName}${origin?.dirty ? ' with your edits' : ''}`}
+            aria-keyshortcuts="Escape"
+            onClick={() => presetBrowser.cancel()}
+          >
+            <kbd>Esc</kbd>
+            <span>
+              returns to <strong>{origin?.name ?? state.currentName}</strong>
+              {origin?.dirty && <span className={styles.edited}> with your edits</span>}
+            </span>
+          </button>
+        </div>
         <span className={styles.spacer} />
-        <button
-          type="button"
-          className={`${buttons.ghost} ${buttons.small} ${styles.favourite}`}
-          aria-pressed={current?.favorite ?? false}
-          disabled={!current}
-          onClick={() => current && void presetActions.setFavorite(current.id, !current.favorite)}
-        >
-          <Icon name="star" size={13} filled={current?.favorite ?? false} />
-          Favourite
-        </button>
-        <button
-          type="button"
-          className={`${buttons.ghost} ${buttons.small}`}
-          disabled={!isUser}
-          title={isUser ? undefined : 'Only your own presets can be renamed'}
-          onClick={() => presetBrowser.open('rename')}
-        >
-          Rename
-        </button>
-        <button
-          type="button"
-          className={`${buttons.ghost} ${buttons.small}`}
-          disabled={!isUser}
-          title={isUser ? 'Delete it (you can undo)' : 'Only your own presets can be deleted'}
-          onClick={() => current && void deletePreset(current.id)}
-        >
-          Delete
-        </button>
         <button
           type="button"
           className={`${buttons.ghost} ${buttons.small}`}
           title="Start from the default sound"
           onClick={() => void newPreset()}
         >
+          <Icon name="plus" size={12} />
           New
         </button>
         {canReveal && (
@@ -469,26 +438,7 @@ function BrowserPanel() {
             <Icon name="folder" size={14} />
           </button>
         )}
-        <span className={styles.divider} />
-        <button
-          type="button"
-          className={`${buttons.ghost} ${buttons.small}`}
-          aria-keyshortcuts={`${mod.aria}+Shift+S`}
-          onClick={() => presetBrowser.open('saveAs')}
-        >
-          Save as…
-        </button>
-        <button
-          type="button"
-          className={`${state.dirty ? buttons.nacre : buttons.solid} ${buttons.small}`}
-          aria-keyshortcuts={`${mod.aria}+S`}
-          title={
-            isUser ? `Save ${state.currentName} (${mod.symbol}S)` : `Save a copy (${mod.symbol}S)`
-          }
-          onClick={() => void saveCurrent()}
-        >
-          Save
-        </button>
+        <ShortcutList open={showKeys} onToggle={setShowKeys} />
       </footer>
 
       {mode !== 'list' && <PresetForm mode={mode} />}

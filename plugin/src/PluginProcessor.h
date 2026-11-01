@@ -58,6 +58,9 @@ public:
         return raw_[index (id)]->load (std::memory_order_relaxed);
     }
     void setParamValue (ParamId id, float realValue);
+    /// setParamValue as a gesture of its own, for changes the plugin makes by itself (tap tempo,
+    /// a footswitch springing back), so hosts recording automation see them like a turn.
+    void changeParamValue (ParamId id, float realValue);
 
     // UI state, scale and the metronome pattern are saved by getStateInformation(), which hosts
     // may call from any thread, so they live behind extraLock_ (or are atomic).
@@ -82,8 +85,13 @@ public:
     std::atomic<int> presetRevision { 0 };
     std::atomic<int> irRevision { 0 };
 
+    /// After a preset call (message thread): applies a host restore still pending, mirrors the
+    /// current preset into what getStateInformation() saves, and tells the editor.
+    void presetsChanged();
+
 private:
     void timerCallback() override;
+    void mirrorPreset();
 
     juce::AudioProcessorValueTreeState state_;
     std::array<std::atomic<float>*, kNumParams> raw_ {};
@@ -98,8 +106,7 @@ private:
 
     mutable std::mutex extraLock_;
     juce::String uiStateJson_;                     // guarded by extraLock_
-    juce::String savedPresetId_, savedPresetName_; // guarded; mirrored from presets_ by the timer
-    int pendingPresetRestores_ = 0;                // guarded; restores not yet applied to presets_
+    juce::String savedPresetId_, savedPresetName_; // guarded; mirrored from presets_
 
     /// Per parameter: the value text of the last loaded state, and the value it became once
     /// applied. Guarded by extraLock_.

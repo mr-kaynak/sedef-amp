@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// The result list: a listbox of rich rows. Rows are options, so they hold no focusable controls;
-// the star is a mouse shortcut for the footer's Favourite button and the F key.
+// The result list: a listbox of rows. Rows are options, so they hold no focusable controls; the
+// star is a mouse shortcut for the detail pane's Favourite button and the F key.
 import { useEffect, useRef } from 'react';
 import type { KeyboardEvent, MouseEvent, ReactNode } from 'react';
 import { Icon } from '../../controls/Icon';
+import { Led } from '../../controls/Led';
 import type { PresetInfo } from '../../bridge/protocol';
 import { presetActions } from '../../state/presetStore';
-import { AMPS } from '../amp/amps';
+import { AmpBadge } from './AmpBadge';
 import { LIST_ID, optionId } from './ids';
-import { ampName, chainParts, chainText } from './library';
+import { chainParts, chainText } from './library';
 import styles from './PresetList.module.css';
 
 function rowLabel(p: PresetInfo, current: boolean, dirty: boolean): string {
@@ -25,26 +26,7 @@ function rowLabel(p: PresetInfo, current: boolean, dirty: boolean): string {
     .join('. ');
 }
 
-function AmpBadge({ p }: { p: PresetInfo }) {
-  const finish = AMPS[p.amp]?.finish;
-  return (
-    <span
-      className={styles.amp}
-      data-amp={ampName(p).toLowerCase()}
-      style={
-        finish
-          ? {
-              background: `linear-gradient(180deg, ${finish.plate[0]}, ${finish.plate[1]})`,
-              color: finish.legend,
-            }
-          : undefined
-      }
-    >
-      {ampName(p)}
-    </span>
-  );
-}
-
+/** Pedals → amp → effects; the cab is in the detail pane. */
 function Chain({ p }: { p: PresetInfo }) {
   const parts = chainParts(p);
   return (
@@ -53,10 +35,7 @@ function Chain({ p }: { p: PresetInfo }) {
         <span key={`${part.label}-${i}`} className={styles.link}>
           {i > 0 && <span className={styles.arrow}>→</span>}
           {part.kind === 'amp' ? (
-            <>
-              <AmpBadge p={p} />
-              <span className={styles.cab}>{part.detail}</span>
-            </>
+            <AmpBadge p={p} />
           ) : (
             <span className={styles.block}>{part.label}</span>
           )}
@@ -148,8 +127,10 @@ export function PresetList({
                 <span className={styles.nameLine}>
                   <span className={styles.name}>{p.name}</span>
                   {current && (
-                    <span className={styles.playing} data-dirty={dirty || undefined}>
-                      {dirty ? 'Playing, edited' : 'Playing'}
+                    <span className={styles.playing}>
+                      <Led on size={6} />
+                      Playing
+                      {dirty && <span className={styles.edited}> · edited</span>}
                     </span>
                   )}
                 </span>
@@ -171,8 +152,8 @@ export function PresetList({
               </span>
               <span className={styles.meta}>
                 <span className={styles.folder}>{p.folder || 'No category'}</span>
-                <span className={styles.author}>
-                  {p.category === 'User' ? `User · ${p.author || 'you'}` : p.author || 'Factory'}
+                <span className={styles.source} data-user={p.category === 'User' || undefined}>
+                  {p.category}
                 </span>
               </span>
             </li>

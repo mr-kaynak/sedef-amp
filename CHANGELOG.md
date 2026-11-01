@@ -8,16 +8,21 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
-- **Preset browser:** a panel over the rig with a library rail (all, favourites, recent, factory,
-  user), categories, tag chips, search across names, notes, tags, amps and blocks, and sorting by
-  name, recency or category. Rows show the amp, the switched-on chain, a one-line note, tags and
-  the author.
+- **Preset browser:** a three-pane panel over the rig: a library rail (all, favourites, recent,
+  factory, user) with categories; a list with tag chips, search across names, notes, tags, amps
+  and blocks, and sorting by name, recency or category, whose rows show the amp, the switched-on
+  chain, a one-line note and tags; and a detail pane with the chain by stage and the preset's
+  actions.
 - **Audition:** a click or the arrow keys play a preset while the browser stays open; Enter or a
   double-click keeps it, and Esc restores exactly the sound you had when it opened, unsaved edits
   included.
 - **Undo:** loading over unsaved edits (from the browser or prev/next) and deleting a user preset
   offer Undo in a toast (also ⌘/Ctrl+Z).
-- **A/B compare** next to the preset bar, with copy between the slots and an edit marker per slot.
+- **A/B compare** next to the preset bar, with copy between the slots and an edit marker per slot,
+  and a Save button beside it; the bar shows the preset's category.
+- **Shortcuts:** `P` opens the browser, `[` and `]` step presets, `A` and `B` pick the compare
+  slot (never while typing, and ⌘/Ctrl+S and ⌘/Ctrl+F only in the preset search among text
+  fields); the browser lists every shortcut.
 - **Saving:** ⌘/Ctrl+S saves (Save as for factory presets), ⌘/Ctrl+Shift+S is Save as. Save as
   takes a category (or a new one), tags with suggestions and an optional note, and warns inline
   before replacing a preset.
@@ -34,12 +39,22 @@ All notable changes to this project are documented here. The format follows
   (no more copying bundles or clearing quarantine flags), a Windows setup program and a Linux
   archive with an install script. Each lets you pick the formats; the app now has an icon.
 - Bridge protocol 2: presets report their amp, cab, active blocks and description; Recent, A/B,
-  snapshots and undoing a delete are new native functions.
+  snapshots and undoing a delete are new native functions. Each preset state carries a rising
+  `revision`, so the editor ignores an answer that arrives after a newer broadcast.
 - Factory presets: Mariana and Coral Fuzz moved to a new High Gain category, Morning Ritual to
   Crunch. Sounds and levels are unchanged.
 
 ### Fixed
 
+- **Presets:** favourites survive a settings file that can't be read, and plugin instances in
+  different hosts no longer overwrite each other's changes. Renaming a preset to the same name in
+  other capitals works on macOS and Windows, and a rename that fails keeps the old file. A
+  category of ".." or a name made of dots can no longer save outside the presets folder.
+- **Host automation:** preset loads, tap tempo and the preset footswitches springing back reach
+  the host as gestures, so touch, latch and write automation record them.
+- **State:** a session the host restores while the editor works on presets no longer mixes in the
+  editor's values or names the wrong preset, and a saved session names the current preset as soon
+  as it changes.
 - **Intonation workbench:** the open-string step no longer waits for a reading held within one
   cent for a second, which a real plucked string never gives. Within 5 cents it moves on by
   itself; further off on the right note it says how far and offers **Use this tuning**. Both

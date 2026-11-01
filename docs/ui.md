@@ -28,18 +28,18 @@ chromium-headless-shell`.
 
 ### URL flags (mock only)
 
-| Flag                                | Effect                                                                                     |
-| ----------------------------------- | ------------------------------------------------------------------------------------------ |
-| `?section=pedals\|amp\|eq\|cab\|fx` | open a section                                                                             |
-| `?overlay=tuner\|intonation`        | open the tuner or the intonation workbench                                                 |
-| `?preset=soft-focus`                | start from a factory preset (slug; default `nacre`)                                        |
-| `?set=pearlEnabled:1,pearlGain:0.4` | parameter values applied as part of that preset (no dirty dot)                             |
-| `?freeze`                           | no simulation: static meters, pitch only from the demo hook                                |
-| `?demo`                             | expose `window.__sedefDemo` (`pitch`, `silence`, `intonation`, `set`) for scripted frames  |
-| `?grain=0`                          | hide the lacquer grain (much smaller PNGs)                                                 |
-| `?host=plugin\|standalone`          | present as a plugin (no metronome) or as the standalone app instead of the browser preview |
-| `?errors=3.6,-2.4,1.1`              | 12th-fret errors in cents that the simulated guitar produces, per string                   |
-| `?fresh`                            | ignore UI state saved by earlier browser sessions                                          |
+| Flag                                | Effect                                                                                                              |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `?section=pedals\|amp\|eq\|cab\|fx` | open a section                                                                                                      |
+| `?overlay=tuner\|intonation`        | open the tuner or the intonation workbench                                                                          |
+| `?preset=soft-focus`                | start from a factory preset (slug; default `nacre`)                                                                 |
+| `?set=pearlEnabled:1,pearlGain:0.4` | parameter values applied as part of that preset (no dirty dot)                                                      |
+| `?freeze`                           | no simulation: static meters, pitch only from the demo hook                                                         |
+| `?demo`                             | expose `window.__sedefDemo` (`pitch`, `silence`, `intonation`, `set`) for scripted frames                           |
+| `?grain=0`                          | hide the lacquer grain (much smaller PNGs)                                                                          |
+| `?host=plugin\|standalone`          | present as a plugin (no metronome) or as the standalone app instead of the browser preview                          |
+| `?errors=3.6,-2.4,1.1`              | 12th-fret errors in cents that the simulated guitar produces, per string                                            |
+| `?fresh`                            | ignore UI state saved by earlier browser sessions                                                                   |
 | `?update=available`                 | what the update checker finds: `current`, `available`, `skipped`, `error`, `noinstaller`, `mismatch`, `unsupported` |
 
 ### Inside the plugin
@@ -187,19 +187,19 @@ Design canvas: 1200 × 760 CSS px, scaled uniformly to the window (`app/Stage.ts
 resizes its window to the canvas times the chosen scale (75–200 %, `sedef_ui_setScale`); in a
 browser the canvas fits the window. Everything is vector or text, so it stays crisp at any scale.
 
-| Screen     | Notes                                                                                                                                                                                                              |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Header     | logo, preset bar (prev/next, name with dirty dot, A/B compare with copy), input/output gain with peak meters and clip latches, Tuner, Intonation, Metronome (standalone only), Settings                            |
-| Presets    | browser over the rig ([details](ui/presets.md)): library and category rail, tag chips, search, sort, rows with amp, chain and note; click or arrows audition, Enter keeps, Esc goes back exactly; Undo for deletes |
-| Tabs       | Pedals · Amp · EQ · Cab · FX, keys 1–5 and arrow keys; each tab shows what is switched on inside it                                                                                                                |
-| Pedals     | Gate (threshold, open/closed lamp), Transpose, Tide/Pearl/Coral/Ripple enclosures with LEDs and footswitches, Tide gain reduction, Ripple rate lamp                                                                |
-| Amp        | Lagoon/Reef/Abyss faceplates; Reef 3-way voice lever; Abyss bright/shift levers; amp/cab link                                                                                                                      |
-| EQ         | the current amp's bank: 9 faders on a log axis under a live response curve, low/high cut, on/off, flatten                                                                                                          |
-| Cab        | cab picker (shows the link), speaker with draggable Mic A/B markers (sideways = position, up/down = distance ring), per-mic type for the current cab, level, pan, phase, room, custom IR load/clear                |
-| FX         | Drift (heads, Free/Host/Tap sync with tap button, time or note value, the effective time from telemetry, tape controls), Fathom (plate/hall with an envelope sketch), Doubler                                      |
-| Tuner      | needle + strobe, note and octave, cents, Hz, reference 420–460 Hz, mute; in tune within ±1 cent                                                                                                                    |
-| Intonation | instrument → measure each string (tune open, capture 12th fret, result with saddle diagram) → summary with copy as text                                                                                            |
-| Metronome  | play/stop, tempo knob + tap, signature, sound, volume, step grid (off/normal/accent/soft), live beat                                                                                                               |
+| Screen     | Notes                                                                                                                                                                                                                            |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Header     | logo, preset bar (prev/next, category chip, name with dirty dot, A/B with copy, Save), input/output gain with peak meters and clip latches, Tuner, Intonation, Metronome (standalone only), Settings                             |
+| Presets    | browser over the rig ([details](ui/presets.md)): rail, list with tag chips and search, detail pane with the chain by stage; click or arrows audition, Enter keeps, Esc goes back exactly; `[` `]` `P` `A` `B`                    |
+| Tabs       | Pedals · Amp · EQ · Cab · FX, keys 1–5 and arrow keys; each tab shows what is switched on inside it                                                                                                                              |
+| Pedals     | Gate (threshold, open/closed lamp), Transpose, Tide/Pearl/Coral/Ripple enclosures with LEDs and footswitches, Tide gain reduction, Ripple rate lamp                                                                              |
+| Amp        | Lagoon/Reef/Abyss faceplates; Reef 3-way voice lever; Abyss bright/shift levers; amp/cab link                                                                                                                                    |
+| EQ         | the current amp's bank: 9 faders on a log axis under a live response curve, low/high cut, on/off, flatten                                                                                                                        |
+| Cab        | cab picker (shows the link), speaker with draggable Mic A/B markers (sideways = position, up/down = distance ring), per-mic type for the current cab, level, pan, phase, room, custom IR load/clear                              |
+| FX         | Drift (heads, Free/Host/Tap sync with tap button, time or note value, the effective time from telemetry, tape controls), Fathom (plate/hall with an envelope sketch), Doubler                                                    |
+| Tuner      | needle + strobe, note and octave, cents, Hz, reference 420–460 Hz, mute; in tune within ±1 cent                                                                                                                                  |
+| Intonation | instrument → measure each string (tune open, capture 12th fret, result with saddle diagram) → summary with copy as text                                                                                                          |
+| Metronome  | play/stop, tempo knob + tap, signature, sound, volume, step grid (off/normal/accent/soft), live beat                                                                                                                             |
 | Updates    | header pill when a newer release is out; panel with versions, last check, Check now, the automatic-check switch, release notes, Download & install with progress and Cancel, Skip this version, Later ([updates.md](updates.md)) |
 
 ### EQ curve
@@ -254,7 +254,8 @@ something is alive.
   faders are ARIA sliders with real values and readable `aria-valuetext`; arrows, Page Up/Down,
   Home/End, Delete (reset), shift for fine control. Radio groups have one tab stop and arrow,
   Home and End keys (`controls/useRadioGroup.ts`). The preset browser has a full keyboard path
-  (`/` or ⌘/Ctrl+F to search, arrows to audition, Enter, Esc, F for favourite; see
+  (`/` or ⌘/Ctrl+F to search, arrows to audition, Enter, Esc, F for favourite, and `P`, `[`,
+  `]`, `A`, `B` anywhere outside text fields; see
   [ui/presets.md](ui/presets.md)); digit keys never switch sections while you type or while it is
   open, and toasts are a polite live region that never takes focus. The tuner announces a settled reading ("E 2, in tune") through
   a polite live region, at most every 2 s, rather than every pluck. Text meets WCAG AA (4.5:1):

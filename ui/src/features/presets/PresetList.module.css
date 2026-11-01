@@ -32,11 +32,11 @@
 .row {
   position: relative;
   display: grid;
-  grid-template-columns: 26px minmax(0, 1.3fr) minmax(0, 1fr) 84px;
+  grid-template-columns: 24px minmax(0, 1.05fr) minmax(0, 1fr) 68px;
   align-items: center;
-  gap: 14px;
-  min-height: 58px;
-  padding: 8px 14px 8px 8px;
+  gap: 12px;
+  min-height: 60px;
+  padding: 9px 12px 9px 6px;
   border-radius: var(--r-panel);
   cursor: pointer;
   transition: background var(--dur-1);
@@ -45,8 +45,8 @@
 .row + .row::before {
   content: '';
   position: absolute;
-  left: 44px;
-  right: 14px;
+  left: 42px;
+  right: 12px;
   top: 0;
   height: 1px;
   background: var(--line);
@@ -141,6 +141,9 @@
 }
 
 .playing {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   flex: none;
   color: var(--nacre-aqua);
   font-size: var(--t-10);
@@ -148,8 +151,9 @@
   font-weight: 560;
 }
 
-.playing[data-dirty] {
+.edited {
   color: var(--amber);
+  white-space: pre;
 }
 
 .description {
@@ -165,7 +169,7 @@
 .sound {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
   min-width: 0;
 }
 
@@ -192,54 +196,28 @@
   color: var(--bone-4);
 }
 
-.amp {
-  display: inline-flex;
-  align-items: center;
-  height: 18px;
-  padding: 0 7px;
-  border-radius: 4px;
-  font-family: var(--font-display);
-  font-size: var(--t-12);
-  font-style: italic;
-  font-weight: 600;
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.22),
-    0 0 0 1px rgb(0 0 0 / 0.45);
-}
-
-/* Abyss wears the nacre badge, as on its faceplate. */
-.amp[data-amp='abyss'] {
-  box-shadow:
-    inset 0 0 0 1px rgb(205 238 238 / 0.35),
-    0 0 0 1px rgb(0 0 0 / 0.45);
-}
-
-.cab {
-  margin-left: 6px;
-  color: var(--bone-3);
-}
-
 .block {
   color: var(--bone-2);
 }
 
 .tags {
   display: flex;
-  gap: 4px;
+  gap: 8px;
   min-width: 0;
   overflow: hidden;
+  white-space: nowrap;
 }
 
 .tag {
   flex: none;
-  height: 17px;
-  padding: 0 7px;
-  border-radius: 9px;
-  background: rgb(237 230 214 / 0.05);
-  box-shadow: inset 0 0 0 1px var(--line);
   color: var(--bone-3);
-  font-size: var(--t-10);
-  line-height: 17px;
+  font-size: var(--t-11);
+}
+
+.tag::before {
+  content: '#';
+  margin-right: 1px;
+  color: var(--bone-4);
 }
 
 .meta {
@@ -257,13 +235,13 @@
   font-stretch: var(--legend-stretch);
 }
 
-.author {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.source {
   color: var(--bone-3);
   font-size: var(--t-10);
+}
+
+.source[data-user] {
+  color: var(--nacre-lilac);
 }
 
 .empty {

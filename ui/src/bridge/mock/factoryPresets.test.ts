@@ -14,6 +14,26 @@ describe('factory presets', () => {
     expect(FACTORY_PRESETS.every((p) => p.info.category === 'Factory' && p.info.folder)).toBe(true);
   });
 
+  it('have a category, tags from the shared vocabulary and a one-line description', () => {
+    // presets/README.md, "Categories and tags".
+    const categories = ['Clean', 'Crunch', 'High Gain', 'Lead', 'Ambient'];
+    const vocabulary = new Set(
+      [
+        'compressor overdrive boost distortion chorus tremolo vibrato delay slapback plate hall',
+        'rhythm solo swell drone blues rock metal funk neo-soul surf rockabilly garage',
+      ]
+        .join(' ')
+        .split(' ')
+        .concat('edge of breakup'),
+    );
+    for (const { info } of FACTORY_PRESETS) {
+      expect(categories, info.name).toContain(info.folder);
+      expect(info.tags.length, info.name).toBeGreaterThan(0);
+      for (const tag of info.tags) expect(vocabulary.has(tag), `${info.name}: ${tag}`).toBe(true);
+      expect(info.description, info.name).toMatch(/^[^\n]{20,140}$/);
+    }
+  });
+
   it('only stores known, non-global parameters', () => {
     const known = new Set(bundledSchema.map((s) => s.id));
     for (const p of FACTORY_PRESETS) {

@@ -13,16 +13,18 @@ import {
   type ParamValues,
   type PresetInfo,
   type PresetState,
+  type SnapshotSlot,
   type UiState,
   type WrapperType,
 } from './protocol';
-import { renameClashes, renamedPresetId } from '../lib/presetFiles';
+import { cleanDetails, renameClashes, renamedPresetId, savedPresetId } from '../lib/presetFiles';
 import { bundledSchema, defaultValues, indexSchema } from '../params/schema';
 import { snapValue } from '../params/normalise';
 import { isGlobalParam, sameValue } from '../params/presetScope';
 import {
   DEFAULT_PRESET_ID,
   FACTORY_PRESETS,
+  presetInfo,
   USER_PRESETS,
   type MockPreset,
 } from './mock/factoryPresets';
@@ -54,6 +56,17 @@ const IR_NAMES = ['Tight room, close.wav', 'Back porch, far.wav', 'Small hall, e
 
 type Handlers = { [K in NativeName]: (...args: NativeArgs<K>) => NativeResult<K> };
 
+const MAX_RECENT = 12;
+
+/** The preset-relevant state (PresetManager::Snapshot): per-preset values, current preset, reference. */
+interface Snapshot {
+  values: ParamValues;
+  loaded: ParamValues;
+  currentId: string | null;
+  currentName: string;
+  dirty: boolean;
+}
+
 const natural = (a: string, b: string) =>
   a.localeCompare(b, 'en', { numeric: true, sensitivity: 'base' });
 
@@ -82,7 +95,12 @@ export class MockBackend implements Backend {
     currentId: null,
     currentName: 'Init',
     dirty: false,
+    recent: [],
+    compare: { active: 'A', other: null },
   };
+  private snapshots: Partial<Record<SnapshotSlot, Snapshot>> = {};
+  private compareOther: Snapshot | null = null;
+  private removed: { preset: MockPreset; wasCurrent: boolean } | null = null;
   private ir: IrState = {
     slots: [0, 1].flatMap((mic) =>
       [0, 1, 2].map((cab) => ({
@@ -233,49 +251,68 @@ export class MockBackend implements Backend {
     },
 
     sedef_presets_list: () => this.snapshotPresets(),
-    sedef_presets_load: (id) => {
+    sedef_presets_load: (id, audition) => {
+      const found = this.presets.some((p) => p.info.id === id);
       this.loadPreset(id, true);
-      return this.snapshotPresets();
+      if (found && !audition) this.markRecent(id);
+      return this.publishPresets();
     },
-    sedef_presets_save: (name, folder) => {
+    sedef_presets_markRecent: (id) => {
+      this.markRecent(id);
+      return this.publishPresets();
+    },
+    sedef_presets_save: (name, folder, details) => {
       const trimmed = name.trim() || 'Untitled';
+      const dir = folder.trim();
+      const id = savedPresetId(trimmed, dir);
+      // Like PresetManager::save: same file (compared without case) means overwrite.
       const existing = this.presets.find(
-        (p) => p.info.category === 'User' && p.info.name.toLowerCase() === trimmed.toLowerCase(),
+        (p) => p.info.category === 'User' && p.info.id.toLowerCase() === id.toLowerCase(),
       );
       const values = this.presetValues();
-      if (existing) {
-        existing.values = values;
-        existing.info.folder = folder;
-      } else {
-        this.presets.push({
-          info: {
-            id: `user:${folder ? `${folder}/` : ''}${trimmed}.sedefpreset`,
-            name: trimmed,
-            category: 'User',
-            folder,
-            author: '',
-            tags: [],
-            favorite: false,
-          },
-          values,
-        });
-      }
-      const saved = existing ?? this.presets[this.presets.length - 1];
+      const clean = details ? cleanDetails(details) : null;
+      const base = {
+        id: existing?.info.id ?? id,
+        name: trimmed,
+        category: 'User' as const,
+        folder: dir,
+        author: existing?.info.author || 'You',
+        tags: clean ? clean.tags : (existing?.info.tags ?? []),
+        favorite: existing?.info.favorite ?? false,
+        description: clean ? clean.description : (existing?.info.description ?? ''),
+      };
+      const saved: MockPreset = { info: presetInfo(base, values), values };
+      this.presets = existing
+        ? this.presets.map((p) => (p === existing ? saved : p))
+        : [...this.presets, saved];
       // The saved state is the new reference for "dirty".
       this.loaded = { ...this.values };
-      this.presetState = {
-        ...this.presetState,
-        currentId: saved?.info.id ?? null,
-        currentName: trimmed,
-      };
+      this.presetState = { ...this.presetState, currentId: saved.info.id, currentName: trimmed };
+      this.markRecent(saved.info.id);
       return this.publishPresets();
     },
     sedef_presets_delete: (id) => {
       const preset = this.presets.find((p) => p.info.id === id);
       if (!preset || preset.info.category !== 'User') return this.snapshotPresets();
       this.presets = this.presets.filter((p) => p !== preset);
-      if (this.presetState.currentId === id) {
-        this.presetState = { ...this.presetState, currentId: null };
+      const wasCurrent = this.presetState.currentId === id;
+      this.removed = { preset, wasCurrent };
+      if (wasCurrent) this.presetState = { ...this.presetState, currentId: null };
+      return this.publishPresets();
+    },
+    sedef_presets_undoDelete: () => {
+      const removed = this.removed;
+      if (!removed || this.presets.some((p) => p.info.id === removed.preset.info.id))
+        return this.snapshotPresets();
+      this.removed = null;
+      this.presets = [...this.presets, removed.preset];
+      // Current again only when nothing else was loaded since (PresetManager::undoRemove).
+      if (removed.wasCurrent && this.presetState.currentId === null) {
+        this.presetState = {
+          ...this.presetState,
+          currentId: removed.preset.info.id,
+          currentName: removed.preset.info.name,
+        };
       }
       return this.publishPresets();
     },
@@ -290,21 +327,19 @@ export class MockBackend implements Backend {
         trimmed &&
         !renameClashes(items, id, trimmed)
       ) {
-        preset.info.name = trimmed;
-        preset.info.id = renamedPresetId(id, trimmed);
-        if (this.presetState.currentId === id) {
-          this.presetState = {
-            ...this.presetState,
-            currentId: preset.info.id,
-            currentName: trimmed,
-          };
-        }
+        const nextId = renamedPresetId(id, trimmed);
+        preset.info = { ...preset.info, name: trimmed, id: nextId };
+        this.presetState = {
+          ...this.presetState,
+          recent: this.presetState.recent.map((r) => (r === id ? nextId : r)),
+          ...(this.presetState.currentId === id ? { currentId: nextId, currentName: trimmed } : {}),
+        };
       }
       return this.publishPresets();
     },
     sedef_presets_setFavorite: (id, favorite) => {
       const preset = this.presets.find((p) => p.info.id === id);
-      if (preset) preset.info.favorite = favorite;
+      if (preset) preset.info = { ...preset.info, favorite };
       return this.publishPresets();
     },
     sedef_presets_step: (delta) => {
@@ -319,12 +354,34 @@ export class MockBackend implements Backend {
           : (index + delta + items.length) % items.length;
       const target = items[next];
       if (target) this.loadPreset(target.id, true);
-      return this.snapshotPresets();
+      return this.publishPresets();
     },
     sedef_presets_init: () => {
       this.applyPresetValues({});
       this.presetState = { ...this.presetState, currentId: null, currentName: 'Init' };
       this.emit('sedef:params', { values: { ...this.values } });
+      return this.publishPresets();
+    },
+    sedef_presets_snapshot: (slot) => {
+      this.snapshots[slot] = this.capture();
+      return this.snapshotPresets();
+    },
+    sedef_presets_restore: (slot) => {
+      const snapshot = this.snapshots[slot];
+      if (snapshot) this.restore(snapshot);
+      return this.publishPresets();
+    },
+    sedef_presets_compare: (action) => {
+      const live = this.capture();
+      if (action === 'copy') {
+        this.compareOther = live;
+      } else {
+        // The first switch copies the live state, so B starts as A (PresetManager::compareSwitch).
+        this.restore(this.compareOther ?? live);
+        this.compareOther = live;
+        const active = this.presetState.compare.active === 'A' ? 'B' : 'A';
+        this.presetState = { ...this.presetState, compare: { active, other: null } };
+      }
       return this.publishPresets();
     },
     sedef_presets_revealFolder: () => undefined,
@@ -424,10 +481,40 @@ export class MockBackend implements Backend {
     if (!preset) return;
     this.applyPresetValues(preset.values);
     this.presetState = { ...this.presetState, currentId: id, currentName: preset.info.name };
-    if (notify) {
-      this.emit('sedef:params', { values: { ...this.values } });
-      this.publishPresets();
+    if (notify) this.emit('sedef:params', { values: { ...this.values } });
+  }
+
+  private markRecent(id: string): void {
+    this.presetState = {
+      ...this.presetState,
+      recent: [id, ...this.presetState.recent.filter((r) => r !== id)].slice(0, MAX_RECENT),
+    };
+  }
+
+  private capture(): Snapshot {
+    return {
+      values: this.presetValues(),
+      loaded: { ...this.loaded },
+      currentId: this.presetState.currentId,
+      currentName: this.presetState.currentName,
+      dirty: this.isDirty(),
+    };
+  }
+
+  /** Puts a snapshot back exactly; only the values that differ are sent as changes. */
+  private restore(snapshot: Snapshot): void {
+    const changed: ParamValues = {};
+    for (const [id, value] of Object.entries(snapshot.values)) {
+      if (this.values[id] !== value) changed[id] = value;
+      this.values[id] = value;
     }
+    this.loaded = { ...snapshot.loaded };
+    this.presetState = {
+      ...this.presetState,
+      currentId: snapshot.currentId,
+      currentName: snapshot.currentName,
+    };
+    if (Object.keys(changed).length) this.emit('sedef:params', { values: changed });
   }
 
   private presetValues(): ParamValues {
@@ -437,17 +524,26 @@ export class MockBackend implements Backend {
   }
 
   private refreshPresetItems(): void {
+    const other = this.compareOther;
     this.presetState = {
       ...this.presetState,
       items: sortPresets(this.presets.map((p) => ({ ...p.info }))),
       dirty: this.isDirty(),
+      compare: {
+        active: this.presetState.compare.active,
+        other: other ? { name: other.currentName, dirty: other.dirty } : null,
+      },
     };
   }
 
   private snapshotPresets(): PresetState {
+    this.refreshPresetItems();
+    const s = this.presetState;
     return {
-      ...this.presetState,
-      items: this.presetState.items.map((p) => ({ ...p, tags: [...p.tags] })),
+      ...s,
+      items: s.items.map((p) => ({ ...p, tags: [...p.tags], blocks: [...p.blocks] })),
+      recent: [...s.recent],
+      compare: { active: s.compare.active, other: s.compare.other && { ...s.compare.other } },
     };
   }
 

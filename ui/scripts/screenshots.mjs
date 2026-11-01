@@ -72,14 +72,19 @@ const SHOTS = {
   presets: {
     query: 'section=amp',
     async prepare(page) {
+      // Audition the next preset, so the footer offers the way back to Nacre.
       await page.getByRole('button', { name: /Open preset browser/ }).click();
-      await page.waitForTimeout(300);
+      await page.getByRole('combobox', { name: 'Search presets' }).press('ArrowDown');
+      await page.getByRole('option', { name: /^Riptide, playing/ }).waitFor();
+      await page.waitForTimeout(400);
     },
   },
 };
 
 const wanted = process.argv.slice(2);
-const names = wanted.length ? wanted : ['amp', 'pedals', 'eq', 'cab', 'fx', 'tuner', 'intonation'];
+const names = wanted.length
+  ? wanted
+  : ['amp', 'pedals', 'eq', 'cab', 'fx', 'presets', 'tuner', 'intonation'];
 
 const session = await startSession(root, { scale: 2 });
 try {

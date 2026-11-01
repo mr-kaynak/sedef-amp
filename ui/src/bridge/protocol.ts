@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
-// Sedef bridge protocol, version 1. This file is the contract between the web UI and the C++
+// Sedef bridge protocol, version 2. This file is the contract between the web UI and the C++
 // plugin shell (plugin/src/PluginEditor.cpp, which registers the native functions and emits the
 // events). Any change here must be mirrored there and bump PROTOCOL_VERSION when it is not
 // backwards compatible.
@@ -9,7 +9,7 @@
 // (C++ -> UI). All parameter values cross the bridge in REAL units (dB, Hz, ms, 0..1 for knobs,
 // index for choices, 0/1 for bools), never normalised.
 
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 
 // ---------------------------------------------------------------------------------------------
 // Schema
@@ -37,6 +37,10 @@ export type ParamValues = Record<string, number>;
 // ---------------------------------------------------------------------------------------------
 // Presets
 
+/** Blocks a preset can switch on besides the amp and cab, in signal order. */
+export type PresetBlock =
+  'gate' | 'tide' | 'pearl' | 'coral' | 'ripple' | 'eq' | 'doubler' | 'drift' | 'fathom';
+
 export interface PresetInfo {
   /** Stable id: "factory:<slug>" or "user:<relative path>" */
   id: string;
@@ -47,6 +51,24 @@ export interface PresetInfo {
   author: string;
   tags: string[];
   favorite: boolean;
+  /** One line about the sound (the file's optional "description"); empty when absent. */
+  description: string;
+  /** ampModel choice index (0 Lagoon, 1 Reef, 2 Abyss), computed with defaults applied. */
+  amp: number;
+  /** The cab it plays through: the amp's own while ampCabLink is on, otherwise cabModel. */
+  cab: number;
+  /**
+   * Switched-on blocks besides the amp and cab, in signal order. The EQ counts only when the
+   * amp's bank is on and not flat.
+   */
+  blocks: PresetBlock[];
+}
+
+/** A/B compare. The active slot is the live state; the other one is held by the plugin. */
+export interface CompareState {
+  active: 'A' | 'B';
+  /** The slot not being heard, or null until it has been filled. */
+  other: { name: string; dirty: boolean } | null;
 }
 
 export interface PresetState {
@@ -56,7 +78,28 @@ export interface PresetState {
   currentName: string;
   /** True when parameters differ from the loaded preset. */
   dirty: boolean;
+  /**
+   * Presets picked most recently, newest first (at most 12). Kept with the favourites, so it
+   * spans sessions; it may name presets that no longer exist.
+   */
+  recent: string[];
+  compare: CompareState;
 }
+
+/** Optional metadata stored with a user preset. */
+export interface PresetDetails {
+  tags: string[];
+  /** One line, at most 140 characters. */
+  description: string;
+}
+
+/**
+ * Snapshots of the preset-relevant state (every per-preset parameter, the current preset and
+ * its dirty reference) that the plugin keeps for the editor. "browse" is taken when the browser
+ * opens (Esc goes back to it), "undo" before a load that would drop unsaved edits. A host state
+ * restore invalidates them.
+ */
+export type SnapshotSlot = 'browse' | 'undo';
 
 // ---------------------------------------------------------------------------------------------
 // Custom impulse responses (one slot per mic x cab)
@@ -116,15 +159,33 @@ export interface NativeFunctions {
   sedef_resetParam(id: string): void;
 
   sedef_presets_list(): PresetState;
-  sedef_presets_load(id: string): PresetState;
-  /** Saves the current state as a user preset; overwrites when a user preset with that name exists. */
-  sedef_presets_save(name: string, folder: string): PresetState;
+  /** Loads a preset. An audition (a click in the browser) does not count as a Recent pick. */
+  sedef_presets_load(id: string, audition?: boolean): PresetState;
+  /** Records a pick for Recent without loading (the browser keeps an auditioned preset). */
+  sedef_presets_markRecent(id: string): PresetState;
+  /**
+   * Saves the current state as a user preset and makes it current; overwrites a user preset with
+   * that name in that folder. Without details, an overwritten preset keeps its tags and
+   * description.
+   */
+  sedef_presets_save(name: string, folder: string, details?: PresetDetails): PresetState;
   sedef_presets_delete(id: string): PresetState;
+  /** Puts back the user preset deleted last (same file, same id). */
+  sedef_presets_undoDelete(): PresetState;
   sedef_presets_rename(id: string, newName: string): PresetState;
   sedef_presets_setFavorite(id: string, favorite: boolean): PresetState;
   sedef_presets_step(delta: number): PresetState;
   sedef_presets_init(): PresetState;
   sedef_presets_revealFolder(): void;
+  sedef_presets_snapshot(slot: SnapshotSlot): PresetState;
+  /** Restores a snapshot exactly (values, current preset, dirty state); the slot is kept. */
+  sedef_presets_restore(slot: SnapshotSlot): PresetState;
+  /**
+   * A/B compare. "switch" stores the live state in the active slot and brings back the other one
+   * (the first switch copies the live state, so B starts as A); "copy" copies the live state into
+   * the other slot.
+   */
+  sedef_presets_compare(action: 'switch' | 'copy'): PresetState;
 
   /** Opens a native file chooser; resolves after the IR is loaded (or the chooser is cancelled). */
   sedef_ir_load(mic: number, cab: number): IrState;

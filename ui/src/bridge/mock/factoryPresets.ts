@@ -3,6 +3,8 @@
 // mock offers exactly what the plugin ships. Ids follow PresetManager: "factory:<slug>".
 import type { PresetInfo } from '../protocol';
 import { isGlobalParam, slugify } from '../../params/presetScope';
+import { bundledSchema, indexSchema } from '../../params/schema';
+import { describePreset } from './describePreset';
 
 export interface MockPreset {
   info: PresetInfo;
@@ -16,7 +18,18 @@ interface PresetFile {
   folder?: unknown;
   author?: unknown;
   tags?: unknown;
+  description?: unknown;
   parameters?: unknown;
+}
+
+const SPECS = indexSchema(bundledSchema);
+
+/** PresetInfo for stored values: metadata from the file, amp/cab/blocks computed. */
+export function presetInfo(
+  base: Omit<PresetInfo, 'amp' | 'cab' | 'blocks'>,
+  values: Record<string, number>,
+): PresetInfo {
+  return { ...base, ...describePreset(values, SPECS) };
 }
 
 /** Parses a .sedefpreset file; null when it is not a valid preset. */
@@ -35,17 +48,21 @@ export function parsePresetFile(json: string): MockPreset | null {
       values[id] = value;
   }
   return {
-    info: {
-      id: `factory:${slugify(file.name)}`,
-      name: file.name,
-      category: 'Factory',
-      folder: typeof file.folder === 'string' ? file.folder : '',
-      author: typeof file.author === 'string' ? file.author : '',
-      tags: Array.isArray(file.tags)
-        ? file.tags.filter((t): t is string => typeof t === 'string')
-        : [],
-      favorite: false,
-    },
+    info: presetInfo(
+      {
+        id: `factory:${slugify(file.name)}`,
+        name: file.name,
+        category: 'Factory',
+        folder: typeof file.folder === 'string' ? file.folder : '',
+        author: typeof file.author === 'string' ? file.author : '',
+        tags: Array.isArray(file.tags)
+          ? file.tags.filter((t): t is string => typeof t === 'string')
+          : [],
+        favorite: false,
+        description: typeof file.description === 'string' ? file.description : '',
+      },
+      values,
+    ),
     values,
   };
 }
@@ -62,18 +79,24 @@ export const FACTORY_PRESETS: MockPreset[] = Object.values(files)
 
 export const DEFAULT_PRESET_ID = 'factory:nacre';
 
-/** One user preset so the User and Favourites tabs have something to show. */
+const SUNDAY = { ampModel: 1, reefGain: 0.46, driftEnabled: 1, driftMix: 0.2, fathomEnabled: 1 };
+
+/** One user preset so the User and Favourites views have something to show. */
 export const USER_PRESETS: MockPreset[] = [
   {
-    info: {
-      id: 'user:Live/Sunday set.sedefpreset',
-      name: 'Sunday set',
-      category: 'User',
-      folder: 'Live',
-      author: '',
-      tags: [],
-      favorite: true,
-    },
-    values: { ampModel: 1, reefGain: 0.46, driftEnabled: 1, driftMix: 0.2, fathomEnabled: 1 },
+    info: presetInfo(
+      {
+        id: 'user:Live/Sunday set.sedefpreset',
+        name: 'Sunday set',
+        category: 'User',
+        folder: 'Live',
+        author: 'You',
+        tags: ['worship', 'delay'],
+        favorite: true,
+        description: 'Warm Reef crunch with a quarter-note echo for the band.',
+      },
+      SUNDAY,
+    ),
+    values: SUNDAY,
   },
 ];

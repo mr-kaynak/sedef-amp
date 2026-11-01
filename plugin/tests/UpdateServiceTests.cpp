@@ -41,19 +41,20 @@ private:
     juce::String old_;
 };
 
-juce::String releaseJson (bool withInstallers)
+/// v0.2.0 as the API returns it, with its assets under `releases` (the local server's).
+juce::String releaseJson (const juce::String& releases, bool withInstallers,
+                          juce::int64 installerSize = 1000)
 {
-    const juce::String base = "https://github.com/mr-kaynak/sedef-amp/releases/download/v0.2.0/";
+    const auto base = releases + "/download/v0.2.0/";
     juce::String assets;
     for (const auto* name : { "Sedef-Amp-macOS.dmg", "Sedef-Amp-Windows-Setup.exe",
                               "Sedef-Amp-Linux-x86_64.tar.gz", "SHA256SUMS.txt" })
         if (withInstallers || juce::String (name) == "SHA256SUMS.txt")
-            assets << (assets.isEmpty() ? "" : ", ") << R"({"name": ")" << name
-                   << R"(", "size": 1000, "browser_download_url": ")" << base << name << "\"}";
+            assets << (assets.isEmpty() ? "" : ", ") << R"({"name": ")" << name << R"(", "size": )"
+                   << installerSize << R"(, "browser_download_url": ")" << base << name << "\"}";
     return R"({"tag_name": "v0.2.0", "name": "Sedef Amp 0.2.0", "body": "## New",)"
-           R"( "html_url": "https://github.com/mr-kaynak/sedef-amp/releases/tag/v0.2.0",)"
-           R"( "assets": [)" +
-           assets + "]}";
+           R"( "html_url": ")" +
+           releases + R"(/tag/v0.2.0", "assets": [)" + assets + "]}";
 }
 
 struct Fixture
@@ -65,16 +66,26 @@ struct Fixture
     juce::File dir = juce::File::getSpecialLocation (juce::File::tempDirectory)
                          .getChildFile ("sedef-update-service-" + juce::Uuid().toString());
     juce::File store = dir.getChildFile ("Sedef").getChildFile ("update.json");
+    juce::File downloads = dir.getChildFile ("Downloads");
+    juce::String releases = server.url ("/releases");
 
-    Fixture() { server.serve ("/latest", 200, releaseJson (true)); }
+    Fixture() { server.serve ("/latest", 200, releaseJson (releases, true)); }
     ~Fixture() { dir.deleteRecursively(); }
 
     std::unique_ptr<Service> make() const
     {
-        return std::make_unique<Service> (store, server.url ("/latest"));
+        return std::make_unique<Service> (store, server.url ("/latest"), releases, downloads);
     }
 
     int checks() const { return server.hits ("/latest"); }
+
+    juce::StringArray downloaded() const
+    {
+        juce::StringArray names;
+        for (const auto& file : downloads.findChildFiles (juce::File::findFiles, false, "*"))
+            names.add (file.getFileName());
+        return names;
+    }
 };
 
 juce::String phase (Service& s)
@@ -113,7 +124,7 @@ TEST_CASE ("The service reports its state in the bridge's shape", "[update][serv
     CHECK (state["phase"].toString() == "idle");
     CHECK (state["latest"].isVoid());
     CHECK (state["lastChecked"].isVoid());
-    CHECK (state["releasesUrl"].toString() == "https://github.com/mr-kaynak/sedef-amp/releases");
+    CHECK (state["releasesUrl"].toString() == f.releases);
     CHECK (f.checks() == 0); // constructing it touches neither the network nor the disk
     CHECK_FALSE (f.store.exists());
 }
@@ -234,7 +245,7 @@ TEST_CASE ("A failed check is reported and retried after an hour", "[update][ser
 TEST_CASE ("Without an installer for this OS nothing is downloaded", "[update][service]")
 {
     Fixture f;
-    f.server.serve ("/latest", 200, releaseJson (false));
+    f.server.serve ("/latest", 200, releaseJson (f.releases, false));
     auto s = f.make();
     s->checkNow();
     REQUIRE (settle (*s)["latest"]["installer"].isVoid());
@@ -262,4 +273,78 @@ TEST_CASE ("Closing during a slow request does not wait for it", "[update][servi
     s.reset();
     CHECK (juce::Time::getMillisecondCounterHiRes() - started < 5000.0);
     CHECK (readStore (f.store).lastSuccessMs == 0); // cancelled, not a success
+}
+
+TEST_CASE ("Settings apply at once and outlive the window", "[update][service]")
+{
+    Fixture f;
+    {
+        auto s = f.make();
+        s->setAutoCheck (false);
+        s->skip ("v0.2.0");
+        const auto state = s->state();
+        CHECK_FALSE (static_cast<bool> (state["autoCheck"]));
+        CHECK (state["skippedVersion"].toString() == "0.2.0");
+    } // closed at once
+    const auto stored = readStore (f.store);
+    CHECK_FALSE (stored.autoCheck);
+    CHECK (stored.skippedVersion == "0.2.0");
+    CHECK (f.checks() == 0);
+}
+
+TEST_CASE ("Closing during a download does not wait for it", "[update][service]")
+{
+    const auto installer = installerAssetName (currentPlatform(), isX64());
+    if (installer.isEmpty())
+        SKIP ("no installer for this processor");
+    Fixture f;
+    constexpr int kSize = 300000;
+    f.server.serve ("/latest", 200, releaseJson (f.releases, true, kSize));
+    f.server.serve ("/releases/download/v0.2.0/" + installer, 200,
+                    juce::MemoryBlock (static_cast<size_t> (kSize), true));
+    f.server.serve ("/releases/download/v0.2.0/SHA256SUMS.txt", 200,
+                    juce::String::repeatedString ("0", 64) + "  " + installer + "\n");
+    f.server.pauseAfter (100000, 15000); // the installer stops a third of the way in
+
+    auto s = f.make();
+    s->checkNow();
+    REQUIRE (settle (*s)["latest"]["installer"]["name"].toString() == installer);
+    s->download();
+    const auto end = juce::Time::getMillisecondCounter() + kPatienceMs;
+    while (static_cast<juce::int64> (s->state()["progress"]["received"]) == 0 &&
+           juce::Time::getMillisecondCounter() < end)
+        juce::Thread::sleep (5);
+    REQUIRE (phase (*s) == "downloading");
+
+    const auto started = juce::Time::getMillisecondCounterHiRes();
+    s.reset();
+    CHECK (juce::Time::getMillisecondCounterHiRes() - started < 5000.0);
+    CHECK (f.downloaded().isEmpty()); // the partial file is gone
+}
+
+TEST_CASE ("Closing right after asking does not wait either", "[update][service]")
+{
+    // The worker may or may not have taken the job when the service closes: either way it must
+    // not start a request the destructor cannot cancel.
+    Fixture f;
+    auto first = f.make();
+    first->checkNow();
+    REQUIRE (settle (*first)["phase"].toString() == "idle");
+    first.reset();
+    f.server.delay (15000); // longer than the client's own 10 s timeout
+
+    for (int i = 0; i < 10; ++i)
+    {
+        auto s = f.make();
+        s->pageOpened(); // the release from the first check, and no check due
+        if (i % 2 == 0)
+            s->checkNow();
+        else
+            s->download();
+        const auto started = juce::Time::getMillisecondCounterHiRes();
+        s.reset();
+        CHECK (juce::Time::getMillisecondCounterHiRes() - started < 5000.0);
+    }
+    CHECK (readStore (f.store).latest.has_value());
+    CHECK (f.downloaded().isEmpty());
 }

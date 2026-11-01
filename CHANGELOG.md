@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **Installers:** one download per OS with a stable name: a macOS disk image with an installer
+  (no more copying bundles or clearing quarantine flags), a Windows setup program and a Linux
+  archive with an install script. Each lets you pick the formats; the app now has an icon.
+
 ### Fixed
 
 - **Intonation workbench:** the open-string step no longer waits for a reading held within one

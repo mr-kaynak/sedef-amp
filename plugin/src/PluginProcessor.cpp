@@ -301,6 +301,14 @@ void SedefProcessor::setStateInformation (const void* data, int size)
 
     if (const auto params = root.getChildWithName (state_.state.getType()); params.isValid())
     {
+        // Read the saved values first: replaceState() adopts this tree, and APVTS then writes the
+        // values it actually applied back into it.
+        std::array<LoadedValue, kNumParams> loaded {};
+        for (const auto& child : params)
+            if (const auto id = findParam (child.getProperty ("id").toString().toStdString()))
+                loaded[index (*id)] = { static_cast<double> (child.getProperty ("value")), 0.0f,
+                                        true };
+
         // A session saved with a preset switch held on restores it on (hosts and validators expect
         // state to round-trip exactly), but that must not count as a press. Hold the edge detector
         // "on" while the values change, so the timer can't see a rising edge mid-restore, then
@@ -310,13 +318,11 @@ void SedefProcessor::setStateInformation (const void* data, int size)
         state_.replaceState (params);
         lastPrev_ = paramValue (ParamId::presetPrevious) >= 0.5f;
         lastNext_ = paramValue (ParamId::presetNext) >= 0.5f;
+        for (std::size_t i = 0; i < kNumParams; ++i)
+            loaded[i].applied = paramValue (static_cast<ParamId> (i));
         {
             const std::scoped_lock lock (extraLock_);
-            loaded_ = {};
-            for (const auto& child : params)
-                if (const auto id = findParam (child.getProperty ("id").toString().toStdString()))
-                    loaded_[index (*id)] = { static_cast<double> (child.getProperty ("value")),
-                                             paramValue (*id), true };
+            loaded_ = loaded;
         }
         // The CLAP wrapper only tells the host to re-read parameter values after a "parameter
         // info changed" notification (VST3 and AU hosts pick restored values up by themselves).

@@ -104,7 +104,7 @@ private:
     std::array<double, 4> taps_ {};
     int numTaps_ = 0;
 
-    bool lastPrev_ = false, lastNext_ = false;
+    std::atomic<bool> lastPrev_ { false }, lastNext_ { false }; // also seeded by state restore
     bool prepared_ = false;
 
     JUCE_DECLARE_WEAK_REFERENCEABLE (SedefProcessor)

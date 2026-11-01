@@ -424,7 +424,10 @@ TEST_CASE ("setCustomIr from another thread is safe and the audio thread never f
         Random r (5);
         const auto start = std::chrono::steady_clock::now();
         int published = 0;
-        while (std::chrono::steady_clock::now() - start < std::chrono::milliseconds (600))
+        // Count-based (with a time cap) so coarse sleep granularity, as on Windows, can't starve
+        // it.
+        while (published < 120 &&
+               std::chrono::steady_clock::now() - start < std::chrono::milliseconds (10000))
         {
             const int mic = static_cast<int> (r.nextU32() % 2);
             const int slot = static_cast<int> (r.nextU32() % 3);

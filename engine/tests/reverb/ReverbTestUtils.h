@@ -96,6 +96,8 @@ inline void bandLimit (std::vector<float>& x, double fs, double lo, double hi)
 inline double rt60FromDecay (const std::vector<float>& l, const std::vector<float>& r, double fs)
 {
     const size_t n = l.size();
+    if (n == 0)
+        return 0.0;
     std::vector<double> edc (n);
     double acc = 0.0;
     for (size_t i = n; i-- > 0;)

@@ -196,8 +196,7 @@ float SedefProcessor::tapTempo()
 void SedefProcessor::timerCallback()
 {
     // Preset navigation through automatable switches (MIDI footswitches via the host). Each switch
-    // acts on its rising edge and then springs back to off, so it can fire again and a saved
-    // session never holds it on.
+    // acts on its rising edge and then springs back to off, so it can fire again.
     const bool prev = paramValue (ParamId::presetPrevious) >= 0.5f;
     const bool next = paramValue (ParamId::presetNext) >= 0.5f;
     if (prev && !lastPrev_)
@@ -279,16 +278,14 @@ void SedefProcessor::setStateInformation (const void* data, int size)
         return;
     const auto root = juce::ValueTree::fromXml (*xml);
 
-    if (auto params = root.getChildWithName (state_.state.getType()).createCopy(); params.isValid())
+    if (const auto params = root.getChildWithName (state_.state.getType()); params.isValid())
     {
-        // Older sessions may have saved a preset switch held on; never restore it on, or the
-        // first timer tick would step away from the preset the session just restored.
-        for (auto child : params)
-            if (const auto id = child.getProperty ("id").toString();
-                id == toJuce (spec (ParamId::presetPrevious).id) ||
-                id == toJuce (spec (ParamId::presetNext).id))
-                child.setProperty ("value", 0.0f, nullptr);
         state_.replaceState (params);
+        // A session saved with a preset switch held on restores it on (hosts and validators expect
+        // state to round-trip exactly), but that must not count as a press: seed the edge detector
+        // so the first timer tick doesn't step away from the preset the session just restored.
+        lastPrev_ = paramValue (ParamId::presetPrevious) >= 0.5f;
+        lastNext_ = paramValue (ParamId::presetNext) >= 0.5f;
         // The CLAP wrapper only tells the host to re-read parameter values after a "parameter
         // info changed" notification (VST3 and AU hosts pick restored values up by themselves).
         if (wrapperType == wrapperType_Undefined)

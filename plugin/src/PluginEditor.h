@@ -2,6 +2,7 @@
 #pragma once
 
 #include "PluginProcessor.h"
+#include "update/UpdateBridge.h"
 
 #include <juce_gui_extra/juce_gui_extra.h>
 
@@ -47,6 +48,7 @@ private:
     bool smokeDone_ = false;
 
     SedefProcessor& processor_;
+    std::unique_ptr<update::Bridge> updates_; // outlives browser_, whose functions call it
     std::unique_ptr<Browser> browser_;
     std::unique_ptr<juce::FileChooser> chooser_;
 

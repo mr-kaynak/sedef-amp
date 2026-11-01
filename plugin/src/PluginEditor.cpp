@@ -71,6 +71,10 @@ SedefEditor::SedefEditor (SedefProcessor& p) : AudioProcessorEditor (&p), proces
     for (std::size_t i = 0; i < kNumParams; ++i)
         lastSent_[i] = processor_.paramValue (static_cast<ParamId> (i));
 
+    updates_ = std::make_unique<update::Bridge> ([this] (const juce::var& state) {
+        if (pageReady_)
+            browser_->emitEventIfBrowserIsVisible ("sedef:update", state);
+    });
     browser_ = std::make_unique<Browser> (makeOptions());
     addAndMakeVisible (*browser_);
 
@@ -272,6 +276,7 @@ juce::WebBrowserComponent::Options SedefEditor::makeOptions()
         }
         done ({});
     });
+    options = updates_->withNativeFunctions (std::move (options)); // sedef_update_*
 
     return options;
 }

@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **Intonation workbench:** the open-string step no longer waits for a reading held within one
+  cent for a second, which a real plucked string never gives. Within 5 cents it moves on by
+  itself; further off on the right note it says how far and offers **Use this tuning**. Both
+  notes are now captured the same way from one pluck (one second from 0.6 s after it), which also
+  fixes 12th-fret captures that restarted late on a wobbling note and read up to 1.5 cents off.
+
 ## [0.1.0] - 2026-11-01
 
 The first public build: a complete guitar rig with a tuner and an intonation workbench.

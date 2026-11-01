@@ -14,6 +14,19 @@ import {
 
 export type Phase = 'setup' | 'measure' | 'summary';
 export type StringStep = 'tune' | 'fret' | 'result';
+/**
+ * Where the current pluck is in the step's capture (capture.ts): nothing to measure yet, being
+ * measured, or not measurable (its reading stopped being steady, or it is another note).
+ */
+export type PluckStatus = 'listening' | 'measuring' | 'missed';
+
+/** A steady open-string reading further off than the tolerance, which the player may use. */
+export interface TuneOffer {
+  hz: number;
+  /** Signed distance from the target note. */
+  cents: number;
+  stdCents: number;
+}
 
 export interface StringResult {
   openHz: number;
@@ -46,7 +59,11 @@ interface IntonationState extends IntonationProfile {
    * next string without a result, and the summary is one click away.
    */
   fromSummary: boolean;
+  pluck: PluckStatus;
   tuneProgress: number;
+  /** While the open string is measured: close enough to move on by itself. */
+  tuneClose: boolean;
+  tuneOffer: TuneOffer | null;
   captureProgress: number;
 }
 
@@ -65,7 +82,10 @@ export const useIntonationStore = create<IntonationState>()(() => ({
   openHz: null,
   results: [],
   fromSummary: false,
+  pluck: 'listening',
   tuneProgress: 0,
+  tuneClose: false,
+  tuneOffer: null,
   captureProgress: 0,
 }));
 
@@ -108,11 +128,18 @@ export function nextString(
   return null;
 }
 
+const freshTune = {
+  pluck: 'listening' as PluckStatus,
+  tuneProgress: 0,
+  tuneClose: false,
+  tuneOffer: null,
+};
+
 const fresh = {
   current: 0,
   step: 'tune' as StringStep,
   openHz: null,
-  tuneProgress: 0,
+  ...freshTune,
   captureProgress: 0,
 };
 
@@ -159,7 +186,18 @@ export const intonationActions = {
     useIntonationStore.setState({ ...fresh, phase: 'measure', current: index, fromSummary: true });
   },
   tuned(openHz: number) {
-    useIntonationStore.setState({ step: 'fret', openHz, tuneProgress: 1, captureProgress: 0 });
+    useIntonationStore.setState({
+      step: 'fret',
+      openHz,
+      ...freshTune,
+      tuneProgress: 1,
+      captureProgress: 0,
+    });
+  },
+  /** Measures the 12th fret against the open-string reading on offer, as it is. */
+  acceptTuning() {
+    const offer = useIntonationStore.getState().tuneOffer;
+    if (offer) intonationActions.tuned(offer.hz);
   },
   captured(result: StringResult) {
     useIntonationStore.setState((s) => {
@@ -172,7 +210,7 @@ export const intonationActions = {
     useIntonationStore.setState({
       step: 'tune',
       openHz: null,
-      tuneProgress: 0,
+      ...freshTune,
       captureProgress: 0,
     });
   },
@@ -188,11 +226,24 @@ export const intonationActions = {
   backToSetup() {
     useIntonationStore.setState({ ...fresh, phase: 'setup', fromSummary: false });
   },
-  setProgress(tuneProgress: number, captureProgress: number) {
+  setTune(
+    pluck: PluckStatus,
+    tuneProgress: number,
+    tuneClose: boolean,
+    tuneOffer: TuneOffer | null,
+  ) {
     useIntonationStore.setState((s) =>
-      s.tuneProgress === tuneProgress && s.captureProgress === captureProgress
+      s.pluck === pluck &&
+      s.tuneProgress === tuneProgress &&
+      s.tuneClose === tuneClose &&
+      s.tuneOffer === tuneOffer
         ? s
-        : { tuneProgress, captureProgress },
+        : { pluck, tuneProgress, tuneClose, tuneOffer },
+    );
+  },
+  setCapture(pluck: PluckStatus, captureProgress: number) {
+    useIntonationStore.setState((s) =>
+      s.pluck === pluck && s.captureProgress === captureProgress ? s : { pluck, captureProgress },
     );
   },
 };

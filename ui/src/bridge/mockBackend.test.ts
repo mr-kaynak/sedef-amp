@@ -142,7 +142,7 @@ describe('MockBackend', () => {
   });
 
   it('simulates a 12th-fret capture with the configured error', async () => {
-    mock = new MockBackend({ intonationErrors: [4] });
+    mock = new MockBackend({ intonationErrors: [4], tuningOffsets: [0] });
     await mock.call('sedef_tuner_setActive', true);
     mock.simulator.setIntent({ kind: 'fret', midi: 52, stringIndex: 0 });
     let last: PitchEvent | null = null;
@@ -151,7 +151,10 @@ describe('MockBackend', () => {
     const e = last as PitchEvent | null;
     expect(e?.stable).toBe(true);
     const target = 440 * Math.pow(2, (52 - 69) / 12);
-    expect(1200 * Math.log2((e?.stableHz ?? 0) / target)).toBeCloseTo(4, 0);
+    // 4 cents, less the slow flat sag of a note 1.3 s after the pluck.
+    const cents = 1200 * Math.log2((e?.stableHz ?? 0) / target);
+    expect(cents).toBeGreaterThan(3);
+    expect(cents).toBeLessThan(4.2);
   });
 
   it('produces telemetry including the effective Drift time', () => {

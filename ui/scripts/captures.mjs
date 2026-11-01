@@ -81,7 +81,7 @@ const SHOTS = {
       await startMeasuring(page);
       await page.evaluate((midi) => {
         window.__sedefDemo.pitch(midi, 0.4);
-        window.__sedefDemo.intonation({ tuneProgress: 0.64 });
+        window.__sedefDemo.intonation({ pluck: 'measuring', tuneClose: true, tuneProgress: 0.64 });
       }, LOW_E);
       await page.waitForTimeout(900);
     },
@@ -95,7 +95,7 @@ const SHOTS = {
           window.__sedefDemo.intonation({ step: 'fret', openHz, tuneProgress: 1 });
           window.__sedefDemo.pitch(midi, 3.8);
           // After the reading, which starts the capture hold: the ring at 70 % of it.
-          window.__sedefDemo.intonation({ captureProgress: 0.7 });
+          window.__sedefDemo.intonation({ pluck: 'measuring', captureProgress: 0.7 });
         },
         [OPEN_E_HZ, LOW_E + 12],
       );

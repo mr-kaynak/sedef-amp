@@ -12,7 +12,7 @@ export function centsFor(e: PitchEvent | null, target: GaugeTarget): number | nu
   return centsBetween(e.frequencyHz, midiToHz(target.midi, getValue('tunerReference')));
 }
 
-/** Matches the workbench's tuning window: a precision tuner, not a forgiving one. */
+/** A precision tuner, not a forgiving one. (The intonation workbench accepts 5 cents.) */
 export const IN_TUNE_CENTS = 1;
 
 /** "C sharp 4, flat": a reading as a screen reader should say it. */

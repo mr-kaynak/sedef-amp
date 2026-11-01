@@ -1,54 +1,33 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Turns the pitch stream into workbench progress. Runs outside React: it reads every event (about
 // 60 per second from the plugin) and writes to the store only on transitions and visible progress
-// changes. Holds are timed with the clock, so they do not depend on the event rate.
+// changes. Captures are timed with the clock, so they do not depend on the event rate.
 import type { PitchEvent } from '../../bridge/protocol';
 import { getValue } from '../../params/paramStore';
 import { getBackend } from '../../state/backendRef';
 import { pitch } from '../../state/live';
 import { acquirePitchAnalysis } from '../../state/pitchLease';
 import { centsBetween, hzToMidi, midiToHz } from '../../lib/music';
+import { StableCapture, type CaptureStatus } from './capture';
 import { octaveErrorCents } from './math';
 import { intonationActions, stringNotes, useIntonationStore } from './store';
 
-/** The open string must stay within this window ... */
-export const TUNE_WINDOW_CENTS = 1;
-/** ... for this long before the workbench moves on. */
-export const TUNE_HOLD_SECONDS = 1;
 /**
- * The fretted note is captured once the tracker has called it stable, without a break and from
- * one pluck, for this long, and stableHz is averaged over that time. The first stable windows
- * still carry the end of the attack glide (docs/dsp/tuner.md), so one alone does not decide.
+ * The open string moves on by itself when its capture lands within this many cents of the target.
+ * How close it is barely matters to the result: the octave is measured against what the string
+ * actually plays, and 5 cents changes its tension by 0.6%, which changes the few cents of
+ * fretting sharpness by a few hundredths of a cent. It only has to be close enough that the guitar
+ * is still in tune afterwards. Further off, on the right note, the player can use the reading as
+ * it is (docs/intonation.md).
  */
-export const CAPTURE_SECONDS = 0.5;
-/** Gaps shorter than this (between plucks, a dropped frame) do not reset the tuning hold. */
-const DROPOUT_GRACE_SECONDS = 0.25;
+export const TUNE_TOLERANCE_CENTS = 5;
 
 const quantise = (x: number) => Math.round(Math.min(1, Math.max(0, x)) * 50) / 50;
 const nowSeconds = () => performance.now() / 1000;
-const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
-
-export function centsFromTarget(e: PitchEvent, targetMidi: number): number {
-  return centsBetween(e.frequencyHz, midiToHz(targetMidi, getValue('tunerReference')));
-}
-
-interface TuneHold {
-  since: number;
-  lastInWindow: number;
-  hz: number[];
-}
-
-interface Capture {
-  onsetId: number;
-  stableCount: number;
-  since: number;
-  stableHz: number[];
-  stableStdCents: number[];
-}
 
 export class IntonationController {
-  private hold: TuneHold | null = null;
-  private capture: Capture | null = null;
+  /** One capture rule for both steps (capture.ts). */
+  private readonly capture = new StableCapture();
 
   /**
    * Feeds one pitch event received at time t (seconds). Exposed for tests; start() wires it to the
@@ -65,82 +44,63 @@ export class IntonationController {
   }
 
   reset(): void {
-    this.hold = null;
-    this.capture = null;
+    this.capture.reset();
+  }
+
+  /** Captures the note `midi`: readings whose nearest semitone is another note do not count. */
+  private feed(e: PitchEvent, midi: number, t: number): CaptureStatus {
+    const reference = getValue('tunerReference');
+    return this.capture.feed(e, t, (hz) => Math.round(hzToMidi(hz, reference)) === midi);
   }
 
   private handleTune(e: PitchEvent, target: number, t: number): void {
-    const inWindow =
-      e.valid &&
-      Math.round(hzToMidi(e.frequencyHz, getValue('tunerReference'))) === target &&
-      Math.abs(centsFromTarget(e, target)) <= TUNE_WINDOW_CENTS;
-
-    if (inWindow) {
-      this.hold ??= { since: t, lastInWindow: t, hz: [] };
-      this.hold.lastInWindow = t;
-      this.hold.hz.push(e.frequencyHz);
-    } else if (this.hold && (e.valid || t - this.hold.lastInWindow > DROPOUT_GRACE_SECONDS)) {
-      this.hold = null;
+    const status = this.feed(e, target, t);
+    const targetHz = midiToHz(target, getValue('tunerReference'));
+    switch (status.kind) {
+      case 'captured': {
+        const { hz, stdCents } = status.result;
+        const cents = centsBetween(hz, targetHz);
+        if (Math.abs(cents) <= TUNE_TOLERANCE_CENTS) {
+          this.reset();
+          intonationActions.tuned(hz);
+        } else {
+          intonationActions.setTune('measuring', 1, false, { hz, cents, stdCents });
+        }
+        return;
+      }
+      case 'held':
+        // A reading on offer stands until the string is plucked again.
+        return;
+      case 'measuring': {
+        const close = Math.abs(centsBetween(status.hz, targetHz)) <= TUNE_TOLERANCE_CENTS;
+        intonationActions.setTune('measuring', quantise(status.progress), close, null);
+        return;
+      }
+      case 'listening':
+      case 'missed':
+        intonationActions.setTune(status.kind, 0, false, null);
     }
-
-    const held = this.hold ? this.hold.lastInWindow - this.hold.since : 0;
-    if (this.hold && held >= TUNE_HOLD_SECONDS) {
-      const openHz = mean(this.hold.hz);
-      this.reset();
-      intonationActions.tuned(openHz);
-      return;
-    }
-    intonationActions.setProgress(quantise(held / TUNE_HOLD_SECONDS), 0);
   }
 
   private handleFret(e: PitchEvent, octaveMidi: number, openHz: number, t: number): void {
-    const onTarget =
-      e.valid &&
-      e.stable &&
-      Math.round(hzToMidi(e.stableHz, getValue('tunerReference'))) === octaveMidi;
-    if (!onTarget) {
-      this.capture = null;
-      intonationActions.setProgress(1, 0);
+    const status = this.feed(e, octaveMidi, t);
+    if (status.kind === 'captured') {
+      const { hz, stdCents } = status.result;
+      this.reset();
+      intonationActions.captured({
+        openHz,
+        frettedHz: hz,
+        cents: octaveErrorCents(openHz, hz),
+        stdCents,
+        measuredAt: Date.now(),
+      });
       return;
     }
-
-    // A new pluck, or a segment the tracker restarted (stableCount falls back), starts again.
-    let c = this.capture;
-    if (!c || c.onsetId !== e.onsetId || e.stableCount < c.stableCount) {
-      c = {
-        onsetId: e.onsetId,
-        stableCount: e.stableCount,
-        since: t,
-        stableHz: [],
-        stableStdCents: [],
-      };
-      this.capture = c;
+    if (status.kind === 'measuring') {
+      intonationActions.setCapture('measuring', quantise(status.progress));
+    } else {
+      intonationActions.setCapture(status.kind === 'missed' ? 'missed' : 'listening', 0);
     }
-    c.stableCount = e.stableCount;
-    c.stableHz.push(e.stableHz);
-    c.stableStdCents.push(e.stableStdCents);
-
-    const progress = (t - c.since) / CAPTURE_SECONDS;
-    if (progress < 1) {
-      intonationActions.setProgress(1, quantise(progress));
-      return;
-    }
-    // Steadiness: how far single detections scatter, or how much the reading moved over the
-    // hold, whichever is larger.
-    const frettedHz = mean(c.stableHz);
-    const drift = c.stableHz.map((hz) => centsBetween(hz, frettedHz));
-    const stdCents = Math.max(
-      mean(c.stableStdCents),
-      Math.sqrt(drift.reduce((sum, x) => sum + x * x, 0) / Math.max(1, drift.length - 1)),
-    );
-    this.capture = null;
-    intonationActions.captured({
-      openHz,
-      frettedHz,
-      cents: octaveErrorCents(openHz, frettedHz),
-      stdCents,
-      measuredAt: Date.now(),
-    });
   }
 }
 
@@ -153,7 +113,7 @@ function syncSimulator(): void {
   if (s.phase !== 'measure' || target === undefined || s.step === 'result') {
     sim.setIntent({ kind: 'idle' });
   } else if (s.step === 'tune') {
-    sim.setIntent({ kind: 'tune', midi: target });
+    sim.setIntent({ kind: 'tune', midi: target, stringIndex: s.current });
   } else {
     sim.setIntent({ kind: 'fret', midi: target + 12, stringIndex: s.current });
   }

@@ -36,6 +36,8 @@ export interface MockOptions {
   isStandalone?: boolean;
   /** 12th-fret errors in cents per string, low string first. */
   intonationErrors?: number[];
+  /** Where the simulated player leaves each open string, in cents from the target. */
+  tuningOffsets?: number[];
   uiState?: UiState | null;
   /** localStorage key used to keep UI state across reloads in the browser; null disables. */
   persistKey?: string | null;
@@ -106,6 +108,7 @@ export class MockBackend implements Backend {
     this.pitchSim = new PitchSimulator({
       getReferenceHz: () => this.value('tunerReference'),
       intonationErrors: options.intonationErrors,
+      tuningOffsets: options.tuningOffsets,
     });
     this.telemetrySim = new TelemetrySimulator(
       (id) => this.value(id),

@@ -11,7 +11,7 @@ export type NativeResult<K extends NativeName> = ReturnType<NativeFunctions[K]>;
 /** What the simulated player should be doing. Only the mock backend uses this. */
 export type SimulatedIntent =
   | { kind: 'idle' }
-  | { kind: 'tune'; midi: number }
+  | { kind: 'tune'; midi: number; stringIndex: number }
   | { kind: 'fret'; midi: number; stringIndex: number };
 
 /**

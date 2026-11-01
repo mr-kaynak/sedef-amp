@@ -52,9 +52,10 @@ A guitar can be perfectly tuned and still play out of tune higher up the neck. T
 each string's saddle, and Sedef tells you exactly which way and how far:
 
 1. Pick your instrument and scale length (6/7-string guitar, 4/5-string bass, or custom).
-2. Tune the open string. Sedef waits until it's steady within a cent.
-3. Play the 12th fret. Sedef skips the pick attack, averages the sustained note, and reports
-   the octave error to a tenth of a cent.
+2. Tune the open string. Within 5 cents is plenty: Sedef measures the string as it actually
+   plays, so it doesn't have to be spot on.
+3. Play the 12th fret. Sedef skips the pick attack, averages one second of the sustained note
+   (the open string is read the same way), and reports the octave error to a tenth of a cent.
 4. Get a clear answer: *"+3.8 cents sharp: move the saddle about 1.4 mm away from the neck."*
 
 <img src="docs/images/intonation.png" alt="Intonation workbench showing a saddle recommendation" width="860">

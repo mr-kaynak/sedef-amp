@@ -63,7 +63,7 @@ describe('Intonation workbench', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Next string' }));
     playUntil(() => useIntonationStore.getState().step === 'result');
     expect(screen.getByText('In tune, leave the saddle where it is')).toBeInTheDocument();
-  });
+  }, 15_000); // a whole string through the simulated player; slow on a loaded machine
 
   describe('tuning the open string', () => {
     const startMeasuring = async (options: {

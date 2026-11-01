@@ -29,10 +29,22 @@ around them.
 | **EQ** | 9-band graphic EQ with low/high cut, one bank per amp |
 | **Post** | **Drift** multi-head tape echo with wow, flutter and tape saturation · **Fathom** plate and hall reverbs · double-tracking **Doubler** |
 | **Tools** | precision tuner · **intonation workbench** · metronome with odd meters (standalone) |
+| **Presets** | browser with categories, tags and search · click to audition, Esc to go back · A/B compare · Undo when a load or delete would lose work |
 
 <img src="docs/images/amp.png" alt="The amp section" width="100%">
 
 <img src="docs/images/cab.png" alt="Cab section with movable microphones" width="49%"> <img src="docs/images/fx.png" alt="Tape echo and reverb" width="49%">
+
+## Presets
+
+Click a preset and it plays at once, while the browser stays open; the arrow keys walk the list
+the same way. Enter keeps it. Esc puts back exactly what you had when you opened the browser,
+unsaved tweaks included. Every row tells you the amp, the chain that's switched on, a line about
+the sound and its tags, so you can read a rig before you hear it. Compare two versions with A/B,
+save your own with a category, tags and a note, and never lose edits: loads and deletes come with
+Undo. See [docs/ui/presets.md](docs/ui/presets.md) for the design.
+
+<img src="docs/images/presets.png" alt="Preset browser with library, categories, tags and rows showing each preset's amp and signal chain" width="100%">
 
 ## The intonation workbench
 

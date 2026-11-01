@@ -5,9 +5,12 @@
   "folder": "Lead",
   "author": "Sedef",
   "tags": [
-    "lead",
-    "ambient"
+    "boost",
+    "chorus",
+    "delay",
+    "solo"
   ],
+  "description": "Boosted lead with a hint of chorus and a dotted-eighth echo.",
   "parameters": {
     "ampModel": 2,
     "abyssGain": 0.5,

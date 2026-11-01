@@ -7,6 +7,7 @@ import buttons from '../../controls/Button.module.css';
 import { useAppStore } from '../../state/appStore';
 import { uiActions, useUiStore } from '../../state/uiStore';
 import { MetronomePanel } from '../metronome/MetronomePanel';
+import { presetBrowser } from '../presets/session';
 import { SettingsPanel } from '../settings/SettingsPanel';
 import { Brand } from './Brand';
 import { LevelMeter } from './LevelMeter';
@@ -51,7 +52,10 @@ export function Header() {
           type="button"
           className={buttons.ghost}
           aria-pressed={overlay === 'tuner'}
-          onClick={() => uiActions.toggleOverlay('tuner')}
+          onClick={() => {
+            presetBrowser.keep();
+            uiActions.toggleOverlay('tuner');
+          }}
         >
           <Icon name="fork" />
           Tuner
@@ -60,7 +64,10 @@ export function Header() {
           type="button"
           className={buttons.ghost}
           aria-pressed={overlay === 'intonation'}
-          onClick={() => uiActions.toggleOverlay('intonation')}
+          onClick={() => {
+            presetBrowser.keep();
+            uiActions.toggleOverlay('intonation');
+          }}
         >
           <Icon name="ruler" />
           Intonation

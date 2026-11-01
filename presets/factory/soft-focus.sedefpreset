@@ -5,9 +5,12 @@
   "folder": "Ambient",
   "author": "Sedef",
   "tags": [
-    "ambient",
+    "vibrato",
+    "delay",
+    "hall",
     "swell"
   ],
+  "description": "A clean wash of vibrato, tape echo and long hall. Swells and pads.",
   "parameters": {
     "ampModel": 0,
     "micAPosition": 0.4,

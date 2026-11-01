@@ -35,6 +35,20 @@
   z-index: 30;
 }
 
+.body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.rig {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .main {
   position: relative;
   flex: 1;

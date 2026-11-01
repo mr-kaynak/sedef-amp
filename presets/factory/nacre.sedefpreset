@@ -5,10 +5,11 @@
   "folder": "Clean",
   "author": "Sedef",
   "tags": [
-    "clean",
     "chorus",
+    "compressor",
     "plate"
   ],
+  "description": "Glassy, lightly squeezed clean with slow chorus and a short plate.",
   "parameters": {
     "ampModel": 0,
     "micAPosition": 0.4,

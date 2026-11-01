@@ -5,9 +5,11 @@
   "folder": "Clean",
   "author": "Sedef",
   "tags": [
-    "clean",
-    "tremolo"
+    "tremolo",
+    "plate",
+    "surf"
   ],
+  "description": "Round clean with a pulsing tremolo. Surf, country and vintage soul.",
   "parameters": {
     "ampModel": 0,
     "micAPosition": 0.4,

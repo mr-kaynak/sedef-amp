@@ -5,9 +5,12 @@
   "folder": "Ambient",
   "author": "Sedef",
   "tags": [
-    "ambient",
+    "vibrato",
+    "delay",
+    "hall",
     "drone"
   ],
+  "description": "Dark, slowly churning drone: four tape heads into a 12-second hall.",
   "parameters": {
     "ampModel": 2,
     "abyssGain": 0.35,

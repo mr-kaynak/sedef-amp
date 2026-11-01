@@ -3,7 +3,7 @@
   position: relative;
   z-index: 30;
   display: grid;
-  grid-template-columns: 176px 340px 1fr auto;
+  grid-template-columns: 176px 396px 1fr auto;
   align-items: center;
   gap: 20px;
   height: 68px;

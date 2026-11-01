@@ -173,9 +173,26 @@ Two slots next to the preset bar. The active slot is what you hear; the plugin h
   left alone, a changed one gets the normalised value (searched a few ULPs around the stored one)
   that lands on the stored float, so a session saved after "audition, then Esc" is byte for byte
   the session saved before.
-- A host `setStateInformation` (any thread) only bumps an atomic generation after replacing the
-  values; the message thread drops snapshots and A/B taken before it on its next preset call, so
-  nothing from an old session is ever restored over a new one.
+- A host `setStateInformation` (any thread) replaces the values under a lock that preset loads
+  and snapshot restores take too, so their values never mix. It leaves the preset the session
+  names for the message thread, where every preset call first takes it over (`sync()`) and drops
+  the snapshots and A/B slots taken before it. Nothing from an old session is restored over a
+  new one, and a load made after the restore is never overwritten by it.
+- After every preset call the processor mirrors the current preset into what the host saves, at
+  once.
+- Preset loads and snapshot restores change each parameter that moves as a gesture of its own,
+  so hosts recording automation (touch, latch, write) see them like turns of the controls. Tap
+  tempo and the preset footswitches springing back are gestures too.
+- Float parameters start from a default the normalised round trip leaves alone (an ULP from the
+  schema's at most), so a fresh instance comes back exactly from "audition, then Esc" as well.
+  The host smoke test runs the editor check on a restored session and on a fresh instance.
+- Favourites and Recent live in `settings.json`; every change reads, edits and writes it under an
+  inter-process lock, and a file that is there but doesn't parse is left alone rather than
+  written over with empty lists.
+- File names: a preset or category name loses the characters file systems refuse and any
+  leading or trailing dots and spaces, so ".." can't leave the presets folder; an empty result
+  saves as "Untitled". Renaming to the same name in other capitals renames the file on macOS and
+  Windows too, and a rename that can't write the new file leaves the old one.
 
 The browser mock (`ui/src/bridge/mockBackend.ts`) implements the same rules, and the host smoke
 test drives the real bridge in a real WebView: audition, restore and compare must give back

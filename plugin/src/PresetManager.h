@@ -5,8 +5,10 @@
 
 #include <array>
 #include <atomic>
+#include <functional>
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <map>
+#include <mutex>
 #include <optional>
 #include <vector>
 
@@ -17,8 +19,8 @@ namespace sedef::plugin
 ///
 /// A preset stores every per-preset parameter by string id. Rig-level parameters (input/output
 /// gain, transpose, tuner, metronome, tempo...) are deliberately not stored, so switching presets
-/// never changes your input staging or tuning. Message thread only, except
-/// invalidateSnapshots().
+/// never changes your input staging or tuning. Message thread only, except hostRestored(),
+/// hostRestorePending() and lockParameters().
 class PresetManager
 {
 public:
@@ -66,9 +68,25 @@ public:
     void compareSwitch();
     /// Copies the live state into the slot that is not being heard.
     void compareCopy();
-    /// The host replaced the whole state: snapshots and A/B slots taken before no longer apply.
-    /// Safe to call from any thread; the message thread drops them on its next preset call.
-    void invalidateSnapshots() noexcept { generation_.fetch_add (1); }
+
+    // Host state restores
+    // ---------------------------------------------------------------------------
+    /// Held while the parameters change as a whole: a preset load, a snapshot restore, or the
+    /// host replacing the state (setStateInformation, from any thread). Never on the audio thread.
+    [[nodiscard]] std::unique_lock<std::recursive_mutex> lockParameters()
+    {
+        return std::unique_lock (parametersLock_);
+    }
+    /// The host replaced the whole state, naming this preset. Any thread, after the values
+    /// changed and while lockParameters() is held. Snapshots and A/B slots taken before no longer
+    /// apply; the preset bookkeeping follows on the message thread, at the latest on its next
+    /// preset call (sync()).
+    void hostRestored (const juce::String& id, const juce::String& name);
+    /// True while a host restore waits for sync(). Any thread.
+    bool hostRestorePending() const;
+    /// Applies a pending host restore and drops snapshots it outdated. Every preset call starts
+    /// with it, so none of them works on the state from before the restore.
+    void sync();
 
     bool isDirty() const;
     /// The browser's view of the library. Each call carries a higher "revision", so the editor
@@ -77,8 +95,6 @@ public:
 
     juce::String currentId() const { return currentId_; }
     juce::String currentName() const { return currentName_; }
-    /// Restores the current-preset bookkeeping from saved plugin state (values come from the host).
-    void restoreCurrent (const juce::String& id, const juce::String& name);
 
     static bool isGlobal (ParamId id) noexcept;
     static juce::File userFolder();
@@ -116,18 +132,38 @@ private:
         bool wasCurrent = false;
     };
 
+    struct HostRestore
+    {
+        juce::String id, name;
+    };
+
     const Entry* find (const juce::String& id) const;
     std::optional<juce::var> read (const Entry& e) const;
     void apply (const juce::var& parameters);
     static void describe (Entry& e, const juce::var& parameters);
     Snapshot capture() const;
     bool restore (const Snapshot& s);
-    void syncGeneration();
-    void loadSettings();
+    /// The current-preset bookkeeping for a session the host restored (the values are its own).
+    void applyCurrent (const juce::String& id, const juce::String& name);
+    /// The stored preset value of parameter `i`, cleaned up like a load would.
+    static float storedValue (const juce::var& parameters, std::size_t i);
+    /// Changes one parameter as a gesture, so hosts see it like a turn of the control.
+    static void setWithGesture (juce::RangedAudioParameter& param, float normalised);
+    /// Reads settings.json into the lists. False, leaving them as they were, when the file is
+    /// there but can't be read.
+    bool loadSettings();
     void storeSettings() const;
+    /// Reads settings.json, applies `change` to the lists and writes them back, under a lock that
+    /// other processes (another host, the standalone app) take too. Writes nothing when the file
+    /// could not be read or the lock not taken; the change still applies in memory.
+    void updateSettings (const std::function<void()>& change);
     static juce::File settingsFile();
     static juce::String slugify (const juce::String& s);
     static juce::String userId (const juce::File& file);
+    /// A preset or folder name made safe as a file name: no characters the file system refuses,
+    /// no leading dots (".." or a hidden file), no trailing dots or spaces. Empty when nothing is
+    /// left.
+    static juce::String safeFileName (const juce::String& name);
 
     juce::AudioProcessorValueTreeState& state_;
     std::vector<Entry> entries_;
@@ -143,6 +179,11 @@ private:
     std::atomic<int> generation_ { 0 };
     int seenGeneration_ = 0;
     juce::int64 revision_ = 0;
+
+    mutable std::recursive_mutex parametersLock_;
+    mutable std::mutex hostLock_;
+    std::optional<HostRestore> hostRestore_; ///< guarded by hostLock_
+    juce::InterProcessLock settingsLock_ { "SedefAmpSettings" };
 };
 
 } // namespace sedef::plugin

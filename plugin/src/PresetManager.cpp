@@ -59,7 +59,6 @@ juce::Array<juce::var> toVarArray (const juce::StringArray& strings)
 
 PresetManager::PresetManager (juce::AudioProcessorValueTreeState& state) : state_ (state)
 {
-    loadSettings();
     scan();
 }
 
@@ -101,6 +100,13 @@ juce::String PresetManager::userId (const juce::File& file)
     return "user:" + file.getRelativePathFrom (userFolder()).replaceCharacter ('\\', '/');
 }
 
+juce::String PresetManager::safeFileName (const juce::String& name)
+{
+    return juce::File::createLegalFileName (name.trim())
+        .trimCharactersAtStart (". ")
+        .trimCharactersAtEnd (". ");
+}
+
 juce::String PresetManager::slugify (const juce::String& s)
 {
     return s.toLowerCase()
@@ -111,6 +117,8 @@ juce::String PresetManager::slugify (const juce::String& s)
 
 void PresetManager::scan()
 {
+    sync();
+    loadSettings(); // favourites and Recent another instance changed show up too
     entries_.clear();
 
     for (int i = 0; i < SedefPresetData::namedResourceListSize; ++i)
@@ -120,7 +128,7 @@ void PresetManager::scan()
             SedefPresetData::getNamedResource (SedefPresetData::namedResourceList[i], size);
         const auto json = juce::String::fromUTF8 (data, size);
         const auto parsed = juce::JSON::parse (json);
-        if (!parsed.isObject())
+        if (!parsed.isObject() || !parsed["parameters"].isObject())
             continue;
         Entry e;
         e.name = parsed["name"].toString();
@@ -142,8 +150,8 @@ void PresetManager::scan()
          root.findChildFiles (juce::File::findFiles, true, juce::String ("*") + kExtension))
     {
         const auto parsed = juce::JSON::parse (f);
-        if (!parsed.isObject())
-            continue;
+        if (!parsed.isObject() || !parsed["parameters"].isObject())
+            continue; // not a preset load() could apply
         Entry e;
         e.file = f;
         e.name = parsed["name"].toString().isNotEmpty() ? parsed["name"].toString()
@@ -234,28 +242,47 @@ std::optional<juce::var> PresetManager::read (const Entry& e) const
     return parsed;
 }
 
+float PresetManager::storedValue (const juce::var& parameters, std::size_t i)
+{
+    const auto& spec = kParamSpecs[i];
+    const juce::Identifier key (toJuce (spec.id));
+    return spec.sanitise (parameters.hasProperty (key) ? static_cast<float> (parameters[key])
+                                                       : spec.defaultValue);
+}
+
+void PresetManager::setWithGesture (juce::RangedAudioParameter& param, float normalised)
+{
+    // Each changed parameter is its own gesture, as if it had been turned: hosts writing
+    // automation (touch, latch, write) record a preset change as steps on exactly the parameters
+    // it moved, and VST3 hosts get their edits inside begin/end as the spec asks. One gesture
+    // around the whole load would open every parameter's lane at once.
+    param.beginChangeGesture();
+    param.setValueNotifyingHost (normalised);
+    param.endChangeGesture();
+}
+
 void PresetManager::apply (const juce::var& parameters)
 {
+    const auto lock = lockParameters();
     loadedValues_.clear();
     for (std::size_t i = 0; i < kNumParams; ++i)
     {
         const auto id = static_cast<ParamId> (i);
         if (isGlobal (id))
             continue;
-        const auto& spec = kParamSpecs[i];
-        const auto key = toJuce (spec.id);
-        const float value = parameters.hasProperty (key)
-                                ? static_cast<float> (parameters[juce::Identifier (key)])
-                                : spec.defaultValue;
-        const float clean = spec.sanitise (value);
-        if (auto* param = state_.getParameter (key))
-            param->setValueNotifyingHost (spec.toNormalised (clean));
+        const float clean = storedValue (parameters, i);
+        const float normalised = kParamSpecs[i].toNormalised (clean);
+        // Only what changes: an unchanged parameter would still reach the host as an edit.
+        if (auto* param = state_.getParameter (toJuce (kParamSpecs[i].id));
+            param != nullptr && !juce::exactlyEqual (param->getValue(), normalised))
+            setWithGesture (*param, normalised);
         loadedValues_[id] = clean;
     }
 }
 
 bool PresetManager::load (const juce::String& id, bool audition)
 {
+    sync();
     const auto* e = find (id);
     if (e == nullptr)
         return false;
@@ -274,15 +301,16 @@ void PresetManager::markRecent (const juce::String& id)
 {
     if (find (id) == nullptr)
         return;
-    loadSettings(); // another instance may have picked presets since
-    recent_.removeString (id);
-    recent_.insert (0, id);
-    recent_.removeRange (kMaxRecent, recent_.size());
-    storeSettings();
+    updateSettings ([this, &id] {
+        recent_.removeString (id);
+        recent_.insert (0, id);
+        recent_.removeRange (kMaxRecent, recent_.size());
+    });
 }
 
 void PresetManager::loadInit()
 {
+    sync();
     apply (juce::var (new juce::DynamicObject()));
     currentId_ = {};
     currentName_ = "Init";
@@ -305,12 +333,17 @@ juce::var PresetManager::captureParameters() const
 juce::String PresetManager::save (const juce::String& name, const juce::String& folder,
                                   const juce::var& details)
 {
+    sync();
     const auto cleanName = name.trim().isEmpty() ? juce::String ("Untitled") : name.trim();
     auto dir = userFolder();
-    if (folder.trim().isNotEmpty())
-        dir = dir.getChildFile (juce::File::createLegalFileName (folder.trim()));
+    // One level below Presets/ at most: a folder name can't climb out of it ("..") or hide.
+    if (const auto folderName = safeFileName (folder); folderName.isNotEmpty())
+        dir = dir.getChildFile (folderName);
     dir.createDirectory();
-    const auto file = dir.getChildFile (juce::File::createLegalFileName (cleanName) + kExtension);
+    auto stem = safeFileName (cleanName);
+    if (stem.isEmpty())
+        stem = "Untitled";
+    const auto file = dir.getChildFile (stem + kExtension);
 
     // Overwriting keeps the author, and without new details what the preset said about itself.
     const auto existing = file.existsAsFile() ? juce::JSON::parse (file) : juce::var();
@@ -353,7 +386,8 @@ juce::String PresetManager::save (const juce::String& name, const juce::String& 
     if (description.isNotEmpty())
         root->setProperty ("description", description);
     root->setProperty ("parameters", captureParameters());
-    file.replaceWithText (juce::JSON::toString (juce::var (root)));
+    if (!file.replaceWithText (juce::JSON::toString (juce::var (root))))
+        return {};
 
     scan();
     currentId_ = userId (file);
@@ -363,14 +397,15 @@ juce::String PresetManager::save (const juce::String& name, const juce::String& 
         if (const auto parsed = read (*e))
             for (std::size_t i = 0; i < kNumParams; ++i)
                 if (!isGlobal (static_cast<ParamId> (i)))
-                    loadedValues_[static_cast<ParamId> (i)] = static_cast<float> (
-                        (*parsed)["parameters"][juce::Identifier (toJuce (kParamSpecs[i].id))]);
+                    loadedValues_[static_cast<ParamId> (i)] =
+                        storedValue ((*parsed)["parameters"], i);
     markRecent (currentId_);
     return currentId_;
 }
 
 bool PresetManager::remove (const juce::String& id)
 {
+    sync();
     const auto* e = find (id);
     if (e == nullptr || e->category != "User")
         return false;
@@ -389,6 +424,7 @@ bool PresetManager::remove (const juce::String& id)
 
 bool PresetManager::undoRemove()
 {
+    sync();
     if (!removed_ || removed_->file.exists())
         return false;
     const auto r = *removed_;
@@ -405,56 +441,93 @@ bool PresetManager::undoRemove()
 
 bool PresetManager::rename (const juce::String& id, const juce::String& newName)
 {
+    sync();
     const auto* e = find (id);
-    if (e == nullptr || e->category != "User" || newName.trim().isEmpty())
+    const auto name = newName.trim();
+    if (e == nullptr || e->category != "User" || name.isEmpty())
         return false;
     auto parsed = read (*e);
     if (!parsed)
         return false;
     if (auto* obj = parsed->getDynamicObject())
-        obj->setProperty ("name", newName.trim());
-    const auto target =
-        e->file.getSiblingFile (juce::File::createLegalFileName (newName.trim()) + kExtension);
-    if (target.exists() && target != e->file)
-        return false;
-    target.replaceWithText (juce::JSON::toString (*parsed));
-    if (target != e->file)
-        e->file.deleteFile();
-    const bool wasCurrent = currentId_ == id;
-    scan();
-    const auto newId = userId (target);
-    if (wasCurrent)
+        obj->setProperty ("name", name);
+    const auto text = juce::JSON::toString (*parsed);
+    const auto source = e->file;
+    auto stem = safeFileName (name);
+    if (stem.isEmpty())
+        stem = "Untitled";
+    const auto target = source.getSiblingFile (stem + kExtension);
+
+    // juce::File compares names the way the platform's file system usually does: without case on
+    // macOS and Windows. The same file under another spelling is a case-only rename.
+    if (target == source)
     {
-        currentId_ = newId;
-        currentName_ = newName.trim();
+        if (!source.replaceWithText (text))
+            return false;
+        // Writing in place keeps the old spelling on disk; a move changes only the case.
+        if (target.getFullPathName() != source.getFullPathName() && !source.moveFileTo (target))
+            return false;
+    }
+    else
+    {
+        if (target.exists())
+            return false; // never over another preset's file
+        if (!target.replaceWithText (text))
+            return false;
+        if (!source.deleteFile())
+        {
+            target.deleteFile(); // one copy, under the old name, rather than two
+            return false;
+        }
     }
 
-    // Favourites and Recent follow the preset to its new id.
-    loadSettings();
-    bool moved = false;
-    for (auto* list : { &favorites_, &recent_ })
-        if (const int i = list->indexOf (id); i >= 0 && newId != id)
+    scan();
+    // The file now carries the new name's spelling, so this is the id scan() just found.
+    const auto newId = userId (target);
+    if (currentId_ == id)
+    {
+        currentId_ = newId;
+        currentName_ = name;
+    }
+    // Snapshots and the other A/B slot follow the preset to its new name.
+    for (auto& slot : slots_)
+        if (slot && slot->id == id)
         {
-            list->set (i, newId);
-            moved = true;
+            slot->id = newId;
+            slot->name = name;
         }
-    if (moved)
-        storeSettings();
+    if (compareOther_ && compareOther_->id == id)
+    {
+        compareOther_->id = newId;
+        compareOther_->name = name;
+    }
+
+    // Favourites and Recent follow it too, without listing it twice.
+    if (newId != id)
+        updateSettings ([this, &id, &newId] {
+            for (auto* list : { &favorites_, &recent_ })
+            {
+                if (const int i = list->indexOf (id); i >= 0)
+                    list->set (i, newId);
+                list->removeDuplicates (false);
+            }
+        });
     return true;
 }
 
 void PresetManager::setFavorite (const juce::String& id, bool favorite)
 {
-    loadSettings(); // another instance may have changed them since
-    if (favorite)
-        favorites_.addIfNotAlreadyThere (id);
-    else
-        favorites_.removeString (id);
-    storeSettings();
+    updateSettings ([this, &id, favorite] {
+        if (favorite)
+            favorites_.addIfNotAlreadyThere (id);
+        else
+            favorites_.removeString (id);
+    });
 }
 
 void PresetManager::step (int delta)
 {
+    sync();
     if (entries_.empty())
         return;
     int index = -1;
@@ -469,23 +542,47 @@ void PresetManager::step (int delta)
 
 // Snapshots and A/B -------------------------------------------------------------------------------
 
-void PresetManager::syncGeneration()
+void PresetManager::hostRestored (const juce::String& id, const juce::String& name)
 {
+    {
+        const std::scoped_lock lock (hostLock_);
+        hostRestore_ = HostRestore { id, name };
+    }
+    generation_.fetch_add (1);
+}
+
+bool PresetManager::hostRestorePending() const
+{
+    const std::scoped_lock lock (hostLock_);
+    return hostRestore_.has_value();
+}
+
+void PresetManager::sync()
+{
+    std::optional<HostRestore> pending;
+    {
+        const std::scoped_lock lock (hostLock_);
+        pending.swap (hostRestore_);
+    }
     const int generation = generation_.load();
-    if (generation == seenGeneration_)
+    if (generation == seenGeneration_ && !pending)
         return;
     seenGeneration_ = generation;
+    // Taken before the restore (or before its bookkeeping arrived, so naming the old preset).
     for (auto& s : slots_)
         s.reset();
     compareOther_.reset();
     compareIsB_ = false;
+    if (pending)
+        applyCurrent (pending->id, pending->name);
 }
 
 PresetManager::Snapshot PresetManager::capture() const
 {
     Snapshot s;
-    // Read first: a host restore bumps the generation after it has replaced the values, so a
-    // snapshot that overlaps one is dropped instead of being restored half old, half new.
+    // A host restore replaces the values and bumps the generation under this lock, so the values
+    // and the generation read here belong together.
+    const std::scoped_lock lock (parametersLock_);
     s.generation = generation_.load();
     for (std::size_t i = 0; i < kNumParams; ++i)
     {
@@ -506,6 +603,9 @@ PresetManager::Snapshot PresetManager::capture() const
 
 bool PresetManager::restore (const Snapshot& s)
 {
+    // Under the lock a host restore can't land halfway through, so checking the generation once
+    // here covers the whole loop.
+    const auto lock = lockParameters();
     if (s.generation != generation_.load())
         return false;
     for (std::size_t i = 0; i < kNumParams; ++i)
@@ -519,9 +619,10 @@ bool PresetManager::restore (const Snapshot& s)
         // with (the processor's state then saves the loaded text again, byte for byte).
         if (param == nullptr || raw == nullptr || juce::exactlyEqual (raw->load(), s.raw[i]))
             continue;
-        param->setValueNotifyingHost (normalisedFor (*param, s.raw[i], s.normalised[i]));
+        setWithGesture (*param, normalisedFor (*param, s.raw[i], s.normalised[i]));
     }
-    currentId_ = s.id;
+    // A preset deleted since leaves its sound behind, no longer a preset.
+    currentId_ = find (s.id) != nullptr ? s.id : juce::String();
     currentName_ = s.name;
     loadedValues_ = s.loadedValues;
     return true;
@@ -529,20 +630,20 @@ bool PresetManager::restore (const Snapshot& s)
 
 void PresetManager::snapshot (Slot slot)
 {
-    syncGeneration();
+    sync();
     slots_[static_cast<std::size_t> (slot)] = capture();
 }
 
 bool PresetManager::restore (Slot slot)
 {
-    syncGeneration();
+    sync();
     const auto& s = slots_[static_cast<std::size_t> (slot)];
     return s.has_value() && restore (*s);
 }
 
 void PresetManager::compareSwitch()
 {
-    syncGeneration();
+    sync();
     auto live = capture();
     if (!compareOther_)
         compareOther_ = live;
@@ -554,7 +655,7 @@ void PresetManager::compareSwitch()
 
 void PresetManager::compareCopy()
 {
-    syncGeneration();
+    sync();
     compareOther_ = capture();
 }
 
@@ -579,26 +680,24 @@ bool PresetManager::isDirty() const
     return false;
 }
 
-void PresetManager::restoreCurrent (const juce::String& id, const juce::String& name)
+void PresetManager::applyCurrent (const juce::String& id, const juce::String& name)
 {
     currentId_ = id;
     currentName_ = name.isNotEmpty() ? name : juce::String ("Init");
+    // "Dirty" compares against the preset as a load would apply it; Init (or a preset this
+    // machine doesn't have) against the defaults.
     loadedValues_.clear();
     if (const auto* e = find (id))
         if (const auto parsed = read (*e))
             for (std::size_t i = 0; i < kNumParams; ++i)
-            {
-                const auto key = juce::Identifier (toJuce (kParamSpecs[i].id));
-                const auto& params = (*parsed)["parameters"];
-                loadedValues_[static_cast<ParamId> (i)] = params.hasProperty (key)
-                                                              ? static_cast<float> (params[key])
-                                                              : kParamSpecs[i].defaultValue;
-            }
+                if (!isGlobal (static_cast<ParamId> (i)))
+                    loadedValues_[static_cast<ParamId> (i)] =
+                        storedValue ((*parsed)["parameters"], i);
 }
 
 juce::var PresetManager::stateAsVar()
 {
-    syncGeneration();
+    sync();
     juce::Array<juce::var> items;
     for (const auto& e : entries_)
     {
@@ -640,9 +739,20 @@ juce::var PresetManager::stateAsVar()
     return juce::var (root);
 }
 
-void PresetManager::loadSettings()
+bool PresetManager::loadSettings()
 {
-    const auto parsed = juce::JSON::parse (settingsFile());
+    const auto file = settingsFile();
+    if (!file.existsAsFile())
+    {
+        favorites_.clear(); // nothing stored yet (or the file was removed to start over)
+        recent_.clear();
+        return true;
+    }
+    // A file that is there but doesn't parse must not read as "no favourites": writing that
+    // back would wipe them.
+    const auto parsed = juce::JSON::parse (file.loadFileAsString());
+    if (!parsed.isObject())
+        return false;
     const auto list = [&parsed] (const char* key) {
         juce::StringArray strings;
         if (const auto* a = parsed[key].getArray())
@@ -653,6 +763,20 @@ void PresetManager::loadSettings()
     favorites_ = list ("favorites");
     recent_ = list ("recent");
     recent_.removeRange (kMaxRecent, recent_.size());
+    return true;
+}
+
+void PresetManager::updateSettings (const std::function<void()>& change)
+{
+    // Other processes hold it for a read and a write at most, so a short wait is plenty; the
+    // message thread must not hang on a stuck one.
+    const bool locked = settingsLock_.enter (500);
+    const bool read = locked && loadSettings();
+    change();
+    if (read)
+        storeSettings();
+    if (locked)
+        settingsLock_.exit();
 }
 
 void PresetManager::storeSettings() const

@@ -145,6 +145,37 @@ void SedefProcessor::setParamValue (ParamId id, float realValue)
         p->setValueNotifyingHost (spec.toNormalised (realValue));
 }
 
+void SedefProcessor::changeParamValue (ParamId id, float realValue)
+{
+    const auto& spec = sedef::spec (id);
+    if (auto* p = state_.getParameter (toJuce (spec.id)))
+    {
+        p->beginChangeGesture();
+        p->setValueNotifyingHost (spec.toNormalised (realValue));
+        p->endChangeGesture();
+    }
+}
+
+void SedefProcessor::presetsChanged()
+{
+    mirrorPreset();
+    ++presetRevision;
+}
+
+void SedefProcessor::mirrorPreset()
+{
+    presets_.sync();
+    const auto id = presets_.currentId();
+    const auto name = presets_.currentName();
+    const std::scoped_lock lock (extraLock_);
+    // A host restore that came in after sync() has already put its own preset here.
+    if (!presets_.hostRestorePending())
+    {
+        savedPresetId_ = id;
+        savedPresetName_ = name;
+    }
+}
+
 void SedefProcessor::setMetronomePattern (const std::array<std::uint8_t, 13>& steps)
 {
     {
@@ -191,7 +222,7 @@ float SedefProcessor::tapTempo()
         const double first = taps_[static_cast<size_t> ((numTaps_ - count) % 4)];
         const double interval = (now - first) / (count - 1);
         const auto bpm = static_cast<float> (juce::jlimit (40.0, 240.0, 60.0 / interval));
-        setParamValue (ParamId::tempo, bpm);
+        changeParamValue (ParamId::tempo, bpm);
         return bpm;
     }
     return paramValue (ParamId::tempo);
@@ -206,28 +237,22 @@ void SedefProcessor::timerCallback()
     if (prev && !lastPrev_)
     {
         presets_.step (-1);
-        ++presetRevision;
-        setParamValue (ParamId::presetPrevious, 0.0f);
+        presetsChanged();
+        changeParamValue (ParamId::presetPrevious, 0.0f);
     }
     if (next && !lastNext_)
     {
         presets_.step (1);
-        ++presetRevision;
-        setParamValue (ParamId::presetNext, 0.0f);
+        presetsChanged();
+        changeParamValue (ParamId::presetNext, 0.0f);
     }
     lastPrev_ = paramValue (ParamId::presetPrevious) >= 0.5f;
     lastNext_ = paramValue (ParamId::presetNext) >= 0.5f;
 
-    {
-        const auto id = presets_.currentId();
-        const auto name = presets_.currentName();
-        const std::scoped_lock lock (extraLock_);
-        if (pendingPresetRestores_ == 0) // a restored session's preset is applied asynchronously
-        {
-            savedPresetId_ = id;
-            savedPresetName_ = name;
-        }
-    }
+    // Every preset call mirrors at once; this catches a host restore whose message-thread call
+    // hasn't run yet.
+    if (presets_.hostRestorePending())
+        presetsChanged();
 
     analysis_.setReferenceHz (paramValue (ParamId::tunerReference));
     irs_.collectGarbage();
@@ -299,55 +324,60 @@ void SedefProcessor::setStateInformation (const void* data, int size)
         return;
     const auto root = juce::ValueTree::fromXml (*xml);
 
-    if (const auto params = root.getChildWithName (state_.state.getType()); params.isValid())
-    {
-        // Read the saved values first: replaceState() adopts this tree, and APVTS then writes the
-        // values it actually applied back into it.
-        std::array<LoadedValue, kNumParams> loaded {};
-        for (const auto& child : params)
-            if (const auto id = findParam (child.getProperty ("id").toString().toStdString()))
-                loaded[index (*id)] = { static_cast<double> (child.getProperty ("value")), 0.0f,
-                                        true };
-
-        // A session saved with a preset switch held on restores it on (hosts and validators expect
-        // state to round-trip exactly), but that must not count as a press. Hold the edge detector
-        // "on" while the values change, so the timer can't see a rising edge mid-restore, then
-        // seed it with the restored values.
-        lastPrev_ = true;
-        lastNext_ = true;
-        state_.replaceState (params);
-        lastPrev_ = paramValue (ParamId::presetPrevious) >= 0.5f;
-        lastNext_ = paramValue (ParamId::presetNext) >= 0.5f;
-        for (std::size_t i = 0; i < kNumParams; ++i)
-            loaded[i].applied = paramValue (static_cast<ParamId> (i));
-        {
-            const std::scoped_lock lock (extraLock_);
-            loaded_ = loaded;
-        }
-        // The CLAP wrapper only tells the host to re-read parameter values after a "parameter
-        // info changed" notification (VST3 and AU hosts pick restored values up by themselves).
-        if (wrapperType == wrapperType_Undefined)
-            updateHostDisplay (ChangeDetails().withParameterInfoChanged (true));
-    }
-    // Snapshots the editor took (browser, undo, A/B) belong to the state just replaced. This only
-    // bumps an atomic; it comes after the values changed, so a snapshot taken meanwhile is dropped.
-    presets_.invalidateSnapshots();
-
+    const auto params = root.getChildWithName (state_.state.getType());
     // This can run on any thread (Logic and AUHost restore AU state off the message thread), so
-    // only lock-guarded and atomic members are written here; the preset manager is updated on the
-    // message thread below.
+    // only lock-guarded and atomic members are written here; the preset manager takes the preset
+    // over on the message thread (sync()).
     const auto extra = root.getChildWithName ("Extra");
     const auto presetId = extra.getProperty ("presetId").toString();
-    // Same fallback as PresetManager::restoreCurrent, so the snapshot matches what it will hold.
+    // Same fallback as PresetManager::applyCurrent, so the saved state matches what it will hold.
     const auto savedName = extra.getProperty ("presetName").toString();
     const auto presetName = savedName.isNotEmpty() ? savedName : juce::String ("Init");
     {
+        // The values, what they were loaded from and the preset they belong to change as one:
+        // the editor's preset loads and snapshot restores wait on this lock, so they can't mix
+        // their values into the restored ones.
+        const auto parametersLock = presets_.lockParameters();
+        std::array<LoadedValue, kNumParams> loaded {};
+        if (params.isValid())
+        {
+            // Read the saved values first: replaceState() adopts this tree, and APVTS then writes
+            // the values it actually applied back into it.
+            for (const auto& child : params)
+                if (const auto id = findParam (child.getProperty ("id").toString().toStdString()))
+                    loaded[index (*id)] = { static_cast<double> (child.getProperty ("value")), 0.0f,
+                                            true };
+
+            // A session saved with a preset switch held on restores it on (hosts and validators
+            // expect state to round-trip exactly), but that must not count as a press. Hold the
+            // edge detector "on" while the values change, so the timer can't see a rising edge
+            // mid-restore, then seed it with the restored values.
+            lastPrev_ = true;
+            lastNext_ = true;
+            state_.replaceState (params);
+            lastPrev_ = paramValue (ParamId::presetPrevious) >= 0.5f;
+            lastNext_ = paramValue (ParamId::presetNext) >= 0.5f;
+            for (std::size_t i = 0; i < kNumParams; ++i)
+                loaded[i].applied = paramValue (static_cast<ParamId> (i));
+        }
         const std::scoped_lock lock (extraLock_);
+        if (params.isValid())
+            loaded_ = loaded;
         uiStateJson_ = extra.getProperty ("uiState").toString();
         savedPresetId_ = presetId;
         savedPresetName_ = presetName;
-        ++pendingPresetRestores_; // the timer leaves the snapshot alone until it's applied
+        // Snapshots the editor took (browser, undo, A/B) belong to the state just replaced.
+        // Under extraLock_ with the lines above, so mirrorPreset() never writes the preset from
+        // before this restore over them.
+        presets_.hostRestored (presetId, presetName);
     }
+    // The CLAP wrapper only tells the host to re-read parameter values after a "parameter info
+    // changed" notification (VST3 and AU hosts pick restored values up by themselves).
+    if (params.isValid() && wrapperType == wrapperType_Undefined)
+        updateHostDisplay (ChangeDetails().withParameterInfoChanged (true));
+    if (juce::MessageManager::existsAndIsCurrentThread())
+        presetsChanged();
+
     setUiScale (juce::jlimit (0.5, 2.5, static_cast<double> (extra.getProperty ("uiScale", 1.0))));
 
     const auto steps =
@@ -376,15 +406,10 @@ void SedefProcessor::setStateInformation (const void* data, int size)
         for (int c = 0; c < IrLibrary::kCabs; ++c)
             irs_.request (m, c, wanted[static_cast<size_t> (m)][static_cast<size_t> (c)]);
 
-    juce::MessageManager::callAsync ([safe = juce::WeakReference<SedefProcessor> (this), wanted,
-                                      presetId, presetName] {
+    juce::MessageManager::callAsync ([safe = juce::WeakReference<SedefProcessor> (this), wanted] {
         if (auto* p = safe.get())
         {
-            p->presets_.restoreCurrent (presetId, presetName);
-            {
-                const std::scoped_lock lock (p->extraLock_);
-                --p->pendingPresetRestores_;
-            }
+            p->presetsChanged(); // the preset, if no preset call has taken it over yet
 
             for (int m = 0; m < IrLibrary::kMics; ++m)
                 for (int c = 0; c < IrLibrary::kCabs; ++c)
@@ -401,7 +426,6 @@ void SedefProcessor::setStateInformation (const void* data, int size)
                                            });
                 }
             ++p->irRevision;
-            ++p->presetRevision;
         }
     });
 }

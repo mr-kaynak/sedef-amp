@@ -65,6 +65,27 @@ float parseValue (const ParamSpec& spec, const juce::String& text)
     return spec.sanitise (v);
 }
 
+namespace
+{
+/// The default as the parameter can hold it. AudioParameterFloat starts from the default exactly
+/// as given, but every value it takes later passes the normalised round trip, which can move a
+/// value by an ULP. A default the round trip moves could never be set again exactly, so
+/// "audition, then Esc" on a fresh instance would come back an ULP off. The round trip settles
+/// on a value it leaves alone within a step or two; that is the default.
+float heldDefault (const juce::NormalisableRange<float>& range, float value)
+{
+    for (int i = 0; i < 8; ++i)
+    {
+        const float next =
+            range.snapToLegalValue (range.convertFrom0to1 (range.convertTo0to1 (value)));
+        if (juce::exactlyEqual (next, value))
+            return value;
+        value = next;
+    }
+    return value;
+}
+} // namespace
+
 juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
 {
     juce::AudioProcessorValueTreeState::ParameterLayout layout;
@@ -94,7 +115,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
         {
             juce::NormalisableRange<float> range (spec.min, spec.max, 0.0f, spec.skew);
             group->addChild (std::make_unique<juce::AudioParameterFloat> (
-                id, name, range, spec.defaultValue,
+                id, name, range, heldDefault (range, spec.defaultValue),
                 juce::AudioParameterFloatAttributes()
                     .withLabel (label)
                     .withAutomatable (spec.automatable)

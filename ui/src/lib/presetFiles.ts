@@ -1,21 +1,28 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// User preset files, named the way plugin/src/PresetManager.cpp names them: the preset name made
-// legal as a file name (juce::File::createLegalFileName) plus the extension, in the folder of the
-// preset. Ids are "user:<relative path>".
+// User preset files, named the way plugin/src/PresetManager.cpp names them (safeFileName): the
+// preset name made legal as a file name, plus the extension, in the folder of the preset. Ids are
+// "user:<relative path>".
 import type { PresetDetails, PresetInfo } from '../bridge/protocol';
 
 const ILLEGAL = /["#@,;:<>*^|?\\/]/g;
 const EXTENSION = '.sedefpreset';
 
-/** juce::File::createLegalFileName for the characters a preset name can realistically hold. */
+/**
+ * PresetManager::safeFileName for the characters a preset name can realistically hold: no
+ * characters the file system refuses, no leading dots (".." or a hidden file), no trailing dots
+ * or spaces.
+ */
 export function legalFileName(name: string): string {
-  return name.trim().replace(ILLEGAL, '');
+  return name
+    .trim()
+    .replace(ILLEGAL, '')
+    .replace(/^[. ]+|[. ]+$/g, '');
 }
 
 /** The id a user preset gets when the preset `id` is renamed to `name`. */
 export function renamedPresetId(id: string, name: string): string {
   const folder = id.replace(/^user:/, '').replace(/[^/]*$/, '');
-  return `user:${folder}${legalFileName(name)}${EXTENSION}`;
+  return `user:${folder}${legalFileName(name) || 'Untitled'}${EXTENSION}`;
 }
 
 /** The id "Save as" gives a preset called `name` in `folder` (empty for the root). */

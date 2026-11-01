@@ -46,6 +46,15 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **Presets:** favourites survive a settings file that can't be read, and plugin instances in
+  different hosts no longer overwrite each other's changes. Renaming a preset to the same name in
+  other capitals works on macOS and Windows, and a rename that fails keeps the old file. A
+  category of ".." or a name made of dots can no longer save outside the presets folder.
+- **Host automation:** preset loads, tap tempo and the preset footswitches springing back reach
+  the host as gestures, so touch, latch and write automation record them.
+- **State:** a session the host restores while the editor works on presets no longer mixes in the
+  editor's values or names the wrong preset, and a saved session names the current preset as soon
+  as it changes.
 - **Intonation workbench:** the open-string step no longer waits for a reading held within one
   cent for a second, which a real plucked string never gives. Within 5 cents it moves on by
   itself; further off on the right note it says how far and offers **Use this tuning**. Both

@@ -52,18 +52,26 @@ See [docs/intonation.md](docs/intonation.md) for the method and its limits.
 
 ## Install
 
-Download the zip for your OS from [Releases](https://github.com/mr-kaynak/sedef-amp/releases)
-and copy the formats you use:
+### [Download for macOS](https://github.com/mr-kaynak/sedef-amp/releases/latest/download/Sedef-Amp-macOS.dmg)
 
-| OS | VST3 | AU | CLAP |
-|---|---|---|---|
-| macOS | `~/Library/Audio/Plug-Ins/VST3` | `~/Library/Audio/Plug-Ins/Components` | `~/Library/Audio/Plug-Ins/CLAP` |
-| Windows | `C:\Program Files\Common Files\VST3` | — | `C:\Program Files\Common Files\CLAP` |
-| Linux | `~/.vst3` | — | `~/.clap` |
+macOS 11 or later, Apple silicon and Intel. Open the disk image and double-click
+**Install Sedef Amp**. The installer isn't notarized yet, so the first time macOS stops it: open
+**System Settings → Privacy & Security** and click **Open Anyway**.
 
-Builds are not notarized yet, so macOS quarantines them after download. Clear the flag once:
-`xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/"Sedef Amp.vst3"` (and the same for
-the AU, CLAP and app). Details for every OS are in [docs/install.md](docs/install.md).
+### [Download for Windows](https://github.com/mr-kaynak/sedef-amp/releases/latest/download/Sedef-Amp-Windows-Setup.exe)
+
+Windows 10 or 11, x64. Run the installer. If SmartScreen says *Windows protected your PC*, click
+**More info**, then **Run anyway** (the installer isn't code-signed yet).
+
+### [Download for Linux](https://github.com/mr-kaynak/sedef-amp/releases/latest/download/Sedef-Amp-Linux-x86_64.tar.gz)
+
+x86_64 with WebKitGTK 4.1. Unpack the archive and run `./install.sh` (add `--system` to install
+for every user).
+
+Each installer lets you pick VST3, CLAP and the standalone app, plus AU on macOS. Rescan plugins in
+your DAW afterwards; Sedef shows up as **Sedef Amp** by **Sedef**. Install paths, uninstalling and
+manual installs are in [docs/install.md](docs/install.md); older versions are on the
+[releases page](https://github.com/mr-kaynak/sedef-amp/releases).
 
 ## Build from source
 

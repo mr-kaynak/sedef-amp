@@ -56,6 +56,8 @@ work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
 keychain_password="$(uuidgen)"
+# A keychain left over from an interrupted run would make create-keychain fail.
+security delete-keychain "$keychain" 2>/dev/null || true
 security create-keychain -p "$keychain_password" "$keychain"
 security set-keychain-settings -lut 21600 "$keychain"
 security unlock-keychain -p "$keychain_password" "$keychain"

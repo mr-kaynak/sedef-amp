@@ -145,6 +145,24 @@ describe('Intonation workbench', () => {
     });
   });
 
+  it('announces each step and what the pluck is doing in one live region', () => {
+    render(<IntonationWorkbench />);
+    fireEvent.click(screen.getByRole('radio', { name: /6-string, standard/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Start measuring' }));
+    const region = screen.getByText('String 6, tune open string.');
+    expect(region).toHaveAttribute('role', 'status');
+
+    playUntil(() => useIntonationStore.getState().step === 'fret');
+    // The same element: it outlives the step that moved on by itself.
+    expect(region).toHaveTextContent('String 6, play 12th fret.');
+    playUntil(() => useIntonationStore.getState().pluck === 'measuring');
+    expect(region).toHaveTextContent('Hold it, measuring.');
+    playUntil(() => useIntonationStore.getState().step === 'result');
+    expect(region).toHaveTextContent(
+      /^String 6, adjust saddle\. 4\.\d cents sharp\. Move the saddle back, away from the neck\.$/,
+    );
+  });
+
   it('summarises measured strings and offers re-measurement', () => {
     useIntonationStore.setState({
       phase: 'summary',

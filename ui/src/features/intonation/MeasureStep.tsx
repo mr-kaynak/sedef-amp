@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import buttons from '../../controls/Button.module.css';
 import { Icon } from '../../controls/Icon';
@@ -14,6 +14,7 @@ import {
   IN_TUNE_CENTS,
   isOctaveOf,
   VERDICT_TEXT,
+  verdictFor,
 } from './math';
 import { TUNE_TOLERANCE_CENTS } from './controller';
 import { ProgressRing } from './ProgressRing';
@@ -21,6 +22,7 @@ import { SaddleDiagram } from './SaddleDiagram';
 import {
   intonationActions,
   nextString,
+  stringNotes,
   useIntonationStore,
   useScaleLength,
   useStringNotes,
@@ -106,8 +108,7 @@ function TuneProgress({ midi }: { midi: number }) {
       offer: s.tuneOffer,
     })),
   );
-  // One live region for the measurement; the guidance below it follows every pluck and stays out
-  // of it.
+  // The Announcer speaks for this; the guidance below follows every pluck and stays quiet.
   const measuring = pluck === 'measuring';
   const announced = offer
     ? `${offBy(offer.cents)}.`
@@ -120,9 +121,7 @@ function TuneProgress({ midi }: { midi: number }) {
   return (
     <div className={styles.tuneStatus} data-state={state}>
       {!offer && <HoldBar progress={progress} />}
-      <p className={styles.tuneText} role="status">
-        {announced}
-      </p>
+      <p className={styles.tuneText}>{announced}</p>
       {offer ? (
         <>
           <button
@@ -303,6 +302,64 @@ function ResultStep({ index }: { index: number }) {
   );
 }
 
+type IntonationState = ReturnType<typeof useIntonationStore.getState>;
+
+/** "String 6, play 12th fret." On the result, the error and what to do. */
+function stepAnnouncement(s: IntonationState): string {
+  const label = STEPS.find((x) => x.id === s.step)?.label ?? '';
+  const head = `String ${stringNumber(s.current, stringNotes(s).length)}, ${label.toLowerCase()}.`;
+  const r = s.step === 'result' ? s.results[s.current] : null;
+  if (!r) return head;
+  const amount = `${Math.abs(r.cents).toFixed(1)} cents ${r.cents < 0 ? 'flat' : 'sharp'}`;
+  return `${head} ${amount}. ${VERDICT_TEXT[verdictFor(r.cents)]}.`;
+}
+
+/** What the current pluck is doing, as the step shows it; empty while just listening. */
+function pluckAnnouncement(s: IntonationState): string {
+  if (s.step === 'tune') {
+    if (s.tuneOffer)
+      return `${offBy(s.tuneOffer.cents)}. Use this tuning, or tune and pluck again.`;
+    if (s.pluck === 'measuring') return s.tuneClose ? 'Good enough, measuring.' : 'Measuring.';
+    if (s.pluck === 'missed') return 'Pluck it again to measure.';
+  } else if (s.step === 'fret') {
+    if (s.pluck === 'measuring') return 'Hold it, measuring.';
+    if (s.pluck === 'missed') return 'Pluck again.';
+  }
+  return '';
+}
+
+/**
+ * One polite live region for the whole measure phase, so a screen reader hears the workbench move
+ * on by itself (the steps' own text comes and goes with them): the string and step when they
+ * change, then what each pluck is doing.
+ */
+function Announcer() {
+  const [message, setMessage] = useState('');
+  useEffect(() => {
+    let step = '';
+    let pluck = '';
+    const update = (s: IntonationState) => {
+      const key = `${s.current}/${s.step}`;
+      const now = pluckAnnouncement(s);
+      if (key !== step) {
+        step = key;
+        pluck = now;
+        setMessage([stepAnnouncement(s), now].filter(Boolean).join(' '));
+      } else if (now !== pluck) {
+        pluck = now;
+        if (now) setMessage(now);
+      }
+    };
+    update(useIntonationStore.getState());
+    return useIntonationStore.subscribe(update);
+  }, []);
+  return (
+    <p className="visually-hidden" role="status">
+      {message}
+    </p>
+  );
+}
+
 export function MeasureStep() {
   const { current, step, openHz, fromSummary } = useIntonationStore(
     useShallow((s) => ({
@@ -337,6 +394,7 @@ export function MeasureStep() {
       {step === 'tune' && <TuneStep midi={midi} />}
       {step === 'fret' && openHz !== null && <FretStep midi={midi} openHz={openHz} />}
       {step === 'result' && <ResultStep index={current} />}
+      <Announcer />
     </div>
   );
 }

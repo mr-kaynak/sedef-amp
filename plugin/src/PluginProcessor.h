@@ -112,7 +112,7 @@ private:
     /// applied. Guarded by extraLock_.
     struct LoadedValue
     {
-        double saved = 0.0;
+        juce::var saved; ///< the value's text exactly as loaded (a re-printed double can differ)
         float applied = 0.0f;
         bool valid = false;
     };

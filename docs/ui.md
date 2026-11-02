@@ -164,8 +164,10 @@ tolerance. The mock starts on Nacre.
   (`docs/dsp/tuner.md`), at the editor's 60 Hz — plucks with an attack glide, a jittery reading,
   and settled detections at 200 per second from 0.25 s after the pluck whose last 0.4 s give
   `stable` (window full, spread under 0.5 cent), `stableHz` (mean), `stableStdCents` (sample
-  standard deviation) and `stableCount`. With no intent it tunes the strings of a guitar one
-  after another. The intonation workbench sets
+  standard deviation) and `stableCount`. The `display*` fields follow the engine's tuner display
+  in outline (a new note shows 50 ms after its first reading, a re-pluck keeps the needle still,
+  the reading is followed while the peg turns, the last value holds). With no intent it tunes the
+  strings of a guitar one after another. The intonation workbench sets
   intents through the optional `simulator` hook (`tune` an open string, `fret` the 12th fret with
   a configurable error per string), so the whole flow is demoable in a browser.
 
@@ -197,7 +199,7 @@ browser the canvas fits the window. Everything is vector or text, so it stays cr
 | EQ         | the current amp's bank: 9 faders on a log axis under a live response curve, low/high cut, on/off, flatten                                                                                                                        |
 | Cab        | cab picker (shows the link), speaker with draggable Mic A/B markers (sideways = position, up/down = distance ring), per-mic type for the current cab, level, pan, phase, room, custom IR load/clear                              |
 | FX         | Drift (heads, Free/Host/Tap sync with tap button, time or note value, the effective time from telemetry, tape controls), Fathom (plate/hall with an envelope sketch), Doubler                                                    |
-| Tuner      | needle + strobe, note and octave, cents, Hz, reference 420–460 Hz, mute; in tune within ±1 cent                                                                                                                                  |
+| Tuner      | needle + strobe, note and octave, cents, Hz, "Tune up" hint, reference 420–460 Hz, mute; in tune within ±1 cent after 0.15 s, with hysteresis; holds the last reading ([tuner.md](dsp/tuner.md#3-display))                       |
 | Intonation | instrument → measure each string (tune open, capture 12th fret, result with saddle diagram) → summary with copy as text                                                                                                          |
 | Metronome  | play/stop, tempo knob + tap, signature, sound, volume, step grid (off/normal/accent/soft), live beat                                                                                                                             |
 | Updates    | header pill when a newer release is out; panel with versions, last check, Check now, the automatic-check switch, release notes, Download & install with progress and Cancel, Skip this version, Later ([updates.md](updates.md)) |
@@ -257,8 +259,9 @@ something is alive.
   (`/` or ⌘/Ctrl+F to search, arrows to audition, Enter, Esc, F for favourite, and `P`, `[`,
   `]`, `A`, `B` anywhere outside text fields; see
   [ui/presets.md](ui/presets.md)); digit keys never switch sections while you type or while it is
-  open, and toasts are a polite live region that never takes focus. The tuner announces a settled reading ("E 2, in tune") through
-  a polite live region, at most every 2 s, rather than every pluck. Text meets WCAG AA (4.5:1):
+  open, and toasts are a polite live region that never takes focus. The tuner announces a settled state ("E 2, in tune") through
+  a polite live region once it has held 0.6 s, at most every 2 s, and says nothing while a note is
+  starting or has ended; the state is also written ("In tune", "Tune up"), not only coloured. Text meets WCAG AA (4.5:1):
   `--bone-3` is the quietest text colour (`--bone-4` is for lines and fills only), and the
   enclosure legends' dim tone is strong enough on every paint. `prefers-reduced-motion` disables
   transitions and the strobe; the needle keeps its damping because it carries information.

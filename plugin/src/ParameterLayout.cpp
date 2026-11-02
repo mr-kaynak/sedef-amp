@@ -33,6 +33,9 @@ juce::String formatValue (const ParamSpec& spec, float value, int maxLength)
         text = juce::String (juce::roundToInt (value)) + "%";
     else if (unit == "bpm")
         text = juce::String (value, 1) + " BPM";
+    else if (unit == "deg")
+        text = juce::String (juce::roundToInt (value)) +
+               juce::String (juce::CharPointer_UTF8 ("\xc2\xb0"));
     else
         text = juce::String (value, 2);
 
@@ -107,7 +110,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
 
         const juce::ParameterID id { toJuce (spec.id), 1 };
         const auto name = toJuce (spec.name);
-        const auto label = spec.unit == "knob" ? juce::String() : toJuce (spec.unit);
+        // Knobs read 0-10 and angles carry their degree sign in the text.
+        const auto label =
+            spec.unit == "knob" || spec.unit == "deg" ? juce::String() : toJuce (spec.unit);
 
         switch (spec.kind)
         {

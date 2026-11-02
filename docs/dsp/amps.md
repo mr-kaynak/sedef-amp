@@ -268,9 +268,9 @@ What changed:
   7-8 dB), so the whole travel does something: Abyss at gain 0 is an edge-of-breakup crunch at the
   design level, at 0.25 a crunch, at 0.5 a high-gain rhythm sound, at 1 a wall of gain.
 - **Tightness and fizz** at full gain, measured as octave bands re. the total: palm-muted chugs
-  keep the 63 / 125 Hz bands where v0.2.0 had them (-13.1 / -4.3 dB vs. -13.5 / -4.5), 3-4 dB
-  below a clean amp's; the strum's 8 kHz band through a rough cab stand-in is -30.2 dB (v0.2.0
-  -29.4). Palm-muted chugs, which start dark, gain about 3 dB at 4-8 kHz: the extra harmonics of
+  keep the 63 / 125 Hz bands where v0.2.0 had them (-13.1 / -4.3 dB vs. -13.5 / -4.5), the 63 Hz
+  band 3 dB below a clean amp's; the strum's 8 kHz band through a rough cab stand-in is -30.2 dB (v0.2.0
+  -29.4). Palm-muted chugs, which start dark, gain 3-4 dB at 4-8 kHz: the extra harmonics of
   the deeper saturation, still 39 dB below the total through the cab.
 - **Aliasing** for a 1.2-4.3 kHz sine at -15 dBFS RMS and full drive, measured exactly at the
   images of the harmonics (`test::worstAliasDb`; v0.2.0's report scanned a 7 Hz grid, which falls

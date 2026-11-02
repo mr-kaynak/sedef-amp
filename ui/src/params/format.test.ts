@@ -47,6 +47,13 @@ describe('formatValue', () => {
     expect(fmt('fathomDecay', 12)).toBe('12 s');
   });
 
+  it('formats angles in whole degrees', () => {
+    expect(fmt('micAOffAxis', 30.4)).toBe('30°');
+    expect(fmt('micAAzimuth', -120)).toBe(`${MINUS}120°`);
+    expect(fmt('micBAzimuth', 120)).toBe('120°');
+    expect(fmt('micAAzimuth', -0.3)).toBe('0°');
+  });
+
   it('formats semitones, pan, bpm, choices and switches', () => {
     expect(fmt('transpose', 3)).toBe('+3 st');
     expect(fmt('transpose', -12)).toBe(`${MINUS}12 st`);

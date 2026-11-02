@@ -11,7 +11,8 @@ import styles from './CabSection.module.css';
 
 const SPEAKERS = [1, 2, 4];
 
-/** A cabinet silhouette with its speakers; the miked one is highlighted. */
+/** A cabinet silhouette with its speakers; the miked one (the engine mics the left speaker of the
+ * 2x12 and the bottom-left one of the 4x12) is highlighted. */
 function CabGlyph({ speakers }: { speakers: number }) {
   const cols = speakers === 1 ? 1 : 2;
   const rows = speakers === 4 ? 2 : 1;
@@ -30,7 +31,7 @@ function CabGlyph({ speakers }: { speakers: number }) {
             cx={cx}
             cy={cy}
             r={r}
-            className={i === 0 ? styles.miked : styles.speaker}
+            className={i === (speakers === 4 ? 2 : 0) ? styles.miked : styles.speaker}
           />
         );
       })}
@@ -107,7 +108,7 @@ export function CabSection() {
           </p>
         </div>
       </aside>
-      <SpeakerStage cabLabel={names[cab] ?? ''} />
+      <SpeakerStage cab={cab} cabLabel={names[cab] ?? ''} />
       <div className={styles.mics}>
         <MicStrip mic="A" cab={cab} />
         <MicStrip mic="B" cab={cab} />

@@ -18,12 +18,11 @@ const SHOTS = {
     query:
       'section=eq&set=eqLagoonBand2:-2,eqLagoonBand3:-1,eqLagoonBand5:1.5,eqLagoonBand7:2.5,eqLagoonBand8:1,eqLagoonLowCut:70,eqLagoonHighCut:11000',
   },
+  // The 4x12 with both mics placed freely: A turned off axis near the dust cap, B round at
+  // 7 o'clock and backed off, the baffle map showing them against the other speakers.
   cab: {
-    query: 'section=cab',
-    async prepare(page) {
-      await page.getByRole('combobox', { name: 'Mic B type' }).selectOption({ label: 'Custom IR' });
-      await page.getByRole('button', { name: 'Load…' }).click();
-    },
+    query:
+      'section=cab&preset=mariana&set=micAPosition:0.35,micAAzimuth:40,micAOffAxis:30,micBPosition:0.8,micBAzimuth:-150,micBDistance:0.45',
   },
   fx: { query: 'section=fx&preset=soft-focus' },
   tuner: {

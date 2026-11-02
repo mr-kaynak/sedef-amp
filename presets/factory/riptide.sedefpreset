@@ -12,7 +12,7 @@
   "description": "Singing lead with a quarter-note echo and a little hall.",
   "parameters": {
     "ampModel": 2,
-    "abyssGain": 0.6,
+    "abyssGain": 0.55,
     "abyssBright": 1,
     "abyssMid": 0.55,
     "driftEnabled": 1,
@@ -24,6 +24,6 @@
     "fathomMix": 0.15,
     "fathomDecay": 3.0,
     "gateThreshold": -62.0,
-    "abyssOutput": 0.2792
+    "abyssOutput": 0.2917
   }
 }

@@ -11,7 +11,7 @@
   "description": "Mid-gain crunch with a tape slapback, for rockabilly and early rock.",
   "parameters": {
     "ampModel": 1,
-    "reefGain": 0.55,
+    "reefGain": 0.38,
     "driftEnabled": 1,
     "driftHeads": 0,
     "driftSync": 0,
@@ -19,6 +19,6 @@
     "driftFeedback": 0.12,
     "driftMix": 0.25,
     "driftTapeMod": 0.35,
-    "reefOutput": 0.3729
+    "reefOutput": 0.4083
   }
 }

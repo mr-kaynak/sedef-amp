@@ -30,6 +30,9 @@ CabSim::Settings randomSettings (Random& r)
         m.type = static_cast<int> (r.nextU32() % CabSim::kNumMicTypes);
         m.position = r.unipolar();
         m.distance = r.unipolar();
+        // Out of range on purpose: azimuth wraps, the angle clamps, NaN falls back.
+        m.azimuthDeg = r.unipolar() < 0.05f ? std::nanf ("") : 900.0f * r.bipolar();
+        m.offAxisDeg = -10.0f + 90.0f * r.unipolar();
         m.levelDb = -40.0f + 46.0f * r.unipolar();
         m.pan = r.bipolar();
         m.invertPolarity = r.unipolar() < 0.3f;
@@ -56,12 +59,6 @@ std::pair<std::vector<float>, std::vector<float>> run (CabSim& cab, const std::v
         std::copy_n (b[1].begin(), n, r.begin() + static_cast<std::ptrdiff_t> (pos));
     }
     return { l, r };
-}
-
-/// Energy in [lo, hi] Hz relative to the 800-1250 Hz band, dB.
-double relativeBandDb (const std::vector<float>& ir, double fs, double lo, double hi)
-{
-    return bandDb (ir, fs, lo, hi) - bandDb (ir, fs, 800.0, 1250.0);
 }
 
 /// Reverberation time from the Schroeder decay of the squared IR (T20 extrapolated to 60 dB).
@@ -222,37 +219,65 @@ TEST_CASE ("Procedural cabinets have plausible responses", "[cab]")
 
     SECTION ("distance trades proximity bass for a small level drop")
     {
+        // The 1x12 has a single speaker, so distance only takes proximity away.
         const auto proximityLoss = [&] (int c, int t) {
             const auto near = impulseResponse (cab, soloMicA (c, t, 0.5f, 0.0f), fs);
             const auto far = impulseResponse (cab, soloMicA (c, t, 0.5f, 1.0f), fs);
             return relativeBandDb (near, fs, 40.0, 150.0) - relativeBandDb (far, fs, 40.0, 150.0);
         };
-        for (int c = 0; c < 3; ++c)
-        {
-            const double dyn = proximityLoss (c, kDynClassic);
-            const double ribbon = proximityLoss (c, kRibbonSmooth);
-            const double omni = proximityLoss (c, kCondPrecision);
-            INFO ("cab " << c << ": dynamic " << dyn << " dB, ribbon " << ribbon << " dB, omni "
-                         << omni << " dB");
-            CHECK (dyn > 3.0);
-            CHECK (ribbon > dyn);
-            CHECK (omni < dyn);
-        }
+        const double dyn = proximityLoss (0, kDynClassic);
+        const double ribbon = proximityLoss (0, kRibbonSmooth);
+        const double omni = proximityLoss (0, kCondPrecision);
+        INFO ("1x12: dynamic " << dyn << " dB, ribbon " << ribbon << " dB, omni " << omni << " dB");
+        CHECK (dyn > 3.0);
+        CHECK (ribbon > dyn);
+        CHECK (omni < dyn);
 
         // Monotonic in distance, and the overall level falls only a little.
         double previous = 1e9;
         for (float d : { 0.0f, 0.25f, 0.5f, 0.75f, 1.0f })
         {
-            const auto ir = impulseResponse (cab, soloMicA (2, kDynClassic, 0.5f, d), fs);
+            const auto ir = impulseResponse (cab, soloMicA (0, kDynClassic, 0.5f, d), fs);
             const double lows = bandDb (ir, fs, 40.0, 150.0);
             CHECK (lows < previous);
             previous = lows;
         }
-        const auto near = impulseResponse (cab, soloMicA (2, kDynClassic, 0.5f, 0.0f), fs);
-        const auto far = impulseResponse (cab, soloMicA (2, kDynClassic, 0.5f, 1.0f), fs);
+        const auto near = impulseResponse (cab, soloMicA (0, kDynClassic, 0.5f, 0.0f), fs);
+        const auto far = impulseResponse (cab, soloMicA (0, kDynClassic, 0.5f, 1.0f), fs);
         const double drop = bandDb (near, fs, 1500.0, 4000.0) - bandDb (far, fs, 1500.0, 4000.0);
         CHECK (drop > 1.0);
         CHECK (drop < 9.0);
+    }
+
+    SECTION ("backing off a multi-speaker cab brings in the other speakers' low end")
+    {
+        // An omni has no proximity to lose: what changes is how much of the other cones it hears.
+        // Lows below 150 Hz, against the 1.5-4 kHz band the other cones beam away.
+        const auto lowsVsTop = [&] (int c, float d) {
+            const auto ir = impulseResponse (cab, soloMicA (c, kCondPrecision, 0.5f, d), fs);
+            return bandDb (ir, fs, 40.0, 150.0) - bandDb (ir, fs, 1500.0, 4000.0);
+        };
+        const double open1 = lowsVsTop (0, 1.0f) - lowsVsTop (0, 0.0f);
+        const double open2 = lowsVsTop (1, 1.0f) - lowsVsTop (1, 0.0f);
+        const double closed4 = lowsVsTop (2, 1.0f) - lowsVsTop (2, 0.0f);
+        INFO ("lows gained at distance 1: 1x12 " << open1 << " dB, 2x12 " << open2 << " dB, 4x12 "
+                                                 << closed4 << " dB");
+        CHECK (open2 > open1 + 2.0);
+        CHECK (closed4 > open2 + 2.0);
+        double previous = -1e9;
+        for (float d : { 0.0f, 0.25f, 0.5f, 0.75f, 1.0f })
+        {
+            const double v = lowsVsTop (2, d);
+            CHECK (v > previous);
+            previous = v;
+        }
+        // A directional mic still loses proximity, but the cab sum makes up for part of it.
+        const auto proximityLoss = [&] (int c) {
+            const auto near = impulseResponse (cab, soloMicA (c, kDynClassic, 0.5f, 0.0f), fs);
+            const auto far = impulseResponse (cab, soloMicA (c, kDynClassic, 0.5f, 1.0f), fs);
+            return bandDb (near, fs, 40.0, 150.0) - bandDb (far, fs, 40.0, 150.0);
+        };
+        CHECK (proximityLoss (2) < proximityLoss (0) - 3.0);
     }
 
     SECTION ("mic voicings order as described")
@@ -472,6 +497,11 @@ TEST_CASE ("Automating every control is click-free", "[cab]")
         auto& b = s.mics[1];
         a.position = static_cast<float> (0.5 + 0.5 * std::sin (kTwoPiD * 0.31 * t));
         a.distance = static_cast<float> (0.5 + 0.5 * std::sin (kTwoPiD * 0.23 * t));
+        // Round and round the cone (crossing the +-180 wrap), and turning on and off axis.
+        a.azimuthDeg = static_cast<float> (std::remainder (-170.0 + 150.0 * t, 360.0));
+        a.offAxisDeg = static_cast<float> (30.0 + 30.0 * std::sin (kTwoPiD * 0.37 * t));
+        b.azimuthDeg = static_cast<float> (120.0 + 100.0 * std::sin (kTwoPiD * 0.29 * t));
+        b.offAxisDeg = static_cast<float> (60.0 * std::abs (std::sin (kTwoPiD * 0.21 * t)));
         b.position = static_cast<float> (0.5 + 0.5 * std::sin (kTwoPiD * 0.47 * t + 1.0));
         b.distance = static_cast<float> (0.5 + 0.5 * std::sin (kTwoPiD * 0.53 * t + 2.0));
         a.levelDb = static_cast<float> (-10.0 + 10.0 * std::sin (kTwoPiD * 0.7 * t));
@@ -521,7 +551,9 @@ CabSim::Settings unusualSettings()
     auto& a = s.mics[0];
     a.type = kRibbonSmooth;
     a.position = 0.15f;
+    a.azimuthDeg = -150.0f;
     a.distance = 0.7f;
+    a.offAxisDeg = 35.0f;
     a.levelDb = -12.0f;
     a.pan = 0.6f;
     a.invertPolarity = true;
@@ -530,7 +562,9 @@ CabSim::Settings unusualSettings()
     auto& b = s.mics[1];
     b.type = 3;
     b.position = 0.9f;
+    b.azimuthDeg = 10.0f;
     b.distance = 0.3f;
+    b.offAxisDeg = 20.0f;
     b.levelDb = -4.0f;
     b.pan = -0.8f;
     return s;
@@ -652,7 +686,7 @@ TEST_CASE ("Settings after audio on the defaults crossfade instead of cutting", 
     CHECK (maxDifference (ym, ys, static_cast<size_t> (0.05 * fs)) > 1.0e-3f);
 }
 
-TEST_CASE ("A mic woken from idle starts at its current level and pan", "[cab]")
+TEST_CASE ("A mic woken from idle starts at its current placement, level and pan", "[cab]")
 {
     const double fs = 48000.0;
     const int block = 64;
@@ -662,6 +696,9 @@ TEST_CASE ("A mic woken from idle starts at its current level and pan", "[cab]")
     auto before = soloMicA (1, kDynClassic);
     before.mics[0].enabled = false;
     auto final = before;
+    final.mics[0].azimuthDeg = -45.0f;
+    final.mics[0].distance = 0.6f;
+    final.mics[0].offAxisDeg = 40.0f;
     final.mics[0].levelDb = -20.0f;
     final.mics[0].pan = -1.0f;
     final.mics[0].roomLevelDb = -30.0f;

@@ -144,3 +144,7 @@ SEDEF_PARAM(metronomeSignature, "Metronome Signature", "Metronome", Choice, 0.0f
 SEDEF_PARAM(metronomeSound, "Metronome Sound", "Metronome", Choice, 0.0f, 5.0f, 0.0f, 1.0f, "", "Blip|Wood|Clave|Cowbell|Rim|Shaker", false)
 SEDEF_PARAM(presetPrevious, "Preset Previous", "Preset", Bool, 0.0f, 1.0f, 0.0f, 1.0f, "", "", true)
 SEDEF_PARAM(presetNext, "Preset Next", "Preset", Bool, 0.0f, 1.0f, 0.0f, 1.0f, "", "", true)
+SEDEF_PARAM(micAAzimuth, "Mic A Azimuth", "Mic A", Float, -180.0f, 180.0f, 60.0f, 1.0f, "deg", "", true)
+SEDEF_PARAM(micAOffAxis, "Mic A Off-Axis", "Mic A", Float, 0.0f, 60.0f, 0.0f, 1.0f, "deg", "", true)
+SEDEF_PARAM(micBAzimuth, "Mic B Azimuth", "Mic B", Float, -180.0f, 180.0f, 120.0f, 1.0f, "deg", "", true)
+SEDEF_PARAM(micBOffAxis, "Mic B Off-Axis", "Mic B", Float, 0.0f, 60.0f, 0.0f, 1.0f, "deg", "", true)

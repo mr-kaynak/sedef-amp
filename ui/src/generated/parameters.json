@@ -137,6 +137,10 @@
     {"id": "metronomeSignature", "name": "Metronome Signature", "group": "Metronome", "kind": "choice", "min": 0, "max": 7, "default": 2, "skew": 1, "unit": "", "automatable": false, "choices": ["2/4", "3/4", "4/4", "5/4", "6/8", "7/8", "9/8", "12/8"]},
     {"id": "metronomeSound", "name": "Metronome Sound", "group": "Metronome", "kind": "choice", "min": 0, "max": 5, "default": 0, "skew": 1, "unit": "", "automatable": false, "choices": ["Blip", "Wood", "Clave", "Cowbell", "Rim", "Shaker"]},
     {"id": "presetPrevious", "name": "Preset Previous", "group": "Preset", "kind": "bool", "min": 0, "max": 1, "default": 0, "skew": 1, "unit": "", "automatable": true, "choices": []},
-    {"id": "presetNext", "name": "Preset Next", "group": "Preset", "kind": "bool", "min": 0, "max": 1, "default": 0, "skew": 1, "unit": "", "automatable": true, "choices": []}
+    {"id": "presetNext", "name": "Preset Next", "group": "Preset", "kind": "bool", "min": 0, "max": 1, "default": 0, "skew": 1, "unit": "", "automatable": true, "choices": []},
+    {"id": "micAAzimuth", "name": "Mic A Azimuth", "group": "Mic A", "kind": "float", "min": -180, "max": 180, "default": 60, "skew": 1, "unit": "deg", "automatable": true, "choices": []},
+    {"id": "micAOffAxis", "name": "Mic A Off-Axis", "group": "Mic A", "kind": "float", "min": 0, "max": 60, "default": 0, "skew": 1, "unit": "deg", "automatable": true, "choices": []},
+    {"id": "micBAzimuth", "name": "Mic B Azimuth", "group": "Mic B", "kind": "float", "min": -180, "max": 180, "default": 120, "skew": 1, "unit": "deg", "automatable": true, "choices": []},
+    {"id": "micBOffAxis", "name": "Mic B Off-Axis", "group": "Mic B", "kind": "float", "min": 0, "max": 60, "default": 0, "skew": 1, "unit": "deg", "automatable": true, "choices": []}
   ]
 }

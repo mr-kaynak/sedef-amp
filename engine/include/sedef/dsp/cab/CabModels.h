@@ -150,10 +150,13 @@ BiquadCoeffs designFilter (const FilterSpec& f, double sampleRate) noexcept;
 
 inline constexpr int kMaxBodyStages = 10;
 inline constexpr int kMaxMicStages = 4;
-inline constexpr int kPositionStages = 3; // presence peak, edge roll-off, edge warmth
-inline constexpr int kDistanceStages = 2; // proximity shelf, air shelf
+inline constexpr int kPositionStages = 3;               // presence peak, edge roll-off, edge warmth
+inline constexpr int kNearStages = kPositionStages + 1; // + proximity: the miked cone only
+inline constexpr int kOffAxisStages = 2;                // presence fade, off-axis treble shelf
+inline constexpr int kAirStages = 1;
 inline constexpr int kMaxStages =
-    kMaxBodyStages + kPositionStages + kMaxMicStages + kDistanceStages;
+    kMaxBodyStages + kNearStages + kMaxMicStages + kOffAxisStages + kAirStages;
+inline constexpr int kMaxNeighbours = 3; // the other speakers of a 4x12
 
 /// Speaker + cabinet: the response at the reference mic position, then what moving the mic across
 /// the cone changes.
@@ -178,6 +181,12 @@ struct CabModel
     float edgeWarmthDb = 1.5f;
 
     float speakerHeightM = 0.3f; ///< speaker centre above the floor (floor bounce geometry)
+
+    /// Centres of the other speakers on the baffle, relative to the miked one, in metres (front
+    /// view: x to the right, y up). The miked speaker is the left one of the 2x12 and the
+    /// bottom-left one of the 4x12.
+    std::array<std::array<float, 2>, kMaxNeighbours> neighbours {};
+    int numNeighbours = 0;
 };
 
 struct MicModel
@@ -186,23 +195,71 @@ struct MicModel
     int numEq = 0;
     float proximityDb = 0.0f; ///< bass boost on the grille (0 for an omni)
     float proximityHz = 160.0f;
+
+    /// Polar pattern A + (1 - A) cos(angle): 1 omni, 0.5 cardioid, 0.37 supercardioid,
+    /// 0 figure-of-eight (whose rear lobe is inverted).
+    float polar = 0.5f;
+    /// Off axis: the on-axis presence peak fades and a treble shelf grows. Both are given at
+    /// 60 degrees and scale with sin^2 of the angle (see offAxisAmount).
+    float presenceHz = 5000.0f;
+    float presenceQ = 1.0f;
+    float presenceDb = 0.0f;
+    float offAxisHz = 4000.0f;
+    float offAxisDb = 0.0f;
 };
 
 const CabModel& cabModel (int cab) noexcept;
 const MicModel& micModel (int type) noexcept;
 
-/// What the distance knob means physically.
+/// Where a capsule sits and how it is aimed. Front view of the miked speaker in cone radii: x to
+/// the right, y up, so hypot (x, y) is the position knob (0 dust cap, 1 cone edge).
+struct MicPose
+{
+    float x = 0.0f;
+    float y = 0.0f;
+    float distance = 0.0f;   ///< 0 on the grille .. 1 far
+    float offAxisDeg = 0.0f; ///< capsule tilt towards the dust cap, 0..60 degrees
+
+    float position() const noexcept;
+    /// azimuthDeg runs clockwise from 12 o'clock as you face the cab.
+    static MicPose polar (float position, float azimuthDeg, float distance,
+                          float offAxisDeg) noexcept;
+    bool operator== (const MicPose&) const = default;
+};
+
+inline constexpr float kMaxOffAxisDeg = 60.0f;
+inline constexpr float kConeRadiusM = 0.12f; ///< effective piston radius; position 1 sits here
+
+/// One of the other speakers as the capsule hears it, relative to the direct sound.
+struct Bleed
+{
+    float delaySec = 0.0f;     ///< extra path over the direct sound
+    float gain = 0.0f;         ///< level relative to the direct sound (signed: polar rear lobe)
+    float lowpassHz = 1000.0f; ///< the neighbour seen off its axis beams its treble away
+};
+
+/// What the pose means physically.
 struct Placement
 {
     float arrivalSec = 0.0f; ///< extra time of flight relative to the grille
     float bounceSec = 0.0f;  ///< floor bounce arrival, same reference
     float bounceGain = 0.0f; ///< floor bounce level relative to the direct sound
-    float levelGain = 1.0f;  ///< small level falloff
+    float levelGain = 1.0f;  ///< small level falloff with distance, times the polar gain off axis
     float proximityDb = 0.0f;
     float airDb = 0.0f;
+    float presenceCutDb = 0.0f; ///< off axis: the capsule's presence peak fading
+    float offAxisShelfDb = 0.0f;
+    std::array<Bleed, kMaxNeighbours> bleed {};
+    int numBleed = 0;
 };
 
-Placement placement (const CabModel& cab, const MicModel& mic, float distance) noexcept;
+Placement placement (const CabModel& cab, const MicModel& mic, const MicPose& pose) noexcept;
+
+/// 0 on axis, 1 at 60 degrees: sin^2 of the angle, like the first-order loss of a receiving
+/// piston (2 J1(x) / x ~ 1 - x^2 / 8 with x proportional to sin angle).
+float offAxisAmount (float offAxisDeg) noexcept;
+/// Polar gain A + (1 - A) cos(angle) of a mic at that angle.
+float polarGain (const MicModel& mic, float angleDeg) noexcept;
 
 inline constexpr float kBounceLpHz = 1800.0f;
 inline constexpr float kAirShelfHz = 7000.0f;
@@ -211,20 +268,32 @@ inline constexpr float kAirShelfHz = 7000.0f;
 int designBodyStages (const CabModel& cab, double sampleRate, Stage* out) noexcept;
 void designPositionStages (const CabModel& cab, float position, double sampleRate,
                            Stage* out) noexcept;
-int designMicStages (const MicModel& mic, double sampleRate, Stage* out) noexcept;
-void designDistanceStages (const MicModel& mic, const Placement& p, double sampleRate,
+void designProximityStage (const MicModel& mic, const Placement& p, double sampleRate,
                            Stage* out) noexcept;
+int designMicStages (const MicModel& mic, double sampleRate, Stage* out) noexcept;
+void designOffAxisStages (const MicModel& mic, const Placement& p, double sampleRate,
+                          Stage* out) noexcept;
+void designAirStage (const Placement& p, double sampleRate, Stage* out) noexcept;
+BiquadCoeffs designBleedFilter (const Bleed& b, double sampleRate) noexcept;
+
+/// The capsule a custom IR was presumably recorded with: its off-axis model is what the angle
+/// control applies after an IR (the IR itself already holds position and distance).
+inline constexpr int kIrCapsuleType = 0;
 
 /// One-pole low-pass coefficient: y += a (x - y).
 float onePoleCoeff (double hz, double sampleRate) noexcept;
 
 /// Complex response of a procedural voice before level normalisation. With bodyOnly, only the
 /// speaker + cabinet part (what the room mic hears) is evaluated.
-std::complex<double> voiceResponse (int cab, int type, float position, float distance,
-                                    double sampleRate, double hz, bool bodyOnly = false) noexcept;
+std::complex<double> voiceResponse (int cab, int type, const MicPose& pose, double sampleRate,
+                                    double hz, bool bodyOnly = false) noexcept;
 
-/// Gains that bring every procedural (cab, mic) voice, measured at position 0.5 and distance 0, to
-/// a loudness index of 0 dB (see loudnessIndexDb). Non-real-time.
+/// The pose every procedural voice is normalised at: position 0.5 at mic A's default 2 o'clock,
+/// on the grille, on axis.
+MicPose referencePose() noexcept;
+
+/// Gains that bring every procedural (cab, mic) voice, measured at the reference pose, to a
+/// loudness index of 0 dB (see loudnessIndexDb). Non-real-time.
 struct Calibration
 {
     std::array<std::array<float, 10>, 3> voice {};

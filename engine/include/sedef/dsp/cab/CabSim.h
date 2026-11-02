@@ -30,9 +30,14 @@ public:
         bool enabled = true;
         int type = 0;          ///< 0..10, 10 = custom IR for this (mic, cab) slot
         float position = 0.5f; ///< 0 = cone centre (bright), 1 = cone edge (dark)
-        float distance = 0.0f; ///< 0 = on the grille, 1 = far (less proximity, more room)
-        float levelDb = 0.0f;  ///< -40..+6
-        float pan = 0.0f;      ///< -1 (left) .. +1 (right)
+        /// Where around the cone, in degrees clockwise from 12 o'clock as you face the cab.
+        /// The miked speaker is the left one of the 2x12 and the bottom-left one of the 4x12, so
+        /// this decides how close the mic sits to the other speakers and to the floor.
+        float azimuthDeg = 60.0f;
+        float distance = 0.0f;   ///< 0 = on the grille, 1 = far (less proximity, more room)
+        float offAxisDeg = 0.0f; ///< capsule tilt towards the dust cap, 0..60 degrees
+        float levelDb = 0.0f;    ///< -40..+6
+        float pan = 0.0f;        ///< -1 (left) .. +1 (right)
         bool invertPolarity = false;
         bool roomEnabled = false;
         float roomLevelDb = -6.0f;
@@ -41,7 +46,9 @@ public:
     struct Settings
     {
         int cab = 0; ///< 0..2
-        std::array<MicSettings, kNumMics> mics;
+        /// Mic A at 2 o'clock and mic B at 4 o'clock, as in the parameter schema.
+        std::array<MicSettings, kNumMics> mics { MicSettings {},
+                                                 MicSettings { .azimuthDeg = 120.0f } };
     };
 
     CabSim();

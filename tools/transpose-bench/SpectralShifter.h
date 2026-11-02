@@ -44,8 +44,6 @@ public:
     /// Pitch ratio (output / input frequency). Changes glide over Config::glideMs.
     void setRatio (double ratio, bool glide = true) noexcept;
     int latencySamples() const noexcept;
-    /// Feeds input without computing output (cheap); keeps the history current while unused.
-    void push (const float* in, int n) noexcept;
     /// In place.
     void process (float* io, int n) noexcept;
 

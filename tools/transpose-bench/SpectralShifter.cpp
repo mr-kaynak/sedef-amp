@@ -385,13 +385,6 @@ struct SpectralShifter::Impl
         }
     }
 
-    void push (const float* x, int n) noexcept
-    {
-        for (int i = 0; i < n; ++i)
-            input[pos++ & inMask] = x[i];
-        hopCount = 0;
-    }
-
     void process (float* io, int n) noexcept
     {
         for (int i = 0; i < n; ++i)
@@ -433,11 +426,6 @@ void SpectralShifter::setRatio (double ratio, bool glide) noexcept
 int SpectralShifter::latencySamples() const noexcept
 {
     return impl_->latency;
-}
-
-void SpectralShifter::push (const float* in, int n) noexcept
-{
-    impl_->push (in, n);
 }
 
 void SpectralShifter::process (float* io, int n) noexcept

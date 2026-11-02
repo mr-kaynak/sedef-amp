@@ -4,10 +4,17 @@
 // docs/dsp/transpose.md ("Quality bars") against an ideal synthesised reference.
 //
 //   sedef-transpose-bench [--candidates wsola,engine,...] [--shifts -1,-2,-5,-12,12]
-//                         [--rate 48000] [--block 64] [--no-cpu] [--wav DIR]
+//                         [--rate 48000] [--block 64] [--no-cpu] [--wav DIR] [--listen DIR]
 //
-// Candidates: wsola (the 0.2.0 shifter), engine (this build's dsp::PitchShifter), and, when built
-// with SEDEF_TRANSPOSE_BENCH_STRETCH, stretch-<blockMs>-<intervalMs> (Signalsmith Stretch, MIT).
+// Candidates:
+//   wsola[:jump=ms][:fade=ms][:search=ms]  the 0.2.0 shifter, optionally retuned
+//   engine                                 this build's dsp::PitchShifter
+//   pv[:a=ms][:s=ms][:o=n][:sym=1][:nb=n][:tr=0][:clip=0][:floor=dB][:oc=x][:or=x]
+//                                          the phase-vocoder candidate (SpectralShifter.h)
+//   stretch-<blockMs>-<intervalMs>         Signalsmith Stretch (MIT), when built with
+//                                          -DSEDEF_TRANSPOSE_BENCH_STRETCH=ON
+// --wav writes each candidate's output for the test signals; --listen writes musical DI
+// (strum, riff, line) as input, ideal and candidates, aligned to the input, and exits.
 
 #include "LegacyWsola.h"
 #include "SpectralShifter.h"

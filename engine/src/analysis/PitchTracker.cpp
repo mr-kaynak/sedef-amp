@@ -40,6 +40,7 @@ constexpr double kPitchChangeCents = 50.0;
 constexpr double kValidAgreementCents = 50.0;
 constexpr int kHoldHops = 3;             ///< bridge single failed detections
 constexpr double kHumMaxLevelDb = -40.0; ///< quieter mains-frequency pitches are taken as hum
+constexpr double kDisplayClarity = 0.5;  ///< per display detection (mixtures included)
 
 double centsBetween (double hz, double refHz) noexcept
 {
@@ -75,6 +76,8 @@ void PitchTracker::prepare (double inputSampleRate)
     dcBlock_ = { dc.b0, dc.b1, dc.b2, dc.a1, dc.a2 };
 
     detector_.prepare (rate_, kMinHz, kMaxHz);
+    display_.prepare (hop_ / rate_);
+    display_.setReferenceHz (referenceHz_);
     history_.assign (2 * static_cast<size_t> (detector_.windowSize()), 0.0f);
     const auto spanHops = static_cast<size_t> (std::ceil (kStableSpanSeconds * rate_ / hop_));
     settled_.assign (spanHops + 4, Settled {});
@@ -97,6 +100,7 @@ void PitchTracker::reset()
     std::fill (std::begin (fluxHops_), std::end (fluxHops_), 0.0);
     hopCount_ = 0;
     gateOpen_ = false;
+    display_.reset();
     startSegment (0, false);
     // The onset counter keeps counting so a UI comparing ids never mistakes a new pluck for an old.
     latest_ = Reading {};
@@ -191,6 +195,7 @@ void PitchTracker::startSegment (std::int64_t start, bool countOnset)
     settledCount_ = settledHead_ = 0;
     settledRefHz_ = 0.0;
     stableCount_ = 0;
+    displayAnchor_ = segmentStart_;
 
     latest_.valid = latest_.stable = false;
     latest_.stableHz = latest_.stableStdCents = 0.0f;
@@ -237,6 +242,8 @@ void PitchTracker::runHop()
     gateOpen_ = gate;
     if (onset)
         startSegment (pos_, true);
+    TunerDisplay::Input display;
+    display.onset = onset;
 
     Reading r = latest_;
     r.levelDb = static_cast<float> (levelDb);
@@ -245,6 +252,7 @@ void PitchTracker::runHop()
     {
         r.valid = r.stable = false;
         r.clarity = 0.0f;
+        updateDisplay (r, display);
         latest_ = r;
         return;
     }
@@ -273,6 +281,7 @@ void PitchTracker::runHop()
             // over the median. It only counts as a pluck when clear, so two strings ringing at
             // similar levels cannot raise onsets.
             startSegment (pos_ - 3 * hop_, det.clarity >= kSettledClarity);
+            display.pitchChange = !display.onset;
             r = latest_;
             r.levelDb = static_cast<float> (levelDb);
             recent_[0] = hz;
@@ -296,11 +305,17 @@ void PitchTracker::runHop()
     // the short reading window cannot. The skip also grows to half the time since the onset, which
     // keeps the tail of a slow attack glide out whatever its time constant.
     const auto settledStart = std::max (settleFrom_, segmentStart_ + (pos_ - segmentStart_) / 2);
+    const auto framesSince = [&] (std::int64_t start) {
+        return static_cast<int> (
+            std::min<std::int64_t> ({ pos_ - start, detector_.windowSize(), historyFill_ }));
+    };
+    PitchDetector::Result precise;
+    bool havePrecise = false;
     if (r.valid && pos_ - settledStart >= windowFor (segmentHz_))
     {
-        const int np = static_cast<int> (
-            std::min<std::int64_t> ({ pos_ - settledStart, detector_.windowSize(), historyFill_ }));
-        const auto precise = detector_.detect (history_.data() + historyFill_ - np, np);
+        const int np = framesSince (settledStart);
+        precise = detector_.detect (history_.data() + historyFill_ - np, np);
+        havePrecise = true;
         if (precise.valid && precise.clarity >= kSettledClarity &&
             std::abs (centsBetween (precise.frequencyHz, segmentHz_)) <= kSettleToleranceCents)
         {
@@ -356,7 +371,42 @@ void PitchTracker::runHop()
     }
     r.stableCount = stableCount_;
     r.stable = r.valid && full && quiet;
+
+    // Display: the same long window, but starting no earlier than the last move of the pitch, so
+    // it is precise while the pitch holds and follows a turning peg. Until the peg moves it is the
+    // settled window and its detection is reused.
+    display.readingValid = r.valid;
+    display.readingHz = med;
+    const auto displayStart = std::max (settledStart, displayAnchor_);
+    if (r.valid && pos_ - displayStart >= windowFor (segmentHz_))
+    {
+        const int nd = framesSince (displayStart);
+        const auto d = havePrecise && nd == framesSince (settledStart)
+                           ? precise
+                           : detector_.detect (history_.data() + historyFill_ - nd, nd);
+        if (d.valid && d.clarity >= kDisplayClarity &&
+            std::abs (centsBetween (d.frequencyHz, segmentHz_)) <= kSettleToleranceCents)
+        {
+            display.preciseValid = true;
+            display.preciseHz = d.frequencyHz;
+            display.preciseSeconds = nd / rate_;
+        }
+    }
+    updateDisplay (r, display);
     latest_ = r;
+}
+
+void PitchTracker::updateDisplay (Reading& r, TunerDisplay::Input in)
+{
+    if (display_.update (in))
+        displayAnchor_ = pos_;
+    const auto& d = display_.output();
+    r.displayValid = d.valid;
+    r.displayHeld = d.held;
+    r.displaySettled = d.settled;
+    r.displayHz = static_cast<float> (d.hz);
+    r.displayNote = d.note;
+    r.displayCents = static_cast<float> (d.cents);
 }
 
 void PitchTracker::toNote (float hz, float a4Hz, int& midiNote, float& cents) noexcept

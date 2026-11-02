@@ -55,6 +55,8 @@ export function formatValue(spec: ParamSpec, value: number): string {
   switch (spec.unit) {
     case 'dB':
       return `${signed(value, 1)} dB`;
+    case 'dBu':
+      return `${signed(value, 1)} dBu`;
     case 'Hz':
       return formatHz(value);
     case 'ms':

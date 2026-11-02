@@ -302,7 +302,10 @@ TEST_CASE ("Doubler leaves the played part untouched", "[timefx][doubler]")
         d.setSettings ({ 9.0f, 1.0f, 1.0f, mix });
         std::vector<size_t> onsets;
         Buffer b (2, static_cast<int> (kFs * 3.0));
-        b[0] = noteBursts (kFs, 3.0, onsets);
+        // Copy into the channel's own storage: assigning the returned vector would free the
+        // memory the buffer's view still points to.
+        const auto notes = noteBursts (kFs, 3.0, onsets);
+        std::copy (notes.begin(), notes.end(), b[0].begin());
         fillNoise (b[1], 0.2f, 8);
         const auto dryL = b[0];
         const auto dryR = b[1];

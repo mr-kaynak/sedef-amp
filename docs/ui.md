@@ -145,7 +145,7 @@ validates everything, because state may come from an older build.
 
 ## The mock backend
 
-`MockBackend` holds values for all 137 parameters (from `src/generated/parameters.json`), the real
+`MockBackend` holds values for all 140 parameters (from `src/generated/parameters.json`), the real
 factory presets (`presets/factory/*.sedefpreset`, bundled at build time with `import.meta.glob`)
 plus one user preset, IR slots, UI state (in `localStorage` when running in a browser), tap tempo,
 and simulators. Preset handling mirrors `plugin/src/PresetManager.cpp`: ids are
@@ -189,14 +189,14 @@ browser the canvas fits the window. Everything is vector or text, so it stays cr
 
 | Screen     | Notes                                                                                                                                                                                                                            |
 | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Header     | logo, preset bar (prev/next, category chip, name with dirty dot, A/B with copy, Save), input/output gain with peak meters and clip latches, Tuner, Intonation, Metronome (standalone only), Settings                             |
+| Header     | logo, preset bar (prev/next, category chip, name with dirty dot, A/B with copy, Save), input/output gain with peak meters, clip latches and the Doubler switch, Tuner, Intonation, Metronome (standalone only), Settings         |
 | Presets    | browser over the rig ([details](ui/presets.md)): rail, list with tag chips and search, detail pane with the chain by stage; click or arrows audition, Enter keeps, Esc goes back exactly; `[` `]` `P` `A` `B`                    |
 | Tabs       | Pedals · Amp · EQ · Cab · FX, keys 1–5 and arrow keys; each tab shows what is switched on inside it                                                                                                                              |
 | Pedals     | Gate (threshold, open/closed lamp), Transpose, Tide/Pearl/Coral/Ripple enclosures with LEDs and footswitches, Tide gain reduction, Ripple rate lamp                                                                              |
 | Amp        | Lagoon/Reef/Abyss faceplates; Reef 3-way voice lever; Abyss bright/shift levers; amp/cab link                                                                                                                                    |
 | EQ         | the current amp's bank: 9 faders on a log axis under a live response curve, low/high cut, on/off, flatten                                                                                                                        |
 | Cab        | cab picker (shows the link), speaker with draggable Mic A/B markers (sideways = position, up/down = distance ring), per-mic type for the current cab, level, pan, phase, room, custom IR load/clear                              |
-| FX         | Drift (heads, Free/Host/Tap sync with tap button, time or note value, the effective time from telemetry, tape controls), Fathom (plate/hall with an envelope sketch), Doubler                                                    |
+| FX         | Drift (heads, Free/Host/Tap sync with tap button, time or note value, effective time, tape controls), Fathom (plate/hall, envelope sketch), Doubler (sketch of the two takes, spread, variation, width, mix)                     |
 | Tuner      | needle + strobe, note and octave, cents, Hz, reference 420–460 Hz, mute; in tune within ±1 cent                                                                                                                                  |
 | Intonation | instrument → measure each string (tune open, capture 12th fret, result with saddle diagram) → summary with copy as text                                                                                                          |
 | Metronome  | play/stop, tempo knob + tap, signature, sound, volume, step grid (off/normal/accent/soft), live beat                                                                                                                             |

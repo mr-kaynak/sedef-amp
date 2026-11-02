@@ -345,8 +345,7 @@ void SedefProcessor::setStateInformation (const void* data, int size)
             // the values it actually applied back into it.
             for (const auto& child : params)
                 if (const auto id = findParam (child.getProperty ("id").toString().toStdString()))
-                    loaded[index (*id)] = { static_cast<double> (child.getProperty ("value")), 0.0f,
-                                            true };
+                    loaded[index (*id)] = { child.getProperty ("value"), 0.0f, true };
 
             // A session saved with a preset switch held on restores it on (hosts and validators
             // expect state to round-trip exactly), but that must not count as a press. Hold the

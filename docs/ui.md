@@ -98,9 +98,9 @@ the page loads) and `MockBackend` otherwise. `@juce-framework/webview` (1.0.0, m
 and warns when the global is missing, which must never happen in a browser.
 
 Startup is one round trip: `sedef_hello(PROTOCOL_VERSION)` returns the schema, values, presets,
-IR slots, saved UI state and session facts. A protocol mismatch shows a banner but keeps going.
-After that the UI listens to `sedef:params`, `sedef:telemetry`, `sedef:pitch`, `sedef:presets`
-and `sedef:ir`.
+IR slots, the capture, saved UI state and session facts. A protocol mismatch shows a banner but
+keeps going. After that the UI listens to `sedef:params`, `sedef:telemetry`, `sedef:pitch`,
+`sedef:presets`, `sedef:ir` and `sedef:capture`.
 
 ### Parameter flow
 
@@ -193,7 +193,7 @@ browser the canvas fits the window. Everything is vector or text, so it stays cr
 | Presets    | browser over the rig ([details](ui/presets.md)): rail, list with tag chips and search, detail pane with the chain by stage; click or arrows audition, Enter keeps, Esc goes back exactly; `[` `]` `P` `A` `B`                    |
 | Tabs       | Pedals · Amp · EQ · Cab · FX, keys 1–5 and arrow keys; each tab shows what is switched on inside it                                                                                                                              |
 | Pedals     | Gate (threshold, open/closed lamp), Transpose, Tide/Pearl/Coral/Ripple enclosures with LEDs and footswitches, Tide gain reduction, Ripple rate lamp                                                                              |
-| Amp        | Lagoon/Reef/Abyss faceplates; Reef 3-way voice lever; Abyss bright/shift levers; amp/cab link                                                                                                                                    |
+| Amp        | Lagoon/Reef/Abyss faceplates; Reef voice lever; Abyss bright/shift levers; amp/cab link; Capture: load or drop a .nam file, gear/author/model, trims, through-cab, interface level, recent, missing file                         |
 | EQ         | the current amp's bank: 9 faders on a log axis under a live response curve, low/high cut, on/off, flatten                                                                                                                        |
 | Cab        | cab picker (shows the link), speaker with draggable Mic A/B markers (sideways = position, up/down = distance ring), per-mic type for the current cab, level, pan, phase, room, custom IR load/clear                              |
 | FX         | Drift (heads, Free/Host/Tap sync with tap button, time or note value, the effective time from telemetry, tape controls), Fathom (plate/hall with an envelope sketch), Doubler                                                    |

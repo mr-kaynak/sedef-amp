@@ -75,7 +75,7 @@ plugin (it ships a mock backend for browser development).
 | Audio (host) | `Engine::process` | allocate, lock, wait, log, throw |
 | Message (JUCE) | parameters, presets, WebView bridge, file dialogs | block on audio |
 | Analysis (ours) | pitch detection for tuner and intonation | touch engine state |
-| Loader (ours) | IR file decoding, resampling, FFT partitioning | touch engine state |
+| Loader (ours) | IR file decoding, resampling, FFT partitioning; .nam capture validation, building and level measurement | touch engine state |
 | Updates (ours) | update check and installer download ([updates.md](updates.md)) | touch engine or plugin state |
 
 Communication:
@@ -89,7 +89,7 @@ Communication:
   lock-free SPSC ring (`core/SpscRing.h`). The analysis thread drains it.
 - **Audio → UI telemetry:** meters, gain reduction, gate state are atomics in
   `Engine::Telemetry`, sampled by a 30 Hz timer on the message thread.
-- **Heavy objects → audio (IRs):** built on the loader thread, published through
+- **Heavy objects → audio (IRs, captures):** built on the loader thread, published through
   `core/RtHandoff.h` (atomic pointer swap; the old object is reclaimed on the
   message thread, never freed on the audio thread).
 
@@ -191,6 +191,7 @@ The EQ bank always follows the amp.
 | Lagoon | Clean amp, glassy and wide | two triode stages, FMV tone stack |
 | Reef | Crunch amp, three voicings | cascaded stages, Marshall-style stack |
 | Abyss | High-gain lead amp, bright and shift switches | four stages, shifted mid |
+| Capture | A Neural Amp Modeler (.nam) file in place of the amp | NeuralAmpModelerCore, rate conversion, levelled to the amps ([nam.md](dsp/nam.md)) |
 | Cab | Procedural speaker + cabinet + mic models, or user IR | two mics + room per cab |
 | EQ | 9 bands (65 Hz–16 kHz, ±12 dB) + low/high cut | one bank per amp |
 | Drift | Multi-head tape echo, wow/flutter, tape drive | host/tap/free sync |
@@ -267,4 +268,5 @@ running through the same cab/EQ/FX chain.
 
 At 48 kHz, 64-sample blocks, Apple M1: full rig (Abyss, 2 mics + room, Drift,
 Fathom hall, Ripple) under 8% of one core. Mono-only modes must not pay for
-stereo processing.
+stereo processing. A capture replaces the amp's share with its own: a standard
+WaveNet capture takes about 10% of an M2 core by itself ([nam.md](dsp/nam.md)).

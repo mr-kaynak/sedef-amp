@@ -6,6 +6,26 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Captures:** Neural Amp Modeler (`.nam`) files play in place of the amp. Pick Capture next to
+  Lagoon, Reef and Abyss, then load a file or drop one on the panel; the last twelve are a click
+  away. WaveNet (including the 0.6/0.7 additions), LSTM, ConvNet and Linear captures load, at any
+  host rate (Sedef converts to the capture's own rate). Every capture is levelled to the built-in
+  amps; input and output trims, "Through cab" (off by default for full-rig captures) and, for
+  captures that record it, the interface level (a rig setting, not stored in presets). Switching
+  and replacing crossfade. Sessions store the capture itself, so they play the same anywhere;
+  presets keep a reference, and a missing file is named with a way to find it
+  ([docs/dsp/nam.md](docs/dsp/nam.md)).
+- New parameters: `ampSource`, `captureInput`, `captureOutput`, `captureCab`,
+  `captureInterfaceLevel`.
+- `sedef-render --capture FILE.nam` renders through a capture.
+
+### Changed
+
+- At 88.2 kHz and above the plug-in's latency rises by 0.4–0.74 ms, so a capture and the built-in
+  amps share one latency.
+
 ## [0.2.0] - 2026-11-01
 
 A preset browser you can audition from, an intonation workbench that works with a real guitar,

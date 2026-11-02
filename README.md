@@ -25,6 +25,7 @@ around them.
 |---|---|
 | **Pedals** | **Tide** compressor (3:1, tilt EQ, parallel blend) · **Pearl** transparent overdrive with mid boost · **Coral** distortion · **Ripple** tremolo / chorus / vibrato · noise gate · ±12 semitone polyphonic transpose |
 | **Amps** | **Lagoon** — glassy, wide clean · **Reef** — British crunch with three voicings · **Abyss** — tight, saturated lead with bright and mid-shift switches |
+| **Captures** | load any Neural Amp Modeler (`.nam`) capture of a real amp or full rig in place of the amps, levelled to match them |
 | **Cabs** | 1x12 open, 2x12 open, 4x12 closed · two mics per cab from ten mic models, freely placed on the cone · room mics · load your own IRs |
 | **EQ** | 9-band graphic EQ with low/high cut, one bank per amp |
 | **Post** | **Drift** multi-head tape echo with wow, flutter and tape saturation · **Fathom** plate and hall reverbs · double-tracking **Doubler** |
@@ -45,6 +46,18 @@ save your own with a category, tags and a note, and never lose edits: loads and 
 Undo. See [docs/ui/presets.md](docs/ui/presets.md) for the design.
 
 <img src="docs/images/presets.png" alt="Preset browser with library, categories, tags and rows showing each preset's amp and signal chain" width="100%">
+
+## Captures
+
+Pick **Capture** next to the three amps and load a Neural Amp Modeler file, or drop one on the
+panel. Sedef levels it to sit with the built-in amps, shows what it is (the gear, who captured it,
+the model), and turns its own cab off when the file says it's a full rig. Input and output trims
+set how hard you hit it; if the capture records its interface level, set yours once in the panel
+and it responds as the real amp did. Sessions keep the capture itself, so a project opens with the
+same sound on another computer; presets keep a reference to the file. Sedef ships no captures:
+find thousands on [TONE3000](https://www.tone3000.com). See [docs/dsp/nam.md](docs/dsp/nam.md).
+
+<img src="docs/images/capture.png" alt="A NAM capture loaded in the amp section, with its gear, author and model, input and output trims and the cab switch" width="100%">
 
 ## The intonation workbench
 

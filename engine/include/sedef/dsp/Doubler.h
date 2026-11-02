@@ -94,13 +94,20 @@ private:
     float hfGain_ = 1.0f, hfTarget_ = 1.0f, hfStep_ = 0.0f;
     float level_ = 1.0f, levelTarget_ = 1.0f, levelStep_ = 0.0f;
     int rampLeft_ = 0;
-    Biquad soften_;
+    // The double is softened (one-pole low-pass) and lifted 1 dB.
+    float softenCoeff_ = 0.0f, softenGain_ = 1.0f, soften_ = 0.0f;
+    bool primed_ = false; ///< the one-poles start from the first sample, not from zero
 
     // Micro pitch wander of the take; evaluated per control tick and interpolated in between.
     SmoothRandom wander_;
     float wanderMod_ = 0.0f, wanderStep_ = 0.0f, wanderSamples_ = 0.0f;
     float slopeCoeff_ = 0.0f;
     int tickCountdown_ = 0;
+
+    // After a reset the delay line holds silence. Until it has filled past the take's offset the
+    // take is the undelayed input, then it fades over, so switching on mid-note cannot step.
+    int filled_ = 0;
+    float warm_ = 0.0f, warmStep_ = 0.0f;
 
     // Width (constant-power pan of the two takes) and the dry/wet mix.
     LinearSmoothed panNear_, panFar_, mix_;

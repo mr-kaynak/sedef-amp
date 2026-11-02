@@ -60,6 +60,7 @@ constexpr double kMaxFadeSeconds = 6.0e-3;
 constexpr double kMinFadeSeconds = 1.5e-3;
 constexpr double kMinMoveSeconds = 0.25e-3;
 
+constexpr double kWarmSeconds = 0.01;
 constexpr double kGlideSeconds = 0.12;
 constexpr double kSmoothSeconds = 0.03;
 constexpr double kSoftenHz = 7500.0;
@@ -100,12 +101,11 @@ void Doubler::prepare (const ProcessSpec& spec)
     toneCoeff_ = static_cast<float> (1.0 - std::exp (-kTwoPiD * kToneSplitHz / fs));
     slopeCoeff_ = static_cast<float> (1.0 - std::exp (-kControlBlock / (kSlopeSeconds * fs)));
 
-    auto c = design::lowpass1 (fs, std::min (kSoftenHz, 0.45 * fs));
-    const float g = dbToGain (kDoubleGainDb);
-    c.b0 *= g;
-    c.b1 *= g;
-    soften_.setCoeffs (c);
+    softenCoeff_ =
+        static_cast<float> (1.0 - std::exp (-kTwoPiD * std::min (kSoftenHz, 0.45 * fs) / fs));
+    softenGain_ = dbToGain (kDoubleGainDb);
 
+    warmStep_ = static_cast<float> (1.0 / (kWarmSeconds * fs));
     panNear_.reset (fs, kSmoothSeconds);
     panFar_.reset (fs, kSmoothSeconds);
     mix_.reset (fs, kSmoothSeconds);
@@ -117,7 +117,8 @@ void Doubler::reset() noexcept
 {
     line_.reset();
     detectorHp_.reset();
-    soften_.reset();
+    soften_ = 0.0f;
+    primed_ = false;
     for (auto& v : voices_)
         v = Voice { 1.0f, 0.0f, 0.0f, 0.0f, minDriftLimit_ };
     active_ = 0;
@@ -138,6 +139,8 @@ void Doubler::reset() noexcept
     tickCountdown_ = 0;
     source_ = nullptr;
     lead_ = 0.0f;
+    filled_ = 0;
+    warm_ = 0.0f;
     snapNext_ = true;
 }
 
@@ -285,14 +288,32 @@ void Doubler::processSamples (float* left, float* right, const float* source, in
                 fadePos_ = fadeLength_ = 0;
             }
         }
+        if (warm_ < 1.0f)
+        {
+            const Voice& v = voices_[static_cast<size_t> (active_)];
+            if (static_cast<float> (filled_) > voiceDelay (v) + 4.0f)
+                warm_ = std::min (1.0f, warm_ + warmStep_);
+            else
+                ++filled_;
+            take = r + warm_ * (take - r);
+        }
         if (rampLeft_ > 0)
         {
             hfGain_ = --rampLeft_ > 0 ? hfGain_ + hfStep_ : hfTarget_;
             level_ = rampLeft_ > 0 ? level_ + levelStep_ : levelTarget_;
         }
+        if (!primed_)
+        {
+            // Start the filters settled on the first sample: zero state under a note that is
+            // already sounding would step.
+            toneLp_ = take;
+            soften_ = softenGain_ * take;
+            primed_ = true;
+        }
         toneLp_ += toneCoeff_ * (take - toneLp_);
         const float shaped = level_ * (toneLp_ + hfGain_ * (take - toneLp_));
-        const float dbl = soften_.processSample (0, shaped);
+        soften_ += softenCoeff_ * (softenGain_ * shaped - soften_);
+        const float dbl = soften_;
 
         const float near = panNear_.next(), far = panFar_.next(), mix = mix_.next();
         left[i] = l + mix * (near * l + far * dbl - l);
@@ -302,13 +323,13 @@ void Doubler::processSamples (float* left, float* right, const float* source, in
 
 void Doubler::process (const AudioView& io) noexcept
 {
-    // Doubling is a stereo effect; a mono stream passes untouched (the engine folds to mono after
-    // the post chain anyway, where the double would only comb-filter).
     // The onset source applies to this call only.
     const float* source = source_;
     source_ = nullptr;
     if (source == nullptr)
         lead_ = 0.0f;
+    // Doubling is a stereo effect; a mono stream passes untouched (the engine folds to mono after
+    // the post chain anyway, where the double would only comb-filter).
     if (io.numChannels() < 2)
         return;
     float* left = io.channel (0);
@@ -332,7 +353,7 @@ void Doubler::process (const AudioView& io) noexcept
     slow_ = flushToZero (slow_);
     toneLp_ = flushToZero (toneLp_);
     detectorHp_.snapToZero();
-    soften_.snapToZero();
+    soften_ = flushToZero (soften_);
 }
 
 } // namespace sedef::dsp

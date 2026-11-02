@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 #include "TimeFxTestUtils.h"
 #include "sedef/Engine.h"
+#include "sedef/core/BypassFader.h"
 #include "sedef/dsp/Doubler.h"
 
 #include <catch2/catch_approx.hpp>
@@ -542,6 +543,47 @@ TEST_CASE ("Doubler re-timing is click-free on a held tone", "[timefx][doubler]"
         CHECK (d.retimedNotes() > 8);
         CHECK (maxSecondDifference (b[1], 4800) < 2.0e-3f);
         CHECK (hfShareDb (b[1], 4800) < -80.0);
+    }
+}
+
+TEST_CASE ("Doubler switched on mid-note does not step", "[timefx][doubler]")
+{
+    // The engine's slot resets the Doubler when it comes out of bypass and fades it in over
+    // 10 ms, so the delay line restarts from silence under a note that is already sounding. The
+    // take starts as the undelayed input and fades over once the line has filled; reading the
+    // empty line would step by the full tone, half-way through the slot's fade.
+    for (float spread : { 3.0f, 20.0f })
+    {
+        Doubler d;
+        d.prepare ({ kFs, 512, 2 });
+        BypassFader fader;
+        fader.prepare (kFs);
+        fader.snap (false);
+        Buffer b (2, static_cast<int> (kFs * 2.0));
+        fillSine (b[0], 220.0, kFs, 0.5f);
+        b[1] = b[0];
+        Buffer dry (2, 64);
+        forEachBlock (b.view(), 64, [&] (AudioView v, int start) {
+            if (start == 48000) // switched on after a second, the way StereoSlot does it
+            {
+                fader.setEnabled (true);
+                d.setSettings ({ spread, 1.0f });
+                d.reset();
+                d.setSettings ({ spread, 1.0f });
+            }
+            if (fader.isFullyBypassed())
+                return;
+            const AudioView dryView = dry.view().subView (0, v.numFrames());
+            dryView.copyFrom (v);
+            d.process (v);
+            if (!fader.isFullyActive())
+                fader.mix (dryView, v);
+        });
+        // From 50 ms in: the sine's own start (and the high-pass settling on it) is not the test.
+        INFO ("spread " << spread << " max second difference " << maxSecondDifference (b[1], 2)
+                        << " energy above 3 kHz " << hfShareDb (b[1], 2400) << " dB");
+        CHECK (maxSecondDifference (b[1], 2) < 2.0e-3f);
+        CHECK (hfShareDb (b[1], 2400) < -80.0);
     }
 }
 

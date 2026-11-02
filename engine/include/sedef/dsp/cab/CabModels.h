@@ -3,6 +3,7 @@
 
 #include "sedef/core/Biquad.h"
 
+#include <algorithm>
 #include <array>
 #include <complex>
 #include <cstdint>
@@ -73,58 +74,70 @@ inline void runStage (Stage& st, float* buf, int n) noexcept
     st.s2 = s2;
 }
 
-/// Four static stages in one pass. Each stage's recursion is latency-bound; interleaving four
-/// lets the CPU overlap them (stage k at sample n+1 runs alongside stage k+1 at sample n).
-inline void runFourStages (Stage* st, float* buf, int n) noexcept
+/// N static stages in one pass. Each stage's recursion is latency-bound; interleaving them lets
+/// the CPU overlap them (stage k at sample n+1 runs alongside stage k+1 at sample n).
+template <int N>
+inline void runFused (Stage* st, float* buf, int n) noexcept
 {
-    const BiquadCoeffs c0 = st[0].c, c1 = st[1].c, c2 = st[2].c, c3 = st[3].c;
-    float a1 = st[0].s1, a2 = st[0].s2, b1 = st[1].s1, b2 = st[1].s2;
-    float d1 = st[2].s1, d2 = st[2].s2, e1 = st[3].s1, e2 = st[3].s2;
+    BiquadCoeffs c[N];
+    float s1[N], s2[N];
+    for (int k = 0; k < N; ++k)
+    {
+        c[k] = st[k].c;
+        s1[k] = st[k].s1;
+        s2[k] = st[k].s2;
+    }
     for (int i = 0; i < n; ++i)
     {
-        const float x0 = buf[i];
-        const float y0 = c0.b0 * x0 + a1;
-        a1 = c0.b1 * x0 - c0.a1 * y0 + a2;
-        a2 = c0.b2 * x0 - c0.a2 * y0;
-        const float y1 = c1.b0 * y0 + b1;
-        b1 = c1.b1 * y0 - c1.a1 * y1 + b2;
-        b2 = c1.b2 * y0 - c1.a2 * y1;
-        const float y2 = c2.b0 * y1 + d1;
-        d1 = c2.b1 * y1 - c2.a1 * y2 + d2;
-        d2 = c2.b2 * y1 - c2.a2 * y2;
-        const float y3 = c3.b0 * y2 + e1;
-        e1 = c3.b1 * y2 - c3.a1 * y3 + e2;
-        e2 = c3.b2 * y2 - c3.a2 * y3;
-        buf[i] = y3;
+        float x = buf[i];
+        for (int k = 0; k < N; ++k)
+        {
+            const float y = c[k].b0 * x + s1[k];
+            s1[k] = c[k].b1 * x - c[k].a1 * y + s2[k];
+            s2[k] = c[k].b2 * x - c[k].a2 * y;
+            x = y;
+        }
+        buf[i] = x;
     }
-    st[0].s1 = a1;
-    st[0].s2 = a2;
-    st[1].s1 = b1;
-    st[1].s2 = b2;
-    st[2].s1 = d1;
-    st[2].s2 = d2;
-    st[3].s1 = e1;
-    st[3].s2 = e2;
+    for (int k = 0; k < N; ++k)
+    {
+        st[k].s1 = s1[k];
+        st[k].s2 = s2[k];
+    }
 }
 } // namespace detail
 
 /// Runs `count` cascaded stages over buf[0..n) in place. Ramping stages interpolate their
-/// coefficients per sample (see Stage::rampTo).
+/// coefficients per sample (see Stage::rampTo); static ones run fused in groups of up to four.
 inline void runStages (Stage* stages, int count, float* buf, int n) noexcept
 {
     int s = 0;
     while (s < count)
     {
-        if (s + 4 <= count &&
-            !(stages[s].ramp || stages[s + 1].ramp || stages[s + 2].ramp || stages[s + 3].ramp))
+        int run = 0;
+        while (s + run < count && !stages[s + run].ramp)
+            ++run;
+        // Five static stages split 3 + 2 rather than leaving a lone one.
+        const int group = run == 5 ? 3 : std::min (run, 4);
+        switch (group)
         {
-            detail::runFourStages (stages + s, buf, n);
-            s += 4;
-        }
-        else
-        {
+        case 0:
+        case 1:
             detail::runStage (stages[s], buf, n);
-            ++s;
+            s += 1;
+            break;
+        case 2:
+            detail::runFused<2> (stages + s, buf, n);
+            s += 2;
+            break;
+        case 3:
+            detail::runFused<3> (stages + s, buf, n);
+            s += 3;
+            break;
+        default:
+            detail::runFused<4> (stages + s, buf, n);
+            s += 4;
+            break;
         }
     }
 }
@@ -150,12 +163,11 @@ BiquadCoeffs designFilter (const FilterSpec& f, double sampleRate) noexcept;
 
 inline constexpr int kMaxBodyStages = 10;
 inline constexpr int kMaxMicStages = 4;
-inline constexpr int kPositionStages = 3;               // presence peak, edge roll-off, edge warmth
-inline constexpr int kNearStages = kPositionStages + 1; // + proximity: the miked cone only
-inline constexpr int kOffAxisStages = 2;                // presence fade, off-axis treble shelf
-inline constexpr int kAirStages = 1;
-inline constexpr int kMaxStages =
-    kMaxBodyStages + kNearStages + kMaxMicStages + kOffAxisStages + kAirStages;
+inline constexpr int kPositionStages = 3; // presence peak, edge roll-off, edge warmth
+/// Position, then proximity and air: what only the miked cone's sound gets.
+inline constexpr int kNearStages = kPositionStages + 2;
+inline constexpr int kOffAxisStages = 2; // presence fade, off-axis treble shelf
+inline constexpr int kMaxStages = kMaxBodyStages + kNearStages + kMaxMicStages + kOffAxisStages;
 inline constexpr int kMaxNeighbours = 3; // the other speakers of a 4x12
 
 /// Speaker + cabinet: the response at the reference mic position, then what moving the mic across

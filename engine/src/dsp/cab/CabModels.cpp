@@ -450,11 +450,12 @@ std::complex<double> voiceResponse (int cabIndex, int type, const MicPose& pose,
     if (bodyOnly)
         return h;
 
-    // The miked cone (position + proximity) plus the other speakers, then the capsule.
+    // The miked cone (position, proximity, air) plus the other speakers, then the capsule.
     const Placement pl = placement (cab, m, pose);
     Stage* near = stages.data() + numBody;
     designPositionStages (cab, pose.position(), fs, near);
     designProximityStage (m, pl, fs, near + kPositionStages);
+    designAirStage (pl, fs, near + kPositionStages + 1);
     std::complex<double> heard = product (near, kNearStages);
     for (int k = 0; k < pl.numBleed; ++k)
     {
@@ -466,8 +467,6 @@ std::complex<double> voiceResponse (int cabIndex, int type, const MicPose& pose,
     int count = designMicStages (m, fs, capsule);
     designOffAxisStages (m, pl, fs, capsule + count);
     count += kOffAxisStages;
-    designAirStage (pl, fs, capsule + count);
-    count += kAirStages;
     heard *= product (capsule, count);
 
     const std::complex<double> direct = std::polar (1.0, -w * pl.arrivalSec * fs);

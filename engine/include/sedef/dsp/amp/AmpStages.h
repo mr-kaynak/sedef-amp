@@ -150,6 +150,81 @@ private:
     std::array<float, kMaxChannels> shift_ {};
 };
 
+/// A triode stage for the hard-driven positions of a high-gain cascade (cold clippers and the
+/// stages after them), with first-order antiderivative anti-aliasing (ADAA).
+///
+/// Same operating point, grid-conduction bias shift and soft positive side as TriodeStage. The
+/// cutoff side uses the same algebraic curve with its own limit, so the whole characteristic is
+/// f(u) = u / r(u), r = sqrt(1 + (u/c)^2), with c = `soft` above zero and `hard` below. Its
+/// antiderivative F(u) = u^2 / (1 + r) is cheap, and ADAA outputs the mean of f over the segment
+/// between successive inputs, (F(u1) - F(u0)) / (u1 - u0), instead of sampling f. For two inputs
+/// on the same side that mean is exactly (u0 + u1) / (r0 + r1): no division by the step, no
+/// cancellation, and the same cost as sampling the curve. The price is half a sample of delay and
+/// a gentle two-tap average (-0.5 dB at 20 kHz at a 192 kHz oversampled rate).
+class AdaaTriodeStage
+{
+public:
+    void configure (const TriodeCurve& c, float shiftDepth, double sampleRate,
+                    double attackMs = 1.5, double releaseMs = 60.0, float conductAt = 0.6f) noexcept
+    {
+        invSoft2_ = 1.0f / (c.soft * c.soft);
+        invHard2_ = 1.0f / (c.hard * c.hard);
+        bias_ = c.bias;
+        restR_ = radius (c.bias);
+        // The rest output exactly as process() computes it, so silence stays exactly silent.
+        offset_ = (c.bias + c.bias) / (restR_ + restR_);
+        threshold_ = c.bias + conductAt;
+        depth_ = shiftDepth;
+        att_ = onePoleIncrement (sampleRate, attackMs);
+        rel_ = onePoleIncrement (sampleRate, releaseMs);
+        reset();
+    }
+
+    void reset() noexcept
+    {
+        shift_ = {};
+        prevU_.fill (bias_);
+        prevR_.fill (restR_);
+    }
+
+    float process (int ch, float x) noexcept
+    {
+        const auto c = static_cast<size_t> (ch);
+        float& sh = shift_[c];
+        const float u = x + bias_ - sh;
+        const float r = radius (u);
+        const float u0 = prevU_[c], r0 = prevR_[c];
+        float y;
+        if ((u >= 0.0f) == (u0 >= 0.0f))
+            y = (u + u0) / (r + r0);
+        else // the segment crosses zero, so |u - u0| = |u| + |u0| > 0
+            y = (u * u / (1.0f + r) - u0 * u0 / (1.0f + r0)) / (u - u0);
+        prevU_[c] = u;
+        prevR_[c] = r;
+        // Grid conduction, as in TriodeStage.
+        const float excess = u > threshold_ ? u - threshold_ : 0.0f;
+        const float target = depth_ * excess / (1.0f + excess);
+        sh += (target > sh ? att_ : rel_) * (target - sh);
+        return y - offset_;
+    }
+
+    void snapToZero() noexcept
+    {
+        for (auto& s : shift_)
+            s = flushToZero (s);
+    }
+
+private:
+    float radius (float u) const noexcept
+    {
+        return std::sqrt (1.0f + u * u * (u >= 0.0f ? invSoft2_ : invHard2_));
+    }
+
+    float invSoft2_ = 1.0f, invHard2_ = 1.0f, bias_ = 0.0f, restR_ = 1.0f, offset_ = 0.0f;
+    float threshold_ = 1.0f, depth_ = 0.0f, att_ = 1.0f, rel_ = 1.0f;
+    std::array<float, kMaxChannels> shift_ {}, prevU_ {}, prevR_ {};
+};
+
 /// Cathode follower driving a tone stack: unity gain until the grid swings above the cathode, then
 /// grid current softly limits the positive side. One-sided, so it adds even harmonics; the tone
 /// stack after it has no DC path, so the offset it creates goes nowhere.

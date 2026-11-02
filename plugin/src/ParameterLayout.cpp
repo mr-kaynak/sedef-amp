@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 #include "ParameterLayout.h"
 
+#include <cmath>
 #include <map>
 
 namespace sedef::plugin
@@ -18,7 +19,13 @@ juce::String formatValue (const ParamSpec& spec, float value, int maxLength)
     else if (unit == "knob")
         text = juce::String (value * 10.0f, 1);
     else if (unit == "dB")
-        text = (value > 0.0f ? "+" : "") + juce::String (value, 1) + " dB";
+    {
+        // Sign and digits from the value as shown, so a hair either side of 0 reads "0.0 dB"
+        // both ways (hosts round-trip text through the normalised value).
+        const float shown = std::round (value * 10.0f) / 10.0f;
+        text = shown == 0.0f ? juce::String ("0.0 dB")
+                             : (shown > 0.0f ? "+" : "") + juce::String (shown, 1) + " dB";
+    }
     else if (unit == "Hz")
         text = value >= 1000.0f ? juce::String (value / 1000.0f, 2) + " kHz"
                                 : juce::String (juce::roundToInt (value)) + " Hz";
@@ -28,7 +35,10 @@ juce::String formatValue (const ParamSpec& spec, float value, int maxLength)
     else if (unit == "s")
         text = juce::String (value, value < 10.0f ? 2 : 1) + " s";
     else if (unit == "st")
-        text = (value > 0.0f ? "+" : "") + juce::String (juce::roundToInt (value)) + " st";
+    {
+        const int shown = juce::roundToInt (value);
+        text = (shown > 0 ? "+" : "") + juce::String (shown) + " st";
+    }
     else if (unit == "%")
         text = juce::String (juce::roundToInt (value)) + "%";
     else if (unit == "bpm")

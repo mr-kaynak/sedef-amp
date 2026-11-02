@@ -128,41 +128,6 @@ TEST_CASE ("Amp voicing report", "[.voicing]")
 
 namespace
 {
-/// Octave-band levels in dB re. the total RMS; each band is two RBJ band-passes in series.
-std::vector<double> octaveBands (const std::vector<float>& v, double fs)
-{
-    std::vector<double> out;
-    const double total = test::rms (v);
-    for (double fc = 63.0; fc < 17000.0; fc *= 2.0)
-    {
-        Biquad a, b;
-        a.setCoeffs (design::bandpass (fs, fc, 1.41));
-        b.setCoeffs (design::bandpass (fs, fc, 1.41));
-        auto x = v;
-        for (auto& s : x)
-            s = b.processSample (0, a.processSample (0, s));
-        out.push_back (20.0 *
-                       std::log10 (std::max (1e-12, static_cast<double> (test::rms (x)) / total)));
-    }
-    return out;
-}
-
-/// A rough guitar-cab stand-in (4x12-ish): 2nd-order high-pass at 80 Hz, resonance bump, and a
-/// 4th-order roll-off above 5 kHz with a presence peak.
-void roughCab (std::vector<float>& v, double fs)
-{
-    Biquad hp, bump, pres, lp1, lp2;
-    hp.setCoeffs (design::highpass (fs, 80.0, 0.8));
-    bump.setCoeffs (design::peaking (fs, 110.0, 1.2, 4.0));
-    pres.setCoeffs (design::peaking (fs, 2500.0, 1.0, 3.0));
-    lp1.setCoeffs (design::lowpass (fs, 5000.0, 0.8));
-    lp2.setCoeffs (design::lowpass (fs, 5000.0, 0.6));
-    for (auto& s : v)
-        s = lp2.processSample (
-            0, lp1.processSample (
-                   0, pres.processSample (0, bump.processSample (0, hp.processSample (0, s)))));
-}
-
 void printBands (const char* label, const std::vector<double>& b)
 {
     std::printf ("%-14s", label);
@@ -180,16 +145,16 @@ TEST_CASE ("Amp tone and dynamics report", "[.voicing]")
     for (double fc = 63.0; fc < 17000.0; fc *= 2.0)
         std::printf ("%6.0f", fc);
     std::printf ("\n");
-    printBands ("DI", octaveBands (in, fs));
+    printBands ("DI", test::octaveBands (in, fs));
     for (int m = 0; m < 3; ++m)
     {
         AmpSection amp;
         test::prepareAmp (amp, defaults (m), fs);
         auto v = in;
         test::runAmp (amp, v);
-        printBands (kNames[m], octaveBands (v, fs));
-        roughCab (v, fs);
-        printBands ((std::string (kNames[m]) + "+cab").c_str(), octaveBands (v, fs));
+        printBands (kNames[m], test::octaveBands (v, fs));
+        test::roughCab (v, fs);
+        printBands ((std::string (kNames[m]) + "+cab").c_str(), test::octaveBands (v, fs));
     }
 
     std::printf (
@@ -229,7 +194,7 @@ TEST_CASE ("Amp switch and knob report", "[.voicing]")
         auto v = in;
         test::runAmp (amp, v);
         std::printf ("[%5.1f dBFS] ", test::dbfs (test::rms (v, static_cast<size_t> (fs * 0.5))));
-        return octaveBands (v, fs);
+        return test::octaveBands (v, fs);
     };
     std::printf ("\nbands (Hz)                 ");
     for (double fc = 63.0; fc < 17000.0; fc *= 2.0)
@@ -277,38 +242,23 @@ TEST_CASE ("Amp switch and knob report", "[.voicing]")
 
 TEST_CASE ("Amp aliasing report", "[.voicing]")
 {
-    // Largest non-harmonic component (dB re. fundamental) for a high sine at full gain: anything
-    // there is aliasing (the models are noise-free).
+    // Largest image of a harmonic (dB re. fundamental) for a high sine at full gain, at full and
+    // at the default master (test::worstAliasDb; the models are noise-free).
     const double fs = 48000.0;
     for (int m = 0; m < 3; ++m)
-        for (double f0 : { 1234.5, 2717.0, 4321.0 })
-        {
-            auto s = defaults (m);
-            s.lagoon.volume = s.lagoon.master = 1.0f;
-            s.reef.gain = s.abyss.gain = 1.0f;
-            s.reef.master = s.abyss.master = 1.0f;
-            AmpSection amp;
-            test::prepareAmp (amp, s, fs);
-            std::vector<float> v (static_cast<size_t> (fs * 2.0));
-            test::fillSine (v, f0, fs, 0.25f);
-            test::runAmp (amp, v);
-            const int n = 65536;
-            const float* d = v.data() + v.size() - n;
-            const double fund = test::toneMagnitude (d, n, f0, fs);
-            double worst = 0.0, worstHz = 0.0;
-            for (double f = 50.0; f < 20000.0; f += 7.0)
+        for (float master : { 1.0f, 0.5f })
+            for (double f0 : { 1234.5, 2717.0, 4321.0 })
             {
-                const double k = std::round (f / f0);
-                if (std::abs (f - k * f0) < 40.0)
-                    continue; // harmonic (or DC) neighbourhood
-                const double mag = test::toneMagnitude (d, n, f, fs);
-                if (mag > worst)
-                {
-                    worst = mag;
-                    worstHz = f;
-                }
+                auto s = defaults (m);
+                s.lagoon.volume = 1.0f;
+                s.reef.gain = s.abyss.gain = 1.0f;
+                s.lagoon.master = s.reef.master = s.abyss.master = master;
+                AmpSection amp;
+                test::prepareAmp (amp, s, fs);
+                std::vector<float> v (static_cast<size_t> (fs * 2.0));
+                test::fillSine (v, f0, fs, 0.25f);
+                test::runAmp (amp, v);
+                std::printf ("%-7s master %.1f f0 %6.1f Hz: worst alias %6.1f dB\n", kNames[m],
+                             static_cast<double> (master), f0, test::worstAliasDb (v, f0, fs));
             }
-            std::printf ("%-7s f0 %6.1f Hz: worst alias %6.1f dB at %5.0f Hz\n", kNames[m], f0,
-                         20.0 * std::log10 (worst / fund), worstHz);
-        }
 }

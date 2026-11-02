@@ -31,6 +31,12 @@ All notable changes to this project are documented here. The format follows
   their level.
 - With a custom IR, the Position and Distance knobs are disabled: the IR holds its own placement.
 
+### Fixed
+
+- A host's parameter text now reads back as the same text. A level a hair above 0 dB used to show
+  "+0.0 dB" and come back as "0.0 dB", and values next to a unit switch (999.6 Hz, 99.96 ms) did
+  the same. Durations from 100 ms up show whole milliseconds.
+
 ## [0.2.0] - 2026-11-01
 
 A preset browser you can audition from, an intonation workbench that works with a real guitar,

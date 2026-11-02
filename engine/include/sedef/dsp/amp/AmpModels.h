@@ -164,7 +164,8 @@ private:
     KnobSet<NumKnobs> knobs_;
     FirstOrder inHpf_;
     MixShelf cathode_, bright_, voiceTop_, presence_, weight_;
-    TriodeStage v1a_, v1b_, v2a_;
+    TriodeStage v1a_;
+    AdaaTriodeStage v1b_, v2a_;
     FirstOrder v1aLpf_, gainHpf_, v1bLpf_, v2aHpf_, v2aLpf_, piHpf_;
     ToneStackFilter stack_;
     PowerAmp pa_;
@@ -204,7 +205,8 @@ private:
 
     KnobSet<NumKnobs> knobs_;
     FirstOrder inHpf_, v1Shelf_;
-    TriodeStage v1_, v2_, v3_, v4_;
+    TriodeStage v1_;
+    AdaaTriodeStage v2_, v3_, v4_;
     FirstOrder v1Lpf_, gainHpf_, v2Lpf_, v3Hpf_, v3Shelf_, v3Lpf_, v4Hpf_, v4Lpf_;
     FirstOrder piHpf_, resonance_;
     MixShelf bright_, presence_;

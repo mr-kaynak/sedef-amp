@@ -101,6 +101,13 @@ onset's start. A note whose fade would be shorter than 1.5 ms keeps the
 previous offset, and so does one that would move by less than 0.25 ms.
 Level and tone ramp to the new draw over the same fade.
 
+**Switching on.** The engine resets the Doubler when it comes out of bypass, so
+its delay line restarts from silence under whatever is already sounding. Until
+the line has filled past the take's offset, the take is the undelayed input;
+then it fades over in 10 ms. The double's filters start settled on the first
+sample. Without that, the right side would drop out for the length of the
+offset and the double would start with a step.
+
 **The onset detector** compares the power above 2.5 kHz (2nd-order high-pass)
 through a 1 ms and a 40 ms one-pole: an onset is a rise of more than 4 dB
 (ratio 2.5) above −70 dBFS, then nothing for 70 ms. It is an energy-rise
@@ -193,9 +200,9 @@ delay track inside notes (|cents|):
 |                            | mean     | p95      | max     | modulation                        |
 | -------------------------- | -------- | -------- | ------- | --------------------------------- |
 | v0.2.0 (both sides wobble) | 2.66     | 6.05     | 7.8     | 0.9 / 1.13 Hz sines + random walk |
-| new, variation 0           | 0.10     | 0.28     | 0.5     | wander only                       |
-| **new, variation 0.5**     | **1.47** | **3.00** | **3.8** | held per note                     |
-| new, variation 1           | 2.97     | 5.96     | 7.5     | held per note                     |
+| new, variation 0           | 0.10     | 0.35     | 1.1     | wander only                       |
+| **new, variation 0.5**     | **1.48** | **3.15** | **3.8** | held per note                     |
+| new, variation 1           | 2.97     | 6.08     | 7.5     | held per note                     |
 
 Inter-channel correlation, and the deepest notch of the phrase-averaged mono
 sum (1/24-octave bands, 100 Hz–8 kHz, median minus minimum):
@@ -203,8 +210,8 @@ sum (1/24-octave bands, 100 Hz–8 kHz, median minus minimum):
 |                               | corr. at lag 0 | best corr. over 0–45 ms | mono notch, noise | riff       | strum      |
 | ----------------------------- | -------------- | ----------------------- | ----------------- | ---------- | ---------- |
 | v0.2.0, spread 6              | 0.00           | 0.05                    | 8.9 dB            | 8.7 dB     | 9.3 dB     |
-| new, variation 0              | 0.00           | 0.36                    | 12.3 dB           | 17.6 dB    | 18.1 dB    |
-| **new, defaults**             | **0.00**       | **0.02**                | **2.9 dB**        | **6.2 dB** | **4.3 dB** |
+| new, variation 0              | 0.00           | 0.34                    | 12.3 dB           | 17.5 dB    | 17.9 dB    |
+| **new, defaults**             | **0.00**       | **0.02**                | **2.9 dB**        | **6.1 dB** | **4.2 dB** |
 | new, spread 10, variation 0.6 |                |                         |                   | 2.7 dB     | 2.3 dB     |
 | new, spread 14, variation 1   |                |                         |                   | 3.4 dB     | 1.5 dB     |
 
@@ -217,10 +224,14 @@ attack to hide it) leaves the energy above 3 kHz at −90 dB (spread 3) and
 −103 dB (spread 20) re the signal, with a largest second difference of
 0.6–1.2 × 10⁻³ (the sine's own is 4.1 × 10⁻⁴; a step of 1 % would show as
 5 × 10⁻³). With every control jumping end to end every 100 ms while notes
-re-time, it stays at −87 to −93 dB. The left side of the
+re-time, it stays at −87 to −93 dB. Switching the Doubler on under a held note
+(the engine resets it and fades it in over 10 ms) stays at −93 to −105 dB; v0.2.0
+left the right side silent there until its delay line had filled (−∞ dB 10–20 ms
+after switching on at spread 20, against −0.1 dB now). The left side of the
 engine's output is identical, sample for sample, with the Doubler on or off.
 
-Cost: 16.6 ns per stereo frame (0.08 % of one core at 48 kHz), Apple silicon.
+Cost: 16.6 ns per stereo frame (0.08 % of one core at 48 kHz) on an idle Apple
+silicon machine, where Drift measured 43.7 ns.
 
 ## Tests (`engine/tests/timefx/DoublerTests.cpp`, tag `[timefx][doubler]`)
 
@@ -241,9 +252,10 @@ Cost: 16.6 ns per stereo frame (0.08 % of one core at 48 kHz), Apple silicon.
 - Levels: left exact, right +1 dB ± 0.3 at variation 0; per-note level within
   +1 dB ± 2.1 dB at variation 1 and does vary.
 - Pitch between re-timings stays within 6 · variation + 2 cents and does move.
-- Click-free: re-timing a held tone, and every control jumping every 100 ms,
-  keep the energy above 3 kHz below −80 dB and the second difference below
-  2 × 10⁻³, in blocks of 1, 64 and 512.
+- Click-free: re-timing a held tone, every control jumping every 100 ms, and
+  switching on under a held tone through the engine's bypass fade, keep the
+  energy above 3 kHz below −80 dB and the second difference below 2 × 10⁻³, in
+  blocks of 1, 64 and 512.
 - Width 0 gives L == R; width 0.5 a partly correlated pair.
 - Mono sum: at the fixed-offset notch frequencies, per-note offsets lose
   < 2 dB against the comb's peaks, a fixed offset > 5 dB.

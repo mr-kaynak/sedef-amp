@@ -6,6 +6,21 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **Amp gain:** Abyss at full gain is now a modern high-gain wall: light picking and single notes
+  are fully saturated and a note sustains about 5 s within 6 dB of its peak even from a quiet
+  interface (was 1.6 s), while the low end stays as tight as before. Reef at full gain is a hot
+  British crunch bordering on lead. Both gain knobs do something over their whole travel, from
+  edge of breakup to saturation, and the level stays put as you turn them. Lagoon is unchanged.
+  Factory presets were re-balanced so each keeps its character and level.
+- The hard-driven stages of Reef and Abyss use antiderivative anti-aliasing: with 13-24 dB more
+  gain, they alias no more than v0.2.0 did at full master, and Abyss less.
+- The amps' input level is documented
+  ([docs/dsp/amps.md](docs/dsp/amps.md#4-gain-targets-and-input-level)): strum hard and set
+  Input Gain so the input meter peaks around -4 to -2 dBFS, or set it to your interface's maximum
+  input level in dBu plus 0.6 dB.
+
 ## [0.2.0] - 2026-11-01
 
 A preset browser you can audition from, an intonation workbench that works with a real guitar,

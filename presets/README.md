@@ -46,8 +46,9 @@ doesn't need to list them.
 ## Levels
 
 Factory presets are balanced to **-16 LUFS integrated, true peak at or below -1 dBTP**, rendered
-from the synthetic DI in `sedef-render` (about -18 dBFS RMS, a typical single-coil DI level). The
-amp's Output knob carries the correction, so the sound itself never changes. After editing a
+from the synthetic DI in `sedef-render` (about -18 dBFS RMS, the amps' design input level: a hard
+humbucker strum with Input Gain set as in [docs/dsp/amps.md](../docs/dsp/amps.md#4-gain-targets-and-input-level)).
+The amp's Output knob carries the correction, so the sound itself never changes. After editing a
 preset, rebalance and check:
 
 ```sh

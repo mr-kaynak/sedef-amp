@@ -79,13 +79,35 @@ struct Pluck
     double fundamentalGain = 1.0; ///< e.g. a bridge pickup that barely hears the fundamental
     std::uint32_t seed = 1;
 
-    /// Instantaneous frequency of the fundamental partial t seconds after the pick.
-    double hzAt (double t) const
+    // Pitch moves while the string rings (all off by default), relative to the pick:
+    double stepAt = -1.0, stepCents = 0.0; ///< an instant, phase-continuous step
+    double turnAt = -1.0, turnSeconds = 1.0,
+           turnCents = 0.0; ///< a peg turn: smoothstep over turnSeconds
+    double vibratoAt = -1.0, vibratoCents = 0.0, vibratoHz = 5.5; ///< peak deviation, rate
+
+    /// Pitch of the fundamental partial t seconds after the pick, in cents relative to f1.
+    double centsAt (double t) const
     {
-        return f1 * std::exp2 ((glideCents * std::exp (-t / glideTau) + driftCentsPerSecond * t +
-                                wobble.centsAt (t)) /
-                               1200.0);
+        double c =
+            glideCents * std::exp (-t / glideTau) + driftCentsPerSecond * t + wobble.centsAt (t);
+        if (stepAt >= 0.0 && t >= stepAt)
+            c += stepCents;
+        if (turnAt >= 0.0 && t > turnAt)
+        {
+            const double x = std::min (1.0, (t - turnAt) / turnSeconds);
+            c += turnCents * x * x * (3.0 - 2.0 * x);
+        }
+        if (vibratoAt >= 0.0 && t > vibratoAt)
+        {
+            // Fades in over one cycle so the onset of the vibrato is not a step in slope.
+            const double fade = std::min (1.0, (t - vibratoAt) * vibratoHz);
+            c += fade * vibratoCents * std::sin (kTwoPiD * vibratoHz * (t - vibratoAt));
+        }
+        return c;
     }
+
+    /// Instantaneous frequency of the fundamental partial t seconds after the pick.
+    double hzAt (double t) const { return f1 * std::exp2 (centsAt (t) / 1200.0); }
 };
 
 /// Adds the pluck to `out` from `start` (in samples) to the end of the buffer.
@@ -141,6 +163,18 @@ inline void addNoise (std::vector<float>& out, float rmsDb, std::uint32_t seed =
     const float amp = dbToGain (rmsDb) * std::sqrt (3.0f); // uniform: rms = amp / sqrt (3)
     for (auto& s : out)
         s += amp * rng.bipolar();
+}
+
+/// Mains hum: the mains frequency and a third harmonic at half its amplitude (a rectified,
+/// saturated transformer field), `db` being the fundamental's peak level.
+inline void addHum (std::vector<float>& out, double fs, double mainsHz, float db)
+{
+    const double amp = dbToGain (db);
+    for (size_t i = 0; i < out.size(); ++i)
+    {
+        const double ph = kTwoPiD * mainsHz * static_cast<double> (i) / fs;
+        out[i] += static_cast<float> (amp * (std::sin (ph) + 0.5 * std::sin (3.0 * ph + 0.4)));
+    }
 }
 
 /// Steady tone with harmonics 1..maxHarmonics at 1/h amplitude (below 0.4 fs), random phases.

@@ -194,10 +194,9 @@
 
 /* Status, errors, recent ----------------------------------------------------------------------- */
 
-/* Live regions stay in the accessibility tree while empty, so their first message is announced;
-   they only leave the layout. */
-.status:empty,
-.error:empty {
+/* The status region stays in the accessibility tree while empty, so its first message is
+   announced; it only leaves the layout. Errors appear as alerts, as elsewhere in the editor. */
+.status:empty {
   position: absolute;
   width: 1px;
   height: 1px;

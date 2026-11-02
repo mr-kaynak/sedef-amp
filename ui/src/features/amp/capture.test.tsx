@@ -172,7 +172,7 @@ describe('Capture panel', () => {
     );
     expect(screen.getByRole('heading', { name: 'Bench Amp' })).toBeInTheDocument();
     expect(screen.getByText('Tester')).toBeInTheDocument();
-    expect(screen.getByRole('alert')).toBeEmptyDOMElement();
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 
   it('says which capture is missing and offers to find it', async () => {

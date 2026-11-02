@@ -288,14 +288,12 @@ export function CapturePanel() {
       <p className={styles.status} role="status">
         {loading ? 'Loading capture…' : ''}
       </p>
-      <p className={styles.error} role="alert">
-        {error && !loading ? (
-          <>
-            <Icon name="info" size={14} />
-            {error}
-          </>
-        ) : null}
-      </p>
+      {error && !loading ? (
+        <p className={styles.error} role="alert">
+          <Icon name="info" size={14} />
+          {error}
+        </p>
+      ) : null}
       <Recent state={state} disabled={loading} onPick={(path) => void actions.loadRecent(path)} />
     </section>
   );

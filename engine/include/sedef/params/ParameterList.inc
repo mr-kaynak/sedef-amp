@@ -144,3 +144,6 @@ SEDEF_PARAM(metronomeSignature, "Metronome Signature", "Metronome", Choice, 0.0f
 SEDEF_PARAM(metronomeSound, "Metronome Sound", "Metronome", Choice, 0.0f, 5.0f, 0.0f, 1.0f, "", "Blip|Wood|Clave|Cowbell|Rim|Shaker", false)
 SEDEF_PARAM(presetPrevious, "Preset Previous", "Preset", Bool, 0.0f, 1.0f, 0.0f, 1.0f, "", "", true)
 SEDEF_PARAM(presetNext, "Preset Next", "Preset", Bool, 0.0f, 1.0f, 0.0f, 1.0f, "", "", true)
+SEDEF_PARAM(doublerVariation, "Doubler Variation", "Doubler", Float, 0.0f, 1.0f, 0.5f, 1.0f, "knob", "", true)
+SEDEF_PARAM(doublerWidth, "Doubler Width", "Doubler", Float, 0.0f, 1.0f, 1.0f, 1.0f, "knob", "", true)
+SEDEF_PARAM(doublerMix, "Doubler Mix", "Doubler", Float, 0.0f, 1.0f, 1.0f, 1.0f, "knob", "", true)

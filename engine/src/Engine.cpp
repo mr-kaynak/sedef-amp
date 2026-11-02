@@ -516,7 +516,8 @@ void Engine::process (const float* const* inputs, float* const* outputs, int num
     eqSettings.lowCutHz = p[bank.lowCut];
     eqSettings.highCutHz = p[bank.highCut];
 
-    const dsp::Doubler::Settings doublerSettings { p[P::doublerSpread] };
+    const dsp::Doubler::Settings doublerSettings { p[P::doublerSpread], p[P::doublerVariation],
+                                                   p[P::doublerWidth], p[P::doublerMix] };
     dsp::Drift::Settings driftSettings;
     driftSettings.enabled = p.flag (P::driftEnabled);
     driftSettings.heads = p.choice (P::driftHeads);
@@ -663,6 +664,8 @@ void Engine::process (const float* const* inputs, float* const* outputs, int num
         }
 
         d.eq.process (post, p.flag (bank.enabled), eqSettings);
+        // The Doubler times its double from the DI's pick attacks, which reach it after the chain.
+        d.doubler.module.setOnsetSource (chainIn, d.chains[0].latency());
         d.doubler.process (post, p.flag (P::doublerEnabled) && !d.dual, doublerSettings);
         d.drift.setSettings (driftSettings);
         d.drift.process (post, transport);

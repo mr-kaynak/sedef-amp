@@ -86,7 +86,8 @@ void Doubler::prepare (const ProcessSpec& spec)
     maxDriftLimit_ = static_cast<float> (kMaxDriftLimitSeconds * fs);
     wanderSamples_ = static_cast<float> (kWanderSeconds * fs);
     minRead_ = static_cast<float> (0.5e-3 * fs);
-    maxRead_ = maxOffset_ + maxDriftLimit_ + wanderSamples_ + 4.0f;
+    // Room for the drift to overshoot its limit while the detune turns round.
+    maxRead_ = maxOffset_ + 2.0f * maxDriftLimit_ + wanderSamples_ + 4.0f;
     line_.prepare (static_cast<int> (std::ceil (maxRead_)) + 4);
 
     glideCoeff_ = 1.0 - std::exp (-1.0 / (kGlideSeconds * fs));
@@ -100,6 +101,8 @@ void Doubler::prepare (const ProcessSpec& spec)
     minMove_ = static_cast<float> (kMinMoveSeconds * fs);
     toneCoeff_ = static_cast<float> (1.0 - std::exp (-kTwoPiD * kToneSplitHz / fs));
     slopeCoeff_ = static_cast<float> (1.0 - std::exp (-kControlBlock / (kSlopeSeconds * fs)));
+    // A slope smoothed from +s to -s still travels about s * tau * (1 - ln 2) before it turns.
+    slopeLead_ = static_cast<float> ((1.0 - std::log (2.0)) * kSlopeSeconds * fs);
 
     softenCoeff_ =
         static_cast<float> (1.0 - std::exp (-kTwoPiD * std::min (kSoftenHz, 0.45 * fs) / fs));
@@ -235,8 +238,9 @@ void Doubler::controlTick() noexcept
     {
         // Turn the detune around before the drift leaves its band (a long note's pitch then
         // swings slowly between +c and -c instead of the offset running away).
-        if ((v.drift > 0.8f * v.driftLimit && v.slopeTarget > 0.0f) ||
-            (v.drift < -0.8f * v.driftLimit && v.slopeTarget < 0.0f))
+        const float ahead = v.drift + v.slope * slopeLead_; // where it would come to rest
+        if ((ahead > 0.8f * v.driftLimit && v.slopeTarget > 0.0f) ||
+            (ahead < -0.8f * v.driftLimit && v.slopeTarget < 0.0f))
             v.slopeTarget = -v.slopeTarget;
         v.slope += slopeCoeff_ * (v.slopeTarget - v.slope);
     }

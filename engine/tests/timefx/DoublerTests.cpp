@@ -520,6 +520,39 @@ TEST_CASE ("Doubler adds only a few cents of pitch difference", "[timefx][double
     }
 }
 
+TEST_CASE ("Doubler: a long note's detune keeps the offset near its draw", "[timefx][doubler]")
+{
+    // One onset, then 8 s of steady noise: the detune drifts the read position, and turns round
+    // before the drift leaves clamp(0.3 * offset, 0.5 ms, 3 ms) (plus the ~0.2 ms wander).
+    for (float spread : { 3.0f, 15.0f })
+    {
+        Buffer b (2, static_cast<int> (kFs * 8.0));
+        fillNoise (b[0], 0.3f, 31);
+        b[1] = b[0];
+        std::vector<float> source (b[0].size(), 0.0f);
+        for (size_t i = 4800; i < 4800 + 192; ++i)
+            source[i] = 0.5f; // one "pick" at 0.1 s
+        Doubler d;
+        d.prepare ({ kFs, 512, 2 });
+        d.setSettings ({ spread, 1.0f });
+        run (d, b, 64, &source, 0);
+        double lo = 1e9, hi = -1e9;
+        for (size_t t = 24000; t + 4000 < b[0].size(); t += 12000)
+        {
+            const double lag = noteOffsetMs (b[0], b[1], t, kFs);
+            lo = std::min (lo, lag);
+            hi = std::max (hi, lag);
+        }
+        const double limit = std::clamp (0.3 * 0.5 * (lo + hi), 0.5, 3.0);
+        INFO ("spread " << spread << " retimed " << d.retimedNotes() << " offset " << lo << ".."
+                        << hi << " ms, drift limit ~" << limit << " ms");
+        CHECK (d.retimedNotes() >= 1);
+        CHECK (hi - lo > 0.3);               // the detune does move it
+        CHECK (hi - lo < 2.0 * limit + 0.5); // but not away
+        CHECK (lo > 1.5);
+    }
+}
+
 TEST_CASE ("Doubler re-timing is click-free on a held tone", "[timefx][doubler]")
 {
     // The worst case for a crossfade between two read positions: a pure tone held across it, with

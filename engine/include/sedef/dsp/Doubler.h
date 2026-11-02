@@ -101,7 +101,7 @@ private:
     // Micro pitch wander of the take; evaluated per control tick and interpolated in between.
     SmoothRandom wander_;
     float wanderMod_ = 0.0f, wanderStep_ = 0.0f, wanderSamples_ = 0.0f;
-    float slopeCoeff_ = 0.0f;
+    float slopeCoeff_ = 0.0f, slopeLead_ = 0.0f;
     int tickCountdown_ = 0;
 
     // After a reset the delay line holds silence. Until it has filled past the take's offset the

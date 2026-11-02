@@ -204,30 +204,45 @@ inputs are averaged); use a mono input or add 6 dB of Input Gain.
 
 ### Targets from real cascaded-triode preamps
 
-Per-stage gains follow from the 12AX7's published constants (mu = 100, ra = 62.5k, gm = 1.6 mA/V)
-and the common-cathode gain formula A = mu Ra / (Ra + ra + (mu + 1) Rk) (Aiken; Blencowe ch. 1):
+Per-stage gains follow from the 12AX7's published constants (mu = 100, ra = 62.5k, gm = 1.6 mA/V;
+GE data sheet) and the common-cathode gain formula A = mu Ra / (Ra + ra + (mu + 1) Rk) (Blencowe
+ch. 1, eq. 1.4-1.5; Aiken):
 
-| Stage (100k anode, 1M next grid) | Gain |
-|---|---|
-| Cathode fully bypassed | x59, 35.5 dB |
-| 1.5k cathode, unbypassed | x32, 30 dB |
-| Cold clipper, 10k unbypassed | x8.5, 18.6 dB |
-| Cold clipper, 39k unbypassed | x2.4, 7.8 dB |
-| 470k / 470k interstage divider | -6 dB |
+| Stage (100k anode) | Gain | Source |
+|---|---|---|
+| Cathode fully bypassed, into 1M | x59, 35.5 dB | Aiken (x61.5 unloaded) |
+| Same, 300 V supply, load-line method | x60 | Blencowe Table 1.1 |
+| Same, data-sheet test (240k next grid, 900 ohm) | x50 | GE data sheet |
+| 1.5k cathode, unbypassed | x32, 30 dB | Aiken |
+| Cold clipper, 10k unbypassed | x8.5, 18.6 dB | formula |
+| Cold clipper, 39k unbypassed | x2.4, 7.7 dB | formula |
+| 470k / 470k interstage divider | -6 dB | |
 
-Cascading them (Blencowe ch. 4 and 14 on interstage filters, attenuators and high-gain topologies),
-with the gain pot fully up and each stage clipping at about 1.5 V on its grid:
+The usual filter values land where Abyss's already are: 2.2 nF into a 1M grid leak is a 72 Hz
+high-pass and 1 nF a 159 Hz one (Abyss: 70 and 160 Hz); a 1.5k cathode with 0.68 uF shelves below
+156 Hz (Abyss V1: 150 Hz). An anode bypass cap works against the stage's output impedance, Ra
+in parallel with ra + (mu + 1) Rk: 38.5k bypassed, 68k with an unbypassed 1.5k, 98k for a 39k cold
+clipper, so 470 pF gives 8.8, 5.0 and 3.5 kHz, the range of Abyss's 6.5 / 5 / 3.5 kHz interstage
+low-passes. Grid stoppers add more: a stage with a gain of 60 has about 150 pF of Miller input
+capacitance, so a 470k stopper is a 2.2 kHz low-pass (Aiken, "What is Miller capacitance?";
+the Valve Wizard on grid stoppers in later stages).
 
+Totals, with the gain pot fully up and each stage's headroom taken as its bias (about 1.5 V):
+
+- **Modern high gain, four stages.** A published circuit analysis of a four-stage cascaded
+  high-gain preamp finds that 340 uV peak at the input overdrives its fourth stage at full gain
+  (3.4 mV at half rotation): about 73 dB of small-signal gain to that grid. In this calibration
+  that is -72.5 dBFS RMS. Composing the stages above (bypassed, cold clipper, divider, bypassed,
+  divider) gives a similar 78 dB.
 - **British crunch, three stages** (bypassed input stage, cold clipper, divider, bypassed third
-  stage): 35.5 + 18.6 - 6 = 48 dB from the guitar to the third grid, so the third stage starts to
-  clip at about 6 mV peak (4.2 mV RMS) at the input, -48 dBFS RMS in this calibration.
-- **Modern high gain, four stages** (one more bypassed stage behind another divider): about 78 dB
-  to the fourth grid, so clipping starts near 0.2 mV peak, -77 dBFS RMS. Real designs give some of
-  this back to coupling high-passes at 150-300 Hz and anode bypass caps, so we aim at -65 to -70.
+  stage; no published total found): 35.5 + 18.6 - 6 = 48 dB to the third grid, so it clips from
+  about 6 mV peak (4.2 mV RMS) at the input, -48 dBFS RMS here.
 
-Musically: a lightly picked single note (12-20 mV RMS, -39 to -34 dBFS) should be 25-35 dB past
-the point of 10 % THD on the high-gain amp at full gain, so it compresses and sustains, and about
-10 dB past it on the crunch amp.
+So the targets: at full gain, Abyss should start to compress near -72 dBFS and Reef near -48, with
+10 % THD a few dB above. Musically, a lightly picked single note (12-20 mV RMS, -39 to -34 dBFS)
+is then 25-35 dB into saturation on Abyss, so it compresses and sustains, and about 10 dB on Reef.
+Measured: Abyss's 1 dB compression point at full gain is -73.6 dBFS (10 % THD at -67.8), Reef's
+-50.1 (10 % THD at -46.8).
 
 ### Before and after
 
@@ -306,7 +321,17 @@ What changed:
   https://aikenamps.com/index.php/designing-common-cathode-triode-amplifiers. 12AX7 constants
   (mu 100, ra 62.5k, gm 1.6 mA/V), the gain formulas, 35.5 dB bypassed / 30 dB unbypassed for a
   100k stage, and the -1.5 V / 1.1 mA operating point.
-- RCA, 12AX7 / 12AX7-A twin triode data sheet (resistance-coupled amplifier characteristics).
+- M. Blencowe, "Chapter 1: Fundamentals of Amplification", free chapter of the book above,
+  https://www.valvewizard.co.uk/Common_Gain_Stage.pdf: gain formulas, Table 1.1 (gain vs. anode
+  load), cut-off and grid-current clipping. The Valve Wizard, "Grid-Stoppers and Miller
+  Capacitance", https://www.valvewizard.co.uk/gridstopper.html.
+- General Electric, 12AX7 data sheet ET-T509B (1953), https://w140.com/tekwiki/images/5/5e/GE_12AX7_data_sheet.pdf:
+  mu, ra, gm and the resistance-coupled amplifier table.
+- R. Aiken, "What is Miller Capacitance?", https://aikenamps.com/index.php/what-is-miller-capacitance.
+- R. Kuehnel, published circuit analysis of a four-stage cascaded high-gain preamp (Amp Books,
+  classic-circuits series), https://www.ampbooks.com/mobile/classic-circuits/soldano-slo/:
+  input sensitivity of the fourth stage at full and half gain, interstage dividers. Used only for
+  those two numbers; Abyss is a generic design, not a model of that circuit.
 - R. Elliott, "Guitar & Bass Pickup Output Voltages", Elliott Sound Products, 2021,
   https://sound-au.com/articles/guitar-voltage.htm. Measured RMS and peak outputs of single-coil
   and humbucker pickups for single notes and chords; the anchor of the input calibration.

@@ -8,6 +8,7 @@
 | [Catch2](https://github.com/catchorg/Catch2) | Unit tests (not shipped) | BSL-1.0 |
 | [libcurl](https://curl.se/libcurl/) | HTTPS for the update check on Linux: the system's copy, loaded at run time (not shipped) | curl (MIT-style) |
 | [CPM.cmake](https://github.com/cpm-cmake/CPM.cmake) | Dependency fetching (build only) | MIT |
+| [Signalsmith Stretch](https://github.com/Signalsmith-Audio/signalsmith-stretch) 1.4.0 and [Signalsmith Linear](https://github.com/Signalsmith-Audio/linear) 0.6.4 | Reference candidate in the transpose bench, only with `-DSEDEF_TRANSPOSE_BENCH_STRETCH=ON` (not shipped) | MIT |
 
 UI dependencies and their licences are listed in `ui/package.json`; run `pnpm licenses list` in
 `ui/` for the full report.

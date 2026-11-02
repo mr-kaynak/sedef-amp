@@ -6,6 +6,31 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Free mic placement:** drag each mic anywhere over the speaker, not just along a line, or click
+  the cone to bring the selected mic there. Scroll over a mic, or Option/Alt-drag it, to back it
+  off; arrow keys move it, Page Up and Down change its distance, Home and End take it to the dust
+  cap or the edge. New `Mic A/B Azimuth` parameters hold where round the cone it sits; old
+  sessions open with the mics where they were.
+- **Off-axis angle:** a new `Off-axis` knob (0–60°) per mic turns the capsule towards the dust
+  cap. It trades treble, presence and a little proximity for a smoother sound, as a real mic
+  does, and depends on the mic: large diaphragms lose more treble than small ones, a ribbon keeps
+  its low end. The marker shows the angle. Custom IRs get it too.
+- **The other speakers:** on the 2x12 and 4x12 a mic now also hears the cab's other cones. Backed
+  off, it picks up their low end and the comb filtering of a real multi-speaker cab, and moving it
+  towards or away from them changes the sound; close up they stay in the background. A small map
+  on the cab page shows the mics against the cab's speakers. The floor reflection follows how high
+  the mic sits on the cone.
+
+### Changed
+
+- The 2x12 and 4x12 sound slightly different with a close mic than before, because the other
+  cones are now heard (up to 2 dB around 600 Hz with the default Dyn Classic on the 4x12); backed
+  off, the difference is large. The 1x12 is unchanged on the grille, and factory presets keep
+  their level.
+- With a custom IR, the Position and Distance knobs are disabled: the IR holds its own placement.
+
 ## [0.2.0] - 2026-11-01
 
 A preset browser you can audition from, an intonation workbench that works with a real guitar,

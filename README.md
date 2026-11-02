@@ -25,7 +25,7 @@ around them.
 |---|---|
 | **Pedals** | **Tide** compressor (3:1, tilt EQ, parallel blend) · **Pearl** transparent overdrive with mid boost · **Coral** distortion · **Ripple** tremolo / chorus / vibrato · noise gate · ±12 semitone polyphonic transpose |
 | **Amps** | **Lagoon** — glassy, wide clean · **Reef** — British crunch with three voicings · **Abyss** — tight, saturated lead with bright and mid-shift switches |
-| **Cabs** | 1x12 open, 2x12 open, 4x12 closed · two mics per cab from ten mic models, freely placed on the cone · room mics · load your own IRs |
+| **Cabs** | 1x12 open, 2x12 open, 4x12 closed · two mics per cab from ten mic models, placed anywhere over the cone, backed off and turned off axis · room mics · load your own IRs |
 | **EQ** | 9-band graphic EQ with low/high cut, one bank per amp |
 | **Post** | **Drift** multi-head tape echo with wow, flutter and tape saturation · **Fathom** plate and hall reverbs · double-tracking **Doubler** |
 | **Tools** | precision tuner · **intonation workbench** · metronome with odd meters (standalone) |

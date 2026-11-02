@@ -249,6 +249,8 @@ silicon machine, where Drift measured 43.7 ns.
 - Each note arrives once: after silence the right side stays silent until the
   note's own arrival (spreads 3, 6 and 15 ms, and with a 110-sample lead).
 - The onset source re-times a held tone that has no onsets of its own.
+- On an 8 s note the detune moves the offset, but by less than twice its drift
+  limit plus 0.5 ms, and never below 1.5 ms.
 - Levels: left exact, right +1 dB ± 0.3 at variation 0; per-note level within
   +1 dB ± 2.1 dB at variation 1 and does vary.
 - Pitch between re-timings stays within 6 · variation + 2 cents and does move.

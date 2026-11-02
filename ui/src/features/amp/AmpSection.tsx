@@ -6,29 +6,52 @@ import { Toggle } from '../../controls/Toggle';
 import { setParam, useParamSpec, useParamValue } from '../../params/useParam';
 import { effectiveCab } from '../../params/schema';
 import { beginGesture, endGesture } from '../../params/sender';
+import { useAppStore } from '../../state/appStore';
 import { uiActions } from '../../state/uiStore';
 import { AMPS } from './amps';
 import { AmpHead } from './AmpHead';
+import { CapturePanel } from './CapturePanel';
 import styles from './AmpSection.module.css';
 
-function chooseAmp(index: number) {
-  beginGesture('ampModel');
-  setParam('ampModel', index);
-  endGesture('ampModel');
+/** The picker's index for the Capture card, after the three amps. */
+const CAPTURE = AMPS.length;
+
+function set(id: string, value: number) {
+  beginGesture(id);
+  setParam(id, value);
+  endGesture(id);
 }
 
-function AmpPicker({ selected }: { selected: number }) {
+function choose(index: number, source: number) {
+  if (index === CAPTURE) {
+    if (source !== 1) set('ampSource', 1);
+    return;
+  }
+  if (source !== 0) set('ampSource', 0);
+  set('ampModel', index);
+}
+
+function AmpPicker({ selected, withCapture }: { selected: number; withCapture: boolean }) {
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
+  const source = Math.round(useParamValue('ampSource'));
+  const capture = useAppStore((s) => s.capture.loaded);
+  const count = withCapture ? AMPS.length + 1 : AMPS.length;
   const onKeyDown = (e: KeyboardEvent) => {
     const delta = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
     if (!delta) return;
     e.preventDefault();
-    const next = (selected + delta + AMPS.length) % AMPS.length;
-    chooseAmp(next);
+    const next = (selected + delta + count) % count;
+    choose(next, source);
     refs.current[next]?.focus();
   };
   return (
-    <div className={styles.picker} role="radiogroup" aria-label="Amp" onKeyDown={onKeyDown}>
+    <div
+      className={styles.picker}
+      data-count={count}
+      role="radiogroup"
+      aria-label="Amp"
+      onKeyDown={onKeyDown}
+    >
       {AMPS.map((amp) => (
         <button
           key={amp.name}
@@ -40,7 +63,7 @@ function AmpPicker({ selected }: { selected: number }) {
           aria-checked={amp.index === selected}
           tabIndex={amp.index === selected ? 0 : -1}
           className={styles.card}
-          onClick={() => chooseAmp(amp.index)}
+          onClick={() => choose(amp.index, source)}
         >
           <span
             className={styles.swatch}
@@ -55,6 +78,27 @@ function AmpPicker({ selected }: { selected: number }) {
           </span>
         </button>
       ))}
+      {withCapture && (
+        <button
+          ref={(el) => {
+            refs.current[CAPTURE] = el;
+          }}
+          type="button"
+          role="radio"
+          aria-checked={selected === CAPTURE}
+          tabIndex={selected === CAPTURE ? 0 : -1}
+          className={styles.card}
+          onClick={() => choose(CAPTURE, source)}
+        >
+          <span className={`${styles.swatch} ${styles.captureSwatch}`} aria-hidden="true" />
+          <span className={styles.cardText}>
+            <span className={styles.cardName}>Capture</span>
+            <span className={styles.cardCharacter} title={capture?.name}>
+              {capture ? capture.name : 'Your own .nam file of a real amp'}
+            </span>
+          </span>
+        </button>
+      )}
     </div>
   );
 }
@@ -82,16 +126,17 @@ function CabLink({ amp }: { amp: number }) {
 }
 
 export function AmpSection() {
-  const selected = Math.round(useParamValue('ampModel'));
-  const amp = AMPS[selected] ?? AMPS[1];
+  const model = Math.round(useParamValue('ampModel'));
+  const withCapture = useAppStore((s) => s.capturesSupported);
+  const source = Math.round(useParamValue('ampSource'));
+  const capture = withCapture && source === 1;
+  const amp = AMPS[model] ?? AMPS[1];
   if (!amp) return null;
   return (
     <div className={styles.section}>
-      <AmpPicker selected={selected} />
-      <div className={styles.stage}>
-        <AmpHead amp={amp} />
-      </div>
-      <CabLink amp={selected} />
+      <AmpPicker selected={capture ? CAPTURE : model} withCapture={withCapture} />
+      <div className={styles.stage}>{capture ? <CapturePanel /> : <AmpHead amp={amp} />}</div>
+      {!capture && <CabLink amp={model} />}
     </div>
   );
 }

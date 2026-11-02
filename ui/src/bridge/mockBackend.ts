@@ -5,6 +5,8 @@ import type { Backend, NativeArgs, NativeName, NativeResult, SimulatedIntent } f
 import { Emitter } from './emitter';
 import {
   PROTOCOL_VERSION,
+  type CaptureInfo,
+  type CaptureState,
   type EventName,
   type Events,
   type HelloResponse,
@@ -28,6 +30,7 @@ import {
   USER_PRESETS,
   type MockPreset,
 } from './mock/factoryPresets';
+import { CaptureSim } from './mock/captureSim';
 import { PitchSimulator } from './mock/pitchSim';
 import { createRandom } from './mock/random';
 import { TelemetrySimulator } from './mock/telemetrySim';
@@ -127,6 +130,8 @@ export class MockBackend implements Backend {
       })),
     ),
   };
+  /** Captures (CaptureLibrary): the chooser offers made-up ones; nothing is played. */
+  readonly captures = new CaptureSim();
   private uiState: UiState | null;
   private tunerActive = false;
   private taps: number[] = [];
@@ -269,6 +274,7 @@ export class MockBackend implements Backend {
         uiState: this.uiState,
         presets: this.snapshotPresets(),
         ir: this.snapshotIr(),
+        capture: this.captures.snapshot(),
       };
     },
 
@@ -446,6 +452,17 @@ export class MockBackend implements Backend {
       return this.snapshotIr();
     },
 
+    sedef_capture_load: () => this.captureLoaded(this.captures.choose()),
+    sedef_capture_loadData: (fileName, text) =>
+      this.captureLoaded(this.captures.drop(fileName, text)),
+    sedef_capture_loadRecent: (path) => this.captureLoaded(this.captures.recent(path)),
+    sedef_capture_clear: () => {
+      this.captures.clear();
+      this.setValue('ampSource', 0);
+      this.emit('sedef:params', { values: { ampSource: 0 } });
+      return this.publishCapture();
+    },
+
     sedef_tuner_setActive: (active) => {
       this.tunerActive = active;
       if (active && this.options.autoStart && !this.pitchTimer) {
@@ -602,6 +619,23 @@ export class MockBackend implements Backend {
     this.refreshPresetItems();
     const snapshot = this.snapshotPresets();
     this.emit('sedef:presets', snapshot);
+    return snapshot;
+  }
+
+  /** SedefProcessor::captureLoaded: plays it, through the cab or not as the metadata says. */
+  private captureLoaded(info: CaptureInfo | null): CaptureState {
+    if (info) {
+      const values: ParamValues = { ampSource: 1 };
+      if (info.kind !== 'unknown') values.captureCab = info.kind === 'amp' ? 1 : 0;
+      for (const [id, v] of Object.entries(values)) this.setValue(id, v);
+      this.emit('sedef:params', { values });
+    }
+    return this.publishCapture();
+  }
+
+  private publishCapture(): CaptureState {
+    const snapshot = this.captures.snapshot();
+    this.emit('sedef:capture', snapshot);
     return snapshot;
   }
 

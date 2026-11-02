@@ -38,6 +38,7 @@ export async function connect(backend: Backend): Promise<() => void> {
     backend.on('sedef:pitch', (e) => pitch.publish(e)),
     backend.on('sedef:presets', (s) => applyPresetState(s)),
     backend.on('sedef:ir', (ir) => useAppStore.setState({ ir })),
+    backend.on('sedef:capture', (capture) => useAppStore.setState({ capture })),
   ];
 
   try {

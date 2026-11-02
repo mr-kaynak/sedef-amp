@@ -50,6 +50,16 @@ const SHOTS = {
     },
   },
   abyss: { query: 'section=amp&preset=mariana' },
+  capture: {
+    query: 'section=amp',
+    async prepare(page) {
+      await page.getByRole('radio', { name: /^Capture/ }).click();
+      await page.getByRole('button', { name: 'Load capture…' }).click();
+      await page.getByRole('button', { name: 'Replace…' }).click();
+      await page.getByRole('button', { name: 'Replace…' }).click();
+      await page.waitForTimeout(300);
+    },
+  },
   setup: { query: 'overlay=intonation' },
   settings: {
     query: 'section=pedals',

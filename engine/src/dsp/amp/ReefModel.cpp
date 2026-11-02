@@ -34,12 +34,14 @@ constexpr float kV1aDrive = 1.3f;
 constexpr TriodeCurve kV1aCurve { 1.6f, 1.0f, 0.3f };
 constexpr float kV1aShift = 0.15f;
 
-// V1b is biased colder: strongly asymmetric clipping, the root of the crunch.
+// V1b is biased colder: strongly asymmetric clipping, the root of the crunch. With V2a it is hit
+// hard at full gain (10 % THD at -47 dBFS RMS for a 220 Hz sine, about 5 mV RMS at the guitar), so
+// both use the anti-aliased stage.
 constexpr TriodeCurve kV1bCurve { 1.3f, 0.75f, 0.45f };
 constexpr float kV1bShift = 0.3f;
-constexpr float kGainMin = 0.35f, kGainMax = 16.0f;
+constexpr float kGainMin = 0.35f, kGainMax = 60.0f;
 
-constexpr float kV2aDrive = 2.2f;
+constexpr float kV2aDrive = 2.6f;
 constexpr TriodeCurve kV2aCurve { 1.5f, 0.9f, 0.3f };
 constexpr float kV2aShift = 0.25f;
 
@@ -55,8 +57,8 @@ constexpr PowerAmp::Config kPowerAmp { 0.25f, 0.08f, 6.0, 200.0 };
 
 // Level follows only part of a drive increase (drive^(1 - comp) while the stages are still
 // linear); the rest turns into saturation.
-constexpr float kGainComp = 0.18f, kMasterComp = 0.35f;
-constexpr float kMakeup = 0.517f;
+constexpr float kGainComp = 0.11f, kMasterComp = 0.35f;
+constexpr float kMakeup = 0.3904f;
 
 float gainDrive (float g) noexcept
 {
@@ -106,12 +108,14 @@ void ReefModel::prepare (double sampleRate)
     gainHpf_.setCoeffs (design::highpass1 (fsOs_, 25.0));
     bright_.setHigh (fsOs_, kBrightHz);
     v1b_.configure (kV1bCurve, kV1bShift, fsOs_, 1.5, 80.0);
-    v1bLpf_.setCoeffs (design::lowpass1 (fsOs_, 14000.0));
+    // Anode bypass after the two hard-driven stages: keeps the top end of the extra saturation, and
+    // the edges the cathode follower would clip, out of the alias range.
+    v1bLpf_.setCoeffs (design::lowpass1 (fsOs_, 6000.0));
     voiceTop_.setHigh (fsOs_, kTopHz);
     v2aHpf_.setCoeffs (design::highpass1 (fsOs_, 40.0));
     presence_.setHigh (fsOs_, kPresenceHz);
     v2a_.configure (kV2aCurve, kV2aShift, fsOs_);
-    v2aLpf_.setCoeffs (design::lowpass1 (fsOs_, 12000.0));
+    v2aLpf_.setCoeffs (design::lowpass1 (fsOs_, 6000.0));
     weight_.setLow (fsOs_, kWeightHz);
     piHpf_.setCoeffs (design::highpass1 (fsOs_, 20.0));
     pa_.configure (kPowerAmp, fsOs_);

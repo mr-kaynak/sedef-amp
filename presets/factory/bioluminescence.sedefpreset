@@ -30,6 +30,6 @@
     "fathomMix": 0.2,
     "fathomDecay": 3.5,
     "gateThreshold": -62.0,
-    "abyssOutput": 0.2563
+    "abyssOutput": 0.2813
   }
 }

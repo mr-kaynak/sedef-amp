@@ -291,12 +291,14 @@ TEST_CASE ("Automating every knob per block is click-free", "[amp]")
 
     for (const auto& k : knobs)
     {
-        // Reference: the largest step any static setting along the sweep produces.
+        // Reference: the largest step any static setting along the sweep produces. The steepest
+        // edge of a saturated waveform peaks at particular settings (full-range Abyss gain: near
+        // 0.44), so the reference grid is fine.
         float steady = 0.0f;
-        for (int i = 0; i <= 8; ++i)
+        for (int i = 0; i <= 16; ++i)
         {
             auto s = defaults (k.model);
-            k.set (s, static_cast<float> (i) / 8.0f);
+            k.set (s, static_cast<float> (i) / 16.0f);
             steady = std::max (steady, maxJump (render (input, s, block, [] (int, auto&) {}),
                                                 settled, input.size()));
         }

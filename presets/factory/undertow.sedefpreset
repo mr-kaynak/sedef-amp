@@ -13,7 +13,7 @@
   "description": "Dark, slowly churning drone: four tape heads into a 12-second hall.",
   "parameters": {
     "ampModel": 2,
-    "abyssGain": 0.35,
+    "abyssGain": 0.21,
     "abyssBright": 0,
     "rippleEnabled": 1,
     "rippleMode": 2,
@@ -30,6 +30,6 @@
     "fathomMix": 0.5,
     "fathomDecay": 12.0,
     "fathomHighCut": 3200.0,
-    "abyssOutput": 0.2021
+    "abyssOutput": 0.2125
   }
 }

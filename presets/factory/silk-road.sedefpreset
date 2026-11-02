@@ -12,7 +12,7 @@
   "parameters": {
     "ampModel": 1,
     "reefVoice": 1,
-    "reefGain": 0.45,
+    "reefGain": 0.31,
     "reefBass": 0.5,
     "reefMid": 0.55,
     "reefTreble": 0.55,
@@ -23,6 +23,6 @@
     "micADistance": 0.1,
     "fathomEnabled": 1,
     "fathomMix": 0.14,
-    "reefOutput": 0.2854
+    "reefOutput": 0.3292
   }
 }

@@ -8,7 +8,7 @@
 namespace sedef::dsp
 {
 
-/// Clean amp: two triode stages, Fender-style tone stack, push-pull power amp.
+/// Clean amp: two triode stages, tweed-style tone stack, push-pull power amp.
 struct LagoonSettings
 {
     float volume = 0.5f; ///< preamp drive
@@ -18,7 +18,7 @@ struct LagoonSettings
     float output = 0.5f; ///< tone-neutral level
 };
 
-/// Crunch amp: cascaded stages, Marshall-style tone stack, three treble voicings.
+/// Crunch amp: cascaded stages, British-style tone stack, three treble voicings.
 struct ReefSettings
 {
     int voice = 0; ///< 0 Normal, 1 Thick, 2 Thicker
@@ -42,6 +42,15 @@ struct AbyssSettings
 class AmpSection
 {
 public:
+    /// Input calibration the models are voiced for (docs/dsp/amps.md, "Input level"): 1.0
+    /// (0 dBFS peak) stands for about 1 V peak at the guitar jack, so a full-scale sine is
+    /// kFullScaleDbu, and a hard humbucker strum (about 128 mV RMS) averages kDesignInputDbfsRms.
+    /// Anything that feeds the amps, or a capture played next to them, can use these to line its
+    /// levels up with Sedef's: an interface whose full-scale sine is X dBu needs X - kFullScaleDbu
+    /// dB of Input Gain.
+    static constexpr float kFullScaleDbu = -0.6f;
+    static constexpr float kDesignInputDbfsRms = -18.0f;
+
     enum Model
     {
         Lagoon = 0,

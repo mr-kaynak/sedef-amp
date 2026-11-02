@@ -10,7 +10,12 @@ namespace
 // Tightness comes from keeping low end out of the clipping stages: the coupling high-passes ahead
 // of V2 and V3 sit at 70 and 160 Hz, and V1's and V3's cathodes are only partly bypassed. The tone
 // stack and the resonance shelf restore weight after the distortion. Low-pass poles between
-// stages (plate and Miller capacitance) keep the stacked distortion from turning to fizz.
+// stages (anode bypass and Miller capacitance) keep the stacked distortion from turning to fizz.
+//
+// Gain budget (docs/dsp/amps.md, "Gain targets"): at full gain a 220 Hz sine reaches 10 % THD at
+// -68 dBFS RMS, about 0.4 mV RMS at the guitar for the design input level, so a lightly picked
+// single note is 20-30 dB into saturation, as in a four-stage cascade. V2-V4 are hit hardest and
+// use the anti-aliased stage.
 constexpr float kV1Drive = 1.5f;
 constexpr TriodeCurve kV1Curve { 1.6f, 1.0f, 0.3f };
 constexpr float kV1Shift = 0.15f;
@@ -19,16 +24,18 @@ constexpr float kV1Shift = 0.15f;
 constexpr double kBrightHz = 3500.0;
 constexpr float kBrightMaxDb = 9.0f, kBrightMinDb = 1.5f;
 
-// V2: cold-biased clipper, the main source of grind.
+// V2: cold-biased clipper, the main source of grind. The gain pot ahead of it spans 57 dB.
 constexpr TriodeCurve kV2Curve { 1.2f, 0.6f, 0.6f };
 constexpr float kV2Shift = 0.3f;
-constexpr float kGainMin = 0.6f, kGainMax = 30.0f;
+constexpr float kGainMin = 0.3f, kGainMax = 220.0f;
 
-constexpr float kV3Drive = 3.5f;
+// A fully clipped stage drives the next one about 12-15 dB past its knee (V3) and 8-10 dB (V4),
+// through the coupling high-passes and the cathode shelf.
+constexpr float kV3Drive = 7.0f;
 constexpr TriodeCurve kV3Curve { 1.5f, 0.9f, 0.3f };
 constexpr float kV3Shift = 0.25f;
 
-constexpr float kV4Drive = 2.5f;
+constexpr float kV4Drive = 3.5f;
 constexpr TriodeCurve kV4Curve { 1.5f, 0.9f, 0.25f };
 constexpr float kV4Shift = 0.2f;
 
@@ -50,8 +57,8 @@ constexpr PowerAmp::Config kPowerAmp { 0.18f, 0.05f, 5.0, 120.0 };
 
 // Level follows only part of a drive increase (drive^(1 - comp) while the stages are still
 // linear); the rest turns into saturation.
-constexpr float kGainComp = 0.08f, kMasterComp = 0.35f;
-constexpr float kMakeup = 0.402f;
+constexpr float kGainComp = 0.04f, kMasterComp = 0.35f;
+constexpr float kMakeup = 0.3445f;
 
 float gainDrive (float g) noexcept
 {
@@ -95,14 +102,14 @@ void AbyssModel::prepare (double sampleRate)
     gainHpf_.setCoeffs (design::highpass1 (fsOs_, 70.0));
     bright_.setHigh (fsOs_, kBrightHz);
     v2_.configure (kV2Curve, kV2Shift, fsOs_, 1.5, 80.0);
-    v2Lpf_.setCoeffs (design::lowpass1 (fsOs_, 9000.0));
+    v2Lpf_.setCoeffs (design::lowpass1 (fsOs_, 6500.0)); // anode bypass caps: fizz control
     v3Hpf_.setCoeffs (design::highpass1 (fsOs_, 160.0));
     v3Shelf_.setCoeffs (design::lowShelf1 (fsOs_, 300.0, -4.0));
     v3_.configure (kV3Curve, kV3Shift, fsOs_);
-    v3Lpf_.setCoeffs (design::lowpass1 (fsOs_, 7000.0));
+    v3Lpf_.setCoeffs (design::lowpass1 (fsOs_, 5000.0));
     v4Hpf_.setCoeffs (design::highpass1 (fsOs_, 50.0));
     v4_.configure (kV4Curve, kV4Shift, fsOs_);
-    v4Lpf_.setCoeffs (design::lowpass1 (fsOs_, 7000.0));
+    v4Lpf_.setCoeffs (design::lowpass1 (fsOs_, 3500.0));
     piHpf_.setCoeffs (design::highpass1 (fsOs_, 20.0));
     resonance_.setCoeffs (design::lowShelf1 (fsOs_, kResonanceHz, kResonanceDb));
     presence_.setHigh (fsOs_, kPresenceHz);
@@ -129,7 +136,8 @@ void AbyssModel::reset() noexcept
         f->reset();
     bright_.reset();
     presence_.reset();
-    for (auto* v : { &v1_, &v2_, &v3_, &v4_ })
+    v1_.reset();
+    for (auto* v : { &v2_, &v3_, &v4_ })
         v->reset();
     stack_.reset();
     pa_.reset();
@@ -166,7 +174,8 @@ void AbyssModel::snapState() noexcept
         f->snapToZero();
     bright_.snapToZero();
     presence_.snapToZero();
-    for (auto* v : { &v1_, &v2_, &v3_, &v4_ })
+    v1_.snapToZero();
+    for (auto* v : { &v2_, &v3_, &v4_ })
         v->snapToZero();
     stack_.snapToZero();
     pa_.snapToZero();

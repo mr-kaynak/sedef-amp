@@ -12,10 +12,10 @@
   "parameters": {
     "ampModel": 1,
     "reefVoice": 2,
-    "reefGain": 0.7,
+    "reefGain": 0.49,
     "reefMid": 0.62,
     "reefPresence": 0.55,
     "gateThreshold": -66.0,
-    "reefOutput": 0.3479
+    "reefOutput": 0.3813
   }
 }

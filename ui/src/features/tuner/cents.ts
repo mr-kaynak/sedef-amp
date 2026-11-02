@@ -1,16 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import type { PitchEvent } from '../../bridge/protocol';
-import { centsBetween, midiToHz, noteOf } from '../../lib/music';
-import { getValue } from '../../params/paramStore';
+import { noteOf } from '../../lib/music';
 
 /** Chromatic: nearest note. Target: a fixed note (the open string being tuned). */
 export type GaugeTarget = { kind: 'chromatic' } | { kind: 'target'; midi: number };
-
-export function centsFor(e: PitchEvent | null, target: GaugeTarget): number | null {
-  if (!e || !e.valid) return null;
-  if (target.kind === 'chromatic') return e.cents;
-  return centsBetween(e.frequencyHz, midiToHz(target.midi, getValue('tunerReference')));
-}
 
 /**
  * The tuner's in-tune zone: a precision tuner, not a forgiving one. The intonation workbench
@@ -18,10 +10,15 @@ export function centsFor(e: PitchEvent | null, target: GaugeTarget): number | nu
  */
 export const IN_TUNE_CENTS = 1;
 
-/** "C sharp 4, flat": a reading as a screen reader should say it. */
-export function spokenReading(midi: number, cents: number, inTuneCents = IN_TUNE_CENTS): string {
+function spokenNote(midi: number): string {
   const { note, octave } = noteOf(midi);
   const name = note.endsWith('#') ? `${note.charAt(0)} sharp` : note;
-  const state = Math.abs(cents) <= inTuneCents ? 'in tune' : cents > 0 ? 'sharp' : 'flat';
-  return `${name} ${octave}, ${state}`;
+  return `${name} ${octave}`;
+}
+
+/** A state the gauge has settled on, as a screen reader should say it: "E 2, flat, tune up". */
+export function spokenState(midi: number, tune: 'in-tune' | 'sharp' | 'flat'): string {
+  const what =
+    tune === 'in-tune' ? 'in tune' : tune === 'sharp' ? 'sharp, tune down' : 'flat, tune up';
+  return `${spokenNote(midi)}, ${what}`;
 }

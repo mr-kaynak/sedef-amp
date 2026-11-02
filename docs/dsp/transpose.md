@@ -15,6 +15,96 @@ It is polyphonic: chords keep every note. It works in the time domain, so attack
 and there is no phase-vocoder smear. At 0 semitones it is a true bypass: the audio is not
 touched.
 
+## Quality bars (v0.3.0)
+
+A player compared 0.2.0's transpose with commercial amp sims and found it far worse. These bars
+say, in numbers, what "very good" means for its two jobs. They were written before any
+candidate was measured, and a design ships only if it clears every bar for its job.
+
+- **Alternate tunings:** −1 to −5 st on chords, single notes and palm-muted riffs, played live.
+- **Octave effects:** ±12 st.
+
+### Test material and reference
+
+The test signals are synthetic guitar DI made of additive plucked-string notes (sharp 0.5 ms
+attack, per-partial decay, pluck-position spectrum, optional bend). Because each note is a sum
+of known partials, the ideal output is synthesised directly: every partial frequency times
+`2^(st/12)`, with the same amplitudes and the same envelopes in time. Partials that would land
+above 0.47 fs are left out of the reference, so aliasing counts as error.
+
+- **Chord:** an open E major strum (six strings, 10 ms apart). The warble metrics use a
+  just-intonation voicing, so no two partials beat against each other in the reference. The
+  other metrics use equal temperament with string stiffness.
+- **Palm-muted hits:** an E5 power chord (E2 B2 E3) decaying in about 40 ms. Isolated hits come
+  400 ms apart, and a riff of sixteenth notes runs at 150 bpm.
+- **Single notes:** an E3–E5 line of 300 ms notes, then a whole-step bend and release.
+
+### Metrics
+
+- **Latency:** at each attack, the time where the output envelope (1 ms RMS) first reaches half
+  its attack peak, minus the same time in the reference. Reported as the mean, the range (max −
+  min) and the difference from what the module reports to the host.
+- **Purity:** on the sustained chord (0.3–2.3 s after the strum), the share of energy farther
+  than ±4 Hz from every reference partial, from a Welch spectrum (0.68 s Hann windows). This is
+  the shifter's "THD + N". It counts modulation sidebands, wrong frequencies, smear and
+  aliasing.
+- **Timbre:** the level error of each reference partial over the same span, as an
+  energy-weighted RMS in dB over 60 Hz–6 kHz.
+- **Partial warble:** each partial is demodulated at its target frequency (12 Hz, 4th-order
+  low-pass) in both output and reference. The output-to-reference level ratio, in dB, is
+  band-limited to 1–12 Hz. The RMS of that ratio is energy-weighted over the partials.
+- **Envelope warble:** the same ratio for the broadband envelope (10 ms RMS frames),
+  band-limited to 1–50 Hz.
+- **Pre-echo:** on the isolated hits, the energy 2–20 ms before each attack crossing, relative
+  to the attack peak.
+- **Flam:** after the attack peak, the largest rise of the envelope (dB, within 40 ms) above its
+  running minimum, minus the same in the reference. A doubled attack shows up as a rise.
+- **Attack:** the attack peak level versus the reference, and the 10–90 % rise time versus the
+  reference.
+- **Pitch:** on the single-note line and bend, MPM pitch tracks of output and reference
+  (`analysis::PitchDetector`, 2048-sample frames), compared outside the first 30 ms of each
+  note.
+- **Aliasing:** at +12 st, the output energy for 12 kHz and 15 kHz input sines, whose shifted
+  frequencies do not exist at 48 kHz.
+- **CPU:** mono, 48 kHz, 64-sample blocks, on the development Mac (Apple M-series).
+
+### Bars
+
+| # | Metric | Alternate tunings (−1…−5) | Octaves (±12) |
+|---|---|---|---|
+| B1 | Added latency, mean | ≤ 10 ms | ≤ 10 ms |
+| B2 | Latency range over attacks | ≤ 0.5 ms (constant) | ≤ 0.5 ms |
+| B3 | Measured − reported latency | ≤ 0.25 ms | ≤ 0.25 ms |
+| B4 | Purity, sustained chord | ≤ −35 dB | ≤ −30 dB |
+| B5 | Timbre, partial level error | ≤ 1.0 dB | ≤ 1.5 dB |
+| B6 | Partial warble | ≤ 0.5 dB RMS | ≤ 0.75 dB RMS |
+| B7 | Envelope warble | ≤ 0.25 dB RMS | ≤ 0.5 dB RMS |
+| B8 | Pre-echo, isolated hits | ≤ −30 dB | ≤ −30 dB |
+| B9 | Flam over the reference | ≤ 1 dB | ≤ 1 dB |
+| B10 | Attack peak / rise time vs reference | ±1.5 dB / ≤ +1 ms | ±2 dB / ≤ +1 ms |
+| B11 | Pitch error, median / 95th percentile | ≤ 2 / ≤ 10 cents | ≤ 2 / ≤ 10 cents |
+| B12 | Aliasing at +12 st | — | ≤ −60 dB |
+| B13 | CPU | ≤ 2 % of one core | ≤ 2 % of one core |
+| B14 | 0 st | bit-exact, no latency | bit-exact, no latency |
+| B15 | Semitone changes | click-free | click-free |
+
+Why these numbers:
+
+- **B1.** A typical interface round trip at 64-sample buffers is 4–6 ms. Adding 10 ms gives a
+  total of about 15 ms, which is roughly standing 5 m from the amp. More than that starts to
+  feel late under the pick.
+- **B2.** A delay that wanders by milliseconds from note to note makes a tight riff sound
+  sloppy, and a host can only compensate a constant latency.
+- **B6 and B7.** Amplitude modulation of a tone at 4 Hz is detectable from a modulation index of
+  roughly 0.02–0.05 (Kohlrausch et al. 2000). Index m gives about 6.1·m dB RMS, so 0.25 dB RMS is
+  m ≈ 0.04 on the whole envelope, and 0.5 dB RMS is m ≈ 0.08 on one partial among many.
+- **B4.** −35 dB is a modulation sideband pair of index ≈ 0.036 on every partial, the same
+  threshold seen from the spectral side.
+
+A second "Studio" mode with more latency is allowed only if no design clears the bars at
+≤ 10 ms. It must keep its latency constant and report it to the host. It may relax B1 to
+≤ 100 ms, but nothing else, and must reach B4 ≤ −40 dB.
+
 ## 2. Algorithm
 
 The shifter is a delay-line design with correlation-chosen splice points (WSOLA-style).

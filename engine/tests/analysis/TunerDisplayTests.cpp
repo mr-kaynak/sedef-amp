@@ -230,6 +230,22 @@ double displayed (const test::TunerScenario& s, const PitchTracker::Reading& r)
     return r.displayCents +
            100.0 * (r.displayNote - (69.0 + 12.0 * std::log2 (s.nominalHz / 440.0)));
 }
+
+// MSVC deprecates std::getenv (C4996). The hidden dump cases read one variable from the test
+// thread, which is safe; the pragma wraps the whole function because MSVC applies warnings in
+// the 4700-4999 range per function.
+#if defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable : 4996)
+#endif
+/// The environment variable `name`, or nullptr when it is not set.
+const char* environment (const char* name)
+{
+    return std::getenv (name);
+}
+#if defined(_MSC_VER)
+#pragma warning(pop)
+#endif
 } // namespace
 
 TEST_CASE ("TunerDisplay is steady on a sustained note, with hum or another string ringing",
@@ -391,7 +407,7 @@ TEST_CASE ("Tuner display streams", "[.dump][tuner-dump]")
 {
     // SEDEF_TUNER_DUMP=<dir>: one JSON file per scenario with every 60 Hz reading, for the UI's
     // replay tests (ui/src/features/tuner/fixtures) and the plots.
-    const char* dir = std::getenv ("SEDEF_TUNER_DUMP");
+    const char* dir = environment ("SEDEF_TUNER_DUMP");
     REQUIRE (dir != nullptr);
     for (const auto& s : test::tunerScenarios())
     {
@@ -460,7 +476,7 @@ TEST_CASE ("Tuner display fixtures for the UI", "[.dump][tuner-fixtures]")
     // few scenarios at 60 Hz, which ui/src/features/tuner/replay.test.ts plays through the gauge's
     // readout and needle. Rows: t, displayValid, displayHeld, displaySettled, displayNote,
     // displayCents, true cents from the nominal note (A4 = 440 Hz).
-    const char* path = std::getenv ("SEDEF_TUNER_FIXTURES");
+    const char* path = environment ("SEDEF_TUNER_FIXTURES");
     REQUIRE (path != nullptr);
     const char* names[] = { "e2-hum", "g3-real", "b3-edge", "a2-after-e2",
                             "a2-peg", "g3-step", "d3-dies", "e4-repluck" };

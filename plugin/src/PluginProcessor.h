@@ -114,10 +114,12 @@ private:
     juce::String savedPresetId_, savedPresetName_; // guarded; mirrored from presets_
 
     /// Per parameter: the value text of the last loaded state, and the value it became once
-    /// applied. Guarded by extraLock_.
+    /// applied. Guarded by extraLock_. The text is kept as read: JUCE prints doubles with 16
+    /// significant digits, which does not round-trip, so re-printing the parsed double could
+    /// change its last digit.
     struct LoadedValue
     {
-        double saved = 0.0;
+        juce::var saved;
         float applied = 0.0f;
         bool valid = false;
     };

@@ -5,12 +5,15 @@
 //   sedef-render --preset presets/factory/nacre.sedefpreset --out nacre.wav
 //   sedef-render --in my-di.wav --set ampModel=2 --set abyssGain=0.8 --out lead.wav
 //   sedef-render --check presets/factory/*.sedefpreset
+//   sedef-render --capture amp.nam --set captureCab=0 --out capture.wav
 //
 // Without --in, a synthetic guitar DI (plucked-string chords and single notes) is used.
 
 #include "sedef/Engine.h"
 #include "sedef/core/Math.h"
 #include "sedef/core/Random.h"
+#include "sedef/dsp/capture/CaptureFile.h"
+#include "sedef/dsp/capture/CaptureStage.h"
 
 #include <algorithm>
 #include <cmath>
@@ -268,10 +271,19 @@ struct RenderResult
 };
 
 RenderResult render (const std::vector<float>& input, double fs, const ParamSnapshot& params,
-                     int block = 256)
+                     int block = 256, const dsp::CaptureFile* capture = nullptr)
 {
     Engine engine;
     engine.prepare (fs, block, 1, 2);
+    if (capture != nullptr)
+        for (int c = 0; c < engine.numCabs(); ++c)
+        {
+            std::string error;
+            auto model = capture->instantiate (engine.capture (c).modelSpec(), &error);
+            if (model == nullptr)
+                std::fprintf (stderr, "capture: %s\n", error.c_str());
+            engine.capture (c).setModel (std::move (model));
+        }
     RenderResult r;
     r.left.assign (input.size(), 0.0f);
     r.right.assign (input.size(), 0.0f);
@@ -308,7 +320,7 @@ bool applyParameters (ParamSnapshot& snap, const std::map<std::string, float>& v
 int usage()
 {
     std::fputs ("usage: sedef-render [--preset FILE] [--in DI.wav] [--out OUT.wav] [--seconds S]\n"
-                "                    [--rate HZ] [--set id=value]...\n"
+                "                    [--rate HZ] [--capture FILE.nam] [--set id=value]...\n"
                 "       sedef-render --check PRESET...\n",
                 stderr);
     return 2;
@@ -353,7 +365,7 @@ int main (int argc, char** argv)
         return failures == 0 ? 0 : 1;
     }
 
-    std::string presetPath, inPath, outPath;
+    std::string presetPath, inPath, outPath, capturePath;
     std::map<std::string, float> overrides;
     for (std::size_t i = 0; i < args.size(); ++i)
     {
@@ -370,6 +382,8 @@ int main (int argc, char** argv)
             seconds = std::stod (next());
         else if (args[i] == "--rate")
             rate = std::stod (next());
+        else if (args[i] == "--capture")
+            capturePath = next();
         else if (args[i] == "--set")
         {
             const auto kv = next();
@@ -393,6 +407,29 @@ int main (int argc, char** argv)
         }
         applyParameters (snap, *values, presetPath);
     }
+    // A capture plays in place of the amp unless --set ampSource=0 says otherwise.
+    std::shared_ptr<const dsp::CaptureFile> capture;
+    if (!capturePath.empty())
+    {
+        std::ifstream file (capturePath, std::ios::binary);
+        const std::string text ((std::istreambuf_iterator<char> (file)),
+                                std::istreambuf_iterator<char>());
+        auto parsed = dsp::CaptureFile::parse (text);
+        if (parsed.file == nullptr)
+        {
+            std::fprintf (stderr, "%s: %s\n", capturePath.c_str(), parsed.error.c_str());
+            return 1;
+        }
+        capture = parsed.file;
+        const auto& info = capture->info();
+        std::fprintf (
+            stderr,
+            "capture: %s, %ld weights, %.0f Hz, measured %.1f dBFS, normalised by %+.1f dB\n",
+            info.architecture.c_str(), info.numWeights, info.sampleRate,
+            static_cast<double> (capture->measuredDbfs()),
+            static_cast<double> (capture->normalisationDb()));
+        snap[ParamId::ampSource] = 1.0f;
+    }
     applyParameters (snap, overrides, "--set");
 
     std::vector<float> input;
@@ -412,7 +449,7 @@ int main (int argc, char** argv)
         input = syntheticDi (rate, seconds);
     }
 
-    const auto r = render (input, rate, snap);
+    const auto r = render (input, rate, snap, 256, capture.get());
     const auto s = measure (r.left, r.right, 0);
     std::printf ("{\"rmsDb\": %.2f, \"peakDb\": %.2f, \"finite\": %s, \"latency\": %d}\n",
                  static_cast<double> (s.rmsDb), static_cast<double> (s.peakDb),

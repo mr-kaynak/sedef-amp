@@ -1,0 +1,43 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* A smaller cousin of the panel chips (controls/Toggle): it sits in the output strip's label row,
+   under the meter, so it takes no width from the header. */
+.switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 20px;
+  padding: 0 8px 0 7px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-ctl);
+  background: rgb(6 17 25 / 0.35);
+  color: var(--bone-2);
+  font-size: var(--t-11);
+  font-stretch: 108%;
+  font-weight: 520;
+  white-space: nowrap;
+  transition:
+    color var(--dur-1),
+    border-color var(--dur-1),
+    background var(--dur-1);
+}
+
+/* 24 px tall hit area around the 20 px chip. */
+.switch::before {
+  content: '';
+  position: absolute;
+  inset: -3px -1px;
+}
+
+@media (hover: hover) {
+  .switch:hover {
+    color: var(--bone);
+    border-color: rgb(237 230 214 / 0.32);
+  }
+}
+
+.switch[data-on] {
+  color: var(--bone);
+  background: rgb(205 238 238 / 0.06);
+  border-color: rgb(205 238 238 / 0.3);
+}

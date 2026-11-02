@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { useCallback, useRef } from 'react';
+import type { ReactNode } from 'react';
 import { Icon } from '../../controls/Icon';
 import { Knob } from '../../controls/Knob';
 import { Popover } from '../../controls/Popover';
@@ -11,6 +12,7 @@ import { presetBrowser } from '../presets/session';
 import { SettingsPanel } from '../settings/SettingsPanel';
 import { UpdateSlot } from '../updates/UpdateSlot';
 import { Brand } from './Brand';
+import { DoublerSwitch } from './DoublerSwitch';
 import { LevelMeter } from './LevelMeter';
 import { PresetBar } from './PresetBar';
 import styles from './Header.module.css';
@@ -19,15 +21,21 @@ function GainStrip({
   param,
   which,
   label,
+  below,
 }: {
   param: string;
   which: 'input' | 'output';
   label: string;
+  /** Hangs under the meter, in the knob label's row, without moving the meter. */
+  below?: ReactNode;
 }) {
   return (
     <div className={styles.gain}>
       <Knob param={param} size="sm" label={label} hideValue />
-      <LevelMeter which={which} label={label} />
+      <div className={styles.meterSlot}>
+        <LevelMeter which={which} label={label} />
+        {below && <div className={styles.below}>{below}</div>}
+      </div>
     </div>
   );
 }
@@ -46,7 +54,7 @@ export function Header() {
       <PresetBar />
       <div className={styles.io}>
         <GainStrip param="inputGain" which="input" label="Input" />
-        <GainStrip param="outputGain" which="output" label="Output" />
+        <GainStrip param="outputGain" which="output" label="Output" below={<DoublerSwitch />} />
       </div>
       <nav className={styles.tools} aria-label="Tools">
         <UpdateSlot />

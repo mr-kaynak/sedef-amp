@@ -186,10 +186,10 @@ note's first 60 ms), noise phrase:
 | v0.2.0, spread 6                 | 5.3–6.6      | 0.43     | 0.38                          | 0.36        |
 | new, spread 6, variation 0       | 6.0–6.1      | 0.03     | 0.02                          | —           |
 | **new, spread 6, variation 0.5** | **3.6–9.8**  | **1.95** | **1.51**                      | **0.48**    |
-| new, spread 6, variation 1       | 2.5–15.9     | 4.51     | 3.32                          | 0.44        |
+| new, spread 6, variation 1       | 2.5–15.9     | 4.50     | 3.32                          | 0.44        |
 | v0.2.0, spread 12                | 11.2–12.7    | 0.45     | 0.38                          | 0.42        |
 | new, spread 12, variation 0.5    | 7.2–19.5     | 3.88     | 3.01                          | 0.48        |
-| new, spread 12, variation 1      | 4.3–31.8     | 8.87     | 6.65                          | 0.44        |
+| new, spread 12, variation 1      | 4.3–31.8     | 8.87     | 6.64                          | 0.44        |
 
 On the riff (63 notes) the defaults give 3.5–8.7 ms (v0.2.0: 5.5–6.9 ms);
 spread 14, variation 1 gives 4.7–29.1 ms.
@@ -201,8 +201,8 @@ delay track inside notes (|cents|):
 | -------------------------- | -------- | -------- | ------- | --------------------------------- |
 | v0.2.0 (both sides wobble) | 2.66     | 6.05     | 7.8     | 0.9 / 1.13 Hz sines + random walk |
 | new, variation 0           | 0.10     | 0.35     | 1.1     | wander only                       |
-| **new, variation 0.5**     | **1.48** | **3.15** | **3.8** | held per note                     |
-| new, variation 1           | 2.97     | 6.08     | 7.5     | held per note                     |
+| **new, variation 0.5**     | **1.47** | **3.15** | **3.8** | held per note                     |
+| new, variation 1           | 2.92     | 6.04     | 7.5     | held per note                     |
 
 Inter-channel correlation, and the deepest notch of the phrase-averaged mono
 sum (1/24-octave bands, 100 Hz–8 kHz, median minus minimum):
@@ -211,9 +211,9 @@ sum (1/24-octave bands, 100 Hz–8 kHz, median minus minimum):
 | ----------------------------- | -------------- | ----------------------- | ----------------- | ---------- | ---------- |
 | v0.2.0, spread 6              | 0.00           | 0.05                    | 8.9 dB            | 8.7 dB     | 9.3 dB     |
 | new, variation 0              | 0.00           | 0.34                    | 12.3 dB           | 17.5 dB    | 17.9 dB    |
-| **new, defaults**             | **0.00**       | **0.02**                | **2.9 dB**        | **6.1 dB** | **4.2 dB** |
+| **new, defaults**             | **0.00**       | **0.02**                | **2.9 dB**        | **6.2 dB** | **4.3 dB** |
 | new, spread 10, variation 0.6 |                |                         |                   | 2.7 dB     | 2.3 dB     |
-| new, spread 14, variation 1   |                |                         |                   | 3.4 dB     | 1.5 dB     |
+| new, spread 14, variation 1   |                |                         |                   | 3.3 dB     | 1.7 dB     |
 
 The best correlation over all lags says how much the right side is one delayed
 copy of the left over the phrase: 0.90 on the riff for a fixed offset, 0.17 for

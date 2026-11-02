@@ -16,7 +16,8 @@ namespace sedef
 namespace dsp
 {
 class CabSim;
-}
+class CaptureStage;
+} // namespace dsp
 
 /// The whole rig: routing, bypass crossfades, latency alignment, metering.
 ///
@@ -75,6 +76,8 @@ public:
     /// Custom IRs must be installed on every chain's cab (dual mode has two).
     int numCabs() const noexcept;
     dsp::CabSim& cab (int index) noexcept;
+    /// .nam captures likewise go to every chain's capture stage (numCabs() of them).
+    dsp::CaptureStage& capture (int index) noexcept;
 
 private:
     struct Impl;

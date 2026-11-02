@@ -1,11 +1,33 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 #include "ParameterLayout.h"
 
+#include <cmath>
 #include <map>
 
 namespace sedef::plugin
 {
 
+namespace
+{
+/// value as juce::String (value, decimals) prints it (decimals > 0), with no negative zero: a
+/// value that rounds to zero prints "0.0", never "-0.0". (A range test rather than r == 0, which
+/// MSVC's /fp:fast may fold away along with the sign of zero.)
+float printed (float value, int decimals)
+{
+    const float scale = std::pow (10.0f, static_cast<float> (decimals));
+    const float r = std::round (value * scale) / scale;
+    return std::abs (r) < 0.5f / scale ? 0.0f : r;
+}
+
+juce::String fixed (float value, int decimals)
+{
+    return juce::String (printed (value, decimals), decimals);
+}
+} // namespace
+
+// Signs and units are chosen on the value as printed, not on the raw value, so the text parses
+// back to a value that prints the same text again (hosts retype it; clap-validator checks it on
+// random values). "+0.0 dB" for +0.00004 dB would read back as 0 dB, which prints "0.0 dB".
 juce::String formatValue (const ParamSpec& spec, float value, int maxLength)
 {
     juce::String text;
@@ -16,28 +38,37 @@ juce::String formatValue (const ParamSpec& spec, float value, int maxLength)
     else if (spec.kind == ParamKind::Bool)
         text = value >= 0.5f ? "On" : "Off";
     else if (unit == "knob")
-        text = juce::String (value * 10.0f, 1);
+        text = fixed (value * 10.0f, 1);
     else if (unit == "dB")
-        text = (value > 0.0f ? "+" : "") + juce::String (value, 1) + " dB";
+        text = (printed (value, 1) > 0.0f ? "+" : "") + fixed (value, 1) + " dB";
     else if (unit == "Hz")
-        text = value >= 1000.0f ? juce::String (value / 1000.0f, 2) + " kHz"
-                                : juce::String (juce::roundToInt (value)) + " Hz";
+        text = std::round (value) >= 1000.0f ? fixed (value / 1000.0f, 2) + " kHz"
+                                             : juce::String (juce::roundToInt (value)) + " Hz";
     else if (unit == "ms")
-        text = value >= 1000.0f ? juce::String (value / 1000.0f, 2) + " s"
-                                : juce::String (value, value < 100.0f ? 1 : 0) + " ms";
+    {
+        if (std::round (value) >= 1000.0f)
+            text = fixed (value / 1000.0f, 2) + " s";
+        else if (printed (value, 1) < 100.0f)
+            text = fixed (value, 1) + " ms";
+        else
+            text = juce::String (juce::roundToInt (value)) + " ms";
+    }
     else if (unit == "s")
-        text = juce::String (value, value < 10.0f ? 2 : 1) + " s";
+        text = printed (value, 2) < 10.0f ? fixed (value, 2) + " s" : fixed (value, 1) + " s";
     else if (unit == "st")
-        text = (value > 0.0f ? "+" : "") + juce::String (juce::roundToInt (value)) + " st";
+    {
+        const int semitones = juce::roundToInt (value);
+        text = (semitones > 0 ? "+" : "") + juce::String (semitones) + " st";
+    }
     else if (unit == "%")
         text = juce::String (juce::roundToInt (value)) + "%";
     else if (unit == "bpm")
-        text = juce::String (value, 1) + " BPM";
+        text = fixed (value, 1) + " BPM";
     else if (unit == "deg")
         text = juce::String (juce::roundToInt (value)) +
                juce::String (juce::CharPointer_UTF8 ("\xc2\xb0"));
     else
-        text = juce::String (value, 2);
+        text = fixed (value, 2);
 
     return maxLength > 0 ? text.substring (0, maxLength) : text;
 }

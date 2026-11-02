@@ -4,8 +4,9 @@
 // waits for the editor's UI smoke test (SEDEF_UI_SMOKE_TEST) to report. No audio device is opened,
 // so it also runs on machines and CI runners without working audio. Besides the page, the editor
 // exercises preset auditions, snapshot restores and A/B over the real bridge; this host checks
-// that they leave the session's parameters exactly as they were, and that state round-trips. The
-// editor check runs twice: on a restored session, then on a fresh instance (nothing loaded).
+// that they leave the session's parameters exactly as they were, that state round-trips, and that
+// every parameter's text reads back as the same text. The editor check runs twice: on a restored
+// session, then on a fresh instance (nothing loaded).
 //
 //   sedef-host-smoke "<path>/Sedef Amp.vst3"
 
@@ -34,6 +35,8 @@ public:
         plugin_ = format_.createInstanceFromDescription (description_, 48000.0, 512, error);
         if (plugin_ == nullptr)
             return fail ("Could not load the plugin: " + error);
+        if (!checkTextRoundTrip (*plugin_))
+            return;
 
         // State round trip: random parameters -> save -> new instance -> load. The second save is
         // taken after the message loop has run for a while (timers, async restores), and both
@@ -199,6 +202,32 @@ private:
                               b[i].trim().toRawUTF8());
                 ++shown;
             }
+    }
+
+    /// Hosts show a parameter's text and take typed text back: value -> text -> value -> text must
+    /// print the same text twice (clap-validator's param-conversions checks this on random
+    /// values). Checked for every parameter at evenly spaced and random values.
+    bool checkTextRoundTrip (juce::AudioPluginInstance& p)
+    {
+        juce::Random random (4321);
+        int checked = 0;
+        for (auto* param : p.getParameters())
+            for (int i = 0; i <= 1000; ++i)
+            {
+                const float value = i <= 400 ? static_cast<float> (i) / 400.0f : random.nextFloat();
+                const auto text = param->getText (value, 1024);
+                const auto again = param->getText (param->getValueForText (text), 1024);
+                if (text != again)
+                {
+                    fail ("Parameter '" + param->getName (1024) + "' at " +
+                          juce::String (value, 7) + " reads '" + text + "', which reads back as '" +
+                          again + "'");
+                    return false;
+                }
+                ++checked;
+            }
+        std::printf ("parameter text round trip: consistent (%d values)\n", checked);
+        return true;
     }
 
     bool checkState()

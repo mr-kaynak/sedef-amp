@@ -97,6 +97,19 @@ public:
     juce::String currentName() const { return currentName_; }
 
     static bool isGlobal (ParamId id) noexcept;
+
+    /// Something a preset refers to besides its parameters (the amp capture, CaptureLibrary):
+    /// saved under `key` as whatever `reference (true)` returns (void: nothing), brought back
+    /// on load (`select (ref, false)`), and carried exactly by snapshots and A/B
+    /// (`reference (false)`, `select (ref, true)`). `differs` adds to "dirty".
+    struct Attachment
+    {
+        juce::String key;
+        std::function<juce::var (bool forPreset)> reference;
+        std::function<void (const juce::var& ref, bool exact)> select;
+        std::function<bool (const juce::var& ref)> differs;
+    };
+    void setAttachment (Attachment a) { attachment_ = std::move (a); }
     static juce::File userFolder();
     /// Serialises the current per-preset parameters (used by save and by tests).
     juce::var captureParameters() const;
@@ -123,6 +136,7 @@ private:
         juce::String id, name;
         bool dirty = false;
         int generation = 0;
+        juce::var attachment, loadedAttachment;
     };
 
     struct Removed
@@ -171,6 +185,8 @@ private:
     juce::String currentId_;
     juce::String currentName_ { "Init" };
     std::map<ParamId, float> loadedValues_;
+    Attachment attachment_;
+    juce::var loadedAttachment_; ///< what the current preset's attachment was when loaded or saved
 
     std::array<std::optional<Snapshot>, 2> slots_;
     std::optional<Snapshot> compareOther_;

@@ -37,6 +37,8 @@ private:
     void emitPresets();
     void emitIrs();
     void loadIr (int mic, int cab, juce::WebBrowserComponent::NativeFunctionCompletion completion);
+    void emitCapture();
+    void loadCapture (juce::WebBrowserComponent::NativeFunctionCompletion completion);
 
     // UI smoke test (SEDEF_UI_SMOKE_TEST=<result file>): see smokeTestTick().
     void smokeTestTick();
@@ -58,6 +60,7 @@ private:
     std::array<float, kNumParams> lastSent_ {};
     int lastPresetRevision_ = -1;
     int lastIrRevision_ = -1;
+    int lastCaptureRevision_ = -1;
     bool lastDirty_ = false;
     int tick_ = 0;
     bool pageReady_ = false;

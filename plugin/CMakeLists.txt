@@ -164,6 +164,7 @@ target_link_libraries(SedefAmp
         SedefPresetData
         sedef::engine
         juce::juce_audio_utils
+        juce::juce_cryptography
         juce::juce_gui_extra
     PUBLIC
         juce::juce_recommended_config_flags
@@ -245,4 +246,35 @@ if(SEDEF_UPDATE_CHECK AND SEDEF_BUILD_TOOLS)
         PUBLIC
             juce::juce_recommended_config_flags
             juce::juce_recommended_warning_flags)
+endif()
+
+# --- Capture library: unit tests ------------------------------------------------------------------
+# CaptureLibrary (session state, preset references, recent list) against the real engine.
+
+if(SEDEF_BUILD_PLUGIN_TESTS)
+    CPMAddPackage(
+        NAME Catch2
+        GITHUB_REPOSITORY catchorg/Catch2
+        VERSION 3.16.1)
+
+    juce_add_console_app(sedef_capture_tests PRODUCT_NAME "sedef_capture_tests")
+    target_sources(sedef_capture_tests PRIVATE
+        tests/CaptureLibraryTests.cpp src/CaptureLibrary.cpp src/CaptureLibrary.h)
+    target_include_directories(sedef_capture_tests PRIVATE src)
+    target_compile_definitions(sedef_capture_tests PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0)
+    target_link_libraries(sedef_capture_tests
+        PRIVATE
+            sedef::engine
+            juce::juce_core
+            juce::juce_cryptography
+            juce::juce_data_structures
+            juce::juce_events
+            Catch2::Catch2WithMain
+        PUBLIC
+            juce::juce_recommended_config_flags
+            juce::juce_recommended_warning_flags)
+
+    list(APPEND CMAKE_MODULE_PATH ${Catch2_SOURCE_DIR}/extras)
+    include(Catch)
+    catch_discover_tests(sedef_capture_tests DISCOVERY_MODE PRE_TEST TEST_PREFIX "capture library: ")
 endif()

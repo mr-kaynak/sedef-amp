@@ -263,6 +263,55 @@ juce::WebBrowserComponent::Options SedefEditor::makeOptions()
         done (proc.irs().stateAsVar());
     });
 
+    // Captures (docs/dsp/nam.md) ---------------------------------------------------------------
+    // Loads answer once the capture is built (on the library's worker), with the new state.
+    const auto captureDone = [this] (Completion completion, bool play) {
+        return [safe = juce::Component::SafePointer<SedefEditor> (this),
+                done = std::move (completion), play] (const juce::String& error) {
+            if (safe == nullptr)
+                return;
+            if (error.isEmpty() && play)
+                safe->processor_.captureLoaded();
+            safe->lastCaptureRevision_ = safe->processor_.captures().revision.load();
+            done (safe->processor_.captures().stateAsVar());
+        };
+    };
+    fn ("sedef_capture_load", [this] (const juce::Array<juce::var>&, Completion done) {
+        loadCapture (std::move (done));
+    });
+    fn ("sedef_capture_loadData",
+        [&proc, captureDone] (const juce::Array<juce::var>& a, Completion done) {
+            if (a.size() < 2 || !a[1].isString())
+            {
+                done (proc.captures().stateAsVar());
+                return;
+            }
+            proc.captures().loadDroppedAsync (a[0].toString(), a[1].toString().toStdString(),
+                                              captureDone (std::move (done), true));
+        });
+    fn ("sedef_capture_loadRecent",
+        [&proc, captureDone] (const juce::Array<juce::var>& a, Completion done) {
+            // Only a path the recent list offered: the page can't make the plug-in read others.
+            const auto path = a.isEmpty() ? juce::String() : a[0].toString();
+            bool listed = false;
+            const auto state = proc.captures().stateAsVar();
+            if (const auto* recent = state["recent"].getArray())
+                for (const auto& r : *recent)
+                    listed = listed || r["path"].toString() == path;
+            if (!listed)
+            {
+                done (proc.captures().stateAsVar());
+                return;
+            }
+            proc.captures().loadFileAsync (juce::File (path), captureDone (std::move (done), true));
+        });
+    fn ("sedef_capture_clear", [this, &proc] (const juce::Array<juce::var>&, Completion done) {
+        proc.captures().clear();
+        proc.changeParamValue (ParamId::ampSource, 0.0f);
+        lastCaptureRevision_ = proc.captures().revision.load();
+        done (proc.captures().stateAsVar());
+    });
+
     // Tuner, metronome, UI ----------------------------------------------------------------------
     fn ("sedef_tuner_setActive", [&proc] (const juce::Array<juce::var>& a, Completion done) {
         proc.analysis().setActive (!a.isEmpty() && static_cast<bool> (a[0]));
@@ -343,6 +392,46 @@ void SedefEditor::loadIr (int mic, int cab, Completion completion)
         });
 }
 
+void SedefEditor::loadCapture (Completion completion)
+{
+    auto& captures = processor_.captures();
+    if (chooser_ != nullptr)
+    {
+        completion (captures.stateAsVar());
+        return;
+    }
+    chooser_ = std::make_unique<juce::FileChooser> ("Load a NAM capture", juce::File(), "*.nam");
+    chooser_->launchAsync (
+        juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
+        [safe = juce::Component::SafePointer<SedefEditor> (this),
+         done = std::move (completion)] (const juce::FileChooser& fc) {
+            if (safe == nullptr)
+                return;
+            const auto file = fc.getResult();
+            safe->chooser_.reset();
+            auto& lib = safe->processor_.captures();
+            if (!file.existsAsFile())
+            {
+                done (lib.stateAsVar());
+                return;
+            }
+            lib.loadFileAsync (file, [safe, done] (const juce::String& error) {
+                if (safe == nullptr)
+                    return;
+                if (error.isEmpty())
+                    safe->processor_.captureLoaded();
+                safe->lastCaptureRevision_ = safe->processor_.captures().revision.load();
+                done (safe->processor_.captures().stateAsVar());
+            });
+        });
+}
+
+void SedefEditor::emitCapture()
+{
+    lastCaptureRevision_ = processor_.captures().revision.load();
+    browser_->emitEventIfBrowserIsVisible ("sedef:capture", processor_.captures().stateAsVar());
+}
+
 // -------------------------------------------------------------------------------------------------
 
 juce::var SedefEditor::schema() const
@@ -391,6 +480,7 @@ juce::var SedefEditor::hello()
         lastSent_[i] = processor_.paramValue (static_cast<ParamId> (i));
     lastPresetRevision_ = processor_.presetRevision.load();
     lastIrRevision_ = processor_.irRevision.load();
+    lastCaptureRevision_ = processor_.captures().revision.load();
     lastDirty_ = processor_.presets().isDirty();
 
     return object ({ { "protocol", kProtocolVersion },
@@ -404,7 +494,8 @@ juce::var SedefEditor::hello()
                      { "values", allValues() },
                      { "uiState", processor_.uiState() },
                      { "presets", processor_.presets().stateAsVar() },
-                     { "ir", processor_.irs().stateAsVar() } });
+                     { "ir", processor_.irs().stateAsVar() },
+                     { "capture", processor_.captures().stateAsVar() } });
 }
 
 void SedefEditor::timerCallback()
@@ -440,6 +531,8 @@ void SedefEditor::timerCallback()
         lastIrRevision_ = processor_.irRevision.load();
         emitIrs();
     }
+    if (processor_.captures().revision.load() != lastCaptureRevision_)
+        emitCapture();
 }
 
 void SedefEditor::emitParams()

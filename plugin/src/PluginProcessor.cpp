@@ -14,7 +14,8 @@ SedefProcessor::SedefProcessor()
       state_ (*this, nullptr, "SedefParameters", createParameterLayout()),
       presets_ (state_),
       irs_ (engine_, engineLock_),
-      analysis_ (engine_)
+      analysis_ (engine_),
+      captures_ (engine_, engineLock_, PresetManager::userFolder().getParentDirectory())
 {
     for (std::size_t i = 0; i < kNumParams; ++i)
     {
@@ -26,6 +27,15 @@ SedefProcessor::SedefProcessor()
     // and a save after the timer has run would differ (clap-validator checks state byte for byte).
     savedPresetId_ = presets_.currentId();
     savedPresetName_ = presets_.currentName();
+    // User presets keep a reference to their capture (docs/dsp/nam.md), only when it plays.
+    presets_.setAttachment (
+        { "capture",
+          [this] (bool forPreset) {
+              return forPreset && paramValue (ParamId::ampSource) < 0.5f ? juce::var()
+                                                                         : captures_.reference();
+          },
+          [this] (const juce::var& ref, bool exact) { captures_.select (ref, exact); },
+          [this] (const juce::var& ref) { return captures_.differs (ref); } });
     startTimerHz (20);
 }
 
@@ -66,6 +76,7 @@ void SedefProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
         engine_.setMetronomeAllowed (isStandalone());
         engine_.setMetronomePattern (metronomePattern());
     }
+    captures_.rebuild(); // now, so the capture plays from the first block at the new rate
     setLatencySamples (engine_.latencySamples());
     loadMeasurer_.reset (sampleRate, samplesPerBlock);
     prepared_ = true;
@@ -256,6 +267,14 @@ void SedefProcessor::timerCallback()
 
     analysis_.setReferenceHz (paramValue (ParamId::tunerReference));
     irs_.collectGarbage();
+    captures_.collectGarbage();
+}
+
+void SedefProcessor::captureLoaded()
+{
+    changeParamValue (ParamId::ampSource, 1.0f);
+    if (const auto cab = captures_.suggestedCab())
+        changeParamValue (ParamId::captureCab, *cab ? 1.0f : 0.0f);
 }
 
 juce::AudioProcessorEditor* SedefProcessor::createEditor()
@@ -312,6 +331,10 @@ void SedefProcessor::getStateInformation (juce::MemoryBlock& dest)
                 irs.appendChild (slot, nullptr);
             }
     root.appendChild (irs, nullptr);
+
+    // The capture's path and the file itself (CaptureLibrary::toState).
+    if (auto capture = captures_.toState(); capture.isValid())
+        root.appendChild (capture, nullptr);
 
     if (const auto xml = root.createXml())
         copyXmlToBinary (*xml, dest);
@@ -390,6 +413,9 @@ void SedefProcessor::setStateInformation (const void* data, int size)
                 static_cast<std::uint8_t> (juce::jlimit (0, 3, steps[i].getIntValue()));
         setMetronomePattern (pattern);
     }
+
+    // Synchronous: a restored capture plays from the first block. None in the state clears it.
+    captures_.restoreState (root.getChildWithName ("Capture"));
 
     // The restored state is the whole truth: slots it doesn't mention are empty. The wanted files
     // are recorded now, so a save before the loads finish still reports them.

@@ -413,7 +413,8 @@ void SedefProcessor::setStateInformation (const void* data, int size)
         setMetronomePattern (pattern);
     }
 
-    // Synchronous: a restored capture plays from the first block. None in the state clears it.
+    // A capture embedded in the state (every saved session has it) is synchronous, so it plays
+    // from the first block; one known only by its path loads on the worker. None clears it.
     captures_.restoreState (root.getChildWithName ("Capture"));
 
     // The restored state is the whole truth: slots it doesn't mention are empty. The wanted files

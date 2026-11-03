@@ -3,14 +3,48 @@
 
 #include "sedef/dsp/capture/CaptureStage.h"
 
+#include <cerrno>
 #include <cmath>
+#include <filesystem>
 #include <juce_cryptography/juce_cryptography.h>
+
+#if !JUCE_WINDOWS
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#endif
 
 namespace sedef::plugin
 {
 namespace
 {
 constexpr auto kMaxBytes = dsp::CaptureFile::kMaxBytes;
+/// A session's stored level further than this from the capture's own is measured again.
+constexpr float kLevelToleranceDb = 0.5f;
+std::atomic<int> gFileReads { 0 };
+
+std::filesystem::path fsPath (const juce::File& f)
+{
+#if JUCE_WINDOWS
+    return std::filesystem::path (f.getFullPathName().toWideCharPointer());
+#else
+    return std::filesystem::path (f.getFullPathName().toRawUTF8());
+#endif
+}
+
+/// A regular file, links followed: never a folder, a device or a pipe. Only looks at it.
+bool isRegularFile (const juce::File& f)
+{
+    std::error_code ec;
+    return f != juce::File() && std::filesystem::is_regular_file (fsPath (f), ec);
+}
+
+/// A path from a session, a preset or the recent list: absolute, or none at all (a relative one
+/// would mean whatever the host's working folder holds).
+juce::File fileFrom (const juce::String& path)
+{
+    return juce::File::isAbsolutePath (path) ? juce::File (path) : juce::File();
+}
 
 juce::var object (std::initializer_list<std::pair<const char*, juce::var>> props)
 {
@@ -45,28 +79,113 @@ juce::String safeFileName (const juce::String& name)
     while (stem.startsWithChar ('.'))
         stem = stem.substring (1);
     stem = stem.trimCharactersAtEnd (". ").substring (0, 80).trim();
+    // Windows opens these as devices, whatever follows the first dot.
+    static const juce::StringArray reserved { "CON",  "PRN",  "AUX",  "NUL",  "COM1", "COM2",
+                                              "COM3", "COM4", "COM5", "COM6", "COM7", "COM8",
+                                              "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5",
+                                              "LPT6", "LPT7", "LPT8", "LPT9" };
+    if (reserved.contains (stem.upToFirstOccurrenceOf (".", false, false).trimEnd(), true))
+        stem = "_" + stem;
     return (stem.isEmpty() ? juce::String ("Capture") : stem) + ".nam";
 }
 
+/// The whole file, if it is a regular file of at most kMaxBytes. Never waits on a pipe or a
+/// device and never reads more than kMaxBytes + 1 bytes, whatever the path names.
 std::optional<std::string> readFile (const juce::File& file, juce::String& error)
 {
-    if (!file.existsAsFile())
+    const auto name = file.getFileName();
+    const auto tooLarge = name + " is larger than 24 MB, so it isn't a capture Sedef can play.";
+    const auto notAFile = name + " isn't a file Sedef can open.";
+    std::error_code ec;
+    const auto status = std::filesystem::status (fsPath (file), ec);
+    if (file == juce::File() || ec || !std::filesystem::exists (status))
     {
-        error = "Couldn't find " + file.getFileName() + ".";
+        error = "Couldn't find " + name + ".";
         return std::nullopt;
     }
-    if (file.getSize() > static_cast<juce::int64> (kMaxBytes))
+    if (!std::filesystem::is_regular_file (status))
     {
-        error = file.getFileName() + " is larger than 24 MB, so it isn't a capture Sedef can play.";
+        error = notAFile;
         return std::nullopt;
     }
-    juce::MemoryBlock data;
-    if (!file.loadFileAsData (data))
+    gFileReads.fetch_add (1, std::memory_order_relaxed);
+    std::string bytes;
+    bool overflow = false;
+#if JUCE_WINDOWS
+    juce::FileInputStream in (file);
+    if (!in.openedOk())
     {
-        error = "Couldn't read " + file.getFileName() + ".";
+        error = "Couldn't read " + name + ".";
         return std::nullopt;
     }
-    return std::string (static_cast<const char*> (data.getData()), data.getSize());
+    char buffer[65536];
+    for (;;)
+    {
+        const int n = in.read (buffer, sizeof (buffer));
+        if (n <= 0)
+            break;
+        if (bytes.size() + static_cast<std::size_t> (n) > kMaxBytes)
+        {
+            overflow = true;
+            break;
+        }
+        bytes.append (buffer, static_cast<std::size_t> (n));
+    }
+#else
+    // Opened without waiting and checked again on what was opened, so a file swapped for a pipe
+    // or a device after the check above is refused too.
+    const int fd = ::open (file.getFullPathName().toRawUTF8(), O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+    if (fd < 0)
+    {
+        error = "Couldn't read " + name + ".";
+        return std::nullopt;
+    }
+    struct stat st {};
+    if (::fstat (fd, &st) != 0 || !S_ISREG (st.st_mode))
+    {
+        ::close (fd);
+        error = notAFile;
+        return std::nullopt;
+    }
+    bytes.reserve (static_cast<std::size_t> (
+        std::clamp<off_t> (st.st_size, 0, static_cast<off_t> (kMaxBytes))));
+    char buffer[65536];
+    bool failed = false;
+    for (;;)
+    {
+        const auto n = ::read (fd, buffer, sizeof (buffer));
+        if (n < 0 && errno == EINTR)
+            continue;
+        if (n <= 0)
+        {
+            failed = n < 0;
+            break;
+        }
+        if (bytes.size() + static_cast<std::size_t> (n) > kMaxBytes)
+        {
+            overflow = true;
+            break;
+        }
+        bytes.append (buffer, static_cast<std::size_t> (n));
+    }
+    ::close (fd);
+    if (failed)
+    {
+        error = "Couldn't read " + name + ".";
+        return std::nullopt;
+    }
+#endif
+    if (overflow)
+    {
+        error = tooLarge;
+        return std::nullopt;
+    }
+    if (bytes.empty())
+    {
+        error = name + " is empty, so it isn't a capture.";
+        return std::nullopt;
+    }
+    return bytes;
 }
 
 juce::String encode (const std::string& bytes)
@@ -132,6 +251,11 @@ CaptureLibrary::~CaptureLibrary()
 juce::String CaptureLibrary::hashOf (const std::string& bytes)
 {
     return juce::SHA256 (bytes.data(), bytes.size()).toHexString();
+}
+
+int CaptureLibrary::fileReads() noexcept
+{
+    return gFileReads.load (std::memory_order_relaxed);
 }
 
 juce::File CaptureLibrary::droppedFolder() const
@@ -495,46 +619,106 @@ void CaptureLibrary::restoreState (const juce::ValueTree& tree)
     }
     const auto generation = request (ref);
     const auto fileName = tree.getProperty ("fileName").toString();
-    const juce::File path (tree.getProperty ("path").toString());
-    juce::String ignored;
+    const auto path = fileFrom (tree.getProperty ("path").toString());
 
-    // The file inside the session, if it is intact: then the level measured when it was first
-    // loaded is trusted and the restore skips measuring again.
+    // The file inside the session, if it is intact: built here, so the session plays its capture
+    // from the first block. The level measured when it was first loaded makes that quick; the
+    // worker measures it again afterwards.
     if (auto bytes = decode (tree.getProperty ("data").toString()); bytes && hashOf (*bytes) == sha)
     {
         std::optional<float> known;
         const auto level = tree.getProperty ("normalisationDb").toString();
         if (level.containsOnly ("-+.0123456789") && level.isNotEmpty())
             known = level.getFloatValue();
-        const auto error =
-            loadBytes (fileName, std::make_shared<const std::string> (std::move (*bytes)), path,
-                       known, false, generation, tree);
-        if (error.isEmpty())
+        auto shared = std::make_shared<const std::string> (std::move (*bytes));
+        if (loadBytes (fileName, shared, path, known, false, generation, tree).isEmpty())
+        {
+            if (known)
+                checkLevel (std::move (shared), sha, *known, generation);
             return;
-    }
-    else if (const auto found =
-                 path.existsAsFile() && hashOf (readFile (path, ignored).value_or ("")) == sha
-                     ? path
-                     : findByHash (sha, fileName);
-             found != juce::File())
-    {
-        juce::String error;
-        if (auto fromDisk = readFile (found, error))
-            if (loadBytes (found.getFileName(),
-                           std::make_shared<const std::string> (std::move (*fromDisk)), found,
-                           std::nullopt, false, generation)
-                    .isEmpty())
-                return;
+        }
+        const std::scoped_lock lock (lock_);
+        if (generation == generation_)
+        {
+            install (nullptr);
+            current_.reset();
+            currentState_ = {};
+            markMissing (ref, tree);
+            pending_ = juce::var();
+        }
+        return;
     }
 
-    const std::scoped_lock lock (lock_);
-    if (generation != generation_)
-        return;
-    install (nullptr);
-    current_.reset();
-    currentState_ = {};
-    markMissing (ref, tree);
-    pending_ = juce::var();
+    // Otherwise from disk, on the worker: a path from a session is never opened on the thread
+    // restoring it (it may name a pipe, a device or a slow network share). Meanwhile nothing
+    // plays and saving keeps what the session asked for.
+    {
+        const std::scoped_lock lock (lock_);
+        if (generation != generation_)
+            return;
+        install (nullptr);
+        current_.reset();
+        currentState_ = {};
+        missing_ = juce::var();
+        missingState_ = tree.createCopy();
+        changed();
+    }
+    loadAsync (
+        [this, tree, ref, sha, fileName, path, generation] {
+            if (!isNewest (generation))
+                return juce::String();
+            std::optional<Found> found;
+            if (isRegularFile (path))
+            {
+                juce::String ignored;
+                if (auto bytes = readFile (path, ignored); bytes && hashOf (*bytes) == sha)
+                    found = Found { path, std::move (*bytes) };
+            }
+            if (!found)
+                found = findByHash (sha, fileName);
+            if (found && loadBytes (found->file.getFileName(),
+                                    std::make_shared<const std::string> (std::move (found->bytes)),
+                                    found->file, std::nullopt, false, generation)
+                             .isEmpty())
+                return juce::String();
+            const std::scoped_lock lock (lock_);
+            if (generation == generation_)
+            {
+                install (nullptr);
+                current_.reset();
+                currentState_ = {};
+                markMissing (ref, tree);
+                pending_ = juce::var();
+            }
+            return juce::String();
+        },
+        {});
+}
+
+void CaptureLibrary::checkLevel (std::shared_ptr<const std::string> bytes,
+                                 const juce::String& sha256, float stored, std::uint64_t generation)
+{
+    // A damaged or crafted session could otherwise make a capture up to 40 dB louder than it is.
+    loadAsync (
+        [this, text = std::move (bytes), sha256, stored, generation] {
+            if (!isNewest (generation))
+                return juce::String();
+            auto parsed = dsp::CaptureFile::parse (*text);
+            if (parsed.file == nullptr ||
+                std::abs (parsed.file->normalisationDb() - stored) <= kLevelToleranceDb)
+                return juce::String();
+            const std::scoped_lock lock (lock_);
+            if (generation != generation_ || !current_ || current_->sha256 != sha256)
+                return juce::String();
+            if (install (parsed.file).isNotEmpty())
+                return juce::String();
+            Entry entry = *current_;
+            entry.file = std::move (parsed.file);
+            makeCurrent (entry, {});
+            remember (entry);
+            return juce::String();
+        },
+        {});
 }
 
 void CaptureLibrary::markMissing (const juce::var& ref, const juce::ValueTree& state)
@@ -552,24 +736,29 @@ void CaptureLibrary::markMissing (const juce::var& ref, const juce::ValueTree& s
     changed();
 }
 
-juce::File CaptureLibrary::findByHash (const juce::String& sha256,
-                                       const juce::String& fileName) const
+std::optional<CaptureLibrary::Found> CaptureLibrary::findByHash (const juce::String& sha256,
+                                                                 const juce::String& fileName) const
 {
-    // The recent list first, then a dropped copy kept under Captures/ with the same name.
+    // The recent list first, then a dropped copy kept under Captures/ with the same name. Each
+    // is read once and must have the hash: what loads is what was checked.
     if (sha256.isEmpty())
-        return {};
+        return std::nullopt;
+    const auto tryFile = [&sha256] (const juce::File& f) -> std::optional<Found> {
+        if (!isRegularFile (f))
+            return std::nullopt;
+        juce::String ignored;
+        if (auto bytes = readFile (f, ignored); bytes && hashOf (*bytes) == sha256)
+            return Found { f, std::move (*bytes) };
+        return std::nullopt;
+    };
     for (const auto& r : readRecent())
         if (r.sha256 == sha256)
-            if (const juce::File f (r.path); f.existsAsFile())
-                return f;
+            if (auto hit = tryFile (fileFrom (r.path)))
+                return hit;
     if (fileName.isNotEmpty())
-        if (const auto f = droppedFolder().getChildFile (safeFileName (fileName)); f.existsAsFile())
-        {
-            juce::String ignored;
-            if (const auto bytes = readFile (f, ignored); bytes && hashOf (*bytes) == sha256)
-                return f;
-        }
-    return {};
+        if (auto hit = tryFile (droppedFolder().getChildFile (safeFileName (fileName))))
+            return hit;
+    return std::nullopt;
 }
 
 // Presets
@@ -579,7 +768,14 @@ juce::var CaptureLibrary::reference() const
 {
     const std::scoped_lock lock (lock_);
     if (!current_)
-        return missing_.isObject() ? missing_.clone() : juce::var(); // still wanted: keep asking
+    {
+        // Still wanted (missing, or being looked for after a restore): keep asking for it.
+        if (missing_.isObject())
+            return missing_.clone();
+        if (pending_.isObject() && pending_["sha256"].toString().isNotEmpty())
+            return pending_.clone();
+        return {};
+    }
     return object ({ { "name", displayName (current_->file->info(), current_->fileName) },
                      { "fileName", current_->fileName },
                      { "path", current_->path != juce::File() ? current_->path.getFullPathName()
@@ -597,7 +793,7 @@ void CaptureLibrary::select (const juce::var& ref, bool exact)
     }
     const auto sha = ref["sha256"].toString();
     const auto fileName = ref["fileName"].toString();
-    const juce::File path (ref["path"].toString());
+    const auto path = fileFrom (ref["path"].toString());
     {
         const std::scoped_lock lock (lock_);
         if (current_ && current_->sha256 == sha)
@@ -627,21 +823,24 @@ void CaptureLibrary::select (const juce::var& ref, bool exact)
     const auto generation = request (ref);
     loadAsync (
         [this, ref, sha, fileName, path, generation] {
-            juce::File file = path.existsAsFile() ? path : findByHash (sha, fileName);
-            if (file == juce::File())
-            {
-                const std::scoped_lock lock (lock_);
-                if (generation == generation_)
-                {
-                    install (nullptr);
-                    current_.reset();
-                    currentState_ = {};
-                    markMissing (ref, {});
-                    pending_ = juce::var();
-                }
+            if (!isNewest (generation))
                 return juce::String();
+            if (isRegularFile (path))
+                return loadPath (path, false, generation); // the preset's own file, as it is now
+            if (auto found = findByHash (sha, fileName))
+                return loadBytes (found->file.getFileName(),
+                                  std::make_shared<const std::string> (std::move (found->bytes)),
+                                  found->file, std::nullopt, false, generation);
+            const std::scoped_lock lock (lock_);
+            if (generation == generation_)
+            {
+                install (nullptr);
+                current_.reset();
+                currentState_ = {};
+                markMissing (ref, {});
+                pending_ = juce::var();
             }
-            return loadPath (file, false, generation);
+            return juce::String();
         },
         {});
 }
@@ -722,7 +921,7 @@ juce::var CaptureLibrary::stateAsVar() const
 
     juce::Array<juce::var> recent;
     for (const auto& r : readRecent())
-        if (juce::File (r.path).existsAsFile())
+        if (isRegularFile (fileFrom (r.path)))
             recent.add (object ({ { "name", r.name },
                                   { "fileName", r.fileName },
                                   { "path", r.path },

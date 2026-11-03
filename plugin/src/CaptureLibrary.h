@@ -57,9 +57,11 @@ public:
     /// <Capture> with the path, the hash, the measured level and the file itself (gzip, base64).
     /// Invalid when no capture is loaded or wanted. Byte for byte what restoreState() was given.
     juce::ValueTree toState() const;
-    /// Synchronous, so a restored session plays its capture from the first block. Uses the
-    /// embedded file (so a session sounds the same on any machine), else the file at its path.
-    /// An invalid tree clears.
+    /// With the file embedded (so a session sounds the same on any machine): synchronous, so a
+    /// restored session plays its capture from the first block; the stored level makes that
+    /// quick and is measured again on the worker. Without it, the file at its path (or a recent
+    /// or kept file with its hash) is read on the worker, never on the calling thread; toState()
+    /// returns the tree meanwhile. An invalid tree clears.
     void restoreState (const juce::ValueTree& tree);
 
     // Presets: a reference ({ name, fileName, path, sha256 }), never the model itself ----------
@@ -94,6 +96,8 @@ public:
     juce::File recentFile() const;
 
     static juce::String hashOf (const std::string& bytes);
+    /// Instrumentation for tests: files opened for reading so far, by every instance.
+    static int fileReads() noexcept;
 
 private:
     struct Entry
@@ -107,6 +111,12 @@ private:
     struct Recent
     {
         juce::String name, fileName, path, sha256;
+    };
+
+    struct Found
+    {
+        juce::File file;
+        std::string bytes; ///< as read and hashed
     };
 
     /// Builds `bytes` and, when `generation` is still the newest request, installs it.
@@ -128,7 +138,10 @@ private:
     void remember (const Entry& e);
     void loadAsync (std::function<juce::String()> job,
                     std::function<void (const juce::String&)> done);
-    juce::File findByHash (const juce::String& sha256, const juce::String& fileName) const;
+    std::optional<Found> findByHash (const juce::String& sha256,
+                                     const juce::String& fileName) const;
+    void checkLevel (std::shared_ptr<const std::string> bytes, const juce::String& sha256,
+                     float stored, std::uint64_t generation);
     static juce::String displayName (const dsp::CaptureInfo& info, const juce::String& fileName);
     static juce::ValueTree makeState (const Entry& e);
 

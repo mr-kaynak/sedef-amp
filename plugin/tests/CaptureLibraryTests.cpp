@@ -5,10 +5,17 @@
 #include "CaptureLibrary.h"
 #include "sedef/dsp/capture/CaptureStage.h"
 
+#include <atomic>
 #include <catch2/catch_test_macros.hpp>
 #include <chrono>
 #include <cmath>
 #include <thread>
+
+#if !JUCE_WINDOWS
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#endif
 
 using sedef::plugin::CaptureLibrary;
 
@@ -231,6 +238,7 @@ TEST_CASE ("A session whose capture can't be found says so and keeps the referen
     tree.setProperty ("sha256", CaptureLibrary::hashOf (bytes), nullptr);
     tree.setProperty ("data", "corrupted", nullptr);
     rig.library->restoreState (tree);
+    rig.waitIdle(); // the path is looked at on the worker
     const auto state = rig.library->stateAsVar();
     CHECK (state["loaded"].isVoid());
     CHECK (state["missing"]["name"] == "Gone");
@@ -240,6 +248,7 @@ TEST_CASE ("A session whose capture can't be found says so and keeps the referen
     // Once the file is back where it was, the reference finds it.
     rig.folder.getChildFile ("Gone.nam").replaceWithData (bytes.data(), bytes.size());
     rig.library->restoreState (tree);
+    rig.waitIdle(); // files are read on the worker
     CHECK (rig.library->currentHash() == CaptureLibrary::hashOf (bytes));
     CHECK (rig.library->stateAsVar()["missing"].isVoid());
 }
@@ -369,4 +378,222 @@ TEST_CASE ("Rebuilding after a rate change keeps the capture playing")
     const auto model = rig.play (0.0f);
     const auto capture = rig.play (1.0f);
     CHECK (model != capture);
+}
+
+// Untrusted paths and files --------------------------------------------------------------------
+// Sessions, presets and the recent list all name files; none of them is trusted.
+
+namespace
+{
+juce::ValueTree sessionFor (const std::string& bytes, const juce::String& path,
+                            const juce::String& name = "Disk")
+{
+    juce::ValueTree tree ("Capture");
+    tree.setProperty ("name", name, nullptr);
+    tree.setProperty ("fileName", name + ".nam", nullptr);
+    tree.setProperty ("path", path, nullptr);
+    tree.setProperty ("sha256", CaptureLibrary::hashOf (bytes), nullptr);
+    return tree; // no data: only the path can supply it
+}
+
+#if !JUCE_WINDOWS
+/// Runs `job` on a thread and says whether it finished within two seconds. If it didn't, it is
+/// stuck opening `fifo`, so the pipe is opened for writing and closed to let it go.
+bool finishesQuickly (const std::function<void()>& job, const juce::File& fifo)
+{
+    std::atomic<bool> done { false };
+    std::thread t ([&] {
+        job();
+        done = true;
+    });
+    const auto until = std::chrono::steady_clock::now() + std::chrono::seconds (2);
+    while (!done && std::chrono::steady_clock::now() < until)
+        std::this_thread::sleep_for (std::chrono::milliseconds (5));
+    const bool quick = done.load();
+    while (!done)
+    {
+        if (const int fd = ::open (fifo.getFullPathName().toRawUTF8(), O_WRONLY | O_NONBLOCK);
+            fd >= 0)
+            ::close (fd);
+        std::this_thread::sleep_for (std::chrono::milliseconds (20));
+    }
+    t.join();
+    return quick;
+}
+#endif
+} // namespace
+
+#if !JUCE_WINDOWS
+TEST_CASE ("A pipe named as a capture is refused without waiting for it")
+{
+    Rig rig;
+    const auto fifo = rig.folder.getChildFile ("Pipe.nam");
+    REQUIRE (::mkfifo (fifo.getFullPathName().toRawUTF8(), 0600) == 0);
+    juce::String error;
+    CHECK (finishesQuickly ([&] { error = rig.library->loadFile (fifo); }, fifo));
+    CAPTURE (error);
+    CHECK (error.contains ("isn't a file"));
+
+    // From a session and from a preset: the loader thread doesn't get stuck either.
+    const auto bytes = linear ({ 0.4f });
+    CHECK (finishesQuickly (
+        [&] {
+            rig.library->restoreState (sessionFor (bytes, fifo.getFullPathName()));
+            rig.waitIdle();
+        },
+        fifo));
+    CHECK (rig.library->stateAsVar()["missing"]["name"] == "Disk");
+    CHECK (finishesQuickly (
+        [&] {
+            rig.library->select (object ({ { "name", "Pipe" },
+                                           { "fileName", "Pipe.nam" },
+                                           { "path", fifo.getFullPathName() },
+                                           { "sha256", CaptureLibrary::hashOf (bytes) } }),
+                                 false);
+            rig.waitIdle();
+        },
+        fifo));
+}
+
+TEST_CASE ("Devices and links to them are refused")
+{
+    Rig rig;
+    const juce::File zero ("/dev/zero");
+    const auto link = rig.folder.getChildFile ("Endless.nam");
+    REQUIRE (zero.createSymbolicLink (link, true));
+    for (const auto& f : { zero, link })
+    {
+        const auto error = rig.library->loadFile (f);
+        CAPTURE (f.getFullPathName(), error);
+        CHECK (error.contains ("isn't a file"));
+    }
+}
+#endif
+
+TEST_CASE ("An empty file is refused as empty")
+{
+    Rig rig;
+    const auto empty = rig.folder.getChildFile ("Empty.nam");
+    REQUIRE (empty.create().wasOk());
+    const auto error = rig.library->loadFile (empty);
+    CAPTURE (error);
+    CHECK (error.contains ("is empty"));
+}
+
+TEST_CASE ("Relative paths from presets and sessions count as missing")
+{
+    Rig rig;
+    const auto bytes = linear ({ 0.6f });
+    const auto dir = rig.folder.getChildFile ("cwd");
+    dir.createDirectory();
+    dir.getChildFile ("Rel.nam").replaceWithData (bytes.data(), bytes.size());
+    const auto previous = juce::File::getCurrentWorkingDirectory();
+    dir.setAsCurrentWorkingDirectory();
+
+    rig.library->select (object ({ { "name", "Rel" },
+                                   { "fileName", "Rel.nam" },
+                                   { "path", "Rel.nam" },
+                                   { "sha256", CaptureLibrary::hashOf (bytes) } }),
+                         false);
+    rig.waitIdle();
+    const bool fromPreset = rig.library->currentHash().isEmpty();
+    rig.library->restoreState (sessionFor (bytes, "Rel.nam", "Rel"));
+    rig.waitIdle();
+    const bool fromSession = rig.library->currentHash().isEmpty();
+    previous.setAsCurrentWorkingDirectory();
+
+    CHECK (fromPreset);
+    CHECK (fromSession);
+    CHECK (rig.library->stateAsVar()["missing"]["name"] == "Rel");
+}
+
+TEST_CASE ("A capture found on disk loads from the bytes that were checked")
+{
+    // Read once: a file that changes between checking its hash and loading it can't slip in.
+    Rig rig;
+    const auto bytes = linear ({ 0.45f });
+    const auto file = rig.write ("Once.nam", bytes);
+    int before = CaptureLibrary::fileReads();
+    rig.library->restoreState (sessionFor (bytes, file.getFullPathName(), "Once"));
+    rig.waitIdle();
+    CHECK (rig.library->currentHash() == CaptureLibrary::hashOf (bytes));
+    CHECK (CaptureLibrary::fileReads() - before == 1);
+
+    // A dropped copy kept under Captures/, found by its name for a preset.
+    const auto kept = linear ({ 0.55f });
+    REQUIRE (rig.library->loadDropped ("Kept.nam", kept).isEmpty());
+    rig.library->recentFile().deleteFile(); // not in the recent list
+    CaptureLibrary fresh (rig.engine, rig.lock, rig.folder);
+    before = CaptureLibrary::fileReads();
+    fresh.select (object ({ { "name", "Kept" },
+                            { "fileName", "Kept.nam" },
+                            { "path", rig.folder.getChildFile ("gone/Kept.nam").getFullPathName() },
+                            { "sha256", CaptureLibrary::hashOf (kept) } }),
+                  false);
+    const auto until = std::chrono::steady_clock::now() + std::chrono::seconds (30);
+    while (fresh.jobsInFlight() > 0 && std::chrono::steady_clock::now() < until)
+        std::this_thread::sleep_for (std::chrono::milliseconds (5));
+    CHECK (fresh.currentHash() == CaptureLibrary::hashOf (kept));
+    CHECK (CaptureLibrary::fileReads() - before == 1);
+}
+
+TEST_CASE ("Dropped files never take a name Windows keeps for a device")
+{
+    Rig rig;
+    const std::pair<const char*, const char*> names[] = {
+        { "CON.nam", "_CON.nam" },       { "nul.txt.nam", "_nul.txt.nam" },
+        { "Com1.nam", "_Com1.nam" },     { "lpt9 .nam", "_lpt9.nam" },
+        { "aux .x.nam", "_aux .x.nam" }, { "Console.nam", "Console.nam" },
+        { "COM10.nam", "COM10.nam" },    { "Prn-Lead.nam", "Prn-Lead.nam" },
+    };
+    float tap = 0.1f;
+    for (const auto& [given, kept] : names)
+    {
+        REQUIRE (rig.library->loadDropped (given, linear ({ tap += 0.01f })).isEmpty());
+        CAPTURE (given);
+        CHECK (juce::File (rig.library->reference()["path"].toString()).getFileName() == kept);
+    }
+}
+
+TEST_CASE ("Restoring a session never reads a file on the calling thread")
+{
+    Rig rig;
+    const auto bytes = linear ({ 0.35f });
+    const auto file = rig.write ("Disk.nam", bytes);
+    const auto tree = sessionFor (bytes, file.getFullPathName());
+    rig.library->restoreState (tree);
+    // Not yet: the worker reads it. Meanwhile saving keeps what the session asked for.
+    CHECK (rig.library->currentHash().isEmpty());
+    CHECK (xmlOf (rig.library->toState()) == xmlOf (tree));
+    CHECK (rig.library->reference()["sha256"] == tree.getProperty ("sha256"));
+    rig.waitIdle();
+    CHECK (rig.library->currentHash() == CaptureLibrary::hashOf (bytes));
+    CHECK (rig.library->stateAsVar()["missing"].isVoid());
+}
+
+TEST_CASE ("A session's stored level is checked against the capture itself")
+{
+    Rig rig;
+    REQUIRE (rig.library->loadFile (rig.write ("Level.nam", linear ({ 0.5f, 0.2f }))).isEmpty());
+    const auto saved = rig.library->toState();
+    const double measured = saved.getProperty ("normalisationDb").toString().getDoubleValue();
+
+    // As saved: restored at once, with its level, and kept byte for byte.
+    Rig honest;
+    honest.library->restoreState (saved);
+    CHECK (honest.library->currentHash() == rig.library->currentHash());
+    honest.waitIdle();
+    CHECK (xmlOf (honest.library->toState()) == xmlOf (saved));
+
+    // 30 dB louder than the capture measures: measured again, and played at its real level.
+    auto loud = saved.createCopy();
+    loud.setProperty ("normalisationDb", juce::String (measured + 30.0, 9), nullptr);
+    Rig tampered;
+    tampered.library->restoreState (loud);
+    tampered.waitIdle();
+    const double level =
+        static_cast<double> (tampered.library->stateAsVar()["loaded"]["normalisationDb"]);
+    CAPTURE (measured, level);
+    CHECK (std::abs (level - measured) < 0.01);
+    CHECK (tampered.play (1.0f) == rig.play (1.0f));
 }

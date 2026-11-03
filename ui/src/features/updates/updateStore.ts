@@ -48,12 +48,19 @@ export function needsRestart(state: SupportedUpdateState | null): boolean {
 }
 
 /**
- * The header pill: "Restart to update" once an update is installed, else "Update available" for a
- * newer release that was neither skipped nor put off with "Later".
+ * The header pill: "Restart to update" once an update is installed, "Updating…" while one
+ * downloads or installs (the panel can be closed meanwhile), else "Update available" for a newer
+ * release that was neither skipped nor put off with "Later".
  */
-export function selectPill(s: UpdateStore): 'restart' | 'available' | null {
+export function selectPill(s: UpdateStore): 'restart' | 'updating' | 'available' | null {
   const state = selectSupported(s);
   if (needsRestart(state)) return 'restart';
+  if (
+    state?.phase === 'downloading' ||
+    state?.phase === 'verifying' ||
+    state?.phase === 'installing'
+  )
+    return 'updating';
   return !!state?.latest &&
     state.updateAvailable &&
     state.latest.version !== state.skippedVersion &&

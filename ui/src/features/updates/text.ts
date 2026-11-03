@@ -61,6 +61,11 @@ export function beforeInstall(state: SupportedUpdateState): string {
   }
 }
 
+/** What Install manually does, on this OS. */
+export function installManuallyNote(platform: UpdatePlatform): string {
+  return MANUAL_ACTION[platform];
+}
+
 /** Why only Install manually is offered, then what it does. */
 export function manualOnly(reason: ManualReason | null, state: SupportedUpdateState): string {
   const why =

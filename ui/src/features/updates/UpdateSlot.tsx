@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// The header's update slot: a quiet pill when a newer release is out ("Update available") or an
-// installed one waits for a restart ("Restart to update"), and the Updates panel while it is open.
+// The header's update slot: a quiet pill when a newer release is out ("Update available"), while
+// it downloads and installs ("Updating…") or once it waits for a restart ("Restart to update"),
+// and the Updates panel while it is open.
 // Renders nothing otherwise, and nothing at all in builds without the checker.
 //
 // The header row has no width to spare, so the pill takes none: it is positioned against the
@@ -21,10 +22,14 @@ export function UpdateSlot() {
 
   const version = state?.latest?.version ?? '';
   const restart = pill === 'restart' && state ? restartText(state) : null;
-  const label = restart ? 'Restart to update' : 'Update available';
-  const description = restart
-    ? `${restart.headline}. ${restart.status}`
-    : `Sedef Amp ${version} is available`;
+  // The visible label, and the longer line for the accessible name and tooltip.
+  const [label, detail] = restart
+    ? ['Restart to update', `${restart.headline}. ${restart.status}`]
+    : pill === 'updating'
+      ? ['Updating…', `Updating to Sedef Amp ${version}`]
+      : ['Update available', `Sedef Amp ${version} is available`];
+  const name =
+    pill === 'updating' ? detail : `${label}: ${restart ? detail : `Sedef Amp ${version}`}`;
 
   return (
     <>
@@ -34,9 +39,8 @@ export function UpdateSlot() {
           className={`${buttons.press} ${styles.pill}`}
           aria-haspopup="dialog"
           aria-expanded={open}
-          aria-label={restart ? `${label}: ${description}` : `${label}: Sedef Amp ${version}`}
-          title={description}
-          data-kind={pill}
+          aria-label={name}
+          title={detail}
           onClick={updateActions.openPanel}
         >
           <span className={styles.dot} aria-hidden="true" />

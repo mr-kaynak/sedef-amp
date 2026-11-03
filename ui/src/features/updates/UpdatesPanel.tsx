@@ -15,6 +15,7 @@ import {
   formatBytes,
   formatDate,
   formatSince,
+  installManuallyNote,
   installStep,
   manualOnly,
   restartText,
@@ -276,9 +277,11 @@ function Actions({ state }: { state: SupportedUpdateState }) {
       <p className={styles.note}>
         {!canInstall
           ? errorMessage(latest.installer ? 'noChecksum' : 'noInstaller', state.platform)
-          : automatic
-            ? beforeInstall(state)
-            : manualOnly(state.autoInstall.reason, state)}
+          : !automatic
+            ? manualOnly(state.autoInstall.reason, state)
+            : failed
+              ? installManuallyNote(state.platform)
+              : beforeInstall(state)}
       </p>
       <div className={styles.actions}>
         <button type="button" className={buttons.ghost} onClick={updateActions.later}>

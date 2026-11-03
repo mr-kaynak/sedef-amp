@@ -243,6 +243,11 @@ describe('Update now', () => {
       within(panel).getByRole('progressbar', { name: 'Preparing Sedef Amp 0.2.0…' }),
     ).toBeInTheDocument();
     expect(within(panel).queryByRole('button', { name: 'Cancel' })).toBeNull();
+    // The panel can be closed meanwhile: the pill says the update is under way.
+    expect(pill()).toBeNull();
+    expect(screen.getByRole('button', { name: 'Updating to Sedef Amp 0.2.0' })).toHaveTextContent(
+      'Updating…',
+    );
     await step();
     expect(
       within(panel).getByRole('progressbar', { name: 'Waiting for your password…' }),
@@ -394,6 +399,11 @@ describe('Install manually', () => {
     expect(within(panel).getByRole('button', { name: 'Try again' })).toBeInTheDocument();
     expect(within(panel).getByRole('button', { name: 'Open releases page' })).toBeInTheDocument();
     expect(within(panel).queryByRole('button', { name: 'Skip this version' })).toBeNull();
+    expect(
+      within(panel).getByText(
+        'Install manually saves the disk image to your Downloads folder and opens it.',
+      ),
+    ).toBeInTheDocument();
     fireEvent.click(within(panel).getByRole('button', { name: 'Install manually' }));
     await step(9);
     expect(within(panel).getByText('Sedef-Amp-macOS.dmg')).toBeInTheDocument();

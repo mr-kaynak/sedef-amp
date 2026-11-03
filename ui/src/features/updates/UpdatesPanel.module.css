@@ -15,6 +15,8 @@
 .dialog {
   display: flex;
   flex-direction: column;
+  /* The size is the content's; the transparent border (for forced colors) goes outside it. */
+  box-sizing: content-box;
   width: 560px;
   max-height: 640px;
   border: 1px solid transparent;

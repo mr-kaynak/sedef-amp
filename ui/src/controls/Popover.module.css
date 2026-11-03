@@ -2,7 +2,9 @@
 .popover {
   position: absolute;
   z-index: 50;
-  /* Transparent, under the shadow ring: forced-colors mode drops shadows and draws this. */
+  /* Transparent, under the shadow ring: forced-colors mode drops shadows and draws this. The
+     -1px margin takes the border back, so the content sits where it did against the anchor. */
+  margin: -1px;
   border: 1px solid transparent;
   border-radius: var(--r-pop);
   background: var(--surface-pop);

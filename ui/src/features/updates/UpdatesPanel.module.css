@@ -207,6 +207,9 @@
   max-height: 250px;
   padding: 11px 13px;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ink-4) transparent;
   border: 1px solid transparent;
   border-radius: var(--r-ctl);
   background: rgb(6 17 25 / 0.4);

@@ -66,6 +66,9 @@
   border-radius: var(--r-ctl);
   background: rgb(6 17 25 / 0.55);
   overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ink-4) transparent;
 }
 
 .notes pre code {
@@ -103,6 +106,9 @@
 .tableWrap {
   margin: 0 0 8px;
   overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ink-4) transparent;
 }
 
 .notes table {

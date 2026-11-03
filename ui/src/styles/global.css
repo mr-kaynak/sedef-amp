@@ -5,12 +5,14 @@
   box-sizing: border-box;
 }
 
+/* The editor never scrolls as a page: no rubber-band of the whole canvas in the WebView. */
 html,
 body,
 #root {
   margin: 0;
   height: 100%;
   overflow: hidden;
+  overscroll-behavior: none;
 }
 
 body {

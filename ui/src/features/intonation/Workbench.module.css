@@ -107,12 +107,18 @@ li[data-state='done'] > .trailDot {
   padding: 16px 16px 16px 24px;
   border-right: 1px solid var(--line);
   overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ink-4) transparent;
 }
 
 .main {
   min-width: 0;
   padding: 18px 28px 18px;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ink-4) transparent;
 }
 
 /* String rail */

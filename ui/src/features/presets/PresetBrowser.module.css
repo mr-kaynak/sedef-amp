@@ -166,6 +166,7 @@
   width: 188px;
   padding: 20px 10px 14px 14px;
   overflow-y: auto;
+  overscroll-behavior: contain;
   border-right: 1px solid var(--line);
   background: rgb(6 17 25 / 0.32);
   scrollbar-width: thin;

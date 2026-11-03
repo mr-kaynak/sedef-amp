@@ -19,6 +19,9 @@
   width: 420px;
   height: 100%;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ink-4) transparent;
   border-left: 1px solid transparent;
   background: var(--surface-pop);
   box-shadow:

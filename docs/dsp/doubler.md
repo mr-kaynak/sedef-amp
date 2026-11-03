@@ -98,15 +98,33 @@ fade length = min(6 ms, min(old offset, new offset) + lead − rise − 0.5 ms)
 
 `rise` is how long ago the detector's fast envelope left its slow one, the
 onset's start. A note whose fade would be shorter than 1.5 ms keeps the
-previous offset, and so does one that would move by less than 0.25 ms.
-Level and tone ramp to the new draw over the same fade.
+previous offset. One that would move by less than 0.25 ms keeps it too, but
+still gets its own level, tone and detune. Level and tone ramp to the new draw
+over the same fade.
+
+A re-timing also replays (when the offset grows) or skips (when it shrinks)
+the stretch of audio between the two read positions, up to 37 ms of it. That
+stretch has to be the tail of the previous note, not an attack, so every
+attack is timed, including the ones the detector lets pass within its 70 ms
+(a grace note, fast tremolo picking). A note keeps the previous offset unless
+the attack before it has passed both read positions by 5 ms. An onset seen
+further ahead than 6.5 ms (a long `lead`) waits until 6.5 ms before its note
+arrives, so the stretch lies just before that note however early it was seen.
+On dense notes 80–100 ms apart with leads of 0, 31 and 46 ms, 79 of 82 notes
+re-time and none is heard twice or dropped; with grace notes, the note after
+each grace note keeps its offset.
 
 **Switching on.** The engine resets the Doubler when it comes out of bypass, so
 its delay line restarts from silence under whatever is already sounding. Until
 the line has filled past the take's offset, the take is the undelayed input;
 then it fades over in 10 ms. The double's filters start settled on the first
 sample. Without that, the right side would drop out for the length of the
-offset and the double would start with a step.
+offset and the double would start with a step. A re-timing never moves the
+take past what the line holds yet (the first note after a reset draws 1.65 ×
+spread, and a pick soon after switching on would otherwise read the silence
+from before the reset, then step). For its first 40 ms the onset detector only
+listens: its slow envelope catches up with what is already sounding instead of
+calling the switch-on an onset.
 
 **The onset detector** compares the power above 2.5 kHz (2nd-order high-pass)
 through a 1 ms and a 40 ms one-pole: an onset is a rise of more than 4 dB
@@ -115,12 +133,14 @@ detector of the kind surveyed by Bello et al. [Bello 2005; Klapuri 1999].
 
 **The DI as onset source.** After a high-gain amp the signal is compressed to a
 wall: on the synthetic palm-muted riff the detector's ratio after an onset had
-a median of 1.6 (the threshold is 2.5), and only 10 of 64 notes re-timed. In the engine the Doubler
-therefore listens to the chain's input (the DI, or the summed stereo input),
-where pick attacks are clean: 59 of 64 notes re-time. The DI also arrives a
-chain latency (`lead`) before the processed signal, which gives the crossfade
-extra room. Without a source (module tests, other hosts of the module) it
-listens to its own input with no lead.
+a median of 1.6 (the threshold is 2.5), and only 9 of 64 notes re-timed. In the
+engine the Doubler therefore listens to the instrument before the amp, where
+pick attacks are clean: 59 of 64 notes re-time. It takes the signal after
+transpose (what the noise gate listens to), since the pitch shifter delays it
+by a varying 3–50 ms that nothing reports. From there the signal reaches the
+Doubler one chain latency later (`lead`: the pedals' and amp's oversampling),
+which gives the crossfade extra room. Without a source (module tests, other
+hosts of the module) it listens to its own input with no lead.
 
 ## Control mapping
 
@@ -157,9 +177,10 @@ main cost of the effect. The strategy is the one v0.2.0 had, now stronger:
   the comb is then in both speakers, by choice.
 
 Within one note the comb is still there (13–16 dB deep per 85 ms frame,
-unchanged from v0.2.0); what changed is that it no longer sits still. The
-engine folds its stereo output to (L + R) / 2 in 1-out hosts, so the Doubler
-combs there too. If mono playback matters more than the double-tracked sound,
+unchanged from v0.2.0); what changed is that it no longer sits still. In 1-out
+hosts the engine folds its output to (L + R) / 2, where the double could only
+comb-filter the part, so there the Doubler stays off whatever its switch says.
+If mono playback of a stereo mix matters more than the double-tracked sound,
 keep spread at 12 ms or more, lower width, or leave the Doubler off.
 
 ## A double from the second mic
@@ -201,8 +222,8 @@ delay track inside notes (|cents|):
 | -------------------------- | -------- | -------- | ------- | --------------------------------- |
 | v0.2.0 (both sides wobble) | 2.66     | 6.05     | 7.8     | 0.9 / 1.13 Hz sines + random walk |
 | new, variation 0           | 0.10     | 0.35     | 1.1     | wander only                       |
-| **new, variation 0.5**     | **1.47** | **3.15** | **3.8** | held per note                     |
-| new, variation 1           | 2.92     | 6.04     | 7.5     | held per note                     |
+| **new, variation 0.5**     | **1.43** | **3.15** | **3.8** | held per note                     |
+| new, variation 1           | 2.84     | 6.04     | 7.5     | held per note                     |
 
 Inter-channel correlation, and the deepest notch of the phrase-averaged mono
 sum (1/24-octave bands, 100 Hz–8 kHz, median minus minimum):
@@ -212,8 +233,8 @@ sum (1/24-octave bands, 100 Hz–8 kHz, median minus minimum):
 | v0.2.0, spread 6              | 0.00           | 0.05                    | 8.9 dB            | 8.7 dB     | 9.3 dB     |
 | new, variation 0              | 0.00           | 0.34                    | 12.3 dB           | 17.5 dB    | 17.9 dB    |
 | **new, defaults**             | **0.00**       | **0.02**                | **2.9 dB**        | **6.2 dB** | **4.3 dB** |
-| new, spread 10, variation 0.6 |                |                         |                   | 2.7 dB     | 2.3 dB     |
-| new, spread 14, variation 1   |                |                         |                   | 3.3 dB     | 1.7 dB     |
+| new, spread 10, variation 0.6 |                |                         |                   | 2.7 dB     | 2.4 dB     |
+| new, spread 14, variation 1   |                |                         |                   | 3.2 dB     | 1.8 dB     |
 
 The best correlation over all lags says how much the right side is one delayed
 copy of the left over the phrase: 0.90 on the riff for a fixed offset, 0.17 for
@@ -230,8 +251,8 @@ left the right side silent there until its delay line had filled (−∞ dB 10�
 after switching on at spread 20, against −0.1 dB now). The left side of the
 engine's output is identical, sample for sample, with the Doubler on or off.
 
-Cost: 16.6 ns per stereo frame (0.08 % of one core at 48 kHz) on an idle Apple
-silicon machine, where Drift measured 43.7 ns.
+Cost: 10.7 ns per stereo frame (0.05 % of one core at 48 kHz) on an idle Apple
+silicon machine, where Drift measured 49.5 ns.
 
 ## Tests (`engine/tests/timefx/DoublerTests.cpp`, tag `[timefx][doubler]`)
 
@@ -247,7 +268,20 @@ silicon machine, where Drift measured 43.7 ns.
   them 1.6 times wider, within 1.7–40.5 ms. The same in ms at 44.1, 96 and
   192 kHz.
 - Each note arrives once: after silence the right side stays silent until the
-  note's own arrival (spreads 3, 6 and 15 ms, and with a 110-sample lead).
+  note's own arrival, and the note's attack shows up there once (spreads 3, 6
+  and 15 ms, and with a 110-sample lead).
+- Fast notes are each heard once, neither replayed nor dropped by a re-timing:
+  notes 80–100 ms apart with leads of 0, 1500 and 2200 samples, and grace notes
+  inside the detector's 70 ms with leads of 0 and 300, at spreads 14 and 20 ms
+  and variation 1; most notes still re-time.
+- Switched on under a held tone at any phase, with a pick soon after (up to
+  1.65 × spread after the take has warmed up), there is no step: energy above
+  3 kHz below −70 dB over the first 120 ms, second difference below 2 × 10⁻³.
+- With no settings given it doubles from the defaults; an onset source set
+  before a reset still applies to the next block.
+- Turning Variation to 0 after a loose phrase brings every later note back to
+  the plain double, +1 dB within 0.2 dB, including when the take already sits
+  within 0.25 ms of the spread's offset.
 - The onset source re-times a held tone that has no onsets of its own.
 - On an 8 s note the detune moves the offset, but by less than twice its drift
   limit plus 0.5 ms, and never below 1.5 ms.
@@ -263,7 +297,7 @@ silicon machine, where Drift measured 43.7 ns.
   < 2 dB against the comb's peaks, a fixed offset > 5 dB.
 - Silence in gives silence out. Mono passes untouched.
 - In the engine, the left output with the Doubler on equals the output with it
-  off.
+  off; with one output the whole output does.
 - `[.bench][timefx-bench]` prints ns/frame.
 
 ## Limitations / future work
@@ -272,7 +306,8 @@ silicon machine, where Drift measured 43.7 ns.
   doing that would delay the played side, so the image leans slightly to the
   left (the +1 dB lift offsets part of it).
 - Re-timing needs an onset. Legato phrases and hammer-ons keep their note's
-  offset until the next pick attack; notes closer than 70 ms share one.
+  offset until the next pick attack; notes closer than 70 ms share one, and a
+  note right after a grace note keeps the offset before it.
 - One double. Quad tracking (two doubles per side) is not modelled.
 - Timing, pitch, level and tone share one Variation control.
 

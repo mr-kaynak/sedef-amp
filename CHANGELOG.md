@@ -12,7 +12,8 @@ All notable changes to this project are documented here. The format follows
   attack it draws its own timing (around Spread, with a memory of the phrase), a detune of a few
   cents, and a slightly different level and tone, then moves there between notes, so it never
   sounds like a fixed delay or a chorus. The side you play is passed through untouched, with no
-  delay ([docs/dsp/doubler.md](docs/dsp/doubler.md)).
+  delay. With a mono output it stays off, since there it could only comb-filter your part
+  ([docs/dsp/doubler.md](docs/dsp/doubler.md)).
 
 ### Added
 

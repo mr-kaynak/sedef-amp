@@ -322,6 +322,21 @@ export interface PitchEvent {
   stableStdCents: number;
   stableCount: number;
   onsetId: number;
+  /**
+   * What the tuner needle shows (the engine's TunerDisplay, docs/dsp/tuner.md "Display"): calm on
+   * a sustained note, prompt on a peg turn, one note from the pick to the end of the decay, and
+   * the last value held when the note dies.
+   */
+  displayValid: boolean;
+  /** The note has ended; the display holds its last value. */
+  displayHeld: boolean;
+  /** The display comes from the long window and has converged: good to a tenth of a cent. */
+  displaySettled: boolean;
+  displayHz: number;
+  /** The note shown (MIDI), locked with hysteresis. */
+  displayNote: number;
+  /** displayHz relative to displayNote. */
+  displayCents: number;
 }
 
 export interface Events {

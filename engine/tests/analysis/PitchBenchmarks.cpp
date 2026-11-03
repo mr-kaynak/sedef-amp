@@ -68,6 +68,32 @@ TEST_CASE ("PitchDetector and PitchTracker cost", "[.bench][pitch-bench]")
             "PitchTracker at %6.0f Hz: %.2f%% of one core (%.1f us per hop incl. decimation)\n",
             rate, 100.0 * elapsed / 10.0, 1.0e6 * elapsed / hops);
     }
+
+    // The display's worst case: a pitch that keeps moving and stopping (a slow wide vibrato), so
+    // its long window keeps restarting and growing beside the settled one.
+    for (double rate : { 48000.0, 192000.0 })
+    {
+        std::vector<float> sig (static_cast<size_t> (10.0 * rate), 0.0f);
+        for (int i = 0; i < 5; ++i)
+        {
+            test::Pluck p;
+            p.f1 = 110.0 * (1 + i % 3);
+            p.maxPartialHz = 5000.0;
+            p.vibratoAt = 0.3;
+            p.vibratoCents = 8.0;
+            p.vibratoHz = 1.5;
+            test::addPluck (sig, rate, static_cast<size_t> (2 * i * rate), p);
+        }
+        analysis::PitchTracker tracker;
+        tracker.prepare (rate);
+        const int block = 256;
+        const auto t0 = Clock::now();
+        for (size_t s = 0; s + static_cast<size_t> (block) <= sig.size();
+             s += static_cast<size_t> (block))
+            tracker.push (sig.data() + s, block);
+        std::printf ("PitchTracker at %6.0f Hz, pitch always moving: %.2f%% of one core\n", rate,
+                     100.0 * secondsSince (t0) / 10.0);
+    }
 }
 
 TEST_CASE ("PitchTracker accuracy report", "[.report][pitch-report]")

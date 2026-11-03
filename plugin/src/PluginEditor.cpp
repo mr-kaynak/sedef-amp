@@ -502,7 +502,13 @@ void SedefEditor::emitPitch()
                                  { "stableHz", r.stableHz },
                                  { "stableStdCents", r.stableStdCents },
                                  { "stableCount", r.stableCount },
-                                 { "onsetId", static_cast<int> (r.onsetId) } }));
+                                 { "onsetId", static_cast<int> (r.onsetId) },
+                                 { "displayValid", r.displayValid },
+                                 { "displayHeld", r.displayHeld },
+                                 { "displaySettled", r.displaySettled },
+                                 { "displayHz", r.displayHz },
+                                 { "displayNote", juce::jlimit (0, 127, r.displayNote) },
+                                 { "displayCents", r.displayCents } }));
 }
 
 void SedefEditor::emitPresets()

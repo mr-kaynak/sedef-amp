@@ -1,16 +1,21 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Needle and strobe display. Everything that moves is drawn from the pitch channel in
-// requestAnimationFrame through refs; React re-renders only when the note or the in-tune state
-// changes. Screen readers get a settled reading ("E 2, in tune") rather than every pluck.
-import { useRef } from 'react';
+// Needle and strobe display. The engine's display fields are already calm (docs/dsp/tuner.md,
+// "Display"); readout.ts decides on every pitch event what the gauge says (note, in tune, the
+// numbers), and the needle and strobe follow in requestAnimationFrame through refs. React
+// re-renders only when the note, the state or the hold changes. Screen readers hear a state
+// ("E 2, in tune") once it has held for a moment, never more often than every 2 s, and again for
+// the next note once this one has ended.
+import { useEffect, useRef, useState } from 'react';
 import { noteOf, splitAccidental } from '../../lib/music';
-import { pitch, useLiveFrame, useLiveSelector } from '../../state/live';
-import { centsFor, IN_TUNE_CENTS, spokenReading, type GaugeTarget } from './cents';
-import { formatCents } from '../intonation/math';
+import { getValue } from '../../params/paramStore';
+import { pitch, useLiveFrame } from '../../state/live';
+import { IN_TUNE_CENTS, spokenState, type GaugeTarget } from './cents';
+import { NeedleSpring, needleOpacity } from './needle';
+import { readoutInput, TunerReadout, type TuneState } from './readout';
 import styles from './TunerGauge.module.css';
 
 const SWEEP_DEG = 52;
-/** A reading is announced once it has held this long, and at most this often. */
+/** A state is announced once it has held this long, and at most this often. */
 const ANNOUNCE_SETTLE_SECONDS = 0.6;
 const ANNOUNCE_GAP_SECONDS = 2;
 const W = 560;
@@ -40,6 +45,24 @@ function zonePath(cents: number): string {
   return `M${point(-cents)} A ${R} ${R} 0 0 1 ${point(cents)}`;
 }
 
+/** Seconds on the clock the intonation workbench also times its holds with. */
+const now = () => performance.now() / 1000;
+
+/** What the tuner tells the player to do, beside the colour of the state. */
+const HINT: Record<TuneState, string> = {
+  idle: '',
+  listening: '',
+  'in-tune': 'In tune',
+  sharp: 'Tune down',
+  flat: 'Tune up',
+};
+
+interface View {
+  note: number | null;
+  tune: TuneState;
+  held: boolean;
+}
+
 export function TunerGauge({
   target = CHROMATIC,
   compact = false,
@@ -59,70 +82,102 @@ export function TunerGauge({
   const hzRef = useRef<HTMLSpanElement>(null);
   const strobeRef = useRef<HTMLDivElement>(null);
   const announceRef = useRef<HTMLSpanElement>(null);
-  const motion = useRef({ angle: 0, strobe: 0, textClock: 0, visible: 0 });
-  const speech = useRef({ heard: '', heardFor: 0, announced: '', sinceAnnounced: Infinity });
-
-  const note = useLiveSelector(pitch, (e) => {
-    if (target.kind === 'target') return target.midi;
-    return e?.valid ? e.midiNote : null;
+  const machine = useRef<TunerReadout | null>(null);
+  // Kept across a change of target or tolerance, so the needle's fade does not start over.
+  const motion = useRef({
+    spring: new NeedleSpring(),
+    strobe: 0,
+    opacity: 0.25,
+    heldAt: 0,
+    held: false,
+    seen: false,
   });
-  const state = useLiveSelector(pitch, (e) => {
-    const c = centsFor(e, target);
-    if (c === null) return 'idle';
-    if (Math.abs(c) <= inTuneCents) return 'in-tune';
-    return c > 0 ? 'sharp' : 'flat';
-  });
+  const [view, setView] = useState<View>({ note: null, tune: 'idle', held: false });
+  const targetMidi = target.kind === 'target' ? target.midi : null;
 
-  useLiveFrame(pitch, (e, dt) => {
+  // Every pitch event: decide what the gauge says.
+  useEffect(() => {
+    const gaugeTarget: GaugeTarget =
+      targetMidi === null ? CHROMATIC : { kind: 'target', midi: targetMidi };
+    const readout = new TunerReadout(inTuneCents);
+    machine.current = readout;
+    const speech = { heard: '', heardAt: 0, announced: '', announcedAt: -Infinity };
+    const handle = () => {
+      const t = now();
+      const input = readoutInput(pitch.latest(), gaugeTarget, getValue('tunerReference'));
+      const r = readout.update(input, t);
+      const m = motion.current;
+      // A note that ended before the gauge opened is old news: dimmed at once.
+      if (r.held && !m.held) m.heldAt = m.seen ? t : -Infinity;
+      m.held = r.held;
+      m.seen = true;
+      if (centsRef.current) centsRef.current.textContent = r.centsText;
+      if (hzRef.current) hzRef.current.textContent = r.hzText;
+      setView((v) =>
+        v.note === r.note && v.tune === r.tune && v.held === r.held
+          ? v
+          : { note: r.note, tune: r.tune, held: r.held },
+      );
+
+      const heard =
+        r.note === null || r.held || r.tune === 'idle' || r.tune === 'listening'
+          ? ''
+          : spokenState(r.note, r.tune);
+      if (heard !== speech.heard) {
+        speech.heard = heard;
+        speech.heardAt = t;
+      }
+      if ((r.held || r.note === null) && speech.announced) {
+        // The note has ended: the next one is announced even if it reads the same.
+        speech.announced = '';
+        if (announceRef.current) announceRef.current.textContent = '';
+      }
+      if (
+        heard &&
+        heard !== speech.announced &&
+        t - speech.heardAt >= ANNOUNCE_SETTLE_SECONDS &&
+        t - speech.announcedAt >= ANNOUNCE_GAP_SECONDS &&
+        announceRef.current
+      ) {
+        announceRef.current.textContent = heard;
+        speech.announced = heard;
+        speech.announcedAt = t;
+      }
+    };
+    handle();
+    return pitch.subscribe(handle);
+  }, [targetMidi, inTuneCents]);
+
+  // Every frame: move the needle and the strobe.
+  useLiveFrame(pitch, (_e, dt) => {
     const m = motion.current;
-    const cents = centsFor(e, target);
-    const clamped = cents === null ? 0 : Math.max(-50, Math.min(50, cents));
-    const targetAngle = (clamped / 50) * SWEEP_DEG;
-    // Critically damped approach: smooth but never overshooting, like a well-damped meter.
-    m.angle += (targetAngle - m.angle) * (1 - Math.exp(-dt * 16));
-    m.visible += ((cents === null ? 0.25 : 1) - m.visible) * (1 - Math.exp(-dt * 10));
-    needleRef.current?.setAttribute('transform', `rotate(${m.angle.toFixed(2)} ${CX} ${CY})`);
-    if (needleRef.current) needleRef.current.style.opacity = m.visible.toFixed(2);
+    const r = machine.current?.current;
+    const cents = r?.cents ?? null;
+    const shown = cents !== null;
+    const clamped = shown ? Math.max(-50, Math.min(50, cents)) : 0;
+    const angle = (m.spring.step(clamped, dt) / 50) * SWEEP_DEG;
+    const opacity = needleOpacity(shown, r?.held ? now() - m.heldAt : null);
+    m.opacity += (opacity - m.opacity) * (1 - Math.exp(-dt * 10));
+    needleRef.current?.setAttribute('transform', `rotate(${angle.toFixed(2)} ${CX} ${CY})`);
+    if (needleRef.current) needleRef.current.style.opacity = m.opacity.toFixed(2);
 
-    // The strobe drifts at a speed proportional to the error and stands still when in tune.
-    m.strobe = (m.strobe + (cents ?? 0) * dt * 6) % 24;
+    // The strobe drifts at a speed proportional to the error, stands still in tune and stops
+    // when the note ends.
+    const drift = shown && !r?.held ? m.spring.position : 0;
+    m.strobe = (m.strobe + drift * dt * 6) % 24;
     strobeRef.current?.style.setProperty('--offset', `${m.strobe.toFixed(2)}px`);
-
-    m.textClock += dt;
-    if (m.textClock > 0.08) {
-      m.textClock = 0;
-      if (centsRef.current)
-        centsRef.current.textContent = cents === null ? '—' : formatCents(cents);
-      if (hzRef.current)
-        hzRef.current.textContent = e?.valid ? `${e.frequencyHz.toFixed(2)} Hz` : '';
-    }
-
-    const s = speech.current;
-    const heard =
-      cents === null || !e
-        ? ''
-        : spokenReading(target.kind === 'target' ? target.midi : e.midiNote, cents, inTuneCents);
-    s.heardFor = heard === s.heard ? s.heardFor + dt : 0;
-    s.heard = heard;
-    s.sinceAnnounced += dt;
-    if (
-      heard &&
-      heard !== s.announced &&
-      s.heardFor >= ANNOUNCE_SETTLE_SECONDS &&
-      s.sinceAnnounced >= ANNOUNCE_GAP_SECONDS &&
-      announceRef.current
-    ) {
-      announceRef.current.textContent = heard;
-      s.announced = heard;
-      s.sinceAnnounced = 0;
-    }
   });
 
-  const label = note === null ? null : noteOf(note);
+  const label = view.note === null ? null : noteOf(view.note);
   const [letter, accidental] = label ? splitAccidental(label.note) : ['', ''];
 
   return (
-    <div className={styles.gauge} data-state={state} data-compact={compact || undefined}>
+    <div
+      className={styles.gauge}
+      data-state={view.tune}
+      data-held={view.held || undefined}
+      data-compact={compact || undefined}
+    >
       <svg
         className={styles.dial}
         viewBox={`0 0 ${W} ${H}`}
@@ -177,9 +232,10 @@ export function TunerGauge({
           </span>
           <span ref={hzRef} className={styles.hz} />
         </div>
+        {!compact && <p className={styles.hint}>{HINT[view.tune]}</p>}
       </div>
       <div ref={strobeRef} className={styles.strobe} aria-hidden="true" />
-      <span ref={announceRef} className="visually-hidden" aria-live="polite" />
+      <span ref={announceRef} className="visually-hidden" role="status" />
     </div>
   );
 }

@@ -50,6 +50,12 @@ export function pitchEvent(midi: number, cents: number, frame: PitchFrame = {}):
     stableStdCents: stable ? 0.06 : 0,
     stableCount: stable ? (frame.stableCount ?? 20) : 0,
     onsetId: 1,
+    displayValid: true,
+    displayHeld: false,
+    displaySettled: stable,
+    displayHz: hz,
+    displayNote: nearest,
+    displayCents: 100 * (midiFloat - nearest),
   };
 }
 

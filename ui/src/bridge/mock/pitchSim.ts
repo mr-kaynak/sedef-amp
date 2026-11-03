@@ -2,7 +2,10 @@
 // A virtual player for the browser mock. It produces PitchEvents the way the C++ PitchTracker
 // does for a real guitar (docs/dsp/tuner.md): plucks with a sharp attack glide, a short-window
 // reading with jitter, and settled detections, one per 5 ms hop from shortly after the attack,
-// whose last 0.4 s give stable, stableHz, stableStdCents and stableCount.
+// whose last 0.4 s give stable, stableHz, stableStdCents and stableCount. The display fields
+// follow the engine's TunerDisplay in outline: a new note shows 50 ms after its first reading, a
+// re-pluck of the same note keeps the needle still until the long window is ready, the reading is
+// followed while the peg turns, and the last value is held when the note dies.
 //
 // Like a real string it never sits still: every pluck wobbles by about a cent (fretting pressure,
 // the neck and body moving), sags slowly flat and fades out. Like a real player it never tunes
@@ -44,6 +47,16 @@ const WOBBLE_COMPONENTS = 3;
 /** Tuning, the player turns the peg over this stretch of the first pluck (seconds). */
 const TURN_STARTS_AT = 0.8;
 const TURN_ENDS_AT = 1.3;
+/** Display: a new note's first readings settle out of sight for this long. */
+const DISPLAY_REVEAL_SECONDS = 0.05;
+const DISPLAY_ATTACK_TAU = 0.035;
+const DISPLAY_MOVE_TAU = 0.025;
+const DISPLAY_REST_TAU = 0.08;
+/** A pitch moving faster than this is followed through the reading. */
+const DISPLAY_MOVE_CENTS_PER_SECOND = 6;
+/** The long window is ready (and the display can settle) this long after a pick or a move. */
+const DISPLAY_SETTLE_SECONDS = 0.3;
+const DISPLAY_LOCK_CENTS = 60;
 
 interface Settled {
   t: number;
@@ -89,6 +102,17 @@ export class PitchSimulator {
   private settled: Settled[] = [];
   private stableCount = 0;
   private hopDebt = 0;
+  /** The display: the note and pitch shown (cents from the target), and how it got there. */
+  private display = {
+    shown: false,
+    held: false,
+    settled: false,
+    note: 0,
+    cents: 0,
+    sameNote: false,
+    still: 0,
+  };
+  private lastDeviation: number | null = null;
   private readonly random: () => number;
   private readonly errors: number[];
 
@@ -114,6 +138,7 @@ export class PitchSimulator {
     this.pluckT = -1;
     this.plucks = 0;
     this.clearSegment();
+    this.lastDeviation = null;
     // Strings drift a little flat or sharp between sessions.
     this.detune = (this.random() < 0.5 ? -1 : 1) * (12 + this.random() * 16);
     this.startDetune = this.detune;
@@ -130,6 +155,7 @@ export class PitchSimulator {
     this.plucks += 1;
     this.onsetId += 1;
     this.clearSegment();
+    this.display.sameNote = this.display.shown && this.display.note === this.currentTarget();
     // Every pluck wobbles differently: a few slow sinusoids, together within ±WOBBLE_CENTS.
     this.wobble = Array.from({ length: WOBBLE_COMPONENTS }, () => ({
       hz: WOBBLE_MIN_HZ * Math.pow(WOBBLE_MAX_HZ / WOBBLE_MIN_HZ, this.random()),
@@ -161,6 +187,9 @@ export class PitchSimulator {
     }
 
     const deviation = this.deviationCents(dt);
+    const speed =
+      this.lastDeviation === null || dt <= 0 ? 0 : (deviation - this.lastDeviation) / dt;
+    this.lastDeviation = deviation;
     const levelDb = -14 - this.pluckT * 7;
     if (levelDb < -62) return this.silent();
 
@@ -175,7 +204,40 @@ export class PitchSimulator {
       (wobble * WOBBLE_CENTS) / WOBBLE_COMPONENTS;
     this.settle(pitch, dt, fretted);
     const jitter = gaussian(this.random) * (fretted ? 0.6 : 0.5);
+    this.updateDisplay(target, pitch + jitter, Math.abs(speed) > DISPLAY_MOVE_CENTS_PER_SECOND, dt);
     return this.reading(target, pitch + jitter, levelDb);
+  }
+
+  /** The display for one tick: `reading` is the short-window reading in cents from the target. */
+  private updateDisplay(target: number, reading: number, moving: boolean, dt: number): void {
+    const d = this.display;
+    d.held = false;
+    const follow = (value: number, tau: number) => {
+      d.cents += (value - d.cents) * (1 - Math.exp(-dt / tau));
+    };
+    if (!d.sameNote && this.pluckT < DISPLAY_REVEAL_SECONDS) {
+      // A new note: the note shown so far stands until the first readings have settled.
+      d.held = d.shown;
+      if (this.pluckT <= dt) d.cents = reading;
+      else follow(reading, DISPLAY_ATTACK_TAU);
+      if (d.shown) return;
+    }
+    if (!d.shown || d.note !== target) {
+      d.shown = true;
+      d.note = target;
+    }
+    d.still = moving ? 0 : d.still + dt;
+    const ready = this.pluckT >= DISPLAY_SETTLE_SECONDS;
+    if (moving) follow(reading, DISPLAY_MOVE_TAU);
+    // No randomness of its own: the player's random sequence (and so every test) is unchanged.
+    else if (ready) follow(this.smoothed, DISPLAY_REST_TAU);
+    else if (!d.sameNote) follow(reading, DISPLAY_ATTACK_TAU);
+    // A re-pluck of the note shown keeps the needle still through the attack.
+    if (Math.abs(d.cents) > DISPLAY_LOCK_CENTS) {
+      const steps = Math.round(d.cents / 100);
+      d.note += steps;
+      d.cents -= 100 * steps;
+    }
   }
 
   private currentTarget(): number | null {
@@ -248,6 +310,13 @@ export class PitchSimulator {
     const full =
       oldest <= this.pluckT - STABLE_SPAN_SECONDS + 1 / HOPS_PER_SECOND &&
       n >= STABLE_FILL * STABLE_SPAN_SECONDS * HOPS_PER_SECOND;
+    const d = this.display;
+    const displayHz = midiToHz(d.note, reference) * Math.pow(2, d.cents / 1200);
+    d.settled =
+      d.shown &&
+      !d.held &&
+      this.pluckT >= DISPLAY_SETTLE_SECONDS &&
+      d.still >= DISPLAY_SETTLE_SECONDS / 2;
 
     return {
       valid: true,
@@ -263,10 +332,29 @@ export class PitchSimulator {
       stableStdCents: std,
       stableCount: this.stableCount,
       onsetId: this.onsetId,
+      ...this.displayFields(displayHz, reference),
+    };
+  }
+
+  private displayFields(hz: number, reference: number) {
+    const d = this.display;
+    const midiFloat = d.shown ? hzToMidi(hz, reference) : 0;
+    return {
+      displayValid: d.shown,
+      displayHeld: d.held,
+      // A held reading is as precise as it was.
+      displaySettled: d.shown && d.settled,
+      displayHz: d.shown ? hz : 0,
+      displayNote: d.shown ? d.note : 0,
+      displayCents: d.shown ? 100 * (midiFloat - d.note) : 0,
     };
   }
 
   private silent(): PitchEvent {
+    const d = this.display;
+    d.held = d.shown;
+    this.lastDeviation = null;
+    const reference = this.options.getReferenceHz();
     return {
       valid: false,
       frequencyHz: 0,
@@ -281,6 +369,7 @@ export class PitchSimulator {
       stableStdCents: 0,
       stableCount: 0,
       onsetId: this.onsetId,
+      ...this.displayFields(midiToHz(d.note, reference) * Math.pow(2, d.cents / 1200), reference),
     };
   }
 }

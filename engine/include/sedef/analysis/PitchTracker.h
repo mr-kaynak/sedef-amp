@@ -2,6 +2,7 @@
 #pragma once
 
 #include "sedef/analysis/PitchDetector.h"
+#include "sedef/analysis/TunerDisplay.h"
 
 #include <cstdint>
 #include <vector>
@@ -40,11 +41,24 @@ public:
         float stableStdCents = 0.0f;
         int stableCount = 0;       ///< detections in the current settled segment
         std::uint32_t onsetId = 0; ///< increments on every detected pluck
+
+        /// What a tuner needle should show (TunerDisplay): calm, prompt on a peg turn, one note
+        /// from the pick to the end of the decay, and held when the note dies.
+        bool displayValid = false;   ///< a note is shown, also while held
+        bool displayHeld = false;    ///< the note has ended; the last value stands
+        bool displaySettled = false; ///< precise to a tenth of a cent
+        float displayHz = 0.0f;
+        int displayNote = 0;       ///< locked note, for the reference
+        float displayCents = 0.0f; ///< displayHz relative to displayNote
     };
 
     void prepare (double inputSampleRate);
     void reset();
-    void setReferenceHz (float a4Hz) noexcept { referenceHz_ = a4Hz; }
+    void setReferenceHz (float a4Hz) noexcept
+    {
+        referenceHz_ = a4Hz;
+        display_.setReferenceHz (a4Hz);
+    }
 
     /// Feeds input-rate samples; updates latest().
     void push (const float* samples, int numSamples);
@@ -85,8 +99,10 @@ private:
     void startSegment (std::int64_t start, bool countOnset);
     int windowFor (double hz) const noexcept;
     double median() const noexcept;
+    void updateDisplay (Reading& r, TunerDisplay::Input in);
 
     PitchDetector detector_;
+    TunerDisplay display_;
     double inputRate_ = 48000.0;
     float referenceHz_ = 440.0f;
     Reading latest_;
@@ -126,6 +142,9 @@ private:
     int settledHead_ = 0, settledCount_ = 0;
     double settledRefHz_ = 0.0;
     int stableCount_ = 0;
+
+    // Display: the long window starts no earlier than the last move of the pitch.
+    std::int64_t displayAnchor_ = 0;
 };
 
 } // namespace sedef::analysis

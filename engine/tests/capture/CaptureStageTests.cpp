@@ -101,11 +101,12 @@ TEST_CASE ("With no capture loaded the stage plays the built-in amp, bit for bit
         stage.run (x);
         dsp::AmpSection amp;
         amp.prepare ({ fs, 64, 1 });
-        auto y = test::guitarStrum (fs, 1.0);
+        auto y = test::guitarStrum (fs, 1.0); // 44,100 samples: the last block is short
         for (std::size_t s = 0; s < y.size(); s += 64)
         {
             amp.setSettings ({});
-            amp.process (AudioView (y.data() + s, 64));
+            amp.process (AudioView (y.data() + s,
+                                    static_cast<int> (std::min<std::size_t> (64, y.size() - s))));
         }
         const auto pad =
             static_cast<std::size_t> (stage.stage.latencySamples() - amp.latencySamples());

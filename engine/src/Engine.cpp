@@ -51,6 +51,7 @@ struct ChainSettings
     dsp::AmpSection::Settings amp;
     dsp::CabSim::Settings cab;
     dsp::CaptureStage::Settings capture;
+    // Pedals lane: Trench, Urchin and Kelp.
     bool trenchOn = false, urchinOn = false, kelpOn = false;
     dsp::Trench::Settings trench;
     dsp::Urchin::Settings urchin;
@@ -119,6 +120,7 @@ ChainSettings chainSettings (const ParamSnapshot& p)
     s.capture = { p.choice (P::ampSource) == 1, p[P::captureInput], p[P::captureOutput],
                   p[P::captureInterfaceLevel], p.flag (P::captureCab) };
 
+    // Pedals lane: Trench, Urchin and Kelp.
     s.trenchOn = p.flag (P::trenchEnabled);
     s.trench = { p[P::trenchDirect], p[P::trenchSub1], p[P::trenchSub2], p[P::trenchTone] };
     s.urchinOn = p.flag (P::urchinEnabled);
@@ -298,8 +300,7 @@ struct StereoSlot
 };
 
 /// One instrument chain: input gain -> gate -> pedals -> amp -> cab. Mono in,
-/// stereo out. Pedal order: Trench, Tide, Urchin, Pearl, Kelp, Coral, Ripple (docs/architecture.md
-/// section 6 says why).
+/// stereo out.
 struct Chain
 {
     LinearSmoothed inputGain;
@@ -311,6 +312,8 @@ struct Chain
     dsp::AmpSection amp;
     dsp::CabSim cab;
     dsp::CaptureStage capture; // the amp or a .nam capture, and the cab or not
+    // Pedals lane: Trench, Urchin and Kelp, each a self-contained module in a latency-aligned
+    // bypass slot.
     Slot<dsp::Trench> trench;
     Slot<dsp::Urchin> urchin;
     Slot<dsp::Kelp> kelp;
@@ -392,14 +395,14 @@ struct Chain
         const auto run = [] (auto& m, const AudioView& v) {
             m.process (v);
         };
-        // The octaver tracks best on the clean, uncompressed guitar; the octave fuzz's rectifier
-        // wants a clean signal too, but sustains better after the compressor; the mid-hump drive
-        // tightens what follows it, so it sits last before the distortion and the amp.
-        trench.process (x, n, s.trenchOn, s.trench, run);
+        // Pedals lane: Trench, Urchin and Kelp go where they sound best (the "Where it goes in the
+        // chain" section of docs/dsp/trench.md, urchin.md and kelp.md). The order stays fixed
+        // until the pedalboard makes it the player's.
+        trench.process (x, n, s.trenchOn, s.trench, run); // pedals lane
         tideRan = tide.process (x, n, s.tideOn, s.tide, run);
-        urchin.process (x, n, s.urchinOn, s.urchin, run);
+        urchin.process (x, n, s.urchinOn, s.urchin, run); // pedals lane
         pearl.process (x, n, s.pearlOn, s.pearl, run);
-        kelp.process (x, n, s.kelpOn, s.kelp, run);
+        kelp.process (x, n, s.kelpOn, s.kelp, run); // pedals lane
         coral.process (x, n, s.coralOn, s.coral, run);
         ripple.process (x, n, s.rippleOn, s.ripple, run);
 

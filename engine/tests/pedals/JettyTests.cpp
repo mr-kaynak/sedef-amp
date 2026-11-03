@@ -77,7 +77,8 @@ TEST_CASE ("Jetty's comb notches sit at odd multiples of half the delay's freque
             REQUIRE (notches.size() >= 3);
             for (size_t k = 0; k < 3; ++k)
             {
-                CHECK (notches[k].hz == Approx ((2.0 * k + 1.0) * first).epsilon (0.01));
+                CHECK (notches[k].hz ==
+                       Approx ((2.0 * static_cast<double> (k) + 1.0) * first).epsilon (0.01));
                 CHECK (notches[k].db < -30.0);
             }
         }
@@ -101,13 +102,13 @@ TEST_CASE ("Jetty's feedback polarity picks which comb teeth ring", "[pedals][je
     const auto pos = peaks (0.8f);
     REQUIRE (pos.size() == 3);
     for (size_t k = 0; k < 3; ++k)
-        CHECK (pos[k].hz == Approx (1000.0 * (k + 1)).epsilon (0.03));
+        CHECK (pos[k].hz == Approx (1000.0 * static_cast<double> (k + 1)).epsilon (0.03));
     const auto neg = peaks (-1.0f);
     REQUIRE (neg.size() >= 3);
     // (The feedback path's coupling capacitor leads the phase a little at 500 Hz, which pulls the
     // first negative-feedback tooth about 3 % up.)
     for (size_t k = 0; k < 3; ++k)
-        CHECK (neg[k].hz == Approx (500.0 * (2 * k + 1)).epsilon (0.04));
+        CHECK (neg[k].hz == Approx (500.0 * static_cast<double> (2 * k + 1)).epsilon (0.04));
 
     const auto contrast = [&] (float feedback) {
         const auto r = staticResponse (1.0f, feedback, kFs, f);

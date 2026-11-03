@@ -184,6 +184,32 @@ double guitarGainDb (const typename Module::Settings& s, double fs = 48000.0, do
     return db (rms (b[0], static_cast<size_t> (frames / 2)) / in);
 }
 
+/// Plucked notes: the guitar reference tone with an exponential decay (time constant 0.25 s),
+/// re-plucked every half second. For envelope-driven filters, whose cutoff then sweeps across the
+/// harmonics as a real note decays.
+inline void fillPlucks (std::vector<float>& v, double fs, float peakAmp = 0.3f)
+{
+    fillGuitarTone (v, fs, peakAmp);
+    const auto period = static_cast<size_t> (0.5 * fs);
+    for (size_t i = 0; i < v.size(); ++i)
+        v[i] *= static_cast<float> (std::exp (-static_cast<double> (i % period) / (0.25 * fs)));
+}
+
+/// Level change (dB) of plucked notes (fillPlucks) through a module.
+template <typename Module>
+double pluckGainDb (const typename Module::Settings& s, double fs = 48000.0, double seconds = 4.0)
+{
+    const int frames = static_cast<int> (seconds * fs);
+    Buffer b (1, frames);
+    fillPlucks (b[0], fs);
+    const float in = rms (b[0], static_cast<size_t> (fs));
+    Module m;
+    m.prepare ({ fs, 512, 1 });
+    m.setSettings (s);
+    processInBlocks (b, 512, [&] (AudioView v) { m.process (v); });
+    return db (rms (b[0], static_cast<size_t> (fs)) / in);
+}
+
 /// RMS above `hz` (4th-order high-pass run over the whole signal, measured from `start`, so the
 /// filter's own start-up transient is not counted).
 inline float settledRmsAbove (const std::vector<float>& v, double hz, double fs, size_t start)

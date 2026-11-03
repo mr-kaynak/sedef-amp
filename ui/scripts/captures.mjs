@@ -23,6 +23,9 @@ mkdirSync(outDir, { recursive: true });
 
 const BASE = 'fresh&freeze&demo&grain=0&host=standalone';
 const PEDALS_OFF = 'tideEnabled:0,pearlEnabled:0,coralEnabled:0,rippleEnabled:0';
+// The 4x12 with Mic A at 9 o'clock (azimuth -90°): its five positions lie on one horizontal line
+// from the dust cap to the cone's edge, so the film's drag is a straight sweep across the cone.
+const CAB = 'section=cab&set=ampCabLink:0,cabModel:2,micAAzimuth:-90,micADistance:0.15';
 const LOW_E = 40;
 const OPEN_E_HZ = 440 * Math.pow(2, (LOW_E - 69) / 12);
 
@@ -44,7 +47,7 @@ const result = (cents) => ({
   measuredAt: 0,
 });
 
-/** name -> [query, prepare?] */
+/** name -> [query, prepare?, screenshot options?] */
 const SHOTS = {
   'pedals-off': [`section=pedals&set=${PEDALS_OFF}`],
   'pedals-pearl-on': [`section=pedals&set=${PEDALS_OFF},pearlEnabled:1`],
@@ -60,9 +63,23 @@ const SHOTS = {
   ...Object.fromEntries(
     [0.1, 0.3, 0.5, 0.7, 0.9].map((position, i) => [
       `cab-mic-${i + 1}`,
-      [`section=cab&set=ampCabLink:0,cabModel:2,micAPosition:${position},micADistance:0.15`],
+      [`${CAB},micAPosition:${position}`],
     ]),
   ),
+  // Mic A's marker alone, as in cab-mic-1, on a transparent ground: the film slides it over the
+  // cone between the five states above.
+  'cab-mic-a': [
+    `${CAB},micAPosition:0.1`,
+    async (page) => {
+      await page.addStyleTag({
+        content: `html, body { background: transparent !important; }
+          body * { visibility: hidden !important; }
+          [role='slider'][data-mic='A'], [role='slider'][data-mic='A'] * { visibility: visible !important; }`,
+      });
+      await settle(300)(page);
+    },
+    { omitBackground: true },
+  ],
   fx: ['section=fx&set=driftEnabled:1,driftHeads:2,fathomEnabled:1'],
   ...Object.fromEntries(
     [-18, -7, -1.5, 0].map((cents, i) => [
@@ -140,10 +157,10 @@ try {
   for (const name of names) {
     const shot = SHOTS[name];
     if (!shot) throw new Error(`Unknown capture "${name}"`);
-    const [query, prepare = settle()] = shot;
+    const [query, prepare = settle(), options = {}] = shot;
     const page = await session.open(name, `${BASE}&${query}`, prepare);
     const file = resolve(outDir, `${name}.png`);
-    await page.screenshot({ path: file });
+    await page.screenshot({ path: file, ...options });
     console.log(`saved ${file}`);
     await page.close();
   }

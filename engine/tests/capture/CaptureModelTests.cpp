@@ -450,3 +450,36 @@ TEST_CASE ("A capture with a resting offset plays it from the first sample", "[c
     CHECK (lstm->instantiate ({ 48000.0, 64, 37 })->settleSamples() >= 24000);
     CHECK (lstm->instantiate ({ 96000.0, 64, 72 })->settleSamples() >= 48000);
 }
+
+TEST_CASE ("A WaveNet conditioned by a Linear model with several outputs loads", "[capture]")
+{
+    // The core's Linear has one impulse response and one bias per output when it has one input.
+    const auto array = [] (int in, int condition, int head, int channels, std::vector<int> d,
+                           bool headBias) {
+        return nt::json { { "input_size", in },     { "condition_size", condition },
+                          { "head_size", head },    { "channels", channels },
+                          { "kernel_size", 3 },     { "dilations", d },
+                          { "activation", "Tanh" }, { "gated", false },
+                          { "head_bias", headBias } };
+    };
+    nt::json inner;
+    inner["version"] = "0.6.0";
+    inner["architecture"] = "Linear";
+    inner["config"] = { { "receptive_field", 4 }, { "bias", true }, { "out_channels", 3 } };
+    inner["weights"] = nt::randomWeights (4 * 3 + 3, 31, 0.4f);
+    inner["sample_rate"] = 48000;
+    nt::json config { { "layers",
+                        { array (1, 3, 2, 3, { 1, 2 }, false), array (3, 3, 1, 2, { 8 }, true) } },
+                      { "head", nullptr },
+                      { "head_scale", 0.02 },
+                      { "condition_dsp", inner } };
+    auto weights = nt::randomWeights (147, 22, 0.4f);
+    weights.back() = 1.0f;
+    const auto f = nt::parseOrFail (nt::file ("WaveNet", config, weights, 48000.0, {}, "0.6.0"));
+    CHECK (f->info().numWeights == 147 + 15);
+    std::vector<float> in (4096);
+    test::fillNoise (in, 0.5f, 4);
+    const auto out = play (f, in);
+    CHECK (test::allFinite (out));
+    CHECK (test::peak (out) > 0.0f);
+}

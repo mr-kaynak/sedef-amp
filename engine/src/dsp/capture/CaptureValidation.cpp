@@ -216,7 +216,9 @@ bool knownActivation (const std::string& name)
 
 /// One activation config as ActivationConfig::from_json reads it. `channels`: how many rows it
 /// is applied to (a per-channel PReLU must have one slope per row, or a single slope).
-void activation (const json& a, int channels, const std::string& where)
+/// `perChannel`: the core applies it to a channels x 1 matrix (the gating and blending paths),
+/// where a PReLU reads one slope per channel with no wrap-around, so it needs exactly that many.
+void activation (const json& a, int channels, const std::string& where, bool perChannel = false)
 {
     std::string type;
     if (a.is_string())
@@ -234,6 +236,15 @@ void activation (const json& a, int channels, const std::string& where)
     if (!knownActivation (type))
         unsupported ("This capture uses the " + quoted (type.substr (0, 40)) +
                      " activation, which Sedef doesn't know.");
+    if (perChannel && type == "PReLU")
+    {
+        const json* list = a.is_object() ? member (a, "negative_slopes") : nullptr;
+        if (list == nullptr || !list->is_array() ||
+            list->size() != static_cast<std::size_t> (channels))
+            damaged (where +
+                     ": a PReLU in a gated or blended layer needs one slope for each of its " +
+                     std::to_string (channels) + " channels");
+    }
     if (!a.is_object())
         return;
     if (type == "PReLU")
@@ -291,27 +302,44 @@ void checkGroups (int in, int out, int groups, const std::string& what)
                  std::to_string (in) + " inputs and " + std::to_string (out) + " outputs");
 }
 
+/// What one kernel tap of an `in` to `out` convolution costs to run and to keep. The core keeps a
+/// grouped convolution as its full matrix (zeros between the groups) and multiplies all of it;
+/// only a depthwise one (groups == in == out) runs channel by channel. A full matrix product
+/// must fit Eigen's stack buffers, or it allocates on the audio thread.
+int64_t perTap (int in, int out, int groups, const std::string& what)
+{
+    if (groups == in && in == out)
+        return in; // depthwise
+    if (in > Limits::kMaxProductDepth)
+        tooLarge (what + " mixes " + std::to_string (in) + " channels at once (Sedef's limit is " +
+                  std::to_string (Limits::kMaxProductDepth) + ")");
+    if (out > Limits::kMaxProductRows)
+        tooLarge (what + " makes " + std::to_string (out) + " channels at once (Sedef's limit is " +
+                  std::to_string (Limits::kMaxProductRows) + ")");
+    return static_cast<int64_t> (in) * out;
+}
+
 /// nam::Conv1D: kernel * out * in / groups weights (the same count when depthwise), then bias.
 void conv1d (int in, int out, int kernel, bool bias, int dilation, int groups,
              const std::string& what, Cost& c)
 {
     checkGroups (in, out, groups, what);
-    const int64_t w = static_cast<int64_t> (kernel) * out * in / groups + (bias ? out : 0);
-    c.weights += w;
-    c.macs += w;
+    const int64_t tap = perTap (in, out, groups, what);
+    c.weights += static_cast<int64_t> (kernel) * out * in / groups + (bias ? out : 0);
+    c.macs += kernel * tap + (bias ? out : 0);
     const int64_t lookback = static_cast<int64_t> (kernel - 1) * dilation;
     c.bufferFloats += static_cast<int64_t> (in) * (2 * lookback + Limits::kModelBlock) +
-                      static_cast<int64_t> (out) * Limits::kModelBlock;
+                      static_cast<int64_t> (out) * Limits::kModelBlock + kernel * tap;
 }
 
 /// nam::Conv1x1: out * in / groups weights, then bias.
 void conv1x1 (int in, int out, bool bias, int groups, const std::string& what, Cost& c)
 {
     checkGroups (in, out, groups, what);
-    const int64_t w = static_cast<int64_t> (out) * in / groups + (bias ? out : 0);
-    c.weights += w;
-    c.macs += w;
-    c.bufferFloats += static_cast<int64_t> (out) * Limits::kModelBlock;
+    const int64_t tap = perTap (in, out, groups, what);
+    c.weights += static_cast<int64_t> (out) * in / groups + (bias ? out : 0);
+    c.macs += tap + (bias ? out : 0);
+    c.bufferFloats += static_cast<int64_t> (out) * Limits::kModelBlock + tap;
 }
 
 // --- architectures -------------------------------------------------------------------------------
@@ -334,15 +362,24 @@ void validateModel (const json& j, int expectIn, int expectOut, int depth, const
 void checkCost (const Model& m)
 {
     const auto& c = m.cost;
-    if (c.macs > Limits::kMaxMacsPerSample)
-        tooLarge ("it needs about " + std::to_string (c.macs / 1000) +
-                  " thousand operations per sample (Sedef's limit is " +
-                  std::to_string (Limits::kMaxMacsPerSample / 1000) + " thousand)");
     const auto maxField =
         m.architecture == "Linear" ? Limits::kMaxLinearTaps : Limits::kMaxReceptiveField;
     if (m.architecture != "LSTM" && c.receptiveField > maxField)
         tooLarge ("it looks " + std::to_string (c.receptiveField) +
                   " samples back (Sedef's limit is " + std::to_string (maxField) + ")");
+    const auto millions = [] (double x) {
+        return std::to_string (std::llround (x / 1.0e6));
+    };
+    if (const double perSecond = static_cast<double> (c.macs) * m.sampleRate;
+        perSecond > Limits::kMaxMacsPerSecond)
+        tooLarge ("it needs about " + millions (perSecond) +
+                  " million operations per second (Sedef's limit is " +
+                  millions (Limits::kMaxMacsPerSecond) + " million)");
+    if (const double start = static_cast<double> (c.macs) * static_cast<double> (c.receptiveField);
+        start > Limits::kMaxStartMacs)
+        tooLarge ("it needs about " + millions (start) +
+                  " million operations to start (Sedef's limit is " +
+                  millions (Limits::kMaxStartMacs) + " million)");
     if (c.bufferFloats > Limits::kMaxBufferFloats)
         tooLarge ("it needs " + std::to_string (c.bufferFloats * 4 / (1 << 20)) +
                   " MB of buffers (Sedef's limit is " +
@@ -432,6 +469,11 @@ void waveNet (const json& config, int expectIn, int expectOut, int depth, Model&
             damaged ("layer array 1 is not an object");
         const int conditionSize =
             requiredInt (first, "condition_size", "layer array 1", 1, Limits::kMaxChannels);
+        // The core builds a nested model itself, and its own ConvNet allocates on every block.
+        if (const json* arch = member (*cd, "architecture");
+            arch != nullptr && arch->is_string() && arch->get<std::string>() == "ConvNet")
+            unsupported ("This capture's conditioning model is a ConvNet, which Sedef can't run "
+                         "in real time.");
         Model nested;
         validateModel (*cd, inChannels, conditionSize, depth + 1, "its conditioning model", nested);
         if (std::llround (nested.sampleRate) != std::llround (m.sampleRate) ||
@@ -519,20 +561,6 @@ void waveNet (const json& config, int expectIn, int expectOut, int depth, Model&
                 damaged (field (where, "kernel_sizes") + " doesn't match the dilations");
         }
 
-        // Activations: one, or one per layer; applied to the bottleneck rows.
-        const json* act = member (L, "activation");
-        if (act == nullptr)
-            damaged (field (where, "activation") + " is missing");
-        if (act->is_array())
-        {
-            if (act->size() != n)
-                damaged (field (where, "activation") + " doesn't match the dilations");
-            for (const auto& e : *act)
-                activation (e, bottleneck, where);
-        }
-        else
-            activation (*act, bottleneck, where);
-
         // Gating, as parse_config_json reads it (gating_mode, else the legacy "gated").
         std::vector<Gating> gating (n, Gating::None);
         const json* secondary = member (L, "secondary_activation");
@@ -551,12 +579,12 @@ void waveNet (const json& config, int expectIn, int expectOut, int depth, Model&
                                  " doesn't match the dilations");
                     for (std::size_t i = 0; i < n; ++i)
                         if (gating[i] != Gating::None)
-                            activation ((*secondary)[i], bottleneck, where);
+                            activation ((*secondary)[i], bottleneck, where, true);
                 }
                 else if (secondary != nullptr &&
                          std::any_of (gating.begin(), gating.end(),
                                       [] (Gating x) { return x != Gating::None; }))
-                    activation (*secondary, bottleneck, where);
+                    activation (*secondary, bottleneck, where, true);
             }
             else
             {
@@ -566,7 +594,7 @@ void waveNet (const json& config, int expectIn, int expectOut, int depth, Model&
                     if (secondary->is_array())
                         damaged (field (where, "secondary_activation") +
                                  " must be a single activation here");
-                    activation (*secondary, bottleneck, where);
+                    activation (*secondary, bottleneck, where, true);
                 }
             }
         }
@@ -574,6 +602,23 @@ void waveNet (const json& config, int expectIn, int expectOut, int depth, Model&
         {
             gating.assign (n, requiredBool (L, "gated", where) ? Gating::Gated : Gating::None);
         }
+
+        // Activations: one, or one per layer; applied to the bottleneck rows (per channel in
+        // gated and blended layers).
+        const json* act = member (L, "activation");
+        if (act == nullptr)
+            damaged (field (where, "activation") + " is missing");
+        if (act->is_array())
+        {
+            if (act->size() != n)
+                damaged (field (where, "activation") + " doesn't match the dilations");
+            for (std::size_t i = 0; i < n; ++i)
+                activation ((*act)[i], bottleneck, where, gating[i] != Gating::None);
+        }
+        else
+            activation (*act, bottleneck, where,
+                        std::any_of (gating.begin(), gating.end(),
+                                     [] (Gating x) { return x != Gating::None; }));
 
         bool head1x1 = false;
         int head1x1Out = channels, head1x1Groups = 1;
@@ -768,11 +813,17 @@ void linear (const json& config, int expectIn, int expectOut, Model& m)
                           [impl] (const char* s) { return impl->get<std::string>() == s; }))
             damaged ("\"implementation\" is not one Sedef knows");
     }
+    // As nam::Linear: one impulse response (and bias) per path when the channel counts differ.
+    if (in != out && in != 1 && out != 1)
+        damaged ("a Linear model needs as many inputs as outputs, or one of either");
+    const int64_t paths = std::max (in, out);
+    const int64_t kernels = in == out ? 1 : paths;
+    const int64_t biases = in == out ? 1 : out;
     Cost& c = m.cost;
-    c.weights = taps + (bias ? 1 : 0);
+    c.weights = taps * kernels + (bias ? biases : 0);
     // Direct up to 1024 taps, partitioned FFT above (linear.cpp's dispatch table).
-    c.macs = std::min<int64_t> (taps, 4096);
-    c.bufferFloats = 6 * static_cast<int64_t> (taps) + 32 * Limits::kModelBlock;
+    c.macs = std::min<int64_t> (taps, 4096) * paths;
+    c.bufferFloats = (6 * static_cast<int64_t> (taps) + 32 * Limits::kModelBlock) * paths;
     c.receptiveField = taps;
 }
 

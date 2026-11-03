@@ -4,6 +4,7 @@
 
 #include "CaptureTestUtils.h"
 
+#include <Eigen/Core>
 #include <catch2/catch_test_macros.hpp>
 #include <chrono>
 #include <string>
@@ -260,17 +261,20 @@ TEST_CASE ("Absurd sizes are rejected as too large, without allocating them",
     j = standardJson();
     j["config"]["layers"] = std::vector<json> (100, j["config"]["layers"][0]);
     expectRejected (j, "100 layer arrays");
-    // Plausible fields, impossible cost: 512 channels x 64 layers.
+    // Plausible fields, impossible cost: 64 channels x 64 layers.
     j = standardJson();
-    j["config"]["layers"][0]["channels"] = 512;
+    j["config"]["layers"][0]["channels"] = 64;
     j["config"]["layers"][0]["dilations"] = std::vector<int> (64, 1);
-    expectRejected (j, "operations per sample");
+    expectRejected (j, "operations per second");
+    // Wider than a matrix product may be.
+    j["config"]["layers"][0]["channels"] = 512;
+    expectRejected (j, "mixes 512 channels at once");
     // A receptive field of minutes.
     j = standardJson();
     j["config"]["layers"][0]["dilations"] = std::vector<int> (40, 32768);
     expectRejected (j, "samples back");
     expectRejected (json::parse (nt::file ("LSTM", nt::lstmConfig (16, 512), {})),
-                    "operations per sample");
+                    "operations per second");
     expectRejected (json::parse (nt::file (
                         "Linear", { { "receptive_field", 100000000 }, { "bias", false } }, {})),
                     "too large");
@@ -399,4 +403,138 @@ TEST_CASE ("Random corruption of a valid capture never crashes", "[capture][untr
     }
     CAPTURE (accepted);
     SUCCEED();
+}
+
+namespace
+{
+/// One layer array of `channels` channels and kernel `kernel`, one layer per dilation, with the
+/// convolution and the layer 1x1 split into `groups` groups; the weight count to match.
+std::pair<json, std::vector<float>> groupedWaveNet (int channels, int groups, int kernel,
+                                                    const std::vector<int>& dilations,
+                                                    std::uint32_t seed)
+{
+    auto config = nt::tinyWaveNetConfig (channels, dilations);
+    auto& a = config["layers"][0];
+    a["kernel_size"] = kernel;
+    a["groups_input"] = groups;
+    a["layer1x1"] = { { "active", true }, { "groups", groups } };
+    const auto layers = static_cast<int> (dilations.size());
+    const int perLayer = kernel * channels * channels / groups + channels // convolution
+                         + channels                                       // input mixin
+                         + channels * channels / groups + channels;       // layer 1x1
+    auto w = nt::randomWeights (
+        static_cast<std::size_t> (channels + layers * perLayer + channels + 1 + 1), seed, 0.2f);
+    w.back() = 0.5f;
+    return { config, w };
+}
+} // namespace
+
+TEST_CASE ("A PReLU in a gated or blended layer needs one slope per channel",
+           "[capture][untrusted]")
+{
+    // Gated layers run their activations over every channel without wrapping around the slopes,
+    // so a single slope would be read past its end on every sample.
+    const auto gated = [] (const json& activation, const char* mode) {
+        auto config = nt::tinyWaveNetConfig (4, { 1, 2 }, "Tanh", true);
+        auto& a = config["layers"][0];
+        if (std::string (mode) == "secondary")
+        {
+            a.erase ("gated");
+            a["gating_mode"] = "blended";
+            a["secondary_activation"] = activation;
+        }
+        else
+            a["activation"] = activation;
+        auto w = nt::randomWeights (static_cast<std::size_t> (nt::tinyWaveNetWeights (4, 2, true)),
+                                    6, 0.3f);
+        return nt::file ("WaveNet", config, w);
+    };
+    const json single = { { "type", "PReLU" }, { "negative_slope", 0.1 } };
+    const json one = { { "type", "PReLU" }, { "negative_slopes", { 0.1 } } };
+    const json none = { { "type", "PReLU" } };
+    const json name = "PReLU";
+    const json perChannel = { { "type", "PReLU" }, { "negative_slopes", { 0.1, 0.2, 0.3, 0.4 } } };
+    for (const char* mode : { "primary", "secondary" })
+    {
+        CAPTURE (mode);
+        for (const auto& a : { single, one, none, name })
+            expectRejected (gated (a, mode), "one slope for each of its 4 channels");
+        const auto ok = dsp::CaptureFile::parse (gated (perChannel, mode));
+        CAPTURE (ok.error);
+        CHECK (ok.file != nullptr);
+    }
+    // Without gating the core wraps around, so one slope still works there.
+    auto plain = standardJson();
+    plain["config"]["layers"][0]["activation"] = single;
+    CHECK (dsp::CaptureFile::parse (plain.dump()).file != nullptr);
+}
+
+TEST_CASE ("Grouped convolutions count at their real cost", "[capture][untrusted]")
+{
+    // The core keeps a grouped convolution's full matrix (zeros between the groups) and multiplies
+    // all of it, so a grouped layer costs what the same layer ungrouped does.
+    const auto [groupedConfig, groupedWeights] = groupedWaveNet (8, 4, 2, { 1, 2 }, 3);
+    const auto [denseConfig, denseWeights] = groupedWaveNet (8, 1, 2, { 1, 2 }, 3);
+    const auto grouped = nt::parseOrFail (nt::file ("WaveNet", groupedConfig, groupedWeights));
+    const auto dense = nt::parseOrFail (nt::file ("WaveNet", denseConfig, denseWeights));
+    CHECK (grouped->info().numWeights < dense->info().numWeights);
+    CHECK (grouped->info().macsPerSample == dense->info().macsPerSample);
+
+    // Small in the file, too slow to play: about 75,000 multiply-adds per sample.
+    const auto [config, weights] = groupedWaveNet (32, 16, 8, std::vector<int> (8, 1), 4);
+    expectRejected (nt::file ("WaveNet", config, weights), "operations per second");
+}
+
+TEST_CASE ("The CPU cap counts operations per second at the capture's own rate",
+           "[capture][untrusted]")
+{
+    // 54,000 multiply-adds per sample: playable at 48 kHz, more than three cores' worth of a
+    // standard capture at 96 kHz.
+    expectRejected (nt::waveNet (32, 16, 2, 0.2f, 96000.0), "operations per second");
+    CHECK (dsp::CaptureFile::parse (nt::linear ({ 0.5f, 0.25f }, 192000.0)).file != nullptr);
+}
+
+TEST_CASE ("A capture that takes too long to start is refused", "[capture][untrusted]")
+{
+    // Every instance runs its receptive field once before it plays: 40,000 samples of a model
+    // with 100,000 multiply-adds per sample are 4 billion operations, for each instance.
+    auto config = nt::tinyWaveNetConfig (64, { 32768, 7232, 1, 1, 1, 1, 1, 1 });
+    auto w =
+        nt::randomWeights (static_cast<std::size_t> (nt::tinyWaveNetWeights (64, 8)), 5, 0.05f);
+    expectRejected (nt::file ("WaveNet", config, w, 16000.0), "operations to start");
+}
+
+TEST_CASE ("Products wider than Eigen's stack buffers are refused", "[capture][untrusted]")
+{
+    // Eigen packs each matrix product into buffers it takes from the stack only up to
+    // EIGEN_STACK_ALLOCATION_LIMIT, and from the heap beyond: on the audio thread. A layer that
+    // mixes 128 channels at once crosses it at 512-sample blocks.
+    auto config = nt::tinyWaveNetConfig (128, { 1 });
+    config["layers"][0]["kernel_size"] = 1;
+    const int weights = 128 + (128 * 128 + 128 + 128 + 128 * 128 + 128) + 128 + 1 + 1;
+    expectRejected (nt::file ("WaveNet", config,
+                              nt::randomWeights (static_cast<std::size_t> (weights), 7, 0.05f)),
+                    "mixes 128 channels at once");
+
+    // What the validator allows (at most 64 channels into a product, 512 out, 512-sample blocks)
+    // fits on every CPU: blocking only ever shrinks a dimension.
+    Eigen::Index k = 64, m = 512, n = 512;
+    Eigen::internal::computeProductBlockingSizes<float, float, 1> (k, m, n, Eigen::Index (1));
+    CHECK (k * m * static_cast<Eigen::Index> (sizeof (float)) <= EIGEN_STACK_ALLOCATION_LIMIT);
+    CHECK (k * n * static_cast<Eigen::Index> (sizeof (float)) <= EIGEN_STACK_ALLOCATION_LIMIT);
+}
+
+TEST_CASE ("A conditioning model must be one Sedef runs in real time", "[capture][untrusted]")
+{
+    // The core builds a nested ConvNet itself, and its ConvNet allocates on every block.
+    auto j = standardJson();
+    json inner;
+    inner["version"] = "0.6.0";
+    inner["architecture"] = "ConvNet";
+    inner["config"] = nt::convNetConfig (4, { 1, 2 }, false);
+    inner["weights"] = nt::convNetWeightsFor (4, 2, false, 9);
+    inner["sample_rate"] = 48000;
+    j["config"]["condition_dsp"] = inner;
+    j["version"] = "0.6.0";
+    expectRejected (j, "conditioning model is a ConvNet");
 }

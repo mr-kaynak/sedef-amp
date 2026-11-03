@@ -13,14 +13,22 @@ namespace sedef::dsp::capture
 {
 
 /// Resource limits. A standard WaveNet capture has 13,802 weights and as many multiply-adds per
-/// sample, a 4,093-sample receptive field and about 3 MB of buffers; these are far above anything
-/// a real capture needs and far below anything that could hurt the host.
+/// sample (0.66 billion a second at 48 kHz, about 10 % of a core), a 4,093-sample receptive field
+/// and about 3 MB of buffers; these are far above anything a real capture needs and far below
+/// anything that could hurt the host.
 struct Limits
 {
     static constexpr std::size_t kMaxValues = 2'500'000; ///< numbers in the file
     static constexpr int kMaxDepth = 64;                 ///< JSON nesting
     static constexpr long kMaxWeights = 2'000'000;
-    static constexpr long kMaxMacsPerSample = 250'000;
+    /// At the capture's own rate: a standard WaveNet runs up to 192 kHz (2.65 billion).
+    static constexpr double kMaxMacsPerSecond = 3.0e9;
+    /// What one instance runs before it plays (its receptive field once): a few tenths of a second.
+    static constexpr double kMaxStartMacs = 2.0e9;
+    /// A matrix product's inner and outer sizes: Eigen packs larger ones into heap buffers, on the
+    /// audio thread (EIGEN_STACK_ALLOCATION_LIMIT is 128 KB; 64 x 512 floats fill it exactly).
+    static constexpr int kMaxProductDepth = 64;
+    static constexpr int kMaxProductRows = 512;
     static constexpr long kMaxReceptiveField = 1L << 17; ///< WaveNet / ConvNet
     static constexpr long kMaxLinearTaps = 1L << 18;     ///< Linear (an impulse response)
     static constexpr long kMaxBufferFloats = 8L << 20;   ///< 32 MB of convolution history

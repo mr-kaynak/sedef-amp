@@ -39,7 +39,7 @@
   padding: 9px 12px 9px 6px;
   border-radius: var(--r-panel);
   cursor: pointer;
-  transition: background var(--dur-1);
+  transition: background-color var(--dur-1) var(--ease-out);
 }
 
 .row + .row::before {
@@ -50,6 +50,7 @@
   top: 0;
   height: 1px;
   background: var(--line);
+  transition: opacity var(--dur-1) var(--ease-out);
 }
 
 @media (hover: hover) {
@@ -101,7 +102,7 @@
   height: 26px;
   border-radius: var(--r-ctl);
   color: var(--bone-4);
-  transition: color var(--dur-1);
+  transition: color var(--dur-1) var(--ease-out);
 }
 
 @media (hover: hover) {

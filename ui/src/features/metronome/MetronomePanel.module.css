@@ -81,7 +81,7 @@
   width: 60%;
   border-radius: 2px;
   background: var(--bone-3);
-  transition: height var(--dur-1);
+  transition: height var(--dur-1) var(--ease-out);
 }
 
 .step[data-state='off'] .bar {

@@ -234,8 +234,18 @@ li[data-state='done'] > .trailDot {
   text-align: left;
 }
 
+/* Instrument cards and scale chips are radio options: one transition and one hover, as on the
+   Amp page's cards. */
+.card,
+.chip {
+  transition:
+    background-color var(--dur-1) var(--ease-out),
+    box-shadow var(--dur-1) var(--ease-out);
+}
+
 @media (hover: hover) {
-  .card:hover {
+  .card:hover,
+  .chip:hover {
     background: rgb(6 17 25 / 0.8);
   }
 }
@@ -448,7 +458,7 @@ li[data-state='done'] > .trailDot {
   height: 100%;
   background: var(--nacre-line);
   transform-origin: 0 50%;
-  transition: transform 80ms linear;
+  transition: transform var(--dur-1) linear;
 }
 
 .fret {

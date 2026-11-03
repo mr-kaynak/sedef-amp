@@ -108,7 +108,9 @@
   border-radius: 9px;
   background: var(--ink-0);
   box-shadow: inset 0 0 0 1px var(--line-strong);
-  transition: background var(--dur-1);
+  transition:
+    background-color var(--dur-1) var(--ease-out),
+    box-shadow var(--dur-1) var(--ease-out);
 }
 
 .thumb {
@@ -235,17 +237,20 @@
   box-shadow: inset 0 0 0 1px var(--line);
 }
 
+/* The fill slides in from the left by --p (0-100%), clipped by the bar: a transform, so the
+   progress never re-runs layout. */
 .bar > span {
   position: absolute;
-  inset: 0 auto 0 0;
+  inset: 0;
   border-radius: inherit;
   background: var(--nacre-line);
-  transition: width var(--dur-2) linear;
+  transform: translateX(calc(var(--p, 0%) - 100%));
+  transition: transform var(--dur-2) linear;
 }
 
 /* Verifying: the bar stays full and breathes (static with reduced motion). */
 .bar[data-indeterminate] > span {
-  width: 100% !important;
+  transform: none;
   animation: breathe 1.2s ease-in-out infinite alternate;
 }
 

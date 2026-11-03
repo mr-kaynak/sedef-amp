@@ -2,7 +2,7 @@
 // The Updates panel: a modal sheet over the canvas with the versions, the automatic-check switch,
 // the release notes and the download. Opened from the header pill or from Settings.
 import { useEffect, useId, useRef } from 'react';
-import type { KeyboardEvent } from 'react';
+import type { CSSProperties, KeyboardEvent } from 'react';
 import buttons from '../../controls/Button.module.css';
 import { Icon } from '../../controls/Icon';
 import { ReleaseNotes } from './ReleaseNotes';
@@ -51,7 +51,13 @@ function Progress({ state }: { state: SupportedUpdateState }) {
         className={styles.bar}
         data-indeterminate={verifying || undefined}
       >
-        <span style={{ width: `${total > 0 ? Math.min(100, (received / total) * 100) : 0}%` }} />
+        <span
+          style={
+            {
+              '--p': `${total > 0 ? Math.min(100, (received / total) * 100) : 0}%`,
+            } as CSSProperties
+          }
+        />
       </div>
       <p className={styles.note}>
         {verifying

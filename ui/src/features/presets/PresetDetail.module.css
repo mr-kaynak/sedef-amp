@@ -104,6 +104,9 @@
   box-shadow: inset 0 0 0 1px var(--line);
   color: var(--bone-2);
   font-size: var(--t-11);
+  transition:
+    color var(--dur-1) var(--ease-out),
+    background-color var(--dur-1) var(--ease-out);
 }
 
 .tag::before {

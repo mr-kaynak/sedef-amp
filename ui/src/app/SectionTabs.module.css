@@ -17,7 +17,7 @@
   border: none;
   background: transparent;
   color: var(--bone-3);
-  transition: color var(--dur-1);
+  transition: color var(--dur-1) var(--ease-out);
 }
 
 @media (hover: hover) {

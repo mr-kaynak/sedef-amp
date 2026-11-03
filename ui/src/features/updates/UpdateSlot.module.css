@@ -19,9 +19,9 @@
   font-weight: 540;
   white-space: nowrap;
   transition:
-    color var(--dur-1),
-    border-color var(--dur-1),
-    background var(--dur-1);
+    color var(--dur-1) var(--ease-out),
+    border-color var(--dur-1) var(--ease-out),
+    background-color var(--dur-1) var(--ease-out);
 }
 
 @media (hover: hover) {

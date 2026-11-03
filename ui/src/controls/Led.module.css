@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: AGPL-3.0-or-later */
 .led {
+  position: relative;
   display: inline-block;
   flex: none;
   border-radius: 50%;
@@ -7,13 +8,36 @@
   box-shadow:
     0 0 0 1px rgb(0 0 0 / 0.55),
     0 1px 0 rgb(255 255 255 / 0.08);
-  transition:
-    background var(--dur-1),
-    box-shadow var(--dur-1);
+  transition: box-shadow var(--dur-1) var(--ease-out);
+}
+
+/* The lit core is a gradient, which cannot transition: it fades in on a layer, with the glow. */
+.led::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity var(--dur-1) var(--ease-out);
+}
+
+.led[data-on]::after {
+  opacity: 1;
+}
+
+.nacre::after {
+  background: radial-gradient(circle at 40% 35%, #ffffff 0%, var(--nacre-aqua) 35%, #7fc9c1 100%);
+}
+
+.coral::after {
+  background: radial-gradient(circle at 40% 35%, #ffe5e3 0%, var(--coral) 45%, #b8474e 100%);
+}
+
+.amber::after {
+  background: radial-gradient(circle at 40% 35%, #fff6dc 0%, var(--amber) 45%, #a8864a 100%);
 }
 
 .nacre[data-on] {
-  background: radial-gradient(circle at 40% 35%, #ffffff 0%, var(--nacre-aqua) 35%, #7fc9c1 100%);
   box-shadow:
     0 0 0 1px rgb(0 0 0 / 0.35),
     0 0 8px 1px rgb(200 241 234 / 0.7),
@@ -21,14 +45,12 @@
 }
 
 .coral[data-on] {
-  background: radial-gradient(circle at 40% 35%, #ffe5e3 0%, var(--coral) 45%, #b8474e 100%);
   box-shadow:
     0 0 0 1px rgb(0 0 0 / 0.35),
     0 0 8px 1px rgb(240 123 128 / 0.75);
 }
 
 .amber[data-on] {
-  background: radial-gradient(circle at 40% 35%, #fff6dc 0%, var(--amber) 45%, #a8864a 100%);
   box-shadow:
     0 0 0 1px rgb(0 0 0 / 0.35),
     0 0 8px 1px rgb(233 199 125 / 0.6);

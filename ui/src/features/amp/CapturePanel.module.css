@@ -15,12 +15,15 @@
   box-shadow:
     inset 0 0 0 1px var(--line),
     var(--shadow-hw);
-  transition: box-shadow var(--dur-1);
+  transition: box-shadow var(--dur-1) var(--ease-out);
 }
 
+/* The same shadow list as at rest, plus the glow: lists that match entry for entry interpolate,
+   and the panel keeps its drop shadow while a file is dragged over it. */
 .panel[data-dragging] {
   box-shadow:
     inset 0 0 0 1px rgb(205 238 238 / 0.55),
+    var(--shadow-hw),
     0 0 32px -12px rgb(200 241 234 / 0.6);
 }
 
@@ -259,8 +262,8 @@
   color: var(--bone-2);
   font-size: var(--t-11);
   transition:
-    background var(--dur-1),
-    color var(--dur-1);
+    background-color var(--dur-1) var(--ease-out),
+    color var(--dur-1) var(--ease-out);
 }
 
 /* Loading: the list ignores clicks, so it looks it. */

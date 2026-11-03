@@ -17,6 +17,7 @@
   font-size: var(--t-12);
   font-weight: 500;
   cursor: pointer;
+  transition: border-color var(--dur-1) var(--ease-out);
 }
 
 @media (hover: hover) {

@@ -18,7 +18,7 @@
   fill: none;
   stroke-width: 7;
   stroke-linecap: round;
-  transition: stroke-dasharray var(--dur-2) linear;
+  transition: stroke-dasharray var(--dur-1) linear;
 }
 
 .center {

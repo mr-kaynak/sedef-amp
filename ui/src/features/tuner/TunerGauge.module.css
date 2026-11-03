@@ -17,7 +17,11 @@
   stroke: var(--bone-4);
   stroke-width: 6;
   stroke-linecap: round;
-  transition: stroke var(--dur-2);
+  /* A transparent glow at rest, so the in-tune glow fades in with the colour. */
+  filter: drop-shadow(0 0 8px rgb(200 241 234 / 0));
+  transition:
+    stroke var(--dur-2) var(--ease-out),
+    filter var(--dur-2) var(--ease-out);
 }
 
 .gauge[data-state='in-tune'] .zone {

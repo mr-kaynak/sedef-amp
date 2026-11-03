@@ -167,7 +167,8 @@ TEST_CASE ("Engine::process never allocates after prepare", "[engine]")
     for (auto id :
          { ParamId::gateEnabled, ParamId::tideEnabled, ParamId::pearlEnabled, ParamId::coralEnabled,
            ParamId::rippleEnabled, ParamId::doublerEnabled, ParamId::driftEnabled,
-           ParamId::fathomEnabled, ParamId::roomAEnabled, ParamId::roomBEnabled })
+           ParamId::fathomEnabled, ParamId::roomAEnabled, ParamId::roomBEnabled,
+           ParamId::trenchEnabled, ParamId::urchinEnabled, ParamId::kelpEnabled })
         p[id] = 1.0f;
     p[ParamId::transpose] = -2.0f;
     rig.engine.setAnalysisEnabled (true);
@@ -224,6 +225,53 @@ TEST_CASE ("Switching pedals does not change the chain's latency", "[engine]")
         }
     }
     CHECK (std::abs (bestLag) <= 4);
+}
+
+TEST_CASE ("Switching Kelp, Urchin or Trench does not change the chain's latency", "[engine]")
+{
+    // Same check for the pedals added in 0.4: each one on at a setting where it is close to linear
+    // (Kelp at drive 0, Urchin's plain fuzz at a low level, Trench's direct path), against all off.
+    // Kelp and Urchin are oversampled; without the bypass delay their output would sit 31-37
+    // samples late.
+    const auto render = [] (ParamId pedal, std::initializer_list<std::pair<ParamId, float>> set) {
+        Rig rig (48000.0, 64, 1, 1);
+        rig.in[0][1000] = 0.02f;
+        auto p = ParamSnapshot::defaults();
+        p[ParamId::gateEnabled] = 0.0f;
+        p[ParamId::ampModel] = 0.0f; // Lagoon, clean
+        p[ParamId::lagoonVolume] = 0.2f;
+        p[ParamId::lagoonMaster] = 0.2f;
+        p[pedal] = 1.0f;
+        for (const auto& [id, value] : set)
+            p[id] = value;
+        rig.run (p, 8192);
+        return rig.out[0];
+    };
+    const auto off = render (ParamId::kelpEnabled, { { ParamId::kelpEnabled, 0.0f } });
+    REQUIRE (test::peak (off) > 0.0f);
+
+    const auto lagOf = [&off] (const std::vector<float>& on) {
+        int bestLag = 0;
+        double best = -1.0;
+        for (int lag = -64; lag <= 64; ++lag)
+        {
+            double acc = 0.0;
+            for (int i = 900; i < 4000; ++i)
+                acc += static_cast<double> (off[static_cast<size_t> (i)]) *
+                       on[static_cast<size_t> (i + lag)];
+            if (acc > best)
+            {
+                best = acc;
+                bestLag = lag;
+            }
+        }
+        return bestLag;
+    };
+    CHECK (std::abs (lagOf (render (ParamId::kelpEnabled, { { ParamId::kelpDrive, 0.0f } }))) <= 4);
+    CHECK (std::abs (
+               lagOf (render (ParamId::urchinEnabled, { { ParamId::urchinFuzz, 0.0f },
+                                                        { ParamId::urchinOctave, 0.0f } }))) <= 8);
+    CHECK (lagOf (render (ParamId::trenchEnabled, {})) == 0);
 }
 
 TEST_CASE ("Analysis ring is fed only while analysis is enabled; tuner mute silences", "[engine]")

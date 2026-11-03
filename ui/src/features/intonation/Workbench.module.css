@@ -621,10 +621,19 @@ li[data-state='done'] > .trailDot {
   font-weight: 600;
 }
 
+/* Selectable: when the clipboard is unavailable, the summary tells the player to select the table
+   and copy it. The re-measure buttons stay out of the selection, so a copy reads as a report. */
 .table {
   width: 100%;
   border-collapse: collapse;
   font-size: var(--t-12);
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.table button {
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .table th,

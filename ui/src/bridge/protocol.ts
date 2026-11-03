@@ -39,7 +39,18 @@ export type ParamValues = Record<string, number>;
 
 /** Blocks a preset can switch on besides the amp and cab, in signal order. */
 export type PresetBlock =
-  'gate' | 'tide' | 'pearl' | 'coral' | 'ripple' | 'eq' | 'doubler' | 'drift' | 'fathom';
+  | 'gate'
+  | 'trench'
+  | 'tide'
+  | 'urchin'
+  | 'pearl'
+  | 'kelp'
+  | 'coral'
+  | 'ripple'
+  | 'eq'
+  | 'doubler'
+  | 'drift'
+  | 'fathom';
 
 export interface PresetInfo {
   /** Stable id: "factory:<slug>" or "user:<relative path>" */

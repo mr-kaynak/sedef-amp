@@ -34,8 +34,11 @@ export function describePreset(
     if (on(id)) blocks.push(block);
   };
   add('gateEnabled', 'gate');
+  add('trenchEnabled', 'trench');
   add('tideEnabled', 'tide');
+  add('urchinEnabled', 'urchin');
   add('pearlEnabled', 'pearl');
+  add('kelpEnabled', 'kelp');
   add('coralEnabled', 'coral');
   add('rippleEnabled', 'ripple');
   if (eqShapes) add(`${bank}Enabled`, 'eq');

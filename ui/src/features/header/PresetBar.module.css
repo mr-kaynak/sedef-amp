@@ -197,9 +197,8 @@
   font-style: italic;
   font-weight: 600;
   line-height: 1;
-  transition:
-    color var(--dur-1),
-    background var(--dur-1);
+  /* Selected: the nacre layer (controls/NacreFill.module.css) fades in as the letter darkens. */
+  transition: color var(--dur-1) var(--ease-out);
 }
 
 @media (hover: hover) {
@@ -214,8 +213,6 @@
 
 .slot[aria-checked='true'] {
   color: var(--ink-1);
-  background: var(--nacre-line);
-  box-shadow: var(--shadow-nacre-sel);
 }
 
 .slotDirty {

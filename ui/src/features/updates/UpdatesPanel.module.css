@@ -121,9 +121,10 @@
   height: 12px;
   border-radius: 50%;
   background: var(--bone-3);
-  transition:
-    transform var(--dur-2) var(--ease-out),
-    background var(--dur-1);
+  /* Checked: the nacre layer (controls/NacreFill.module.css) fades in while the thumb slides. */
+  --fill: var(--nacre);
+  --fill-shadow: none;
+  transition: transform var(--dur-2) var(--ease-out);
 }
 
 .switch[aria-checked='true'] .track {
@@ -133,7 +134,10 @@
 
 .switch[aria-checked='true'] .thumb {
   transform: translateX(12px);
-  background: var(--nacre);
+}
+
+.switch[aria-checked='true'] .thumb::after {
+  opacity: 1;
 }
 
 .body {

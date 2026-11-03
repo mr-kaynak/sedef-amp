@@ -1,0 +1,32 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* A nacre fill that fades in when its element is selected: the one recipe for segments, the A/B
+   slots, tag chips, the Updates switch thumb and the metronome's play button.
+
+   A gradient background cannot transition, so the fill snapped on while the label's colour eased,
+   and the new label flashed light on pale nacre. The fill is drawn on a layer whose opacity
+   transitions over the same --dur-1 and easing as the label colour does at every site.
+
+   The element must be positioned (relative or absolute, set by its own module). It may set
+   --fill (default --nacre-line), --fill-shadow (default --shadow-nacre-sel) and --fill-inset
+   (-1px to also cover a border). The layer turns on with aria-checked or aria-pressed; other
+   states turn it on from their own module. */
+.fill {
+  isolation: isolate;
+}
+
+.fill::after {
+  content: '';
+  position: absolute;
+  inset: var(--fill-inset, 0);
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--fill, var(--nacre-line));
+  box-shadow: var(--fill-shadow, var(--shadow-nacre-sel));
+  opacity: 0;
+  transition: opacity var(--dur-1) var(--ease-out);
+  pointer-events: none;
+}
+
+.fill:is([aria-checked='true'], [aria-pressed='true'])::after {
+  opacity: 1;
+}

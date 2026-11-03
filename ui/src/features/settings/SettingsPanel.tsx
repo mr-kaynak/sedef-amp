@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import buttons from '../../controls/Button.module.css';
 import { Segmented } from '../../controls/Segmented';
+import nacre from '../../controls/NacreFill.module.css';
 import segmented from '../../controls/Segmented.module.css';
 import { useRadioGroup } from '../../controls/useRadioGroup';
 import { useAppStore } from '../../state/appStore';
@@ -37,7 +38,12 @@ export function SettingsPanel() {
           onKeyDown={scales.onKeyDown}
         >
           {SCALES.map((s, i) => (
-            <button key={s} type="button" className={segmented.option} {...scales.radio(i)}>
+            <button
+              key={s}
+              type="button"
+              className={`${nacre.fill} ${segmented.option}`}
+              {...scales.radio(i)}
+            >
               {Math.round(s * 100)}%
             </button>
           ))}

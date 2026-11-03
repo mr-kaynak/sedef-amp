@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import { Icon } from '../../controls/Icon';
 import buttons from '../../controls/Button.module.css';
+import nacre from '../../controls/NacreFill.module.css';
 import segmented from '../../controls/Segmented.module.css';
 import { useRadioGroup } from '../../controls/useRadioGroup';
 import { useAppStore } from '../../state/appStore';
@@ -131,7 +132,12 @@ function SortSwitch() {
         onKeyDown={onKeyDown}
       >
         {SORTS.map((s, i) => (
-          <button key={s.id} type="button" className={segmented.option} {...radio(i)}>
+          <button
+            key={s.id}
+            type="button"
+            className={`${nacre.fill} ${segmented.option}`}
+            {...radio(i)}
+          >
             {s.label}
           </button>
         ))}
@@ -336,7 +342,7 @@ function BrowserPanel() {
                 <button
                   key={t.name}
                   type="button"
-                  className={`${buttons.press} ${styles.chip}`}
+                  className={`${buttons.press} ${nacre.fill} ${styles.chip}`}
                   aria-pressed={filter.tags.includes(t.name)}
                   onClick={() => toggleTag(t.name)}
                 >

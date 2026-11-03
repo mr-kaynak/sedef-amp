@@ -277,10 +277,14 @@
   }
 }
 
+.chip {
+  position: relative;
+}
+
+/* Pressed: the nacre layer (controls/NacreFill.module.css) covers the ring and fades in. */
 .chip[aria-pressed='true'] {
   color: var(--ink-1);
-  background: var(--nacre-line);
-  box-shadow: var(--shadow-nacre-sel);
+  box-shadow: none;
   font-weight: 600;
 }
 

@@ -23,11 +23,16 @@
   background: var(--ink-3);
   color: var(--bone);
   box-shadow: 0 0 0 1px var(--line-strong);
-  transition: scale 150ms ease-out;
+  /* Playing: the nacre layer (controls/NacreFill.module.css) fades in as the icon darkens. */
+  position: relative;
+  --fill: var(--nacre);
+  --fill-shadow: none;
+  transition:
+    color var(--dur-1) var(--ease-out),
+    scale 150ms ease-out;
 }
 
 .play[aria-pressed='true'] {
-  background: var(--nacre);
   color: var(--ink-1);
 }
 

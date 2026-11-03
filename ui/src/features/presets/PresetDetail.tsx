@@ -4,6 +4,7 @@
 import { Icon } from '../../controls/Icon';
 import { Led } from '../../controls/Led';
 import buttons from '../../controls/Button.module.css';
+import nacre from '../../controls/NacreFill.module.css';
 import type { PresetInfo } from '../../bridge/protocol';
 import { presetActions, usePresetStore } from '../../state/presetStore';
 import { modKey } from '../../app/platform';
@@ -72,7 +73,7 @@ export function PresetDetail({ preset }: { preset: PresetInfo | undefined }) {
                   <button
                     key={t}
                     type="button"
-                    className={`${buttons.press} ${styles.tag}`}
+                    className={`${buttons.press} ${nacre.fill} ${styles.tag}`}
                     aria-pressed={filterTags.includes(t)}
                     onClick={() => toggleTag(t)}
                   >

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import buttons from '../../controls/Button.module.css';
+import nacre from '../../controls/NacreFill.module.css';
 import { ChoiceSelect } from '../../controls/ChoiceSelect';
 import { Icon } from '../../controls/Icon';
 import { Knob } from '../../controls/Knob';
@@ -43,7 +44,7 @@ export function MetronomePanel() {
       <div className={styles.top}>
         <button
           type="button"
-          className={`${buttons.press} ${styles.play}`}
+          className={`${buttons.press} ${nacre.fill} ${styles.play}`}
           aria-pressed={playing}
           aria-label={playing ? 'Stop metronome' : 'Start metronome'}
           onClick={() => setParam('metronomeEnabled', playing ? 0 : 1)}

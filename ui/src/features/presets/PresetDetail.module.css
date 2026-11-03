@@ -96,6 +96,7 @@
 }
 
 .tag {
+  position: relative;
   height: 22px;
   padding: 0 9px;
   border: none;
@@ -121,10 +122,10 @@
   }
 }
 
+/* Pressed: the nacre layer (controls/NacreFill.module.css) covers the ring and fades in. */
 .tag[aria-pressed='true'] {
   color: var(--ink-1);
-  background: var(--nacre-line);
-  box-shadow: var(--shadow-nacre-sel);
+  box-shadow: none;
 }
 
 .tag[aria-pressed='true']::before {

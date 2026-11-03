@@ -19,9 +19,8 @@
   font-stretch: 108%;
   font-weight: 520;
   white-space: nowrap;
-  transition:
-    color var(--dur-1),
-    background var(--dur-1);
+  /* Selected: the nacre layer (controls/NacreFill.module.css) fades in as the label darkens. */
+  transition: color var(--dur-1) var(--ease-out);
 }
 
 @media (hover: hover) {
@@ -32,8 +31,6 @@
 
 .option[aria-checked='true'] {
   color: var(--ink-1);
-  background: var(--nacre-line);
-  box-shadow: var(--shadow-nacre-sel);
 }
 
 .sm .option {

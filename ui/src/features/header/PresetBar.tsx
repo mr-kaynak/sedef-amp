@@ -3,6 +3,7 @@
 // category and dirty dot, A/B compare and Save. Shortcuts: [ ] P A B ⌘S.
 import { modKey } from '../../app/platform';
 import buttons from '../../controls/Button.module.css';
+import nacre from '../../controls/NacreFill.module.css';
 import { Icon } from '../../controls/Icon';
 import { useRadioGroup } from '../../controls/useRadioGroup';
 import { currentPreset, usePresetStore } from '../../state/presetStore';
@@ -46,7 +47,7 @@ function CompareSwitch() {
             <button
               key={s.slot}
               type="button"
-              className={styles.slot}
+              className={`${nacre.fill} ${styles.slot}`}
               data-empty={s.empty || undefined}
               aria-label={`${s.slot}: ${description}`}
               aria-keyshortcuts={s.slot}

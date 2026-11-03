@@ -4,6 +4,7 @@
 import { useEffect, useId, useRef } from 'react';
 import type { CSSProperties, KeyboardEvent } from 'react';
 import buttons from '../../controls/Button.module.css';
+import nacre from '../../controls/NacreFill.module.css';
 import { Icon } from '../../controls/Icon';
 import { ReleaseNotes } from './ReleaseNotes';
 import {
@@ -350,7 +351,7 @@ export function UpdatesPanel() {
             onClick={() => void updateActions.setAutoCheck(!state.autoCheck)}
           >
             <span className={styles.track} aria-hidden="true">
-              <span className={styles.thumb} />
+              <span className={`${nacre.fill} ${styles.thumb}`} />
             </span>
             Check for updates automatically
           </button>

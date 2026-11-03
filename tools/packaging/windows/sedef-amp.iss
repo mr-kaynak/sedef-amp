@@ -97,11 +97,11 @@ const
   SYNCHRONIZE = $00100000;
   WAIT_TIMEOUT = $00000102;
 
-function OpenProcess(DesiredAccess: Cardinal; InheritHandle: Cardinal; ProcessId: Cardinal): NativeInt;
+function OpenProcess(DesiredAccess: Cardinal; InheritHandle: Cardinal; ProcessId: Cardinal): THandle;
   external 'OpenProcess@kernel32.dll stdcall';
-function WaitForSingleObject(Handle: NativeInt; Milliseconds: Cardinal): Cardinal;
+function WaitForSingleObject(Handle: THandle; Milliseconds: Cardinal): Cardinal;
   external 'WaitForSingleObject@kernel32.dll stdcall';
-function CloseHandle(Handle: NativeInt): Cardinal;
+function CloseHandle(Handle: THandle): Cardinal;
   external 'CloseHandle@kernel32.dll stdcall';
 
 { Whether the command line holds /Name (any case). }
@@ -125,7 +125,7 @@ end;
 function InitializeSetup: Boolean;
 var
   Pid: Integer;
-  Process: NativeInt;
+  Process: THandle;
 begin
   Result := True;
   Pid := StrToIntDef(ExpandConstant('{param:WAITPID|0}'), 0);
@@ -136,7 +136,8 @@ begin
     Exit;
   Log(Format('Waiting for process %d to exit', [Pid]));
   while WaitForSingleObject(Process, 250) = WAIT_TIMEOUT do
-    ;
+  begin
+  end;
   CloseHandle(Process);
   Log(Format('Process %d has exited', [Pid]));
 end;

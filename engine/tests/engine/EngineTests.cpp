@@ -229,7 +229,7 @@ TEST_CASE ("Switching pedals does not change the chain's latency", "[engine]")
 
 TEST_CASE ("Switching Kelp, Urchin or Trench does not change the chain's latency", "[engine]")
 {
-    // Same check for the pedals added in 0.4: each one on at a setting where it is close to linear
+    // Same check for the newer pedals: each one on at a setting where it is close to linear
     // (Kelp at drive 0, Urchin's plain fuzz at a low level, Trench's direct path), against all off.
     // Kelp and Urchin are oversampled; without the bypass delay their output would sit 31-37
     // samples late.

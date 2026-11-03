@@ -31,9 +31,11 @@
   opacity: 1;
 }
 
-/* Forced colors drop the gradient: a selected element takes the system's selection colours. */
+/* Forced colors drop the gradient: a selected element takes the system's selection colours.
+   Doubled class (0,3,0): each site's selected colour and hover background are (0,2,0) and load
+   later, and must not win here. */
 @media (forced-colors: active) {
-  .fill:is([aria-checked='true'], [aria-pressed='true']) {
+  .fill.fill:is([aria-checked='true'], [aria-pressed='true']) {
     background: Highlight;
     color: HighlightText;
   }

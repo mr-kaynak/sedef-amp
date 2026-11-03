@@ -57,6 +57,14 @@
   border-color: var(--on-line);
 }
 
+/* Forced colors drop the tint: pressed and expanded keep their edge in the selection colour. */
+@media (forced-colors: active) {
+  .ghost[aria-pressed='true'],
+  .ghost[aria-expanded='true'] {
+    border-color: Highlight;
+  }
+}
+
 .solid {
   border: 1px solid var(--line-strong);
   background: var(--ink-3);

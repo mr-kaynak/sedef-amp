@@ -5,7 +5,7 @@ import { useEffect, useId, useRef } from 'react';
 import type { CSSProperties, KeyboardEvent } from 'react';
 import buttons from '../../controls/Button.module.css';
 import nacre from '../../controls/NacreFill.module.css';
-import { Icon } from '../../controls/Icon';
+import { Icon, ICON_STROKE_LABEL } from '../../controls/Icon';
 import { ReleaseNotes } from './ReleaseNotes';
 import {
   AFTER_DOWNLOAD,
@@ -141,7 +141,7 @@ function Actions({ state }: { state: SupportedUpdateState }) {
     return (
       <div className={styles.actions}>
         <button type="button" className={buttons.ghost} onClick={() => void updateActions.reveal()}>
-          <Icon name="folder" />
+          <Icon name="folder" stroke={ICON_STROKE_LABEL} />
           Show in folder
         </button>
         <button type="button" className={buttons.solid} onClick={updateActions.closePanel}>
@@ -336,7 +336,7 @@ export function UpdatesPanel() {
             disabled={busy}
             onClick={() => void updateActions.checkNow()}
           >
-            <Icon name="refresh" size={14} />
+            <Icon name="refresh" size={14} stroke={ICON_STROKE_LABEL} />
             Check now
           </button>
         </div>
@@ -373,7 +373,7 @@ export function UpdatesPanel() {
           ) : state.phase === 'done' && state.download ? (
             <div className={styles.done}>
               <p className={styles.headline}>
-                <Icon name="check" />
+                <Icon name="check" stroke={ICON_STROKE_LABEL} />
                 <span className={styles.file}>{state.download.fileName}</span>
               </p>
               <p className={styles.status}>Downloaded to your Downloads folder and verified.</p>

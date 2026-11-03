@@ -2,7 +2,7 @@
 import buttons from '../../controls/Button.module.css';
 import nacre from '../../controls/NacreFill.module.css';
 import { ChoiceSelect } from '../../controls/ChoiceSelect';
-import { Icon } from '../../controls/Icon';
+import { IconSwap } from '../../controls/IconSwap';
 import { Knob } from '../../controls/Knob';
 import { setParam, useParamValue } from '../../params/useParam';
 import { telemetry, useLiveSelector } from '../../state/live';
@@ -49,7 +49,7 @@ export function MetronomePanel() {
           aria-label={playing ? 'Stop metronome' : 'Start metronome'}
           onClick={() => setParam('metronomeEnabled', playing ? 0 : 1)}
         >
-          <Icon name={playing ? 'stop' : 'play'} size={18} filled />
+          <IconSwap active={playing} icon="play" activeIcon="stop" size={18} filled />
         </button>
         <div className={styles.tempo}>
           <span className={styles.bpm}>{Math.round(bpm)}</span>

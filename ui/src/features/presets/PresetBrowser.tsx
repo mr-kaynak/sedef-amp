@@ -4,7 +4,7 @@
 // double-click keeps it; Esc goes back to the sound from when the browser opened.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
-import { Icon } from '../../controls/Icon';
+import { Icon, ICON_STROKE_LABEL } from '../../controls/Icon';
 import buttons from '../../controls/Button.module.css';
 import nacre from '../../controls/NacreFill.module.css';
 import segmented from '../../controls/Segmented.module.css';
@@ -434,7 +434,7 @@ function BrowserPanel() {
           title="Start from the default sound"
           onClick={() => void newPreset()}
         >
-          <Icon name="plus" size={12} />
+          <Icon name="plus" size={12} stroke={ICON_STROKE_LABEL} />
           New
         </button>
         {canReveal && (
@@ -445,7 +445,7 @@ function BrowserPanel() {
             title="Show the preset folder"
             onClick={() => void presetActions.reveal()}
           >
-            <Icon name="folder" size={14} />
+            <Icon name="folder" size={14} stroke={ICON_STROKE_LABEL} />
           </button>
         )}
         <ShortcutList open={showKeys} onToggle={setShowKeys} />

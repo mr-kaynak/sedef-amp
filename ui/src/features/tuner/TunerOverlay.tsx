@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { useEffect } from 'react';
-import { Icon } from '../../controls/Icon';
+import { Icon, ICON_STROKE_LABEL } from '../../controls/Icon';
 import { Toggle } from '../../controls/Toggle';
 import buttons from '../../controls/Button.module.css';
 import { setParam, useParamValue } from '../../params/useParam';
@@ -58,7 +58,7 @@ export function TunerOverlay() {
           className={`${buttons.ghost} ${buttons.small}`}
           onClick={() => uiActions.openOverlay(null)}
         >
-          <Icon name="close" size={14} />
+          <Icon name="close" size={14} stroke={ICON_STROKE_LABEL} />
           Close
         </button>
       </header>

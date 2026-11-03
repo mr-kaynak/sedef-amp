@@ -31,15 +31,12 @@
   color: var(--bone);
 }
 
+/* The icon set's chevron, drawn in currentColor like every other icon. */
 .chevron {
   position: absolute;
-  right: 10px;
+  right: 8px;
   top: 50%;
-  width: 9px;
-  height: 6px;
-  margin-top: -3px;
-  fill: none;
-  stroke: var(--bone-3);
-  stroke-width: 1.4;
+  margin-top: -7px;
+  color: var(--bone-3);
   pointer-events: none;
 }

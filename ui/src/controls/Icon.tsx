@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Inline stroke icons on a 16px grid. Kept in one place so line weight stays consistent.
+// Inline stroke icons on a 16px grid. Kept in one place so line weight stays consistent: the
+// stroke is given in rendered pixels and converted into the 16-unit viewBox, so a 10px and an 18px
+// icon draw the same line. 1.5px suits regular (400) text; beside medium and semibold (500-600)
+// labels pass stroke={2}. Not vector-effect: non-scaling-stroke, because the Stage scales the whole
+// canvas with a transform and the line must scale with it.
 
 const PATHS = {
   prev: 'M10 3.5 5.5 8 10 12.5',
@@ -36,14 +40,22 @@ const PATHS = {
 
 export type IconName = keyof typeof PATHS;
 
+/** Rendered stroke for icons beside regular text, in CSS px. */
+export const ICON_STROKE = 1.5;
+/** Rendered stroke for icons beside medium and semibold labels (the buttons' 540-600). */
+export const ICON_STROKE_LABEL = 2;
+
 export function Icon({
   name,
   size = 16,
+  stroke = ICON_STROKE,
   filled = false,
   className,
 }: {
   name: IconName;
   size?: number;
+  /** Rendered line width in CSS px, whatever the size. */
+  stroke?: number;
   filled?: boolean;
   className?: string;
 }) {
@@ -55,7 +67,7 @@ export function Icon({
       viewBox="0 0 16 16"
       fill={filled ? 'currentColor' : 'none'}
       stroke="currentColor"
-      strokeWidth={1.4}
+      strokeWidth={(stroke * 16) / size}
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"

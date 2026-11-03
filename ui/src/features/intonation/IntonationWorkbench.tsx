@@ -2,7 +2,7 @@
 import { useEffect } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import buttons from '../../controls/Button.module.css';
-import { Icon } from '../../controls/Icon';
+import { Icon, ICON_STROKE_LABEL } from '../../controls/Icon';
 import { midiLabel } from '../../lib/music';
 import { uiActions } from '../../state/uiStore';
 import { startIntonationSession } from './controller';
@@ -81,7 +81,7 @@ export function IntonationWorkbench() {
           className={`${buttons.ghost} ${buttons.small}`}
           onClick={() => uiActions.openOverlay(null)}
         >
-          <Icon name="close" size={14} />
+          <Icon name="close" size={14} stroke={ICON_STROKE_LABEL} />
           Close
         </button>
       </header>

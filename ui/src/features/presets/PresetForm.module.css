@@ -108,13 +108,25 @@
     box-shadow var(--dur-1) var(--ease-out);
 }
 
+/* The select's chevron is the icon set's, in currentColor (as in controls/ChoiceSelect). */
+.selectWrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
 .field select {
   appearance: none;
   padding-right: 28px;
-  background:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%238f9b98' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6.5 8 10.5l4-4'/%3E%3C/svg%3E")
-      right 8px center / 14px no-repeat,
-    var(--ink-0);
+}
+
+.chevron {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  margin-top: -7px;
+  color: var(--bone-3);
+  pointer-events: none;
 }
 
 .field input:focus,

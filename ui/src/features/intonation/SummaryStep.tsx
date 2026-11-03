@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { useState } from 'react';
 import buttons from '../../controls/Button.module.css';
-import { Icon } from '../../controls/Icon';
+import { ICON_STROKE_LABEL } from '../../controls/Icon';
+import { IconSwap } from '../../controls/IconSwap';
 import { midiLabel } from '../../lib/music';
 import { stringNumber } from './instruments';
 import { adjustmentFor, formatCents, formatMm, VERDICT_TEXT } from './math';
@@ -86,7 +87,13 @@ export function SummaryStep() {
         </table>
         <div className={styles.resultActions}>
           <button type="button" className={buttons.solid} onClick={() => void copy()}>
-            <Icon name={copied === 'done' ? 'check' : 'copy'} size={14} />
+            <IconSwap
+              active={copied === 'done'}
+              icon="copy"
+              activeIcon="check"
+              size={14}
+              stroke={ICON_STROKE_LABEL}
+            />
             {copied === 'done' ? 'Copied' : 'Copy as text'}
           </button>
           <button type="button" className={buttons.ghost} onClick={() => intonationActions.start()}>

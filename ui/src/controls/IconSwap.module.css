@@ -1,0 +1,32 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Contextual icon cross-fade: the leaving icon shrinks to 0.25 and blurs out while the new one
+   grows in, over 300 ms on cubic-bezier(0.2, 0, 0, 1). With reduced motion only the opacity
+   fades. */
+.swap {
+  display: inline-grid;
+  place-items: center;
+}
+
+.layer {
+  grid-area: 1 / 1;
+  display: grid;
+  opacity: 0;
+  transition: opacity 300ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.layer[data-shown] {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .layer {
+    scale: 0.25;
+    filter: blur(4px);
+    transition-property: opacity, scale, filter;
+  }
+
+  .layer[data-shown] {
+    scale: 1;
+    filter: blur(0px);
+  }
+}

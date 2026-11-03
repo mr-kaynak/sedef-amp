@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { useCallback, useRef } from 'react';
 import type { ReactNode } from 'react';
-import { Icon } from '../../controls/Icon';
+import { Icon, ICON_STROKE_LABEL } from '../../controls/Icon';
 import { Knob } from '../../controls/Knob';
 import { Popover } from '../../controls/Popover';
 import buttons from '../../controls/Button.module.css';
@@ -67,7 +67,7 @@ export function Header() {
             uiActions.toggleOverlay('tuner');
           }}
         >
-          <Icon name="fork" />
+          <Icon name="fork" stroke={ICON_STROKE_LABEL} />
           Tuner
         </button>
         <button
@@ -79,7 +79,7 @@ export function Header() {
             uiActions.toggleOverlay('intonation');
           }}
         >
-          <Icon name="ruler" />
+          <Icon name="ruler" stroke={ICON_STROKE_LABEL} />
           Intonation
         </button>
         {standalone && (
@@ -94,7 +94,7 @@ export function Header() {
               aria-expanded={popover === 'metronome'}
               onClick={() => uiActions.togglePopover('metronome')}
             >
-              <Icon name="metronome" />
+              <Icon name="metronome" stroke={ICON_STROKE_LABEL} />
             </button>
             <Popover
               open={popover === 'metronome'}
@@ -118,7 +118,7 @@ export function Header() {
             aria-expanded={popover === 'settings'}
             onClick={() => uiActions.togglePopover('settings')}
           >
-            <Icon name="sliders" />
+            <Icon name="sliders" stroke={ICON_STROKE_LABEL} />
           </button>
           <Popover
             open={popover === 'settings'}

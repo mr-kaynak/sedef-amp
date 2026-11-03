@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { useParam } from '../params/useParam';
+import { Icon } from './Icon';
 import styles from './ChoiceSelect.module.css';
 
 /** Native select for long choice lists (mic types): accessible and familiar in every host. */
@@ -31,9 +32,7 @@ export function ChoiceSelect({
           </option>
         ))}
       </select>
-      <svg className={styles.chevron} viewBox="0 0 10 6" aria-hidden="true">
-        <path d="M1 1l4 4 4-4" />
-      </svg>
+      <Icon name="down" size={14} className={styles.chevron} />
     </span>
   );
 }

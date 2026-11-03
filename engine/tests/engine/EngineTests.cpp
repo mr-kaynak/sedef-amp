@@ -527,7 +527,7 @@ TEST_CASE ("Engine::process never allocates while captures play, switch and swap
     for (std::size_t i = 0; i < ir.size(); ++i)
         ir[i] = 0.2f * std::exp (-static_cast<float> (i) / 600.0f) * (i % 3 == 0 ? 1.0f : -0.5f);
     const std::vector<std::string> texts {
-        nt::standardWaveNet (2),
+        nt::smallWaveNet (2),
         nt::file ("LSTM", nt::lstmConfig (2, 12),
                   nt::randomWeights (static_cast<std::size_t> (nt::lstmWeights (2, 12)), 3, 0.3f)),
         nt::file ("ConvNet", nt::convNetConfig (6, { 1, 2, 4, 8, 16 }, true),

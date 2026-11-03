@@ -14,9 +14,10 @@ using nt::json;
 
 namespace
 {
+/// A WaveNet in the trainer's layout, small so that the files that load measure quickly.
 json standardJson()
 {
-    return json::parse (nt::standardWaveNet (1));
+    return json::parse (nt::smallWaveNet (1));
 }
 
 void expectRejected (const std::string& text, const std::string& fragment)
@@ -99,10 +100,10 @@ TEST_CASE ("Weight counts must match the architecture", "[capture][untrusted]")
 {
     auto j = standardJson();
     j["weights"].erase (j["weights"].size() - 1);
-    expectRejected (j, "13801 weights, but its WaveNet needs 13802");
+    expectRejected (j, "1003 weights, but its WaveNet needs 1004");
     j = standardJson();
     j["weights"].push_back (0.1);
-    expectRejected (j, "13803 weights");
+    expectRejected (j, "1005 weights");
     j = standardJson();
     j["weights"][100] = "x";
     expectRejected (j, "a weight is not a number");
@@ -191,7 +192,7 @@ TEST_CASE ("Shapes that would make the core divide by zero or read out of bounds
     expectRejected (j, "must be from 1");
     j = standardJson();
     j["config"]["layers"][0]["groups_input"] = 3; // 16 channels
-    expectRejected (j, "3 groups don't divide 16 inputs");
+    expectRejected (j, "3 groups don't divide 4 inputs");
     j = standardJson();
     j["config"]["layers"][0]["channels"] = 0;
     expectRejected (j, "\"channels\" must be from 1");
@@ -223,7 +224,7 @@ TEST_CASE ("Shapes that would make the core divide by zero or read out of bounds
     j = standardJson();
     j["config"]["layers"][0]["activation"] = { { "type", "PReLU" },
                                                { "negative_slopes", { 0.1, 0.2 } } };
-    expectRejected (j, "PReLU has 2 slopes for 16 channels");
+    expectRejected (j, "PReLU has 2 slopes for 4 channels");
     j["config"]["layers"][0]["activation"] = { { "type", "PReLU" },
                                                { "negative_slopes", json::array() } };
     expectRejected (j, "PReLU slopes must be a non-empty list");

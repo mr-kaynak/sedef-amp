@@ -51,29 +51,61 @@ inline std::string linear (const std::vector<float>& taps, double sampleRate = 4
     return file ("Linear", config, taps, sampleRate, metadata);
 }
 
-/// The trainer's "standard" WaveNet: two layer arrays of ten layers (channels 16 and 8, kernel 3,
-/// dilations 1..512), Tanh, no gating; 13,802 weights.
-inline json standardWaveNetConfig()
+/// The trainer's WaveNet layout: two layer arrays of ten layers (kernel 3, dilations 1..512),
+/// Tanh, no gating, the first with `channels1` channels and a head of `channels2`, the second
+/// with `channels2` channels. The "standard" size is 16 and 8: 13,802 weights.
+inline json waveNetConfig (int channels1, int channels2)
 {
     const json dilations = { 1, 2, 4, 8, 16, 32, 64, 128, 256, 512 };
-    json a1 { { "input_size", 1 },      { "condition_size", 1 }, { "head_size", 8 },
-              { "channels", 16 },       { "kernel_size", 3 },    { "dilations", dilations },
-              { "activation", "Tanh" }, { "gated", false },      { "head_bias", false } };
-    json a2 { { "input_size", 16 },     { "condition_size", 1 }, { "head_size", 1 },
-              { "channels", 8 },        { "kernel_size", 3 },    { "dilations", dilations },
-              { "activation", "Tanh" }, { "gated", false },      { "head_bias", true } };
+    json a1 { { "input_size", 1 },       { "condition_size", 1 }, { "head_size", channels2 },
+              { "channels", channels1 }, { "kernel_size", 3 },    { "dilations", dilations },
+              { "activation", "Tanh" },  { "gated", false },      { "head_bias", false } };
+    json a2 { { "input_size", channels1 }, { "condition_size", 1 }, { "head_size", 1 },
+              { "channels", channels2 },   { "kernel_size", 3 },    { "dilations", dilations },
+              { "activation", "Tanh" },    { "gated", false },      { "head_bias", true } };
     return json { { "layers", json::array ({ a1, a2 }) }, { "head_scale", 0.02 } };
+}
+
+inline int waveNetWeights (int channels1, int channels2)
+{
+    const auto array = [] (int in, int channels, int head, bool headBias) {
+        const int layer =
+            channels * channels * 3 + channels + channels + channels * channels + channels;
+        return in * channels + 10 * layer + channels * head + (headBias ? head : 0);
+    };
+    return array (1, channels1, channels2, false) + array (channels1, channels2, 1, true) + 1;
+}
+
+inline json standardWaveNetConfig()
+{
+    return waveNetConfig (16, 8);
 }
 
 inline constexpr int kStandardWaveNetWeights = 13802;
 
 /// Random weights; the last one is the head scale, kept at a trained model's order of magnitude.
+inline std::string waveNet (int channels1, int channels2, std::uint32_t seed, float scale,
+                            double sampleRate = 48000.0, const json& metadata = json())
+{
+    auto w = randomWeights (static_cast<std::size_t> (waveNetWeights (channels1, channels2)), seed,
+                            scale);
+    w.back() = 0.5f;
+    return file ("WaveNet", waveNetConfig (channels1, channels2), w, sampleRate, metadata);
+}
+
 inline std::string standardWaveNet (std::uint32_t seed = 1, double sampleRate = 48000.0,
                                     const json& metadata = json())
 {
-    auto w = randomWeights (kStandardWaveNetWeights, seed, 0.25f);
-    w.back() = 0.5f;
-    return file ("WaveNet", standardWaveNetConfig(), w, sampleRate, metadata);
+    return waveNet (16, 8, seed, 0.25f, sampleRate, metadata);
+}
+
+/// The same layout at 4 and 2 channels (1,004 weights): the same receptive field and code paths
+/// at a fraction of the cost, for tests that run a capture for a long time (sanitizer builds run
+/// many times slower).
+inline std::string smallWaveNet (std::uint32_t seed = 1, double sampleRate = 48000.0,
+                                 const json& metadata = json())
+{
+    return waveNet (4, 2, seed, 0.6f, sampleRate, metadata);
 }
 
 /// A small WaveNet for reference checks: one layer array, `channels` channels, kernel 2.

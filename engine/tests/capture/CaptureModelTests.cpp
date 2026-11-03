@@ -299,7 +299,7 @@ TEST_CASE ("Captures are normalised to the built-in amps' level", "[capture]")
     // The reference strum the amps are matched with comes out at -15 dBFS RMS, whatever the
     // capture's own level, for every architecture.
     std::vector<std::string> files {
-        nt::standardWaveNet (4),
+        nt::smallWaveNet (4),
         nt::file ("LSTM", nt::lstmConfig (2, 8),
                   nt::randomWeights (static_cast<std::size_t> (nt::lstmWeights (2, 8)), 6, 0.4f)),
         nt::file ("ConvNet", nt::convNetConfig (4, { 1, 2, 4, 8, 16 }, true),

@@ -225,7 +225,7 @@ amp mode builds one instance per chain and costs twice as much.
   error below −60 dB in the pass band; exact, linear-phase latency; output independent of block
   size; more than 70 dB rejection of what the lower rate can't carry.
 - **Stage** (`CaptureStageTests.cpp`): level at every host rate (−15 ± 0.25 dB, within 1 dB of
-  Reef); trims and calibration; bit-exact built-in amp with no capture; time alignment of the two
+  Reef at 44.1 and 48 kHz); trims and calibration; bit-exact built-in amp with no capture; time alignment of the two
   paths; click-free switching and model crossfades; nothing freed on the audio thread; clearing;
   settling; the cab bypass and its level; every block size from 1 to 4096 at 44.1–192 kHz;
   models built for another rate ignored; publishing, clearing and collecting while audio runs.

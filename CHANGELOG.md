@@ -16,8 +16,8 @@ All notable changes to this project are documented here. The format follows
   12 ms) rather than a click; adding and removing use each pedal's bypass fade
   ([docs/architecture.md](docs/architecture.md#the-pedalboard)).
 - The Gate is a board pedal, first by default; it still listens to the guitar wherever it sits.
-- `sedef-render --board gate,tide,…` renders through a given board; without it, a preset's own
-  board.
+- `sedef-render --board gate,tide,…` renders through a given board (without it, a preset's own
+  board), and `--switch 2.5=ripple,gate,…` changes the board mid-render.
 
 ### Changed
 

@@ -85,19 +85,14 @@
   transform: scaleX(var(--gr, 0));
 }
 
-/* A looping blink is decoration on top of the lit LED: it stands still with reduced motion. */
+/* The blink's brightness is written every frame from the Speed knob (--blink, PedalsSection.tsx).
+   A looping blink is decoration on top of the lit LED: it stands still with reduced motion. */
 .rate[data-on] {
   display: inline-flex;
 }
 
 @media (prefers-reduced-motion: no-preference) {
   .rate[data-on] {
-    animation: blink var(--period) ease-in-out infinite;
-  }
-}
-
-@keyframes blink {
-  50% {
-    opacity: 0.35;
+    opacity: var(--blink, 1);
   }
 }

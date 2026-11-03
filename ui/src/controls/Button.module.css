@@ -34,8 +34,8 @@
 .ghost[aria-pressed='true'],
 .ghost[aria-expanded='true'] {
   color: var(--bone);
-  background: rgb(205 238 238 / 0.08);
-  border-color: rgb(205 238 238 / 0.22);
+  background: var(--on-fill);
+  border-color: var(--on-line);
 }
 
 .solid {
@@ -63,7 +63,7 @@
 .ghost:disabled,
 .solid:disabled,
 .nacre:disabled {
-  opacity: 0.4;
+  opacity: var(--disabled-opacity);
   cursor: default;
 }
 

@@ -20,7 +20,7 @@
 }
 
 .select:hover {
-  border-color: rgb(237 230 214 / 0.32);
+  border-color: var(--line-hover);
 }
 
 .select option {

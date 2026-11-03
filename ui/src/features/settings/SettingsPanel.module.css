@@ -42,6 +42,7 @@
 .scale[aria-checked='true'] {
   border-color: transparent;
   background: var(--nacre-line);
+  box-shadow: var(--shadow-nacre-sel);
   color: var(--ink-1);
 }
 

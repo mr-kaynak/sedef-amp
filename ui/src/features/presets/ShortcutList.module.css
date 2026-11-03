@@ -11,7 +11,7 @@
   width: 360px;
   padding: 14px 16px 6px;
   border-radius: var(--r-pop);
-  background: linear-gradient(180deg, #13293a, #0d1f2c);
+  background: var(--surface-pop);
   box-shadow: var(--shadow-pop);
   animation: rise var(--dur-2) var(--ease-out);
 }

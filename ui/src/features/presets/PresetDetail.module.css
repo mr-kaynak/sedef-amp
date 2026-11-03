@@ -118,7 +118,7 @@
 .tag[aria-pressed='true'] {
   color: var(--ink-1);
   background: var(--nacre-line);
-  box-shadow: none;
+  box-shadow: var(--shadow-nacre-sel);
 }
 
 .tag[aria-pressed='true']::before {

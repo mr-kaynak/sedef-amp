@@ -340,7 +340,8 @@ li[data-state='done'] > .trailDot {
 }
 
 .countStepper button:disabled {
-  opacity: 0.3;
+  opacity: var(--disabled-opacity);
+  cursor: default;
 }
 
 .countStepper output {
@@ -565,7 +566,7 @@ li[data-state='done'] > .trailDot {
 }
 
 .result[data-verdict='in-tune'] .errorValue {
-  background: conic-gradient(from 160deg at 45% 55%, #cdeeee, #ddd6f6, #f6dbe2, #f2e8cb, #cdeeee);
+  background: var(--nacre-ink);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;

@@ -15,7 +15,7 @@
   min-height: 40px;
   padding: 0 6px 0 16px;
   border-radius: var(--r-pop);
-  background: linear-gradient(180deg, #17324a, #10273a);
+  background: var(--surface-pop);
   box-shadow:
     var(--shadow-pop),
     inset 0 1px 0 rgb(255 255 255 / 0.06);
@@ -43,9 +43,9 @@
   gap: 8px;
   height: 28px;
   padding: 0 10px;
-  border: 1px solid rgb(205 238 238 / 0.28);
+  border: 1px solid var(--on-line);
   border-radius: var(--r-ctl);
-  background: rgb(205 238 238 / 0.08);
+  background: var(--on-fill);
   color: var(--nacre-aqua);
   font-size: var(--t-12);
   font-weight: 600;

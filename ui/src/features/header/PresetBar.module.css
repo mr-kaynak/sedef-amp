@@ -201,7 +201,7 @@
 .slot[aria-checked='true'] {
   color: var(--ink-1);
   background: var(--nacre-line);
-  box-shadow: 0 1px 6px -1px rgb(200 241 234 / 0.4);
+  box-shadow: var(--shadow-nacre-sel);
 }
 
 .slotDirty {

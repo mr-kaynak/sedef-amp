@@ -45,7 +45,22 @@
     var(--nacre-rose),
     var(--nacre-gold)
   );
+  /* Inlaid type and badges: the shell's sheen around one off-centre point. */
+  --nacre-ink: conic-gradient(
+    from 160deg at 45% 55%,
+    var(--nacre-aqua),
+    var(--nacre-lilac),
+    var(--nacre-rose),
+    var(--nacre-gold),
+    var(--nacre-aqua)
+  );
   --glow: #c8f1ea;
+
+  /* States. "On" (a pressed ghost button, a lit chip) is one aqua tint wherever it appears. */
+  --on-fill: rgb(205 238 238 / 0.08);
+  --on-line: rgb(205 238 238 / 0.3);
+  --line-hover: rgb(237 230 214 / 0.32);
+  --disabled-opacity: 0.4;
 
   /* Signals. */
   --coral: #f07b80;
@@ -75,6 +90,11 @@
 
   --shadow-hw: 0 1px 0 rgb(255 255 255 / 0.05) inset, 0 10px 24px -12px rgb(0 0 0 / 0.7);
   --shadow-pop: 0 24px 60px -20px rgb(0 0 0 / 0.75), 0 0 0 1px var(--line-strong);
+  /* The glow under a selected nacre fill (segments, A/B slots, tag chips). */
+  --shadow-nacre-sel: 0 1px 6px -1px rgb(200 241 234 / 0.35);
+
+  /* Raised surfaces: popovers, toasts, sheets and dialogs. */
+  --surface-pop: linear-gradient(180deg, #13293a, #0d1f2c);
 
   --focus: 0 0 0 2px var(--ink-1), 0 0 0 4px var(--nacre-aqua);
 

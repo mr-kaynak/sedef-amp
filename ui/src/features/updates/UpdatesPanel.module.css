@@ -18,7 +18,7 @@
   width: 560px;
   max-height: 640px;
   border-radius: var(--r-pop);
-  background: linear-gradient(180deg, #13293a, #0d1f2c);
+  background: var(--surface-pop);
   box-shadow: var(--shadow-pop);
   color: var(--bone);
   animation: rise var(--dur-2) var(--ease-out);

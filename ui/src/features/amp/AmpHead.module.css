@@ -42,7 +42,7 @@
 
 /* Abyss is the only amp with a nacre badge. */
 .badge[data-nacre] {
-  background: conic-gradient(from 160deg at 40% 60%, #cdeeee, #ddd6f6, #f6dbe2, #f2e8cb, #cdeeee);
+  background: var(--nacre-ink);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;

@@ -270,7 +270,7 @@
 .chip[aria-pressed='true'] {
   color: var(--ink-1);
   background: var(--nacre-line);
-  box-shadow: 0 1px 6px -1px rgb(200 241 234 / 0.35);
+  box-shadow: var(--shadow-nacre-sel);
   font-weight: 600;
 }
 
@@ -362,7 +362,7 @@
 .back[data-armed] kbd {
   color: var(--ink-1);
   background: var(--nacre-line);
-  box-shadow: 0 1px 6px -1px rgb(200 241 234 / 0.35);
+  box-shadow: var(--shadow-nacre-sel);
 }
 
 .back strong {

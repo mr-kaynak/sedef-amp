@@ -19,7 +19,7 @@
   width: 420px;
   height: 100%;
   overflow-y: auto;
-  background: linear-gradient(180deg, #13293a, #0d1f2c);
+  background: var(--surface-pop);
   box-shadow:
     -24px 0 60px -30px rgb(0 0 0 / 0.8),
     inset 1px 0 0 var(--line-strong);

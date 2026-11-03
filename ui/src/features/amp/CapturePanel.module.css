@@ -273,6 +273,12 @@
     color var(--dur-1);
 }
 
+/* Loading: the list ignores clicks, so it looks it. */
+.recentItem:disabled {
+  opacity: var(--disabled-opacity);
+  cursor: default;
+}
+
 .recentItem[aria-current='true'] {
   border-color: rgb(205 238 238 / 0.35);
   background: rgb(205 238 238 / 0.06);

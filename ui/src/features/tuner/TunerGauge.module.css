@@ -100,7 +100,7 @@
 /* In tune: the note is inlaid with nacre. */
 .gauge[data-state='in-tune'] .letter,
 .gauge[data-state='in-tune'] .accidental {
-  background: conic-gradient(from 160deg at 45% 55%, #cdeeee, #ddd6f6, #f6dbe2, #f2e8cb, #cdeeee);
+  background: var(--nacre-ink);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;

@@ -21,13 +21,13 @@
 
 .chip:hover {
   color: var(--bone);
-  border-color: rgb(237 230 214 / 0.32);
+  border-color: var(--line-hover);
 }
 
 .chip[data-on] {
   color: var(--bone);
-  background: rgb(205 238 238 / 0.06);
-  border-color: rgb(205 238 238 / 0.3);
+  background: var(--on-fill);
+  border-color: var(--on-line);
 }
 
 /* Bat-handle toggle: lever up = on. */

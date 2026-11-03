@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import type { ReactNode } from 'react';
+import { NACRE_STOPS } from '../../styles/nacre';
 import styles from './ProgressRing.module.css';
 
 export function ProgressRing({
@@ -28,10 +29,9 @@ export function ProgressRing({
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
         <defs>
           <linearGradient id="ring-nacre" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#cdeeee" />
-            <stop offset="0.4" stopColor="#ddd6f6" />
-            <stop offset="0.7" stopColor="#f6dbe2" />
-            <stop offset="1" stopColor="#f2e8cb" />
+            {NACRE_STOPS.map(([offset, color]) => (
+              <stop key={offset} offset={offset} style={{ stopColor: color }} />
+            ))}
           </linearGradient>
         </defs>
         <circle className={styles.track} cx={size / 2} cy={size / 2} r={r} />

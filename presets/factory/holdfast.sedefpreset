@@ -1,0 +1,25 @@
+{
+  "format": "sedef-preset",
+  "version": 1,
+  "name": "Holdfast",
+  "folder": "High Gain",
+  "author": "Sedef",
+  "tags": [
+    "boost",
+    "rhythm",
+    "metal"
+  ],
+  "description": "Tight, punchy high gain: a mid-pushed boost in front of the amp keeps low riffs locked.",
+  "parameters": {
+    "ampModel": 2,
+    "abyssGain": 0.55,
+    "abyssBass": 0.5,
+    "abyssMid": 0.5,
+    "kelpEnabled": 1,
+    "kelpDrive": 0.0,
+    "kelpTone": 0.55,
+    "kelpLevel": 0.8,
+    "gateThreshold": -58.0,
+    "abyssOutput": 0.3062
+  }
+}

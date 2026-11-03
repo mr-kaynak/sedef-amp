@@ -59,10 +59,11 @@
 .board {
   flex: 1;
   display: flex;
-  justify-content: center;
+  justify-content: safe center;
   align-items: flex-start;
   gap: 30px;
   padding-top: 2px;
+  overflow-x: auto;
 }
 
 .span2 {

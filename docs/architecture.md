@@ -10,8 +10,9 @@ VST3 / AU / CLAP plugin and as a standalone application. It ships a complete
 rig in one window:
 
 ```
-Input ─► Tuner tap ─► Input Gain ─► Gate ─► Tide (comp)
-      ─► Pearl (overdrive) ─► Coral (distortion) ─► Ripple (modulation)
+Input ─► Tuner tap ─► Input Gain ─► Gate ─► Trench (octave down) ─► Tide (comp)
+      ─► Urchin (octave-up fuzz) ─► Pearl (overdrive) ─► Kelp (mid overdrive)
+      ─► Coral (distortion) ─► Ripple (modulation)
       ─► Amp (Lagoon | Reef | Abyss) ─► Cab (2 mics + room)
       ─► 9-band EQ (one bank per amp) ─► Doubler ─► Drift (tape echo)
       ─► Fathom (plate | hall reverb) ─► Metronome ─► Output Gain ─► Output
@@ -162,8 +163,8 @@ own instead, so their tails ring out ("spillover") after being switched off.
 
 `Engine` builds the chain from two reusable halves:
 
-- `Channel`: Input Gain → Gate → Tide → Pearl → Coral → Ripple →
-  Amp → Cab. Mono in, mono or stereo out.
+- `Channel`: Input Gain → Gate → Trench → Tide → Urchin → Pearl → Kelp → Coral →
+  Ripple → Amp → Cab. Mono in, mono or stereo out.
 - `PostChain`: EQ → Doubler → Drift → Fathom → Metronome → Output Gain. Stereo.
 
 | Host layout | Mode | Graph |
@@ -176,6 +177,24 @@ own instead, so their tails ring out ("spillover") after being switched off.
 The gate detector always listens to the raw input before input gain, so gating
 follows the guitar's DI level regardless of input gain.
 
+The pedal order is fixed for now; a pedalboard that lets the player reorder the pedals is
+planned. Each pedal's page explains its place ("Where it goes in the chain"), in short:
+
+- **Trench right after the gate.** An octave divider tracks best on the clean, uncompressed
+  guitar: every drive in front of it would add harmonics for the tracker to mistake for the note,
+  and the compressor would flatten the envelope that shapes the sub. The gate in front keeps
+  noise from triggering it.
+- **Urchin after Tide, before the drives.** Its rectifier needs a clean signal too (a clipped
+  input folds into a near-constant level, not an octave), and a compressor in front evens out the
+  notes and makes them sustain into the octave.
+- **Kelp after Pearl, right before Coral and the amp.** A mid-hump overdrive is the pedal that
+  tightens what follows it: its low cut and mid push shape what the distortion or a high-gain amp
+  sees. Pearl, transparent, can push it.
+
+Each oversampled pedal (Pearl, Kelp, Urchin, Coral) adds its oversampler's latency to the chain
+whether it is on or off, so switching pedals never changes the latency reported to the host:
+187 samples (3.9 ms) for the whole rig at 48 kHz.
+
 Selecting an amp also selects the matching cab and EQ bank while
 `ampCabLink` is on. With the link off, `cabModel` picks the cab independently.
 The EQ bank always follows the amp.
@@ -185,8 +204,11 @@ The EQ bank always follows the amp.
 | Module | Character | Notes |
 |---|---|---|
 | Gate | Sidechained downward expander with hysteresis and hold | detector on raw input |
+| Trench | Analog-style octave divider, −1 and −2 octaves | tracking low-pass, Schmitt trigger, flip-flops, polyBLEP; no OS ([trench.md](dsp/trench.md)) |
 | Tide | Fixed-threshold 3:1 compressor, tilt EQ, parallel blend | soft knee, program-dependent release |
+| Urchin | Transformer-and-diodes octave-up fuzz | full-wave rectifier into an asymmetric clipper, 4× OS, ADAA ([urchin.md](dsp/urchin.md)) |
 | Pearl | Mid-hump overdrive with mid-boost | clipping in the feedback path, 4× OS |
+| Kelp | Classic mid-hump overdrive | diode-law feedback clipping, 723 Hz tone stage, 4× OS, ADAA ([kelp.md](dsp/kelp.md)) |
 | Coral | Hard-clipping distortion with low-pass "cut" | 4× OS |
 | Ripple | Tremolo, chorus, vibrato | 0.69–7.19 Hz |
 | Lagoon | Clean amp, glassy and wide | two triode stages, FMV tone stack |

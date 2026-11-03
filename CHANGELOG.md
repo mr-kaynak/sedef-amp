@@ -6,8 +6,29 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Three new pedals** on the pedals page, in signal order ([architecture](docs/architecture.md)):
+  - **Trench**, an analog-style octave down: one and two octaves below the note you play, from
+    a divider that tracks single notes and fades its subs out on chords and silence instead of
+    sputtering. Sub −1, Sub −2, Direct and Tone. It sits first, right after the gate, where it
+    hears the clean guitar ([docs/dsp/trench.md](docs/dsp/trench.md)).
+  - **Urchin**, an octave-up fuzz modelled on the transformer-and-diodes circuit: Fuzz, Octave,
+    Tone and Level. Like the original, its octave rings clearest on single notes on the neck
+    pickup, above the 12th fret ([docs/dsp/urchin.md](docs/dsp/urchin.md)).
+  - **Kelp**, the classic mid-hump overdrive: Drive, Tone and Level. Drive down and Level up, it
+    is the mid-pushed boost that tightens a high-gain amp ([docs/dsp/kelp.md](docs/dsp/kelp.md)).
+- New factory presets: **Holdfast** (Kelp boosting Abyss), **Thermocline** (an octave-up fuzz
+  lead) and **Benthic** (riffs doubled an octave below). New preset tags: `fuzz`, `octave`.
+- New parameters: `kelpEnabled`, `kelpDrive`, `kelpTone`, `kelpLevel`, `urchinEnabled`,
+  `urchinFuzz`, `urchinOctave`, `urchinTone`, `urchinLevel`, `trenchEnabled`, `trenchDirect`,
+  `trenchSub1`, `trenchSub2`, `trenchTone`.
+
 ### Changed
 
+- The rig's latency is 1.5 ms longer at 48 kHz (187 samples): Kelp and Urchin are oversampled,
+  and like Pearl and Coral they keep their latency when switched off, so turning pedals on and
+  off never changes what the host compensates.
 - **Abyss is tight again:** palm mutes stop instead of droning, power chords and triads keep their
   notes apart, and soft picking cleans up, without giving up the lead gain at the top of the knob.
   In 0.3.0 two fixed stages after the gain knob squared every note even at low gain, so Abyss

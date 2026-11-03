@@ -1,0 +1,35 @@
+{
+  "format": "sedef-preset",
+  "version": 1,
+  "name": "Thermocline",
+  "folder": "Lead",
+  "author": "Sedef",
+  "tags": [
+    "octave",
+    "fuzz",
+    "solo"
+  ],
+  "description": "Octave-up fuzz lead that rings an octave higher on the neck pickup, above the 12th fret.",
+  "parameters": {
+    "ampModel": 0,
+    "lagoonVolume": 0.45,
+    "lagoonBass": 0.45,
+    "lagoonMaster": 0.5,
+    "lagoonOutput": 0.3375,
+    "tideEnabled": 1,
+    "tideComp": 0.4,
+    "tideBlend": 0.6,
+    "urchinEnabled": 1,
+    "urchinFuzz": 0.55,
+    "urchinOctave": 1.0,
+    "urchinTone": 0.45,
+    "driftEnabled": 1,
+    "driftNote": 12,
+    "driftMix": 0.2,
+    "driftFeedback": 0.25,
+    "fathomEnabled": 1,
+    "fathomMix": 0.15,
+    "fathomDecay": 2.0,
+    "gateThreshold": -62.0
+  }
+}

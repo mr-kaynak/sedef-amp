@@ -16,15 +16,16 @@ void run (Conch& c, AudioView v)
     c.process (v);
 }
 
-Conch::Settings manual (float position, float q = 5.0f)
+Conch::Settings manual (float position, float resonance = 0.5f)
 {
-    return { Conch::Manual, position, q, 0.5f };
+    return { Conch::Manual, position, resonance, 0.5f };
 }
 
-std::vector<double> responseAt (float position, float q, double fs, const std::vector<double>& f)
+std::vector<double> responseAt (float position, float resonance, double fs,
+                                const std::vector<double>& f)
 {
-    return test::responseDb (test::impulseResponse<Conch> (manual (position, q), fs, 1 << 15), f,
-                             fs);
+    return test::responseDb (
+        test::impulseResponse<Conch> (manual (position, resonance), fs, 1 << 15), f, fs);
 }
 } // namespace
 
@@ -33,7 +34,7 @@ TEST_CASE ("Conch output stays finite for random settings and full-scale noise",
     test::checkFiniteWithRandomSettings<Conch> (
         [] (Random& r) {
             return Conch::Settings { static_cast<int> (r.nextU32() % 2u), r.unipolar(),
-                                     2.0f + 8.0f * r.unipolar(), r.unipolar() };
+                                     r.unipolar(), r.unipolar() };
         },
         run);
 }
@@ -41,30 +42,33 @@ TEST_CASE ("Conch output stays finite for random settings and full-scale noise",
 TEST_CASE ("Conch passes silence as silence", "[pedals][conch]")
 {
     for (int mode : { 0, 1 })
-        CHECK (test::silenceOutputPeak<Conch> (Conch::Settings { mode, 0.3f, 10.0f, 1.0f }, run) ==
+        CHECK (test::silenceOutputPeak<Conch> (Conch::Settings { mode, 0.3f, 1.0f, 1.0f }, run) ==
                0.0f);
 }
 
 TEST_CASE ("Conch centre frequency and Q follow the rocker", "[pedals][conch]")
 {
-    // Heel 350 Hz to toe 2.2 kHz, exponential travel; Q 1.5x the setting at the heel, 1/1.5x at
-    // the toe. Measured from the impulse response at every supported rate.
+    // Heel 350 Hz to toe 2.2 kHz, exponential travel; Q 1.5x the mid-travel Q at the heel,
+    // 1/1.5x at the toe. Measured from the impulse response at every supported rate.
     const auto f = test::logFrequencies (150.0, 6000.0, 192);
     for (double fs : test::kAllSampleRates)
-        for (float q : { 4.0f, 8.0f })
+        for (float res : { 0.2f, 0.85f })
             for (float p : { 0.0f, 0.25f, 0.5f, 0.75f, 1.0f })
             {
-                INFO ("fs " << fs << " Q setting " << q << " position " << p);
-                const auto r = responseAt (p, q, fs, f);
+                INFO ("fs " << fs << " resonance " << res << " position " << p);
+                const auto r = responseAt (p, res, fs, f);
                 const auto peak = test::findPeak (r, f);
                 CHECK (peak.hz == Approx (Conch::positionToHz (p)).epsilon (0.01));
-                CHECK (test::peakQ (r, f) == Approx (Conch::qAt (q, p)).epsilon (0.06));
+                CHECK (test::peakQ (r, f) == Approx (Conch::qAt (res, p)).epsilon (0.06));
             }
     CHECK (Conch::positionToHz (0.0f) == Approx (350.0f));
     CHECK (Conch::positionToHz (0.5f) == Approx (877.5f).epsilon (0.001));
     CHECK (Conch::positionToHz (1.0f) == Approx (2200.0f));
-    CHECK (Conch::qAt (5.0f, 0.0f) == Approx (7.5f));
-    CHECK (Conch::qAt (5.0f, 1.0f) == Approx (3.333f).epsilon (0.001));
+    CHECK (Conch::resonanceToQ (0.0f) == Approx (2.5f));
+    CHECK (Conch::resonanceToQ (0.5f) == Approx (5.0f));
+    CHECK (Conch::resonanceToQ (1.0f) == Approx (10.0f));
+    CHECK (Conch::qAt (0.5f, 0.0f) == Approx (7.5f));
+    CHECK (Conch::qAt (0.5f, 1.0f) == Approx (3.333f).epsilon (0.001));
 }
 
 TEST_CASE ("Conch keeps the inductor wah's fixed low skirt", "[pedals][conch]")
@@ -73,19 +77,20 @@ TEST_CASE ("Conch keeps the inductor wah's fixed low skirt", "[pedals][conch]")
     // or vanish as the pedal moves, only the peak does.
     const double fs = 48000.0;
     const std::vector<double> f { 40.0, 80.0 };
-    const auto heel = responseAt (0.0f, 5.0f, fs, f);
-    const auto toe = responseAt (1.0f, 5.0f, fs, f);
+    const auto heel = responseAt (0.0f, 0.5f, fs, f);
+    const auto toe = responseAt (1.0f, 0.5f, fs, f);
     CHECK (heel[0] == Approx (toe[0]).margin (0.6));
     CHECK (heel[1] - heel[0] == Approx (6.0).margin (0.5));
     CHECK (toe[1] - toe[0] == Approx (6.0).margin (0.2));
 
-    // Peak gain at named positions (Q setting 5): +9 dB at the heel to +18 dB at the toe.
+    // Peak gain at named positions (Resonance at noon, Q 5): +9 dB at the heel to +18 dB at the
+    // toe.
     const auto band = test::logFrequencies (150.0, 6000.0, 96);
-    CHECK (test::findPeak (responseAt (0.0f, 5.0f, fs, band), band).db ==
+    CHECK (test::findPeak (responseAt (0.0f, 0.5f, fs, band), band).db ==
            Approx (9.3).margin (0.3));
-    CHECK (test::findPeak (responseAt (0.5f, 5.0f, fs, band), band).db ==
+    CHECK (test::findPeak (responseAt (0.5f, 0.5f, fs, band), band).db ==
            Approx (13.8).margin (0.3));
-    CHECK (test::findPeak (responseAt (1.0f, 5.0f, fs, band), band).db ==
+    CHECK (test::findPeak (responseAt (1.0f, 0.5f, fs, band), band).db ==
            Approx (18.3).margin (0.3));
 }
 
@@ -141,7 +146,7 @@ TEST_CASE ("Conch Auto rocks the pedal from the Position with the picking envelo
             {
                 Conch c;
                 c.prepare ({ fs, 512, 1 });
-                c.setSettings ({ Conch::Auto, position, 5.0f, sensitivity });
+                c.setSettings ({ Conch::Auto, position, 0.5f, sensitivity });
                 test::Buffer b (1, static_cast<int> (fs));
                 std::fill (b[0].begin(), b[0].end(), level);
                 test::processInBlocks (b, 512, [&] (AudioView v) { c.process (v); });
@@ -157,7 +162,7 @@ TEST_CASE ("Conch Auto rocks the pedal from the Position with the picking envelo
     CHECK (Conch::autoTravel (0.1f, 0.9f) > Conch::autoTravel (0.1f, 0.3f));
     Conch c;
     c.prepare ({ fs, 512, 1 });
-    c.setSettings ({ Conch::Auto, 0.2f, 5.0f, 0.7f });
+    c.setSettings ({ Conch::Auto, 0.2f, 0.5f, 0.7f });
     test::Buffer b (1, static_cast<int> (1.5 * fs));
     test::fillSine (b[0], 196.0, fs, 0.4f);
     std::fill (b[0].begin() + static_cast<long> (0.5 * fs), b[0].end(), 0.0f);
@@ -175,7 +180,7 @@ TEST_CASE ("Conch Manual ignores the envelope", "[pedals][conch]")
     const double fs = 48000.0;
     Conch c;
     c.prepare ({ fs, 512, 1 });
-    c.setSettings ({ Conch::Manual, 0.3f, 5.0f, 1.0f });
+    c.setSettings ({ Conch::Manual, 0.3f, 0.5f, 1.0f });
     test::Buffer b (1, static_cast<int> (0.5 * fs));
     test::fillSine (b[0], 196.0, fs, 0.8f);
     test::processInBlocks (b, 512, [&] (AudioView v) { c.process (v); });
@@ -189,10 +194,10 @@ TEST_CASE ("Conch automation and mode switches are click-free", "[pedals][conch]
         CHECK (r.finite);
         CHECK (r.sweep <= 1.5f * r.reference);
     };
-    check ([] (float t) { return manual (0.4f, 2.0f + 8.0f * t); });
-    check ([] (float t) { return Conch::Settings { Conch::Auto, 0.3f, 5.0f, t }; });
+    check ([] (float t) { return manual (0.4f, t); });
+    check ([] (float t) { return Conch::Settings { Conch::Auto, 0.3f, 0.5f, t }; });
     check ([] (float t) {
-        return Conch::Settings { static_cast<int> (t * 3.99f) % 2, 0.3f, 5.0f, 0.6f };
+        return Conch::Settings { static_cast<int> (t * 3.99f) % 2, 0.3f, 0.5f, 0.6f };
     });
 }
 
@@ -216,5 +221,5 @@ TEST_CASE ("Conch is linear and block-size independent", "[pedals][conch]")
         }
 
     for (int mode : { 0, 1 })
-        CHECK (test::blockSizeSpread<Conch> ({ mode, 0.3f, 6.0f, 0.7f }, fs) < 1.0e-6f);
+        CHECK (test::blockSizeSpread<Conch> ({ mode, 0.3f, 0.6f, 0.7f }, fs) < 1.0e-6f);
 }

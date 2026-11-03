@@ -39,7 +39,7 @@ constexpr float kVibratoTrim = 0.95f; // the stages' shelf lifts the treble ~3 d
 constexpr float kDriveSpeedHz = 3.0f; // drive amplitude x (1 + speed / this)
 
 constexpr double kSpeedSeconds = 0.05;
-constexpr double kIntensitySeconds = 0.03;
+constexpr double kDepthSeconds = 0.03;
 constexpr double kModeSeconds = 0.03;
 
 float onePole (double fs, double seconds) noexcept
@@ -69,7 +69,7 @@ void Beacon::prepare (const ProcessSpec& spec)
     cellOn_ = onePole (sampleRate_, kCellOnSeconds);
     cellOff_ = onePole (sampleRate_, kCellOffSeconds);
     speed_.reset (sampleRate_, kSpeedSeconds);
-    intensity_.reset (sampleRate_, kIntensitySeconds);
+    depth_.reset (sampleRate_, kDepthSeconds);
     vibrato_.reset (sampleRate_, kModeSeconds);
     applySettings (true);
     reset();
@@ -97,19 +97,19 @@ void Beacon::setSettings (const Settings& s) noexcept
 void Beacon::applySettings (bool snap) noexcept
 {
     const float speed = std::clamp (settings_.speedHz, kMinSpeedHz, kMaxSpeedHz);
-    const float intensity = std::clamp (settings_.intensity, 0.0f, 1.0f);
+    const float depth = std::clamp (settings_.depth, 0.0f, 1.0f);
     const float vibrato = settings_.mode == Vibrato ? 1.0f : 0.0f;
     if (snap)
     {
         speed_.setCurrentAndTarget (speed);
-        intensity_.setCurrentAndTarget (intensity);
+        depth_.setCurrentAndTarget (depth);
         vibrato_.setCurrentAndTarget (vibrato);
         lfo_.setFrequency (speed);
     }
     else
     {
         speed_.setTarget (speed);
-        intensity_.setTarget (intensity);
+        depth_.setTarget (depth);
         vibrato_.setTarget (vibrato);
     }
 }
@@ -124,10 +124,10 @@ void Beacon::process (const AudioView& io) noexcept
         if (speed_.isSmoothing())
             lfo_.setFrequency (speed_.next());
 
-        // Lamp drive: the LFO swings the lamp current about its idle point; Intensity sets how
+        // Lamp drive: the LFO swings the lamp current about its idle point; Depth sets how
         // far. The filament's heat follows the power (current squared), the cells follow its
         // light.
-        const float swing = intensity_.next() * (1.0f + speed_.current() / kDriveSpeedHz);
+        const float swing = depth_.next() * (1.0f + speed_.current() / kDriveSpeedHz);
         const float drive =
             std::clamp (0.5f * (1.0f + swing * Lfo::sine (lfo_.advance())), 0.0f, 1.0f);
         const float power = drive * drive;

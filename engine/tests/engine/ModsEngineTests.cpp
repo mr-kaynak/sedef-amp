@@ -111,7 +111,7 @@ TEST_CASE ("Each mods pedal is wired to its parameters", "[engine][mods]")
         { ParamId::conchEnabled, ParamId::conchPosition, 0.1f, 0.9f },
         { ParamId::anemoneEnabled, ParamId::anemoneRange, 0.1f, 0.9f },
         { ParamId::gyreEnabled, ParamId::gyreDepth, 0.0f, 1.0f },
-        { ParamId::jettyEnabled, ParamId::jettyManual, 0.5f, 6.0f },
+        { ParamId::jettyEnabled, ParamId::jettyDelay, 0.5f, 6.0f },
         { ParamId::beaconEnabled, ParamId::beaconMode, 0.0f, 1.0f },
     };
     for (const auto& c : cases)

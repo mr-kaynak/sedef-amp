@@ -126,7 +126,7 @@ ChainSettings chainSettings (const ParamSnapshot& p)
 
     // mods lane
     s.conchOn = p.flag (P::conchEnabled);
-    s.conch = { p.choice (P::conchMode), p[P::conchPosition], p[P::conchQ],
+    s.conch = { p.choice (P::conchMode), p[P::conchPosition], p[P::conchResonance],
                 p[P::conchSensitivity] };
     s.anemoneOn = p.flag (P::anemoneEnabled);
     s.anemone = { p[P::anemoneSensitivity], p[P::anemoneRange], p[P::anemoneResonance],
@@ -134,9 +134,10 @@ ChainSettings chainSettings (const ParamSnapshot& p)
     s.gyreOn = p.flag (P::gyreEnabled);
     s.gyre = { p[P::gyreSpeed], p[P::gyreDepth], p[P::gyreFeedback], p.choice (P::gyreStages) };
     s.jettyOn = p.flag (P::jettyEnabled);
-    s.jetty = { p[P::jettyRate], p[P::jettyDepth], p[P::jettyManual], p[P::jettyRegen] / 100.0f };
+    s.jetty = { p[P::jettySpeed], p[P::jettyDepth], p[P::jettyDelay],
+                p[P::jettyFeedback] / 100.0f };
     s.beaconOn = p.flag (P::beaconEnabled);
-    s.beacon = { p[P::beaconSpeed], p[P::beaconIntensity], p.choice (P::beaconMode) };
+    s.beacon = { p[P::beaconSpeed], p[P::beaconDepth], p.choice (P::beaconMode) };
     return s;
 }
 

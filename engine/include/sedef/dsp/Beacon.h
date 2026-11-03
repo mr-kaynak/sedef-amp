@@ -29,8 +29,8 @@ public:
 
     struct Settings
     {
-        float speedHz = 2.0f;   ///< 0.3..8 Hz
-        float intensity = 0.7f; ///< 0..1, how far the lamp swings
+        float speedHz = 2.0f; ///< 0.3..8 Hz
+        float depth = 0.7f;   ///< 0..1, how far the lamp swings
         int mode = Chorus;
     };
 
@@ -70,7 +70,7 @@ private:
 
     PrecisePhase lfo_;
     std::array<TptOnePole, kNumStages> stages_;
-    ExpSmoothed speed_, intensity_;
+    ExpSmoothed speed_, depth_;
     LinearSmoothed vibrato_; // 0 chorus .. 1 vibrato
     float lamp_ = 0.0f;      // filament heat, 0..1
     float cell_ = 0.0f;      // photocell state, 0..1

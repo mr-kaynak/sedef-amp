@@ -18,11 +18,11 @@ void run (Jetty& j, AudioView v)
     j.process (v);
 }
 
-std::vector<double> staticResponse (float manualMs, float regen, double fs,
+std::vector<double> staticResponse (float delayMs, float feedback, double fs,
                                     const std::vector<double>& f)
 {
     return test::responseDb (
-        test::impulseResponse<Jetty> ({ 1.0f, 0.0f, manualMs, regen }, fs, 1 << 15), f, fs);
+        test::impulseResponse<Jetty> ({ 1.0f, 0.0f, delayMs, feedback }, fs, 1 << 15), f, fs);
 }
 
 /// Delay trajectory (ms) over `seconds`.
@@ -64,7 +64,7 @@ TEST_CASE ("Jetty passes silence as silence", "[pedals][jetty]")
 TEST_CASE ("Jetty's comb notches sit at odd multiples of half the delay's frequency",
            "[pedals][jetty]")
 {
-    // Depth 0 and no regen: dry + delayed, so |H| = |cos(pi f d)|: notches at (k + 1/2) / d.
+    // Depth 0 and no feedback: dry + delayed, so |H| = |cos(pi f d)|: notches at (k + 1/2) / d.
     // Integer delays at 48 kHz, fractional ones at 44.1 kHz (the interpolated read).
     for (double fs : { 48000.0, 44100.0, 96000.0 })
         for (float ms : { 1.0f, 2.0f, 5.0f })
@@ -83,14 +83,14 @@ TEST_CASE ("Jetty's comb notches sit at odd multiples of half the delay's freque
         }
 }
 
-TEST_CASE ("Jetty's regen polarity picks which comb teeth ring", "[pedals][jetty]")
+TEST_CASE ("Jetty's feedback polarity picks which comb teeth ring", "[pedals][jetty]")
 {
-    // 1 ms. Positive regen rings at multiples of 1 kHz (between the notches); negative regen
+    // 1 ms. Positive feedback rings at multiples of 1 kHz (between the notches); negative feedback
     // rings at the odd multiples of 500 Hz, where the notches were, and the dry signal no longer
     // cancels there. Peaks found within 3 % of the teeth, standing well above the troughs.
     const auto f = test::logFrequencies (350.0, 3300.0, 384);
-    const auto peaks = [&] (float regen) {
-        auto r = staticResponse (1.0f, regen, kFs, f);
+    const auto peaks = [&] (float feedback) {
+        auto r = staticResponse (1.0f, feedback, kFs, f);
         for (auto& x : r)
             x = -x;
         auto p = test::findNotches (r, f, 6.0); // maxima of the response
@@ -104,36 +104,36 @@ TEST_CASE ("Jetty's regen polarity picks which comb teeth ring", "[pedals][jetty
         CHECK (pos[k].hz == Approx (1000.0 * (k + 1)).epsilon (0.03));
     const auto neg = peaks (-1.0f);
     REQUIRE (neg.size() >= 3);
-    // (The regen path's coupling capacitor leads the phase a little at 500 Hz, which pulls the
-    // first negative-regen tooth about 3 % up.)
+    // (The feedback path's coupling capacitor leads the phase a little at 500 Hz, which pulls the
+    // first negative-feedback tooth about 3 % up.)
     for (size_t k = 0; k < 3; ++k)
         CHECK (neg[k].hz == Approx (500.0 * (2 * k + 1)).epsilon (0.04));
 
-    const auto contrast = [&] (float regen) {
-        const auto r = staticResponse (1.0f, regen, kFs, f);
+    const auto contrast = [&] (float feedback) {
+        const auto r = staticResponse (1.0f, feedback, kFs, f);
         const auto [lo, hi] = std::minmax_element (r.begin(), r.end());
         return *hi - *lo;
     };
     CHECK (contrast (0.8f) > 20.0);
     CHECK (contrast (-1.0f) > 15.0);
 
-    // Regen sharpens the teeth: the 1 kHz tooth's Q goes from the plain comb's 2 to well above.
+    // Feedback sharpens the teeth: the 1 kHz tooth's Q goes from the plain comb's 2 to well above.
     const auto tooth = test::logFrequencies (600.0, 1600.0, 768);
     CHECK (test::peakQ (staticResponse (1.0f, 0.0f, kFs, tooth), tooth) ==
            Approx (2.0).epsilon (0.05));
     CHECK (test::peakQ (staticResponse (1.0f, 0.8f, kFs, tooth), tooth) > 6.0);
 }
 
-TEST_CASE ("Jetty's sweep follows Rate and Depth", "[pedals][jetty]")
+TEST_CASE ("Jetty's sweep follows Speed and Depth", "[pedals][jetty]")
 {
-    // Depth d sweeps the delay 1.5 d octaves either side of Manual, at the Rate.
+    // Depth d sweeps the delay 1.5 d octaves either side of Delay, at the Speed.
     for (double fs : { 44100.0, 192000.0 })
         for (float depth : { 0.4f, 1.0f })
-            for (float rate : { 0.05f, 0.5f, 5.0f })
+            for (float speed : { 0.05f, 0.5f, 5.0f })
             {
-                INFO ("fs " << fs << " depth " << depth << " rate " << rate);
-                const double seconds = std::max (3.0, 2.5 / rate);
-                const auto d = delayTrajectory ({ rate, depth, 3.0f, 0.0f }, fs, seconds);
+                INFO ("fs " << fs << " depth " << depth << " speed " << speed);
+                const double seconds = std::max (3.0, 2.5 / speed);
+                const auto d = delayTrajectory ({ speed, depth, 3.0f, 0.0f }, fs, seconds);
                 const auto [lo, hi] = std::minmax_element (d.begin(), d.end());
                 CHECK (*hi == Approx (3.0f * std::exp2 (1.5f * depth)).epsilon (0.005));
                 CHECK (*lo == Approx (3.0f * std::exp2 (-1.5f * depth)).epsilon (0.005));
@@ -145,11 +145,11 @@ TEST_CASE ("Jetty's sweep follows Rate and Depth", "[pedals][jetty]")
                 REQUIRE (peaks.size() >= 2);
                 const double period = static_cast<double> (peaks.back() - peaks.front()) /
                                       static_cast<double> (peaks.size() - 1);
-                CHECK (fs / period == Approx (rate).epsilon (0.01));
+                CHECK (fs / period == Approx (speed).epsilon (0.01));
             }
     // The delay stays inside the line's range at the extremes.
-    CHECK (Jetty::delayMs (10.0f, 1.0f, 1.0f) == Approx (16.0f));
-    CHECK (Jetty::delayMs (0.25f, 1.0f, -1.0f) == Approx (0.1f));
+    CHECK (Jetty::sweepDelayMs (10.0f, 1.0f, 1.0f) == Approx (16.0f));
+    CHECK (Jetty::sweepDelayMs (0.25f, 1.0f, -1.0f) == Approx (0.1f));
 
     // In the audio: a 1 kHz tone through the plain comb is cut every time a notch passes it,
     // once per millisecond of delay travel. Over one LFO cycle (up and back) the delay covers
@@ -179,16 +179,16 @@ TEST_CASE ("Jetty's sweep follows Rate and Depth", "[pedals][jetty]")
     }
 }
 
-TEST_CASE ("Jetty is stable at full regen", "[pedals][jetty]")
+TEST_CASE ("Jetty is stable at full feedback", "[pedals][jetty]")
 {
     for (double fs : { 44100.0, 96000.0, 192000.0 })
-        for (float regen : { -1.0f, 1.0f })
-            for (float manual : { 0.25f, 10.0f })
+        for (float feedback : { -1.0f, 1.0f })
+            for (float delay : { 0.25f, 10.0f })
             {
-                INFO ("fs " << fs << " regen " << regen << " manual " << manual);
+                INFO ("fs " << fs << " feedback " << feedback << " delay " << delay);
                 Jetty j;
                 j.prepare ({ fs, 512, 1 });
-                j.setSettings ({ 5.0f, 1.0f, manual, regen });
+                j.setSettings ({ 5.0f, 1.0f, delay, feedback });
                 test::Buffer b (1, static_cast<int> (4.0 * fs));
                 std::vector<float> noise (static_cast<size_t> (0.5 * fs));
                 test::fillNoise (noise, 1.0f, 13);
@@ -225,33 +225,33 @@ TEST_CASE ("Jetty's interpolated delay sweeps without zipper noise", "[pedals][j
     CHECK (test::settledRmsAbove (b[0], 6000.0, kFs, start) < 1.0e-3f * test::rms (b[0], start));
 }
 
-TEST_CASE ("Jetty keeps a guitar near unity across Regen", "[pedals][jetty]")
+TEST_CASE ("Jetty keeps a guitar near unity across Feedback", "[pedals][jetty]")
 {
-    for (float regen : { -1.0f, -0.5f, 0.0f, 0.5f, 1.0f })
+    for (float feedback : { -1.0f, -0.5f, 0.0f, 0.5f, 1.0f })
     {
-        INFO ("regen " << regen);
-        CHECK (test::guitarGainDb<Jetty> ({ 0.3f, 0.6f, 2.0f, regen }, kFs, 4.0) ==
+        INFO ("feedback " << feedback);
+        CHECK (test::guitarGainDb<Jetty> ({ 0.3f, 0.6f, 2.0f, feedback }, kFs, 4.0) ==
                Approx (0.0).margin (1.5));
     }
 }
 
 TEST_CASE ("Jetty is linear at guitar levels and block-size independent", "[pedals][jetty]")
 {
-    for (float regen : { -0.7f, 0.0f, 0.7f })
+    for (float feedback : { -0.7f, 0.0f, 0.7f })
     {
         const int frames = 24000;
         test::Buffer b (1, frames);
         test::fillSine (b[0], 1318.5, kFs, 0.25f);
         Jetty j;
         j.prepare ({ kFs, 512, 1 });
-        j.setSettings ({ 1.0f, 0.0f, 3.0f, regen }); // static comb, near a resonant tooth
+        j.setSettings ({ 1.0f, 0.0f, 3.0f, feedback }); // static comb, near a resonant tooth
         test::processInBlocks (b, 512, [&] (AudioView v) { j.process (v); });
         const float* tail = b[0].data() + frames / 2;
-        INFO ("regen " << regen);
+        INFO ("feedback " << feedback);
         CHECK (test::thd (tail, frames / 2, 1318.5, kFs) < 1.0e-4);
         CHECK (test::worstInharmonicDb (tail, frames / 2, 1318.5, kFs) < -75.0);
     }
-    // Driven into the line's limit (a full-scale note at full regen), the limiter's harmonics
+    // Driven into the line's limit (a full-scale note at full feedback), the limiter's harmonics
     // stay musical and its aliases stay well down.
     {
         const int frames = 24000;

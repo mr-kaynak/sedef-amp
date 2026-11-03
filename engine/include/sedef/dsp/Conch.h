@@ -24,20 +24,22 @@ public:
     {
         int mode = Manual;
         float position = 0.5f;    ///< 0 heel .. 1 toe
-        float q = 5.0f;           ///< resonance at mid travel, 2..10
+        float resonance = 0.5f;   ///< 0..1: Q 2.5 to 10 at mid travel (5 at noon)
         float sensitivity = 0.5f; ///< 0..1, Auto mode only
     };
 
     static constexpr float kHeelHz = 350.0f;
     static constexpr float kToeHz = 2200.0f;
-    static constexpr float kMinQ = 2.0f;
+    static constexpr float kMinQ = 2.5f;
     static constexpr float kMaxQ = 10.0f;
 
     /// Resonance frequency for a rocker position (exponential travel, like an audio-taper pot).
     static float positionToHz (float position) noexcept;
-    /// Resonance Q at a rocker position: the Q setting at mid travel, about 1.5 times higher at
-    /// the heel and 1.5 times lower at the toe, as the inductor wah's measured responses show.
-    static float qAt (float qSetting, float position) noexcept;
+    /// Q at mid travel for a Resonance setting (exponential).
+    static float resonanceToQ (float resonance) noexcept;
+    /// Q at a rocker position: the mid-travel Q, 1.5 times higher at the heel and 1.5 times lower
+    /// at the toe, as the inductor wah's measured responses show.
+    static float qAt (float resonance, float position) noexcept;
     /// Auto mode: how far up from the Position (0..1 of the remaining travel) an envelope of
     /// `envelope` (linear peak) rocks the pedal at a given sensitivity.
     static float autoTravel (float envelope, float sensitivity) noexcept;
@@ -63,7 +65,7 @@ private:
     Svf filter_;
     PeakEnvelope envelope_;
     ExpSmoothed rocker_;      // manual position
-    ExpSmoothed q_;           // Q setting
+    ExpSmoothed resonance_;   //
     ExpSmoothed sensitivity_; //
     LinearSmoothed autoMix_;  // 0 manual .. 1 auto, crossfades mode switches
     float position_ = 0.5f;

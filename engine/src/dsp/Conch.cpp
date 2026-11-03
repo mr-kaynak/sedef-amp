@@ -33,10 +33,15 @@ float Conch::positionToHz (float position) noexcept
     return mapExp (position, kHeelHz, kToeHz);
 }
 
-float Conch::qAt (float qSetting, float position) noexcept
+float Conch::resonanceToQ (float resonance) noexcept
+{
+    return mapExp (resonance, kMinQ, kMaxQ);
+}
+
+float Conch::qAt (float resonance, float position) noexcept
 {
     const float p = std::clamp (position, 0.0f, 1.0f);
-    return std::clamp (qSetting, kMinQ, kMaxQ) * std::pow (kQTilt, 1.0f - 2.0f * p);
+    return resonanceToQ (resonance) * std::pow (kQTilt, 1.0f - 2.0f * p);
 }
 
 float Conch::autoTravel (float envelope, float sensitivity) noexcept
@@ -52,7 +57,7 @@ void Conch::prepare (const ProcessSpec& spec)
     numChannels_ = std::clamp (spec.numChannels, 1, kMaxChannels);
     envelope_.prepare (sampleRate_, kAttackSeconds, kReleaseSeconds);
     rocker_.reset (sampleRate_, kRockerSeconds);
-    q_.reset (sampleRate_, kQSeconds);
+    resonance_.reset (sampleRate_, kQSeconds);
     sensitivity_.reset (sampleRate_, kQSeconds);
     autoMix_.reset (sampleRate_, kModeSeconds);
     applySettings (true);
@@ -76,13 +81,13 @@ void Conch::setSettings (const Settings& s) noexcept
 void Conch::applySettings (bool snap) noexcept
 {
     const float position = std::clamp (settings_.position, 0.0f, 1.0f);
-    const float q = std::clamp (settings_.q, kMinQ, kMaxQ);
+    const float resonance = std::clamp (settings_.resonance, 0.0f, 1.0f);
     const float sensitivity = std::clamp (settings_.sensitivity, 0.0f, 1.0f);
     const float autoMix = settings_.mode == Auto ? 1.0f : 0.0f;
     if (snap)
     {
         rocker_.setCurrentAndTarget (position);
-        q_.setCurrentAndTarget (q);
+        resonance_.setCurrentAndTarget (resonance);
         sensitivity_.setCurrentAndTarget (sensitivity);
         autoMix_.setCurrentAndTarget (autoMix);
         position_ = position;
@@ -90,7 +95,7 @@ void Conch::applySettings (bool snap) noexcept
     else
     {
         rocker_.setTarget (position);
-        q_.setTarget (q);
+        resonance_.setTarget (resonance);
         sensitivity_.setTarget (sensitivity);
         autoMix_.setTarget (autoMix);
     }
@@ -111,14 +116,14 @@ void Conch::process (const AudioView& io) noexcept
         const float env = envelope_.process (magnitude);
 
         const float rocker = rocker_.next();
-        const float q = q_.next();
+        const float resonance = resonance_.next();
         const float sensitivity = sensitivity_.next();
         const float autoMix = crossfadeCurve (autoMix_.next());
         const float travel = autoMix > 0.0f ? autoMix * autoTravel (env, sensitivity) : 0.0f;
         position_ = rocker + (1.0f - rocker) * travel;
 
         const float hz = positionToHz (position_);
-        filter_.setCoeffs (tptGain (hz, sampleRate_), 1.0f / qAt (q, position_));
+        filter_.setCoeffs (tptGain (hz, sampleRate_), 1.0f / qAt (resonance, position_));
         const float gain = trim * hz / kAsymptoteHz;
         for (int ch = 0; ch < channels; ++ch)
         {

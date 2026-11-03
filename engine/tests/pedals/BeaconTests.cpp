@@ -203,10 +203,10 @@ TEST_CASE ("Beacon's lamp makes a lopsided throb, not a sine", "[pedals][beacon]
     CHECK (down > 0.5);
 }
 
-TEST_CASE ("Beacon's Intensity sets how far the lamp swings", "[pedals][beacon]")
+TEST_CASE ("Beacon's Depth sets how far the lamp swings", "[pedals][beacon]")
 {
-    const auto swing = [] (float intensity) {
-        const auto l = lightTrajectory ({ 2.0f, intensity, Beacon::Chorus }, kFs, 4.0);
+    const auto swing = [] (float depth) {
+        const auto l = lightTrajectory ({ 2.0f, depth, Beacon::Chorus }, kFs, 4.0);
         const auto [lo, hi] =
             std::minmax_element (l.begin() + static_cast<long> (2.0 * kFs), l.end());
         return std::pair { *lo, *hi };
@@ -218,7 +218,7 @@ TEST_CASE ("Beacon's Intensity sets how far the lamp swings", "[pedals][beacon]"
     const auto full = swing (1.0f);
     CHECK (half.second - half.first > 0.3f);
     CHECK (full.second - full.first > half.second - half.first);
-    // At full intensity the first stage sweeps from below 100 Hz to above 700 Hz.
+    // At full depth the first stage sweeps from below 100 Hz to above 700 Hz.
     CHECK (Beacon::stageHz (0, full.first) < 100.0);
     CHECK (Beacon::stageHz (0, full.second) > 700.0);
 }

@@ -2,7 +2,7 @@
 #pragma once
 
 #include "InstallLogic.h"
-#include "Process.h"
+#include "InstallProcess.h"
 #include "UpdateClient.h"
 
 /// Installs a verified update through the OS's own installer: Apple's /usr/sbin/installer on the

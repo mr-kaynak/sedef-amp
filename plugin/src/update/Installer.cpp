@@ -2,9 +2,14 @@
 #include "Installer.h"
 
 #if JUCE_WINDOWS
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+// clang-format off: windows.h comes first, the headers after it need it
+#include <windows.h>
 #include <objbase.h>
 #include <shellapi.h>
-#include <windows.h>
+// clang-format on
 #if defined(_MSC_VER)
 #pragma comment(lib, "shell32.lib")
 #pragma comment(lib, "ole32.lib")

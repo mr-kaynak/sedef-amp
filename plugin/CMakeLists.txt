@@ -143,7 +143,7 @@ set(SEDEF_UPDATE_CORE_SOURCES
     ${SEDEF_UPDATE_DIR}/UpdateClient.cpp ${SEDEF_UPDATE_DIR}/UpdateClient.h
     ${SEDEF_UPDATE_DIR}/DownloadMark.cpp ${SEDEF_UPDATE_DIR}/DownloadMark.h
     ${SEDEF_UPDATE_DIR}/InstallLogic.cpp ${SEDEF_UPDATE_DIR}/InstallLogic.h
-    ${SEDEF_UPDATE_DIR}/Process.cpp ${SEDEF_UPDATE_DIR}/Process.h
+    ${SEDEF_UPDATE_DIR}/InstallProcess.cpp ${SEDEF_UPDATE_DIR}/InstallProcess.h
     ${SEDEF_UPDATE_DIR}/Installer.cpp ${SEDEF_UPDATE_DIR}/Installer.h)
 target_sources(SedefAmp PRIVATE ${SEDEF_UPDATE_DIR}/UpdateBridge.cpp ${SEDEF_UPDATE_DIR}/UpdateBridge.h)
 if(SEDEF_UPDATE_CHECK)

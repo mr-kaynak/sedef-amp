@@ -5,7 +5,9 @@
 #include "Installer.h"
 
 #include <catch2/catch_test_macros.hpp>
+#include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <thread>
 
 #if !JUCE_WINDOWS
@@ -505,6 +507,7 @@ TEST_CASE ("Archives with links, devices or paths out of their folder are refuse
     CHECK (with ([] (T& t, S p) { t.file (p + "/../../x", "x"); }).contains ("leaves"));
     CHECK (with ([] (T& t, S p) { t.file (p + "/a/./b", "x"); }).contains ("leaves"));
     CHECK (with ([] (T& t, S p) { t.file (p + "/a\\b", "x"); }).contains ("backslash"));
+    CHECK (with ([] (T& t, S p) { t.file (p + "/C:x", "x"); }).contains ("colon"));
     CHECK (with ([] (T& t, S) { t.file ("other-top/x", "x"); }).contains ("more than one top"));
     CHECK (with ([] (T& t, S p) { t.file (p + "/install.sh", "again"); }).contains ("twice"));
     CHECK (with ([] (T& t, S p) {

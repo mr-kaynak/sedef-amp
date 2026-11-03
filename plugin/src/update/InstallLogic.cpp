@@ -339,8 +339,8 @@ juce::String pathProblem (const juce::String& path)
     if (path.startsWithChar ('/'))
         return path + " is an absolute path";
     for (auto p = path.getCharPointer(); !p.isEmpty(); ++p)
-        if (*p < ' ' || *p == 0x7f || *p == '\\')
-            return "a path holds a control character or a backslash";
+        if (*p < ' ' || *p == 0x7f || *p == '\\' || *p == ':')
+            return "a path holds a control character, a colon or a backslash";
     juce::StringArray parts;
     parts.addTokens (path, "/", {});
     for (const auto& part : parts)

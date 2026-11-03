@@ -100,7 +100,12 @@ export function PedalsSection() {
         </div>
       </div>
 
-      <div className={styles.board}>
+      {/* Focus can land on a control half-hidden at the scroll edge, which the browser leaves
+          where it is: bring the whole control (and the scroll padding) into view. */}
+      <div
+        className={styles.board}
+        onFocus={(e) => e.target.scrollIntoView({ block: 'nearest', inline: 'nearest' })}
+      >
         <TrenchPedal />
         <Pedal
           name="Tide"

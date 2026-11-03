@@ -56,14 +56,35 @@
   font-size: var(--t-10);
 }
 
+/* The pedals in signal order. More than fit the page scroll sideways: the next one peeks in at
+   the edge. Auto margins centre a row that fits and, unlike justify-content: center, never push
+   an overflowing one out of reach on the left. The board reaches into the section's bottom
+   padding so the scroll box leaves room for the enclosures' drop shadows. Scroll padding keeps a
+   control brought into view by focus clear of the edge. */
 .board {
   flex: 1;
   display: flex;
-  justify-content: safe center;
   align-items: flex-start;
   gap: 30px;
   padding-top: 2px;
+  padding-block-end: 22px;
+  margin-block-end: -20px;
   overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-inline: contain;
+  scroll-padding-inline: 24px;
+}
+
+.board > * {
+  flex: none;
+}
+
+.board > :first-child {
+  margin-inline-start: auto;
+}
+
+.board > :last-child {
+  margin-inline-end: auto;
 }
 
 .span2 {

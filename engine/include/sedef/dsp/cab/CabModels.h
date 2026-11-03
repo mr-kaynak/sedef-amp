@@ -107,28 +107,21 @@ inline void runGroup (Stage* st, float* buf, int n) noexcept
 /// stages interpolate their coefficients per sample (see Stage::rampTo).
 inline void runStages (Stage* stages, int count, float* buf, int n) noexcept
 {
-    int s = 0;
-    while (s < count)
+    // Every group is no larger than the stages left, by the test that picks it. Five split 3 + 2
+    // rather than leaving a lone one.
+    while (count > 0)
     {
-        // Five stages split 3 + 2 rather than leaving a lone one.
-        const int left = count - s;
-        const int group = left == 5 ? 3 : std::min (left, 4);
-        switch (group)
-        {
-        case 1:
-            detail::runGroup<1> (stages + s, buf, n);
-            break;
-        case 2:
-            detail::runGroup<2> (stages + s, buf, n);
-            break;
-        case 3:
-            detail::runGroup<3> (stages + s, buf, n);
-            break;
-        default:
-            detail::runGroup<4> (stages + s, buf, n);
-            break;
-        }
-        s += group;
+        const int group = count >= 4 && count != 5 ? 4 : std::min (count, 3);
+        if (group == 4)
+            detail::runGroup<4> (stages, buf, n);
+        else if (group == 3)
+            detail::runGroup<3> (stages, buf, n);
+        else if (group == 2)
+            detail::runGroup<2> (stages, buf, n);
+        else
+            detail::runGroup<1> (stages, buf, n);
+        stages += group;
+        count -= group;
     }
 }
 

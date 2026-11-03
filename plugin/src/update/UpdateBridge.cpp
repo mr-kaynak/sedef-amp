@@ -3,6 +3,8 @@
 
 #include "../PresetManager.h"
 
+#include <juce_audio_processors/juce_audio_processors.h>
+
 namespace sedef::update
 {
 namespace
@@ -17,10 +19,17 @@ juce::File Service::storeFile()
 }
 #endif
 
-Bridge::Bridge (Emit emit) : emit_ (std::move (emit))
+Bridge::Bridge (Emit emit, bool standalone) : emit_ (std::move (emit))
 {
 #if SEDEF_UPDATE_CHECK
+    // "Restart <host> to use it": the host's own name, or "your DAW" when JUCE doesn't know it.
+    juce::String host = standalone ? "Sedef" : juce::PluginHostType().getHostDescription();
+    if (host == "Unknown")
+        host.clear();
+    service_->setHost (host, standalone);
     service_->addChangeListener (this);
+#else
+    juce::ignoreUnused (standalone);
 #endif
 }
 
@@ -63,9 +72,20 @@ Bridge::withNativeFunctions (juce::WebBrowserComponent::Options options)
     fn ("sedef_update_skip", call ([] (Service& s, const auto& a) {
             s.skip (a.isEmpty() ? juce::String() : a[0].toString());
         }));
-    fn ("sedef_update_download", call ([] (Service& s, const auto&) { s.download(); }));
+    fn ("sedef_update_install", call ([] (Service& s, const auto&) { s.install(); }));
+    fn ("sedef_update_installManually",
+        call ([] (Service& s, const auto&) { s.installManually(); }));
     fn ("sedef_update_cancel", call ([] (Service& s, const auto&) { s.cancel(); }));
     fn ("sedef_update_reveal", call ([] (Service& s, const auto&) { s.reveal(); }));
+    // The standalone app quits the way the OS asks it to (its state is saved), after arranging for
+    // the new version to open; in a plug-in this does nothing.
+    fn ("sedef_update_restart", call ([] (Service& s, const auto&) {
+            if (s.prepareRestart())
+                juce::MessageManager::callAsync ([] {
+                    if (auto* app = juce::JUCEApplicationBase::getInstance())
+                        app->systemRequestedQuit();
+                });
+        }));
 #else
     fn ("sedef_update_getState", [] (const juce::Array<juce::var>&, Completion done) {
         auto* o = new juce::DynamicObject();

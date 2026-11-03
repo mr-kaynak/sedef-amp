@@ -19,7 +19,9 @@ class Bridge final : private juce::ChangeListener
 public:
     using Emit = std::function<void (const juce::var& state)>;
 
-    explicit Bridge (Emit emit);
+    /// `standalone`: this editor belongs to the standalone app, which can restart itself after an
+    /// update; in a plug-in the panel names the host to restart instead.
+    Bridge (Emit emit, bool standalone);
     ~Bridge() override;
 
     juce::WebBrowserComponent::Options

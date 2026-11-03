@@ -151,7 +151,14 @@ struct Store
     juce::int64 lastSuccessMs = 0;
     /// The latest stable release from the last successful check; empty when there was none.
     std::optional<Release> latest;
+    /// The version an automatic update installed, until a process runs it: every process that
+    /// runs an older one asks for a restart instead of offering the update again. Empty: none.
+    juce::String installedVersion;
 };
+
+/// Whether `store` says a newer version than `current` is installed and waits for a restart (and
+/// no release newer than that one is known).
+bool restartNeeded (const Store& store, const Version& current);
 
 juce::var toVar (const Store& store);
 /// Tolerant: anything missing or malformed falls back to the default.

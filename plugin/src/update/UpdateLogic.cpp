@@ -424,6 +424,7 @@ juce::var toVar (const Store& store)
     o->setProperty ("lastAttempt", store.lastAttemptMs);
     o->setProperty ("lastSuccess", store.lastSuccessMs);
     o->setProperty ("latest", store.latest ? toVar (*store.latest) : juce::var());
+    o->setProperty ("installedVersion", store.installedVersion);
     return juce::var (o);
 }
 
@@ -440,7 +441,19 @@ Store storeFromVar (const juce::var& json, const juce::String& releasesUrl)
     if (auto parsed = parseRelease (json["latest"], releasesUrl);
         parsed.status == ParsedRelease::Status::Ok)
         s.latest = std::move (parsed.release);
+    if (const auto& recorded = json["installedVersion"]; recorded.isString())
+        if (const auto installed = Version::parse (recorded.toString().substring (0, 64)))
+            s.installedVersion = installed->toString();
     return s;
+}
+
+bool restartNeeded (const Store& store, const Version& current)
+{
+    const auto installed = Version::parse (store.installedVersion);
+    if (!installed || compare (*installed, current) <= 0)
+        return false;
+    // A release newer than the installed one is offered as usual.
+    return !store.latest || compare (store.latest->version, *installed) <= 0;
 }
 
 Store readStore (const juce::File& file, const juce::String& releasesUrl)

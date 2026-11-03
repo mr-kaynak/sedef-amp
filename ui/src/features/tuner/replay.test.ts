@@ -20,13 +20,16 @@ interface Scenario {
 
 const scenarios = streams.scenarios as Scenario[];
 
-function play(name: string, fps = 60) {
+/** Plays a recorded scenario; `from` starts the gauge later (opened while the note rings). */
+function play(name: string, fps = 60, from = -Infinity) {
   const s = scenarios.find((x) => x.name === name);
   if (!s) throw new Error(`no scenario ${name}`);
-  const stream = s.rows.map(([t = 0, valid = 0, held = 0, settled = 0, note = 0, cents = 0]) => ({
-    t,
-    event: displayEvent(valid === 1, held === 1, settled === 1, note, cents),
-  }));
+  const stream = s.rows
+    .filter((r) => (r[0] ?? 0) >= from)
+    .map(([t = 0, valid = 0, held = 0, settled = 0, note = 0, cents = 0]) => ({
+      t,
+      event: displayEvent(valid === 1, held === 1, settled === 1, note, cents),
+    }));
   const truth = (t: number) => {
     // The recorded true pitch at the reading before t.
     let row = s.rows[0];
@@ -127,6 +130,46 @@ describe('Tuner needle on recorded tracker streams', () => {
     const late = after.filter((f) => Math.abs(needle(f) - truth(f.t)) > 1);
     expect((late[late.length - 1]?.t ?? s.moveEnd) - s.moveEnd).toBeLessThan(0.25);
     expect(Math.max(...after.map((f) => needle(f) - truth(s.moveEnd + 0.5)))).toBeLessThan(0.2);
+  });
+
+  it('confirms in tune soon after the peg is turned to pitch, and not before', () => {
+    // From 35 cents flat, a re-pluck while the peg turns, drop D back to E, and the first turn.
+    for (const name of ['e2-peg35', 'e2-repluck-turning', 'd2-to-e2', 'a2-peg']) {
+      const { s, frames, truth } = play(name);
+      const first = frames.find((f) => f.t >= s.moveEnd && f.tune === 'in-tune');
+      expect(first, name).toBeDefined();
+      const at = first?.t ?? Infinity;
+      expect(at - s.moveEnd, name).toBeLessThan(0.5);
+      expect(
+        frames.filter((f) => f.t >= at && f.t <= s.sustainTo && f.tune !== 'in-tune').length,
+        name,
+      ).toBe(0);
+      // Not while the string was still more than a cent away on the way there (drop D starts as
+      // an in-tune D2, which it stays for a moment).
+      const reached = frames.find((f) => f.t >= s.moveAt && Math.abs(truth(f.t)) <= 1)?.t ?? 0;
+      const early = frames.filter(
+        (f) => f.t >= s.moveAt && f.t < reached && f.note === s.nominalMidi && f.tune === 'in-tune',
+      );
+      expect(early.length, name).toBe(0);
+    }
+  });
+
+  it('names the note a flat string is hammered on to', () => {
+    // E2 45 cents flat, then its next fret: F2 45 cents flat, not E2 55 sharp.
+    const { frames } = play('e2-flat-hammer');
+    const after = frames.filter((f) => f.t >= 1.4 && !f.held);
+    expect(after.every((f) => f.note === 41 && f.tune === 'flat')).toBe(true);
+    expect(after[after.length - 1]?.centsText).toBe('−45.0¢');
+  });
+
+  it('shows a held note at once when the reference changes or the gauge opens on it', () => {
+    // A2 at 440 Hz, held, then A4 = 420 Hz: A#2 19.4 cents flat, still held.
+    const ref = play('a2-ref-held').frames.filter((f) => f.t >= 2.25);
+    expect(ref.every((f) => f.note === 46 && f.tune === 'flat' && f.held)).toBe(true);
+    expect(ref[0]?.centsText).toBe('−19.4¢');
+    // The tuner opened half a second after D3 (7 cents flat) died.
+    const late = play('d3-dies', 60, play('d3-dies').lastLive + 0.5).frames;
+    expect(late[0]).toMatchObject({ note: 50, tune: 'flat', held: true, centsText: '−7.0¢' });
   });
 
   it('never flickers between notes or in and out of tune', () => {

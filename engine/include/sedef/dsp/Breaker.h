@@ -75,6 +75,8 @@ private:
     float stageBoost_ = -1.0f;                       // the curve the stage is on
 
     LinearSmoothed rangeMix_; // 0 treble .. 1 full: both input networks run, crossfaded
+    LinearSmoothed onset_;    // fades the input in after a reset: the resonant input network
+                              // would ring if the signal arrived as a step
     ExpSmoothed boostKnob_;
 
     Biquad trebleIn_, fullIn_; // pickup + input capacitor + input resistance

@@ -31,6 +31,7 @@ constexpr double kDcBlockHz = 16.0;      // 10 nF into an amp's 1 MOhm input
 constexpr double kBandwidthHz = 12000.0; // the transistor's own roll-off
 
 constexpr double kRangeFadeSeconds = 0.02;
+constexpr double kOnsetSeconds = 0.005;
 constexpr double kBoostSmoothingSeconds = 0.02;
 
 detail::BjtShape stageShape (double boost) noexcept
@@ -95,6 +96,7 @@ void Breaker::prepare (const ProcessSpec& spec)
     curves_ = &stageCurves();
 
     rangeMix_.reset (sampleRate_, kRangeFadeSeconds);
+    onset_.reset (sampleRate_, kOnsetSeconds);
     boostKnob_.reset (sampleRate_, kBoostSmoothingSeconds);
 
     for (int range : { Treble, Full })
@@ -119,6 +121,8 @@ void Breaker::reset() noexcept
     stageBoost_ = -1.0f;
     for (auto* f : { &trebleIn_, &fullIn_, &dcBlock_, &bandLp_ })
         f->reset();
+    onset_.setCurrentAndTarget (0.0f);
+    onset_.setTarget (1.0f);
     primed_ = false;
 }
 
@@ -172,10 +176,11 @@ void Breaker::processBlock (const AudioView& io) noexcept
     for (int i = 0; i < n; ++i)
     {
         const float mix = rangeMix_.next();
+        const float onset = onset_.next();
         boostAt_[static_cast<size_t> (i)] = boostKnob_.next();
         for (int ch = 0; ch < channels; ++ch)
         {
-            const float x = view.channel (ch)[i];
+            const float x = onset * view.channel (ch)[i];
             const float treble = trebleIn_.processSample (ch, x);
             const float full = fullIn_.processSample (ch, x);
             drive_[static_cast<size_t> (ch)][static_cast<size_t> (i)] =

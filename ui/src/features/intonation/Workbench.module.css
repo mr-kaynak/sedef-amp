@@ -234,8 +234,10 @@ li[data-state='done'] > .trailDot {
   text-align: left;
 }
 
-.card:hover {
-  background: rgb(6 17 25 / 0.8);
+@media (hover: hover) {
+  .card:hover {
+    background: rgb(6 17 25 / 0.8);
+  }
 }
 
 .card[aria-checked='true'],

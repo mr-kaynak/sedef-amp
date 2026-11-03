@@ -28,8 +28,10 @@
   place-items: center;
 }
 
-.step:hover {
-  color: var(--bone);
+@media (hover: hover) {
+  .step:hover {
+    color: var(--bone);
+  }
 }
 
 .current {
@@ -49,8 +51,10 @@
   text-align: left;
 }
 
-.current:hover .name {
-  color: #fff;
+@media (hover: hover) {
+  .current:hover .name {
+    color: #fff;
+  }
 }
 
 .where {
@@ -154,9 +158,11 @@
     background var(--dur-1);
 }
 
-.save:hover {
-  color: var(--bone);
-  background: rgb(237 230 214 / 0.06);
+@media (hover: hover) {
+  .save:hover {
+    color: var(--bone);
+    background: rgb(237 230 214 / 0.06);
+  }
 }
 
 /* Unsaved edits: the save button picks up the dirty dot's amber. */
@@ -190,8 +196,10 @@
     background var(--dur-1);
 }
 
-.slot:hover {
-  color: var(--bone);
+@media (hover: hover) {
+  .slot:hover {
+    color: var(--bone);
+  }
 }
 
 .slot[data-empty] {
@@ -226,7 +234,9 @@
   color: var(--bone-3);
 }
 
-.copy:hover {
-  color: var(--bone);
-  background: rgb(237 230 214 / 0.06);
+@media (hover: hover) {
+  .copy:hover {
+    color: var(--bone);
+    background: rgb(237 230 214 / 0.06);
+  }
 }

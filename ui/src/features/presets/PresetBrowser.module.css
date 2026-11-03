@@ -112,8 +112,10 @@
   color: var(--bone-2);
 }
 
-.clearSearch:hover {
-  color: var(--bone);
+@media (hover: hover) {
+  .clearSearch:hover {
+    color: var(--bone);
+  }
 }
 
 .searchKey {
@@ -187,9 +189,11 @@
     color var(--dur-1);
 }
 
-.railItem:hover {
-  color: var(--bone);
-  background: rgb(237 230 214 / 0.04);
+@media (hover: hover) {
+  .railItem:hover {
+    color: var(--bone);
+    background: rgb(237 230 214 / 0.04);
+  }
 }
 
 .railItem[aria-checked='true'] {
@@ -262,9 +266,11 @@
     box-shadow var(--dur-1);
 }
 
-.chip:hover {
-  color: var(--bone);
-  background: rgb(237 230 214 / 0.07);
+@media (hover: hover) {
+  .chip:hover {
+    color: var(--bone);
+    background: rgb(237 230 214 / 0.07);
+  }
 }
 
 .chip[aria-pressed='true'] {
@@ -283,8 +289,10 @@
   text-underline-offset: 3px;
 }
 
-.moreChips:hover {
-  color: var(--bone);
+@media (hover: hover) {
+  .moreChips:hover {
+    color: var(--bone);
+  }
 }
 
 .resultHead {
@@ -347,9 +355,11 @@
   font-size: var(--t-12);
 }
 
-.back:hover {
-  color: var(--bone);
-  background: rgb(237 230 214 / 0.06);
+@media (hover: hover) {
+  .back:hover {
+    color: var(--bone);
+    background: rgb(237 230 214 / 0.06);
+  }
 }
 
 .back[data-armed] kbd {

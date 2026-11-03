@@ -24,7 +24,14 @@
     background var(--dur-1);
 }
 
-.pill:hover,
+@media (hover: hover) {
+  .pill:not(:disabled):hover {
+    color: var(--bone);
+    border-color: rgb(205 238 238 / 0.42);
+    background: rgb(205 238 238 / 0.09);
+  }
+}
+
 .pill[aria-expanded='true'] {
   color: var(--bone);
   border-color: rgb(205 238 238 / 0.42);

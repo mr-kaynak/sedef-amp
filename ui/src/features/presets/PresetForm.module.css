@@ -173,9 +173,11 @@
   color: var(--bone-3);
 }
 
-.tag button:hover {
-  color: var(--bone);
-  background: rgb(237 230 214 / 0.1);
+@media (hover: hover) {
+  .tag button:hover {
+    color: var(--bone);
+    background: rgb(237 230 214 / 0.1);
+  }
 }
 
 .suggestions {
@@ -198,9 +200,11 @@
   font-size: var(--t-11);
 }
 
-.suggestion:hover {
-  color: var(--bone);
-  background: rgb(237 230 214 / 0.08);
+@media (hover: hover) {
+  .suggestion:hover {
+    color: var(--bone);
+    background: rgb(237 230 214 / 0.08);
+  }
 }
 
 .status {

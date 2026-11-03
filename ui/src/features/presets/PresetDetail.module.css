@@ -111,8 +111,10 @@
   color: var(--bone-4);
 }
 
-.tag:hover {
-  color: var(--bone);
+@media (hover: hover) {
+  .tag:hover {
+    color: var(--bone);
+  }
 }
 
 .tag[aria-pressed='true'] {
@@ -160,6 +162,8 @@
   gap: 4px;
 }
 
-.delete:hover {
-  color: var(--coral);
+@media (hover: hover) {
+  .delete:where(:not(:disabled)):hover {
+    color: var(--coral);
+  }
 }

@@ -24,8 +24,10 @@
     background var(--dur-1);
 }
 
-.option:hover {
-  color: var(--bone);
+@media (hover: hover) {
+  .option:hover {
+    color: var(--bone);
+  }
 }
 
 .option[aria-checked='true'] {

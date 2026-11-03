@@ -20,8 +20,10 @@
   transition: color var(--dur-1);
 }
 
-.tab:hover {
-  color: var(--bone);
+@media (hover: hover) {
+  .tab:hover {
+    color: var(--bone);
+  }
 }
 
 .tab[aria-selected='true'] {

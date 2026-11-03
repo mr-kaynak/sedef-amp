@@ -52,12 +52,17 @@
   background: var(--line);
 }
 
-.row:hover {
-  background: rgb(237 230 214 / 0.04);
+@media (hover: hover) {
+  .row:hover {
+    background: rgb(237 230 214 / 0.04);
+  }
+
+  .row:hover::before,
+  .row:hover + .row::before {
+    opacity: 0;
+  }
 }
 
-.row:hover::before,
-.row:hover + .row::before,
 .row[aria-selected='true']::before,
 .row[aria-selected='true'] + .row::before,
 .row[data-current]::before,
@@ -99,13 +104,15 @@
   transition: color var(--dur-1);
 }
 
-.row:hover .star {
-  color: var(--bone-3);
-}
+@media (hover: hover) {
+  .row:hover .star {
+    color: var(--bone-3);
+  }
 
-.star:hover,
-.row:hover .star:hover {
-  color: var(--bone);
+  .star:hover,
+  .row:hover .star:hover {
+    color: var(--bone);
+  }
 }
 
 .star[data-on] {

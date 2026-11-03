@@ -19,9 +19,11 @@
     background var(--dur-1);
 }
 
-.chip:hover {
-  color: var(--bone);
-  border-color: var(--line-hover);
+@media (hover: hover) {
+  .chip:hover {
+    color: var(--bone);
+    border-color: var(--line-hover);
+  }
 }
 
 .chip[data-on] {

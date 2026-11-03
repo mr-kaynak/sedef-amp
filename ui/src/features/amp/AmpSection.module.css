@@ -33,8 +33,10 @@
     box-shadow var(--dur-1);
 }
 
-.card:hover {
-  background: rgb(6 17 25 / 0.7);
+@media (hover: hover) {
+  .card:hover {
+    background: rgb(6 17 25 / 0.7);
+  }
 }
 
 .card[aria-checked='true'] {
@@ -117,6 +119,8 @@
   font-size: var(--t-11);
 }
 
-.linkButton:hover {
-  color: var(--bone);
+@media (hover: hover) {
+  .linkButton:hover {
+    color: var(--bone);
+  }
 }

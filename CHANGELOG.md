@@ -28,8 +28,8 @@ All notable changes to this project are documented here. The format follows
   `beaconDepth`, `beaconMode`, `gyreEnabled`, `gyreSpeed`, `gyreDepth`, `gyreFeedback`,
   `gyreStages`, `jettyEnabled`, `jettySpeed`, `jettyDepth`, `jettyDelay`, `jettyFeedback`.
 - **Sea Lantern** factory preset: Lagoon pushed by Coral into the Beacon vibe, with a plate.
-- The Pedals board scrolls sideways when the pedals don't fit; the mouse wheel scrolls it and
-  keyboard focus brings the focused pedal into view.
+- The Pedals board lays the pedals out in signal order and scrolls sideways when they don't fit;
+  the next pedal peeks in at the edge, and keyboard focus brings a control into view.
 
 ## [0.3.0] - 2026-11-03
 

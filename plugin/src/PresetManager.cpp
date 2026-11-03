@@ -222,10 +222,13 @@ void PresetManager::describe (Entry& e, const juce::var& parameters)
             e.blocks.add (name);
     };
     add (ParamId::gateEnabled, "gate");
+    add (ParamId::remoraEnabled, "remora");
     add (ParamId::tideEnabled, "tide");
+    add (ParamId::sargassoEnabled, "sargasso");
     add (ParamId::pearlEnabled, "pearl");
     add (ParamId::coralEnabled, "coral");
     add (ParamId::rippleEnabled, "ripple");
+    add (ParamId::breakerEnabled, "breaker");
     if (eqShapes)
         add (eq (0), "eq");
     add (ParamId::doublerEnabled, "doubler");

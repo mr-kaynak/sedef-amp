@@ -93,6 +93,20 @@ against the reference tone: within −1.0…+1.5 dB for every fuzz and octave se
 fuzz, against the strongest harmonic: −83 / −72 dB (octave 0) and −71 / −69 dB (octave 1) for a
 1.3 / 2.6 kHz note. CPU: about 2.5× Pearl.
 
+## Where it goes in the chain
+
+After the compressor, ahead of the drives: Trench → Tide → **Urchin** → Pearl → Kelp → Coral →
+Ripple. That is the engine's fixed order until the pedalboard lets the player choose; it is also
+the order we recommend.
+
+- **Ahead of every drive.** The rectifier makes an octave only from a wave whose two half-cycles
+  mirror each other (see above). A clipped input is close to a square wave. Rectified, that is a
+  near-constant level with a dip at each zero crossing: buzz, not an octave.
+- **After the compressor.** Tide evens out the notes and holds them up as they decay. The octave
+  is strongest while the note is loud, so it sustains longer.
+- **After the octaver, but not with it.** With Trench on as well, the rectifier folds Trench's
+  square-wave sub too (see [trench.md](trench.md#where-it-goes-in-the-chain)).
+
 ## References
 
 - P. Dutilleux, K. Dempwolf, M. Holters, U. Zölzer, "Nonlinear Processing", ch. 4 in U. Zölzer

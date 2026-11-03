@@ -95,6 +95,25 @@ The failure to know about: a low note whose fundamental is much weaker than its 
 note's own pitch. It stays steady (no sputter), and the neck pickup or a rolled-off tone cures it,
 as with the circuit.
 
+## Where it goes in the chain
+
+First, right after the gate: **Trench** → Tide → Urchin → Pearl → Kelp → Coral → Ripple. That is
+the engine's fixed order until the pedalboard lets the player choose; it is also the order we
+recommend.
+
+- **Ahead of every drive.** The tracker needs the fundamental. Every harmonic a drive adds is one
+  more the tracking low-pass has to suppress before the comparator, and a strong one makes the
+  tracker lock an octave high (the failure above). With Trench first it only deals with the
+  string's own harmonics, and the measurements above hold.
+- **Ahead of the compressor.** The sub's envelope is the input's. A compressor in front would
+  flatten it, and the sub would stop following the picking. With Trench first, Tide evens out
+  the guitar and the sub together.
+- **Behind the gate.** Hiss and hum between notes never reach the level detector, so the sub
+  stays silent between notes.
+- **Not with the octave fuzz.** With Urchin on as well, the rectifier folds the sub's square wave
+  too. The sub's f/2 then stands 17.6 dB above the octave: a growl that is neither pedal's sound.
+  Each factory preset uses one octave pedal at a time.
+
 ## References
 
 - P. Dutilleux, K. Dempwolf, M. Holters, U. Zölzer, "Nonlinear Processing", ch. 4 in U. Zölzer

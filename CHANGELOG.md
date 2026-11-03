@@ -8,7 +8,7 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
-- **Three new pedals**, in signal order on a wider board ([architecture](docs/architecture.md)):
+- **Three new pedals** on the pedals page, in signal order ([architecture](docs/architecture.md)):
   - **Trench**, an analog-style octave down: one and two octaves below the note you play, from
     a divider that tracks single notes and fades its subs out on chords and silence instead of
     sputtering. Sub −1, Sub −2, Direct and Tone. It sits first, right after the gate, where it

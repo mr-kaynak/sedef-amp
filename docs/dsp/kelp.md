@@ -112,6 +112,23 @@ mids rather than the low strings.
 
 CPU: about 2.4× Pearl (4× oversampled diode-law solve), measured with `[.bench]`.
 
+## Where it goes in the chain
+
+The last drive before the distortion and the amp: Trench → Tide → Urchin → Pearl → **Kelp** →
+Coral → Ripple. That is the engine's fixed order until the pedalboard lets the player choose; it
+is also the order we recommend.
+
+- **Last before the amp.** A mid-hump boost works on whatever follows it. Its bass cut (100 Hz is
+  10.8 dB under the hump at drive 0) and its mid push decide what the amp's first stage sees.
+  Only Coral, when it is on, and Ripple sit between Kelp and the amp.
+- **After Pearl.** Pearl stays transparent at low gain, so it can push Kelp harder. The other way
+  round, Kelp's hump would colour everything Pearl clips.
+- **After the octave pedals.** A drive in front of them spoils their tracking and their octave
+  (see [trench.md](trench.md#where-it-goes-in-the-chain) and
+  [urchin.md](urchin.md#where-it-goes-in-the-chain)).
+- **Ahead of Coral.** Into Coral it does what it does for a high-gain amp: a tighter,
+  mid-forward distortion.
+
 ## References
 
 - D. T. Yeh, J. S. Abel, J. O. Smith, "Simplified, Physically-Informed Models of Distortion and

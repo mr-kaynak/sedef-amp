@@ -177,7 +177,8 @@ own instead, so their tails ring out ("spillover") after being switched off.
 The gate detector always listens to the raw input before input gain, so gating
 follows the guitar's DI level regardless of input gain.
 
-The pedal order follows what each pedal needs from the signal it gets:
+The pedal order is fixed for now; a pedalboard that lets the player reorder the pedals is
+planned. Each pedal's page explains its place ("Where it goes in the chain"), in short:
 
 - **Trench right after the gate.** An octave divider tracks best on the clean, uncompressed
   guitar: every drive in front of it would add harmonics for the tracker to mistake for the note,

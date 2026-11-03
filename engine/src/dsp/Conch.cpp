@@ -10,13 +10,15 @@ namespace sedef::dsp
 {
 namespace
 {
-// The inductor wah's small-signal response (docs/dsp/conch.md): a resonance on a fixed
-// +6 dB/oct skirt. Below the peak every rocker position shares the same asymptote, |H| = f / fx;
-// the peak itself rises to Q * f0 / fx. So H = (f0 / fx) * band-pass (peak Q), scaled by a trim
+// The inductor wah's small-signal response (Holters and Zoelzer, DAFx-11; docs/dsp/conch.md): a
+// resonance on a fixed +6 dB/oct skirt. Below the peak every rocker position shares the same
+// asymptote, |H| = f / fx, and the peak, Q * f0 / fx, stays about as high at the toe as at the
+// heel: the resonance is sharp at the heel (Q ~10) and broad at the toe (Q ~1.5). So
+// H = (f0 / fx) * band-pass (peak Q) with Q falling as f0 rises, Q * f0 constant; and a trim
 // that keeps the guitar's level near unity at mid travel.
 constexpr float kAsymptoteHz = 300.0f;
-constexpr float kTrimDb = -9.5f;
-constexpr float kQTilt = 1.5f; // Q ratio heel : mid and mid : toe
+constexpr float kTrimDb = -8.5f;
+constexpr float kQTilt = 2.5f; // Q ratio heel : mid and mid : toe; 2.5^2 ~ toe / heel frequency
 
 constexpr double kRockerSeconds = 0.012; // a rocker has mass; host automation steps glide
 constexpr double kQSeconds = 0.03;

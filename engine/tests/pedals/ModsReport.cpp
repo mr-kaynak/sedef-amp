@@ -19,7 +19,7 @@ TEST_CASE ("Mods pedals measurement report", "[.mods-report]")
     const double fs = 48000.0;
     const auto freqs = test::logFrequencies (40.0, 20000.0, 48);
 
-    std::printf ("\n== Conch (wah): peak and Q against Position (Resonance at noon: Q 5)\n");
+    std::printf ("\n== Conch (wah): peak and Q against Position (Resonance at noon: Q 4)\n");
     for (float p : { 0.0f, 0.25f, 0.5f, 0.75f, 1.0f })
     {
         const auto h =

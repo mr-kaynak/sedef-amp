@@ -48,8 +48,8 @@ TEST_CASE ("Conch passes silence as silence", "[pedals][conch]")
 
 TEST_CASE ("Conch centre frequency and Q follow the rocker", "[pedals][conch]")
 {
-    // Heel 350 Hz to toe 2.2 kHz, exponential travel; Q 1.5x the mid-travel Q at the heel,
-    // 1/1.5x at the toe. Measured from the impulse response at every supported rate.
+    // Heel 350 Hz to toe 2.2 kHz, exponential travel; Q 2.5x the mid-travel Q at the heel,
+    // 1/2.5x at the toe. Measured from the impulse response at every supported rate.
     const auto f = test::logFrequencies (150.0, 6000.0, 192);
     for (double fs : test::kAllSampleRates)
         for (float res : { 0.2f, 0.85f })
@@ -64,11 +64,11 @@ TEST_CASE ("Conch centre frequency and Q follow the rocker", "[pedals][conch]")
     CHECK (Conch::positionToHz (0.0f) == Approx (350.0f));
     CHECK (Conch::positionToHz (0.5f) == Approx (877.5f).epsilon (0.001));
     CHECK (Conch::positionToHz (1.0f) == Approx (2200.0f));
-    CHECK (Conch::resonanceToQ (0.0f) == Approx (2.5f));
-    CHECK (Conch::resonanceToQ (0.5f) == Approx (5.0f));
-    CHECK (Conch::resonanceToQ (1.0f) == Approx (10.0f));
-    CHECK (Conch::qAt (0.5f, 0.0f) == Approx (7.5f));
-    CHECK (Conch::qAt (0.5f, 1.0f) == Approx (3.333f).epsilon (0.001));
+    CHECK (Conch::resonanceToQ (0.0f) == Approx (2.0f));
+    CHECK (Conch::resonanceToQ (0.5f) == Approx (4.0f));
+    CHECK (Conch::resonanceToQ (1.0f) == Approx (8.0f));
+    CHECK (Conch::qAt (0.5f, 0.0f) == Approx (10.0f)); // the published circuit: ~10 at the heel
+    CHECK (Conch::qAt (0.5f, 1.0f) == Approx (1.6f));  // ...and ~1.4 at the toe
 }
 
 TEST_CASE ("Conch keeps the inductor wah's fixed low skirt", "[pedals][conch]")
@@ -83,20 +83,17 @@ TEST_CASE ("Conch keeps the inductor wah's fixed low skirt", "[pedals][conch]")
     CHECK (heel[1] - heel[0] == Approx (6.0).margin (0.5));
     CHECK (toe[1] - toe[0] == Approx (6.0).margin (0.2));
 
-    // Peak gain at named positions (Resonance at noon, Q 5): +9 dB at the heel to +18 dB at the
-    // toe.
+    // The peak stays at the same height over the whole travel (Resonance at noon: +12.9 dB),
+    // sharp at the heel and broad at the toe, as in the measured circuit.
     const auto band = test::logFrequencies (150.0, 6000.0, 96);
-    CHECK (test::findPeak (responseAt (0.0f, 0.5f, fs, band), band).db ==
-           Approx (9.3).margin (0.3));
-    CHECK (test::findPeak (responseAt (0.5f, 0.5f, fs, band), band).db ==
-           Approx (13.8).margin (0.3));
-    CHECK (test::findPeak (responseAt (1.0f, 0.5f, fs, band), band).db ==
-           Approx (18.3).margin (0.3));
+    for (float p : { 0.0f, 0.25f, 0.5f, 0.75f, 1.0f })
+        CHECK (test::findPeak (responseAt (p, 0.5f, fs, band), band).db ==
+               Approx (12.9).margin (0.3));
 }
 
 TEST_CASE ("Conch keeps the guitar near unity at mid travel", "[pedals][conch]")
 {
-    CHECK (test::guitarGainDb<Conch> (manual (0.5f)) == Approx (-0.8).margin (1.0));
+    CHECK (test::guitarGainDb<Conch> (manual (0.5f)) == Approx (-1.0).margin (1.0));
     for (float p : { 0.0f, 0.25f, 0.75f, 1.0f })
     {
         const double g = test::guitarGainDb<Conch> (manual (p));

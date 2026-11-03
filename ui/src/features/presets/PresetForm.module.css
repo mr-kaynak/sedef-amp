@@ -19,6 +19,7 @@
   width: 420px;
   height: 100%;
   overflow-y: auto;
+  border-left: 1px solid transparent;
   background: var(--surface-pop);
   box-shadow:
     -24px 0 60px -30px rgb(0 0 0 / 0.8),
@@ -176,7 +177,8 @@
   align-items: center;
   gap: 2px;
   height: 22px;
-  padding: 0 2px 0 9px;
+  padding: 0 1px 0 8px;
+  border: 1px solid transparent;
   border-radius: 11px;
   background: rgb(205 238 238 / 0.1);
   box-shadow: inset 0 0 0 1px rgb(205 238 238 / 0.25);
@@ -216,11 +218,10 @@
   align-items: center;
   gap: 4px;
   height: 22px;
-  padding: 0 9px 0 7px;
-  border: none;
+  padding: 0 8px 0 6px;
+  border: 1px solid var(--line);
   border-radius: 11px;
   background: rgb(237 230 214 / 0.04);
-  box-shadow: inset 0 0 0 1px var(--line);
   color: var(--bone-3);
   font-size: var(--t-11);
   transition:
@@ -256,7 +257,8 @@
 }
 
 .warn {
-  padding: 8px 10px;
+  padding: 7px 9px;
+  border: 1px solid transparent;
   border-radius: var(--r-ctl);
   background: rgb(233 199 125 / 0.08);
   box-shadow: inset 0 0 0 1px rgb(233 199 125 / 0.3);

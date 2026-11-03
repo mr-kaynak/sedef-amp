@@ -50,8 +50,11 @@ button {
   outline: none;
 }
 
+/* The ring is a box-shadow, which forced-colors mode removes: the transparent outline in the same
+   place is drawn there in the system's colour instead. */
 :focus-visible {
-  outline: none;
+  outline: 2px solid transparent;
+  outline-offset: 2px;
   box-shadow: var(--focus);
 }
 

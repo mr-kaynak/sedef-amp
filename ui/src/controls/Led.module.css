@@ -25,6 +25,18 @@
   opacity: 1;
 }
 
+/* Forced colors drop gradients and shadows, so on and off would look alike: an outlined dot,
+   filled with the selection colour when lit. */
+@media (forced-colors: active) {
+  .led {
+    border: 1px solid CanvasText;
+  }
+
+  .led[data-on]::after {
+    background: Highlight;
+  }
+}
+
 .nacre::after {
   background: radial-gradient(circle at 40% 35%, #ffffff 0%, var(--nacre-aqua) 35%, #7fc9c1 100%);
 }

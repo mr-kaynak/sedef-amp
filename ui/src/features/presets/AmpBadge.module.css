@@ -4,7 +4,8 @@
   align-items: center;
   flex: none;
   height: 18px;
-  padding: 0 7px;
+  padding: 0 6px;
+  border: 1px solid transparent;
   border-radius: 4px;
   font-family: var(--font-display);
   font-size: var(--t-12);

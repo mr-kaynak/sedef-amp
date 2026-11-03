@@ -2,6 +2,7 @@
 .panel {
   display: flex;
   flex-direction: column;
+  border: 1px solid transparent;
   border-radius: 12px;
   background:
     repeating-linear-gradient(90deg, rgb(255 255 255 / 0.018) 0 1px, transparent 1px 3px),
@@ -16,7 +17,8 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 14px 18px 0;
+  /* 1px less on the outside edges, for the panel's border. */
+  padding: 13px 17px 0;
 }
 
 .name {
@@ -42,7 +44,7 @@
 .body {
   flex: 1;
   min-height: 0;
-  padding: 12px 18px 16px;
+  padding: 12px 17px 15px;
 }
 
 .panel:not([data-on]) .body {

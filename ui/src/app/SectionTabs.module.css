@@ -41,13 +41,20 @@
   background: var(--nacre-line);
 }
 
+/* Forced colors drop the gradient: draw the underline in the selection colour. */
+@media (forced-colors: active) {
+  .tab[aria-selected='true']::after {
+    background: Highlight;
+  }
+}
+
 .key {
   display: grid;
   place-items: center;
   width: 16px;
   height: 16px;
+  border: 1px solid var(--line-strong);
   border-radius: 3px;
-  box-shadow: inset 0 0 0 1px var(--line-strong);
   color: var(--bone-3);
   font-size: 9.5px;
   font-weight: 600;

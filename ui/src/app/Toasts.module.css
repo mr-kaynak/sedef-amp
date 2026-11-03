@@ -13,7 +13,9 @@
   align-items: center;
   gap: 4px;
   min-height: 40px;
-  padding: 0 6px 0 16px;
+  /* 1px less than the 6px inset, for the border: the close button's 6 + 6 = 12 radius holds. */
+  padding: 0 5px 0 15px;
+  border: 1px solid transparent;
   border-radius: var(--r-pop);
   background: var(--surface-pop);
   box-shadow:

@@ -63,7 +63,7 @@
 
 .stepper button {
   width: 32px;
-  height: 32px;
+  height: 30px;
   font-size: var(--t-16);
 }
 

@@ -2,6 +2,8 @@
 .popover {
   position: absolute;
   z-index: 50;
+  /* Transparent, under the shadow ring: forced-colors mode drops shadows and draws this. */
+  border: 1px solid transparent;
   border-radius: var(--r-pop);
   background: var(--surface-pop);
   box-shadow: var(--shadow-pop);

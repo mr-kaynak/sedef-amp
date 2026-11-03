@@ -278,6 +278,12 @@
   color: var(--bone);
 }
 
+@media (forced-colors: active) {
+  .recentItem[aria-current='true'] {
+    border-color: Highlight;
+  }
+}
+
 @media (hover: hover) {
   .recentItem:not(:disabled):hover {
     background: rgb(237 230 214 / 0.06);

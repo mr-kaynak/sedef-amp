@@ -18,7 +18,7 @@
   height: 44px;
   display: grid;
   place-items: center;
-  border: none;
+  border: 1px solid transparent;
   border-radius: 50%;
   background: var(--ink-3);
   color: var(--bone);
@@ -26,6 +26,7 @@
   /* Playing: the nacre layer (controls/NacreFill.module.css) fades in as the icon darkens. */
   position: relative;
   --fill: var(--nacre);
+  --fill-inset: -1px;
   --fill-shadow: none;
   transition:
     color var(--dur-1) var(--ease-out),
@@ -76,8 +77,8 @@
   justify-content: flex-end;
   align-items: center;
   gap: 4px;
-  padding: 0 0 4px;
-  border: none;
+  padding: 0 0 3px;
+  border: 1px solid transparent;
   border-radius: var(--r-hw);
   background: var(--ink-0);
   box-shadow: inset 0 0 0 1px var(--line);
@@ -110,10 +111,28 @@
   background: var(--nacre-line);
 }
 
+/* The live beat is a border, which forced colors keep (they drop shadows), with its glow. */
 .step[data-now] {
+  border-color: rgb(205 238 238 / 0.65);
   box-shadow:
-    inset 0 0 0 1px rgb(205 238 238 / 0.65),
+    inset 0 0 0 1px transparent,
     0 0 12px -2px rgb(200 241 234 / 0.5);
+}
+
+/* Forced colors paint every background in the page colour: draw the bars, the accents and the
+   live beat in system colours. */
+@media (forced-colors: active) {
+  .bar {
+    background: CanvasText;
+  }
+
+  .step[data-state='accent'] .bar {
+    background: Highlight;
+  }
+
+  .step[data-now] {
+    border-color: Highlight;
+  }
 }
 
 .index {

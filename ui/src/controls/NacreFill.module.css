@@ -30,3 +30,11 @@
 .fill:is([aria-checked='true'], [aria-pressed='true'])::after {
   opacity: 1;
 }
+
+/* Forced colors drop the gradient: a selected element takes the system's selection colours. */
+@media (forced-colors: active) {
+  .fill:is([aria-checked='true'], [aria-pressed='true']) {
+    background: Highlight;
+    color: HighlightText;
+  }
+}

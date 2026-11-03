@@ -6,8 +6,13 @@
   padding: 6px 0 0;
 }
 
+/* The transparent border keeps an edge in forced colors. Outside the drawing (content-box) and
+   taken back by the margin, so the envelope keeps its size and place. */
 .svg {
   display: block;
+  box-sizing: content-box;
+  margin: -1px;
+  border: 1px solid transparent;
   border-radius: var(--r-ctl);
   background: rgb(6 17 25 / 0.55);
   box-shadow: inset 0 0 0 1px var(--line);

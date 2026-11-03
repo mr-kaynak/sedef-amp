@@ -98,16 +98,17 @@
 .tag {
   position: relative;
   height: 22px;
-  padding: 0 9px;
-  border: none;
+  padding: 0 8px;
+  border: 1px solid var(--line);
   border-radius: 11px;
   background: rgb(237 230 214 / 0.05);
-  box-shadow: inset 0 0 0 1px var(--line);
   color: var(--bone-2);
   font-size: var(--t-11);
+  --fill-inset: -1px;
   transition:
     color var(--dur-1) var(--ease-out),
     background-color var(--dur-1) var(--ease-out),
+    border-color var(--dur-1) var(--ease-out),
     scale 150ms ease-out;
 }
 
@@ -122,10 +123,10 @@
   }
 }
 
-/* Pressed: the nacre layer (controls/NacreFill.module.css) covers the ring and fades in. */
+/* Pressed: the nacre layer (controls/NacreFill.module.css) fades in over the border too. */
 .tag[aria-pressed='true'] {
+  border-color: transparent;
   color: var(--ink-1);
-  box-shadow: none;
 }
 
 .tag[aria-pressed='true']::before {

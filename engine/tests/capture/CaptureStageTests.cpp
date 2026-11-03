@@ -4,6 +4,7 @@
 #include "CaptureTestUtils.h"
 #include "amp/AmpTestUtils.h"
 
+#include <algorithm>
 #include <atomic>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
@@ -91,16 +92,28 @@ TEST_CASE ("With no capture loaded the stage plays the built-in amp, bit for bit
     reference.run (b);
     CHECK (a == b);
 
-    // And the stage adds nothing at 44.1/48 kHz: the amp alone has the same output.
-    dsp::AmpSection amp;
-    amp.prepare ({ 48000.0, 64, 1 });
-    auto c = test::guitarStrum (48000.0, 1.0);
-    for (std::size_t s = 0; s < c.size(); s += 64)
+    // And the stage adds only the latency the rate conversion needs beyond the amp's: nothing
+    // at 44.1 kHz, two samples at 48 kHz.
+    for (const double fs : { 44100.0, 48000.0 })
     {
-        amp.setSettings ({});
-        amp.process (AudioView (c.data() + s, 64));
+        nt::StageRig stage (fs, 64);
+        auto x = test::guitarStrum (fs, 1.0);
+        stage.run (x);
+        dsp::AmpSection amp;
+        amp.prepare ({ fs, 64, 1 });
+        auto y = test::guitarStrum (fs, 1.0);
+        for (std::size_t s = 0; s < y.size(); s += 64)
+        {
+            amp.setSettings ({});
+            amp.process (AudioView (y.data() + s, 64));
+        }
+        const auto pad =
+            static_cast<std::size_t> (stage.stage.latencySamples() - amp.latencySamples());
+        CAPTURE (fs, pad);
+        CHECK (pad == (fs == 44100.0 ? 0u : 2u));
+        CHECK (std::equal (y.begin(), y.end() - static_cast<long> (pad),
+                           x.begin() + static_cast<long> (pad)));
     }
-    CHECK (c == b);
 }
 
 TEST_CASE ("Capture and built-in amp line up in time", "[capture]")

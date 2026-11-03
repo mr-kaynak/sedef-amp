@@ -46,8 +46,8 @@ public:
     CaptureStage (const CaptureStage&) = delete;
     CaptureStage& operator= (const CaptureStage&) = delete;
 
-    /// The stage's latency: the built-in amp's, or the rate conversion's for a 48 kHz capture if
-    /// that is longer. Also what captures must be built for.
+    /// The stage's latency: the built-in amp's, or what the rate conversion needs for captures
+    /// made at 44.1, 48, 88.2 or 96 kHz if that is longer. Also what captures must be built for.
     static int latencyFor (double sampleRate, int ampLatency) noexcept;
 
     /// Mono. `ampLatency` is the built-in amp's latency at this rate.

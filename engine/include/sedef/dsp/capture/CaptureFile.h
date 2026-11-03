@@ -91,8 +91,9 @@ public:
     /// Level the reference strum measured at the model's output before normalisation (dBFS).
     float measuredDbfs() const noexcept;
 
-    /// A runnable, prewarmed instance for one chain. Null (and *error) when the model cannot run
-    /// within the spec's latency, which only happens for rates below 16 kHz.
+    /// A runnable, prewarmed instance for one chain. Null (and *error) when the spec's latency is
+    /// too short for the rate conversion. CaptureStage's latency fits every capture rate the
+    /// validator accepts, and the full filter for 44.1 to 192 kHz.
     std::unique_ptr<CaptureModel> instantiate (const CaptureSpec& spec,
                                                std::string* error = nullptr) const;
 

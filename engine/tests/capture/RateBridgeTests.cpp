@@ -47,28 +47,26 @@ double errorDb (const std::vector<float>& in, const std::vector<float>& out, int
 }
 } // namespace
 
-TEST_CASE ("Rate bridge latencies: the built-in amps' at 44.1/48 kHz, more above", "[capture]")
+TEST_CASE ("Rate bridge latencies: the built-in amps' at 44.1 kHz, a little more above",
+           "[capture]")
 {
-    // A 48 kHz capture at the host rates the plug-in sees; latencyFor() takes the larger of this
-    // and the amp's oversampler latency (37 at 44.1/48 kHz, 31 at 88.2/96 kHz, 0 above).
     CHECK (RateBridge::minimumLatency (48000.0, 48000.0) == 0);
-    CHECK (RateBridge::minimumLatency (44100.0, 48000.0) <= 37);
     CHECK (dsp::CaptureStage::latencyFor (44100.0, 37) == 37);
-    CHECK (dsp::CaptureStage::latencyFor (48000.0, 37) == 37);
-    CHECK (dsp::CaptureStage::latencyFor (96000.0, 31) ==
-           RateBridge::minimumLatency (96000.0, 48000.0));
-    // Every rate keeps a 16-zero-crossing filter for a 48 kHz model; a 44.1 kHz model at 48 kHz
-    // still fits the amp's 37 samples with one crossing less at most.
+    // Captures made at any of the common rates get the full 16-zero-crossing filter at every host
+    // rate, whatever the built-in amp's latency (37 at 44.1/48 kHz, 31 at 88.2/96 kHz, 0 above).
     for (const double fs : { 44100.0, 48000.0, 88200.0, 96000.0, 176400.0, 192000.0 })
-    {
-        const int latency = dsp::CaptureStage::latencyFor (fs, fs <= 48000.0   ? 37
-                                                               : fs <= 96000.0 ? 31
-                                                                               : 0);
-        CAPTURE (fs, latency);
-        CHECK (RateBridge::zeroCrossingsFor (fs, 48000.0, latency) == 16);
-        CHECK (RateBridge::zeroCrossingsFor (fs, 44100.0, latency) >= 14);
-        CHECK (latency * 1000.0 / fs < 0.85); // ms
-    }
+        for (const int amp : { fs <= 48000.0 ? 37 : fs <= 96000.0 ? 31 : 0, 0 })
+        {
+            const int latency = dsp::CaptureStage::latencyFor (fs, amp);
+            CAPTURE (fs, amp, latency);
+            for (const double model : { 44100.0, 48000.0, 88200.0, 96000.0 })
+            {
+                CAPTURE (model);
+                CHECK (RateBridge::zeroCrossingsFor (fs, model, latency) == 16);
+            }
+            CHECK (latency >= amp);
+            CHECK (latency * 1000.0 / fs < 0.85); // ms
+        }
 }
 
 TEST_CASE ("Rate bridge round trip is transparent in the pass band", "[capture]")

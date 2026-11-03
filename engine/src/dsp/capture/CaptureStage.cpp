@@ -268,7 +268,12 @@ CaptureStage::~CaptureStage() = default;
 
 int CaptureStage::latencyFor (double sampleRate, int ampLatency) noexcept
 {
-    return std::max (ampLatency, capture::RateBridge::minimumLatency (sampleRate, 48000.0));
+    // Room for the full filter for captures made at any of the common rates, so how well a
+    // capture plays never depends on the amp's latency or on which capture is loaded.
+    int latency = ampLatency;
+    for (const double modelRate : { 44100.0, 48000.0, 88200.0, 96000.0 })
+        latency = std::max (latency, capture::RateBridge::minimumLatency (sampleRate, modelRate));
+    return latency;
 }
 
 void CaptureStage::prepare (const ProcessSpec& spec, int ampLatency)

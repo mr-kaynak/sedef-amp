@@ -2,6 +2,7 @@
 import { useParam } from '../params/useParam';
 import { shortLabel } from './useValueControl';
 import { Led } from './Led';
+import buttons from './Button.module.css';
 import styles from './Toggle.module.css';
 
 export interface ToggleProps {
@@ -53,7 +54,7 @@ export function Toggle({ param, label, variant = 'chip', title }: ToggleProps) {
       aria-checked={on}
       aria-label={p.spec.name}
       title={title}
-      className={styles.chip}
+      className={`${buttons.press} ${styles.chip}`}
       data-on={on || undefined}
       onClick={toggle}
     >

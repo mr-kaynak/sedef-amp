@@ -117,7 +117,9 @@
   background: transparent;
   color: var(--bone-2);
   font-size: var(--t-11);
-  transition: color var(--dur-1) var(--ease-out);
+  transition:
+    color var(--dur-1) var(--ease-out),
+    scale 150ms ease-out;
 }
 
 @media (hover: hover) {

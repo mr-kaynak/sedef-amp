@@ -314,7 +314,7 @@ function BrowserPanel() {
               {filter.query && (
                 <button
                   type="button"
-                  className={styles.clearSearch}
+                  className={`${buttons.press} ${styles.clearSearch}`}
                   aria-label="Clear search"
                   onClick={() => {
                     presetBrowser.setFilter({ query: '' });
@@ -336,7 +336,7 @@ function BrowserPanel() {
                 <button
                   key={t.name}
                   type="button"
-                  className={styles.chip}
+                  className={`${buttons.press} ${styles.chip}`}
                   aria-pressed={filter.tags.includes(t.name)}
                   onClick={() => toggleTag(t.name)}
                 >
@@ -346,7 +346,7 @@ function BrowserPanel() {
               {tags.length > shownTags.length || allTags ? (
                 <button
                   type="button"
-                  className={styles.moreChips}
+                  className={`${buttons.press} ${styles.moreChips}`}
                   aria-expanded={allTags}
                   onClick={() => setAllTags(!allTags)}
                 >
@@ -408,7 +408,7 @@ function BrowserPanel() {
           </span>
           <button
             type="button"
-            className={styles.back}
+            className={`${buttons.press} ${styles.back}`}
             data-armed={auditioned || undefined}
             aria-label={`Back to ${origin?.name ?? state.currentName}${origin?.dirty ? ' with your edits' : ''}`}
             aria-keyshortcuts="Escape"

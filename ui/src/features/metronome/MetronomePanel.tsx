@@ -43,7 +43,7 @@ export function MetronomePanel() {
       <div className={styles.top}>
         <button
           type="button"
-          className={styles.play}
+          className={`${buttons.press} ${styles.play}`}
           aria-pressed={playing}
           aria-label={playing ? 'Stop metronome' : 'Start metronome'}
           onClick={() => setParam('metronomeEnabled', playing ? 0 : 1)}
@@ -76,7 +76,7 @@ export function MetronomePanel() {
             <button
               key={i}
               type="button"
-              className={styles.step}
+              className={`${buttons.press} ${styles.step}`}
               data-state={STEP_NAMES[state]}
               data-now={i === currentStep || undefined}
               aria-label={`Beat ${i + 1}: ${STEP_NAMES[state]}`}

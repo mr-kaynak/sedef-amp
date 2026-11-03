@@ -217,7 +217,7 @@ function SaveAsForm() {
               <button
                 key={t}
                 type="button"
-                className={styles.suggestion}
+                className={`${buttons.press} ${styles.suggestion}`}
                 onClick={() => {
                   addTags(t);
                   tagRef.current?.focus();

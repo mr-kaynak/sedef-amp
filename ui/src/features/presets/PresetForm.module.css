@@ -206,7 +206,8 @@
   font-size: var(--t-11);
   transition:
     color var(--dur-1) var(--ease-out),
-    background-color var(--dur-1) var(--ease-out);
+    background-color var(--dur-1) var(--ease-out),
+    scale 150ms ease-out;
 }
 
 @media (hover: hover) {

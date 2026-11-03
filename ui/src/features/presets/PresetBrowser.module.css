@@ -110,7 +110,9 @@
   border-radius: 50%;
   background: rgb(237 230 214 / 0.08);
   color: var(--bone-2);
-  transition: color var(--dur-1) var(--ease-out);
+  transition:
+    color var(--dur-1) var(--ease-out),
+    scale 150ms ease-out;
 }
 
 @media (hover: hover) {
@@ -262,9 +264,10 @@
   color: var(--bone-2);
   font-size: var(--t-11);
   transition:
-    background var(--dur-1),
-    color var(--dur-1),
-    box-shadow var(--dur-1);
+    background-color var(--dur-1) var(--ease-out),
+    color var(--dur-1) var(--ease-out),
+    box-shadow var(--dur-1) var(--ease-out),
+    scale 150ms ease-out;
 }
 
 @media (hover: hover) {
@@ -356,7 +359,8 @@
   font-size: var(--t-12);
   transition:
     color var(--dur-1) var(--ease-out),
-    background-color var(--dur-1) var(--ease-out);
+    background-color var(--dur-1) var(--ease-out),
+    scale 150ms ease-out;
 }
 
 @media (hover: hover) {

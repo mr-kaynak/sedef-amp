@@ -72,7 +72,7 @@ export function PresetDetail({ preset }: { preset: PresetInfo | undefined }) {
                   <button
                     key={t}
                     type="button"
-                    className={styles.tag}
+                    className={`${buttons.press} ${styles.tag}`}
                     aria-pressed={filterTags.includes(t)}
                     onClick={() => toggleTag(t)}
                   >

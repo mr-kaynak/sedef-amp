@@ -8,6 +8,7 @@
 import { useBrowserStore } from '../presets/session';
 import { selectShowPill, selectSupported, updateActions, useUpdateStore } from './updateStore';
 import { UpdatesPanel } from './UpdatesPanel';
+import buttons from '../../controls/Button.module.css';
 import styles from './UpdateSlot.module.css';
 
 export function UpdateSlot() {
@@ -21,7 +22,7 @@ export function UpdateSlot() {
       {show && !browsing && (
         <button
           type="button"
-          className={styles.pill}
+          className={`${buttons.press} ${styles.pill}`}
           aria-haspopup="dialog"
           aria-expanded={open}
           aria-label={`Update available: Sedef Amp ${version}`}

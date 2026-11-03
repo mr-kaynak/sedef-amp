@@ -12,6 +12,19 @@ All notable changes to this project are documented here. The format follows
   and a sketch of the two takes showing how far behind the second one lands.
 - **Doubler switch** in the header, under the output meter, so double tracking is one click away
   on every page.
+- **Captures:** Neural Amp Modeler (`.nam`) files play in place of the amp. Pick Capture next to
+  Lagoon, Reef and Abyss, then load a file or drop one on the panel; the last twelve are a click
+  away. WaveNet (including the 0.6/0.7 additions), LSTM, ConvNet and Linear captures load, at any
+  host rate (Sedef converts to the capture's own rate). Every capture is levelled to the built-in
+  amps; input and output trims, "Through cab" (off by default for full-rig captures) and, for
+  captures that record it, the interface level (a rig setting, not stored in presets). Switching
+  and replacing crossfade. Sessions store the capture itself, so they play the same anywhere;
+  presets keep a reference, and a missing file is named with a way to find it. A capture too
+  heavy to play in real time is refused with a message saying why
+  ([docs/dsp/nam.md](docs/dsp/nam.md)).
+- New parameters: `ampSource`, `captureInput`, `captureOutput`, `captureCab`,
+  `captureInterfaceLevel`.
+- `sedef-render --capture FILE.nam` renders through a capture.
 
 ### Changed
 
@@ -43,6 +56,9 @@ All notable changes to this project are documented here. The format follows
   reference renames it at once. The numbers change at most four times a second and show tenths
   only when steady, a hint under them says "Tune up", "Tune down" or "In tune", and screen readers
   hear each state once ([docs/dsp/tuner.md](docs/dsp/tuner.md#3-display)).
+- The plug-in's latency rises by 2 samples at 48 kHz and by 0.46–0.81 ms at 88.2 kHz and above,
+  so captures made at 44.1 to 192 kHz and the built-in amps share one latency, each capture with
+  its full-quality rate conversion.
 
 ### Removed
 

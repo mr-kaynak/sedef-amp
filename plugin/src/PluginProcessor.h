@@ -2,6 +2,7 @@
 #pragma once
 
 #include "AnalysisWorker.h"
+#include "CaptureLibrary.h"
 #include "IrLibrary.h"
 #include "PresetManager.h"
 #include "sedef/Engine.h"
@@ -52,6 +53,9 @@ public:
     PresetManager& presets() noexcept { return presets_; }
     IrLibrary& irs() noexcept { return irs_; }
     AnalysisWorker& analysis() noexcept { return analysis_; }
+    CaptureLibrary& captures() noexcept { return captures_; }
+    /// After the player loads a capture: plays it, through the cab or not as its metadata says.
+    void captureLoaded();
 
     float paramValue (ParamId id) const noexcept
     {
@@ -101,6 +105,7 @@ private:
     PresetManager presets_;
     IrLibrary irs_;
     AnalysisWorker analysis_;
+    CaptureLibrary captures_;
 
     juce::AudioProcessLoadMeasurer loadMeasurer_;
 

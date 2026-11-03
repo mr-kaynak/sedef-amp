@@ -14,6 +14,8 @@ if(NOT MSVC)
     target_compile_options(sedef_pffft PRIVATE -w)
 endif()
 
+include(SedefNam) # sedef_nam: the Neural Amp Modeler core for .nam captures
+
 # Sources are globbed so each module can be added without touching this file.
 file(GLOB_RECURSE SEDEF_ENGINE_SOURCES CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp)
@@ -26,7 +28,7 @@ add_library(sedef::engine ALIAS sedef_engine)
 target_include_directories(sedef_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(sedef_engine
     PUBLIC sedef_pffft
-    PRIVATE sedef::compiler_settings)
+    PRIVATE sedef_nam sedef::compiler_settings)
 target_compile_features(sedef_engine PUBLIC cxx_std_20)
 
 if(SEDEF_BUILD_TESTS)
@@ -41,7 +43,7 @@ if(SEDEF_BUILD_TESTS)
     add_executable(sedef_engine_tests ${SEDEF_ENGINE_TESTS})
     target_include_directories(sedef_engine_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
     target_link_libraries(sedef_engine_tests
-        PRIVATE sedef::engine Catch2::Catch2WithMain sedef::compiler_settings)
+        PRIVATE sedef::engine sedef_nam Catch2::Catch2WithMain sedef::compiler_settings)
 
     list(APPEND CMAKE_MODULE_PATH ${Catch2_SOURCE_DIR}/extras)
     include(Catch)

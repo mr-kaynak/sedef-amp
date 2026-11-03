@@ -19,6 +19,7 @@
 #include "sedef/dsp/Tide.h"
 #include "sedef/dsp/amp/AmpSection.h"
 #include "sedef/dsp/cab/CabSim.h"
+#include "sedef/dsp/capture/CaptureStage.h"
 
 #include <algorithm>
 #include <cassert>
@@ -46,6 +47,7 @@ struct ChainSettings
     dsp::Ripple::Settings ripple;
     dsp::AmpSection::Settings amp;
     dsp::CabSim::Settings cab;
+    dsp::CaptureStage::Settings capture;
 };
 
 dsp::CabSim::MicSettings micSettings (const ParamSnapshot& p, int mic, int cab)
@@ -104,6 +106,9 @@ ChainSettings chainSettings (const ParamSnapshot& p)
                     : std::clamp (p.choice (P::cabModel), 0, dsp::CabSim::kNumCabs - 1);
     for (int m = 0; m < dsp::CabSim::kNumMics; ++m)
         s.cab.mics[static_cast<size_t> (m)] = micSettings (p, m, s.cab.cab);
+
+    s.capture = { p.choice (P::ampSource) == 1, p[P::captureInput], p[P::captureOutput],
+                  p[P::captureInterfaceLevel], p.flag (P::captureCab) };
     return s;
 }
 
@@ -288,6 +293,7 @@ struct Chain
     Slot<dsp::Ripple> ripple;
     dsp::AmpSection amp;
     dsp::CabSim cab;
+    dsp::CaptureStage capture; // the amp or a .nam capture, and the cab or not
 
     std::vector<float> buffer;
     std::vector<float> sidechain;
@@ -305,6 +311,7 @@ struct Chain
         coral.prepare (mono);
         ripple.prepare (mono);
         amp.prepare (mono);
+        capture.prepare (mono, amp.latencySamples());
         cab.prepare ({ sampleRate, maxBlock, 2 });
         buffer.assign (static_cast<size_t> (maxBlock), 0.0f);
         sidechain.assign (static_cast<size_t> (maxBlock), 0.0f);
@@ -312,7 +319,7 @@ struct Chain
 
     int latency() const noexcept
     {
-        return pearl.latency + coral.latency + amp.latencySamples() + cab.latencySamples();
+        return pearl.latency + coral.latency + capture.latencySamples() + cab.latencySamples();
     }
 
     void reset() noexcept
@@ -324,6 +331,7 @@ struct Chain
         coral.reset();
         ripple.reset();
         amp.reset();
+        capture.reset();
         cab.reset();
     }
 
@@ -362,11 +370,9 @@ struct Chain
         coral.process (x, n, s.coralOn, s.coral, run);
         ripple.process (x, n, s.rippleOn, s.ripple, run);
 
-        amp.setSettings (s.amp);
-        amp.process (AudioView (x, n));
-
-        cab.setSettings (s.cab);
-        cab.process (x, stereoOut);
+        capture.setSettings (s.capture);
+        capture.process (amp, s.amp, AudioView (x, n));
+        capture.processCab (cab, s.cab, x, stereoOut);
     }
 };
 
@@ -497,6 +503,13 @@ dsp::CabSim& Engine::cab (int index) noexcept
 {
     const int last = static_cast<int> (impl_->chains.size()) - 1;
     return impl_->chains[static_cast<size_t> (std::clamp (index, 0, last))].cab;
+}
+
+dsp::CaptureStage& Engine::capture (int index) noexcept
+{
+    // Like the cabs: every chain, prepared or not, so a capture reaches a later second chain.
+    const int last = static_cast<int> (impl_->chains.size()) - 1;
+    return impl_->chains[static_cast<size_t> (std::clamp (index, 0, last))].capture;
 }
 
 void Engine::process (const float* const* inputs, float* const* outputs, int numFrames,
@@ -664,8 +677,8 @@ void Engine::process (const float* const* inputs, float* const* outputs, int num
         }
 
         d.eq.process (post, p.flag (bank.enabled), eqSettings);
-        // The Doubler times its double from the pick attacks after transpose (the gate's
-        // sidechain), which reach it the chain's latency later. With one output it stays off: in
+        // The Doubler times its double from the pick attacks in the gate's sidechain, which
+        // reach it the chain's latency later. With one output it stays off: in
         // the mono fold the double would only comb-filter the part.
         d.doubler.module.setOnsetSource (d.chains[0].sidechain.data(), d.chains[0].latency());
         d.doubler.process (post, p.flag (P::doublerEnabled) && !d.dual && numOutputs == 2,

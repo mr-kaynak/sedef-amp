@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 #include "TestUtils.h"
+#include "capture/CaptureTestUtils.h"
 #include "sedef/Engine.h"
 #include "sedef/dsp/cab/CabSim.h"
+#include "sedef/dsp/capture/CaptureStage.h"
 
 #include <algorithm>
 #include <atomic>
@@ -525,4 +527,66 @@ TEST_CASE ("The transpose parameter is ignored", "[engine]")
     const auto dry = render (0.0f);
     CHECK (render (-5.0f) == dry);
     CHECK (render (12.0f) == dry);
+}
+
+TEST_CASE ("Engine::process never allocates while captures play, switch and swap",
+           "[engine][capture]")
+{
+    namespace nt = sedef::test::nam;
+    const double fs = GENERATE (44100.0, 48000.0);
+    Rig rig (fs, 256, 2, 2);
+    test::fillNoise (rig.in[0], 0.3f, 1);
+    test::fillNoise (rig.in[1], 0.3f, 2);
+
+    // One capture of every architecture; the Linear one is long enough for the FFT path.
+    std::vector<float> ir (4096);
+    for (std::size_t i = 0; i < ir.size(); ++i)
+        ir[i] = 0.2f * std::exp (-static_cast<float> (i) / 600.0f) * (i % 3 == 0 ? 1.0f : -0.5f);
+    const std::vector<std::string> texts {
+        nt::smallWaveNet (2),
+        nt::file ("LSTM", nt::lstmConfig (2, 12),
+                  nt::randomWeights (static_cast<std::size_t> (nt::lstmWeights (2, 12)), 3, 0.3f)),
+        nt::file ("ConvNet", nt::convNetConfig (6, { 1, 2, 4, 8, 16 }, true),
+                  nt::convNetWeightsFor (6, 5, true, 4)),
+        nt::linear (ir),
+    };
+    const auto publish = [&rig] (const std::shared_ptr<const dsp::CaptureFile>& f) {
+        for (int c = 0; c < rig.engine.numCabs(); ++c)
+            rig.engine.capture (c).setModel (f->instantiate (rig.engine.capture (c).modelSpec()));
+    };
+
+    auto p = ParamSnapshot::defaults();
+    p[ParamId::ampSource] = 1.0f;
+    p[ParamId::outputGain] = -6.0f;
+    int offset = 0;
+    const auto run = [&] (int frames) {
+        rig.run (p, frames, offset % 32768);
+        offset += frames;
+    };
+    for (const auto& text : texts)
+    {
+        const auto f = nt::parseOrFail (text);
+        publish (f); // allocates, on this (non-audio) thread
+        run (2048);  // the stage picks it up and crossfades
+        long allocations = 0;
+        {
+            gAllocations = 0;
+            TrackAllocations track;
+            for (int round = 0; round < 8; ++round)
+            {
+                p[ParamId::ampSource] = static_cast<float> ((round + 1) % 2);
+                p[ParamId::captureCab] = static_cast<float> (round / 2 % 2);
+                p[ParamId::stereoMode] = static_cast<float> (round / 4 % 2);
+                p[ParamId::captureInput] = round % 3 == 0 ? 6.0f : -3.0f;
+                run (4096);
+            }
+            allocations = gAllocations.load();
+        }
+        CAPTURE (f->info().architecture, fs);
+        CHECK (allocations == 0);
+        for (int c = 0; c < rig.engine.numCabs(); ++c)
+            rig.engine.capture (c).collectGarbage();
+    }
+    for (int c = 0; c < 2; ++c)
+        CHECK (test::allFinite (rig.out[c]));
 }

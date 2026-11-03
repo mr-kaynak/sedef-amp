@@ -5,7 +5,7 @@ import { connect } from '../app/connect';
 import { initParams } from '../params/paramStore';
 import { bundledSchema, defaultValues } from '../params/schema';
 import { resetSenderState } from '../params/sender';
-import { useAppStore } from '../state/appStore';
+import { NO_CAPTURE, useAppStore } from '../state/appStore';
 import { setBackend } from '../state/backendRef';
 import { pitch, telemetry } from '../state/live';
 import { EMPTY_PRESET_STATE, usePresetStore } from '../state/presetStore';
@@ -31,7 +31,13 @@ export function resetStores(): void {
     metronomeSteps: defaultSteps(),
   });
   useIntonationStore.setState(initialIntonation, true);
-  useAppStore.setState({ status: 'connecting', message: null, ir: { slots: [] } });
+  useAppStore.setState({
+    status: 'connecting',
+    message: null,
+    ir: { slots: [] },
+    capture: NO_CAPTURE,
+    capturesSupported: false,
+  });
   telemetry.clear();
   pitch.clear();
 }

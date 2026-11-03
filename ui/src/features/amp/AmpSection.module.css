@@ -9,8 +9,12 @@
 
 .picker {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
+}
+
+.picker[data-count='4'] {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .card {
@@ -48,6 +52,11 @@
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 0.25),
     0 0 0 1px rgb(0 0 0 / 0.5);
+}
+
+/* The capture card: mother of pearl, the one finish no built-in amp wears. */
+.captureSwatch {
+  background: var(--nacre);
 }
 
 .cardText {

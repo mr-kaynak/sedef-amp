@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Session facts from the handshake (host, sample rate, layout) and the custom IR slots.
+// Session facts from the handshake (host, sample rate, layout), the custom IR slots and the
+// capture.
 import { create } from 'zustand';
-import type { HelloResponse, IrState, WrapperType } from '../bridge/protocol';
+import type { CaptureState, HelloResponse, IrState, WrapperType } from '../bridge/protocol';
 
 export interface SessionInfo {
   appVersion: string;
@@ -18,7 +19,18 @@ interface AppState {
   message: string | null;
   session: SessionInfo;
   ir: IrState;
+  capture: CaptureState;
+  /** False against a plug-in that predates captures: the UI hides them. */
+  capturesSupported: boolean;
 }
+
+export const NO_CAPTURE: CaptureState = {
+  loaded: null,
+  loading: false,
+  error: null,
+  missing: null,
+  recent: [],
+};
 
 export const useAppStore = create<AppState>()(() => ({
   status: 'connecting',
@@ -33,6 +45,8 @@ export const useAppStore = create<AppState>()(() => ({
     backend: 'mock',
   },
   ir: { slots: [] },
+  capture: NO_CAPTURE,
+  capturesSupported: false,
 }));
 
 export function applyHello(hello: HelloResponse, backend: 'juce' | 'mock'): void {
@@ -48,5 +62,7 @@ export function applyHello(hello: HelloResponse, backend: 'juce' | 'mock'): void
       backend,
     },
     ir: hello.ir,
+    capture: hello.capture ?? NO_CAPTURE,
+    capturesSupported: hello.capture !== undefined,
   });
 }

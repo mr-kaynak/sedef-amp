@@ -26,7 +26,7 @@ export interface ParamSpec {
   default: number;
   /** JUCE NormalisableRange skew: normalised = ((value - min) / (max - min)) ^ skew */
   skew: number;
-  /** "dB" | "Hz" | "ms" | "s" | "st" | "%" | "bpm" | "knob" | "" ("knob" = 0..1 shown as 0-10) */
+  /** "dB" | "dBu" | "Hz" | "ms" | "s" | "st" | "%" | "bpm" | "knob" | "" ("knob" = 0..1 shown as 0-10) */
   unit: string;
   automatable: boolean;
   choices: string[];
@@ -122,6 +122,53 @@ export interface IrState {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Captures: Neural Amp Modeler (.nam) files played in place of the amp (docs/dsp/nam.md)
+
+/** What the capture's metadata says it contains. */
+export type CaptureKind = 'amp' | 'fullRig' | 'unknown';
+
+export interface CaptureInfo {
+  /** The metadata's name, else the file name without its extension. */
+  name: string;
+  fileName: string;
+  /** "<make> <model>" from the metadata, or null. */
+  gear: string | null;
+  gearType: string | null;
+  toneType: string | null;
+  /** Who made the capture (metadata "modeled_by"), or null. */
+  author: string | null;
+  architecture: 'WaveNet' | 'LSTM' | 'ConvNet' | 'Linear';
+  /** The model's own rate, or null when the file doesn't say (it then runs at 48 kHz). */
+  sampleRate: number | null;
+  kind: CaptureKind;
+  /** Interface level at 0 dBFS when it was captured; null when the file doesn't say. */
+  inputLevelDbu: number | null;
+  /** Gain Sedef applies so the capture plays at the built-in amps' level. */
+  normalisationDb: number;
+  /** Where it was loaded from; null for a session opened on another machine. */
+  path: string | null;
+}
+
+export interface RecentCapture {
+  name: string;
+  fileName: string;
+  path: string;
+  current: boolean;
+}
+
+export interface CaptureState {
+  loaded: CaptureInfo | null;
+  /** A load the player asked for is running (files take up to a second to build). */
+  loading: boolean;
+  /** Why the last load failed, as a sentence; null after a success. */
+  error: string | null;
+  /** A capture the session or preset asks for that can't be found. */
+  missing: { name: string; fileName: string; path: string } | null;
+  /** Last loaded captures, newest first (at most 12); files that are gone are left out. */
+  recent: RecentCapture[];
+}
+
+// ---------------------------------------------------------------------------------------------
 // Updates (docs/updates.md). The settings live in a per-user file, never in the plugin state.
 
 export type UpdatePlatform = 'macOS' | 'Windows' | 'Linux';
@@ -202,6 +249,8 @@ export interface HelloResponse {
   uiState: UiState | null;
   presets: PresetState;
   ir: IrState;
+  /** Absent from plug-ins built before captures. */
+  capture?: CaptureState;
 }
 
 /** UI-owned state persisted inside the plugin state. The plugin treats it as opaque JSON. */
@@ -256,6 +305,19 @@ export interface NativeFunctions {
   /** Opens a native file chooser; resolves after the IR is loaded (or the chooser is cancelled). */
   sedef_ir_load(mic: number, cab: number): IrState;
   sedef_ir_clear(mic: number, cab: number): IrState;
+
+  /**
+   * Opens a native file chooser for a .nam file; resolves once it is loaded (or the chooser is
+   * cancelled). A successful load sets the amp source to Capture and, when the metadata says,
+   * "Capture Through Cab".
+   */
+  sedef_capture_load(): CaptureState;
+  /** A file dropped on the editor: its name and contents (at most 24 MB). Kept by the plugin. */
+  sedef_capture_loadData(fileName: string, text: string): CaptureState;
+  /** One of CaptureState.recent, by path. */
+  sedef_capture_loadRecent(path: string): CaptureState;
+  /** Unloads the capture and goes back to the amp models. */
+  sedef_capture_clear(): CaptureState;
 
   /** Starts/stops pitch analysis (tuner and intonation). Events flow only while active. */
   sedef_tuner_setActive(active: boolean): void;
@@ -348,6 +410,8 @@ export interface Events {
   'sedef:pitch': PitchEvent;
   'sedef:presets': PresetState;
   'sedef:ir': IrState;
+  /** Capture loads, clears, restores and recent-list changes. */
+  'sedef:capture': CaptureState;
   /** Update checks and downloads (state changes and download progress, at most ~10 Hz). */
   'sedef:update': UpdateState;
 }

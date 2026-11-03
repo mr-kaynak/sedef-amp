@@ -80,7 +80,7 @@ bool PresetManager::isGlobal (ParamId id) noexcept
         ParamId::tunerMute,       ParamId::metronomeEnabled,
         ParamId::metronomeVolume, ParamId::metronomeSignature,
         ParamId::metronomeSound,  ParamId::presetPrevious,
-        ParamId::presetNext,
+        ParamId::presetNext,      ParamId::captureInterfaceLevel,
     };
     return std::find (std::begin (kGlobal), std::end (kGlobal), id) != std::end (kGlobal);
 }
@@ -292,6 +292,10 @@ bool PresetManager::load (const juce::String& id, bool audition)
     apply ((*parsed)["parameters"]);
     currentId_ = e->id;
     currentName_ = e->name;
+    loadedAttachment_ =
+        attachment_.key.isNotEmpty() ? (*parsed)[attachment_.key.toRawUTF8()] : juce::var();
+    if (attachment_.select)
+        attachment_.select (loadedAttachment_, false);
     if (!audition)
         markRecent (currentId_);
     return true;
@@ -314,6 +318,7 @@ void PresetManager::loadInit()
     apply (juce::var (new juce::DynamicObject()));
     currentId_ = {};
     currentName_ = "Init";
+    loadedAttachment_ = juce::var();
 }
 
 juce::var PresetManager::captureParameters() const
@@ -386,8 +391,12 @@ juce::String PresetManager::save (const juce::String& name, const juce::String& 
     if (description.isNotEmpty())
         root->setProperty ("description", description);
     root->setProperty ("parameters", captureParameters());
+    const auto attached = attachment_.reference ? attachment_.reference (true) : juce::var();
+    if (!attached.isVoid())
+        root->setProperty (attachment_.key, attached);
     if (!file.replaceWithText (juce::JSON::toString (juce::var (root))))
         return {};
+    loadedAttachment_ = attached;
 
     scan();
     currentId_ = userId (file);
@@ -598,6 +607,8 @@ PresetManager::Snapshot PresetManager::capture() const
     s.id = currentId_;
     s.name = currentName_;
     s.dirty = isDirty();
+    s.attachment = attachment_.reference ? attachment_.reference (false) : juce::var();
+    s.loadedAttachment = loadedAttachment_;
     return s;
 }
 
@@ -625,6 +636,9 @@ bool PresetManager::restore (const Snapshot& s)
     currentId_ = find (s.id) != nullptr ? s.id : juce::String();
     currentName_ = s.name;
     loadedValues_ = s.loadedValues;
+    loadedAttachment_ = s.loadedAttachment;
+    if (attachment_.select)
+        attachment_.select (s.attachment, true);
     return true;
 }
 
@@ -677,7 +691,7 @@ bool PresetManager::isDirty() const
         if (!sameValue (raw->load(), reference, spec))
             return true;
     }
-    return false;
+    return attachment_.differs && attachment_.differs (loadedAttachment_);
 }
 
 void PresetManager::applyCurrent (const juce::String& id, const juce::String& name)
@@ -687,12 +701,17 @@ void PresetManager::applyCurrent (const juce::String& id, const juce::String& na
     // "Dirty" compares against the preset as a load would apply it; Init (or a preset this
     // machine doesn't have) against the defaults.
     loadedValues_.clear();
+    loadedAttachment_ = juce::var();
     if (const auto* e = find (id))
         if (const auto parsed = read (*e))
+        {
             for (std::size_t i = 0; i < kNumParams; ++i)
                 if (!isGlobal (static_cast<ParamId> (i)))
                     loadedValues_[static_cast<ParamId> (i)] =
                         storedValue ((*parsed)["parameters"], i);
+            if (attachment_.key.isNotEmpty())
+                loadedAttachment_ = (*parsed)[attachment_.key.toRawUTF8()];
+        }
 }
 
 juce::var PresetManager::stateAsVar()

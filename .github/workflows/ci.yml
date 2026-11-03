@@ -151,10 +151,13 @@ jobs:
           -DSEDEF_BUILD_PLUGIN_TESTS=ON
           ${{ runner.os == 'macOS' && '-DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"' || '' }}
       - name: Build
-        run: cmake --build --preset release --target SedefAmp_All SedefAmp_CLAP sedef-host-smoke sedef_update_tests
+        run: cmake --build --preset release --target SedefAmp_All SedefAmp_CLAP sedef-host-smoke sedef_update_tests sedef_capture_tests
       - name: Update checker tests
         shell: bash
         run: build/release/plugin/sedef_update_tests_artefacts/Release/sedef_update_tests
+      - name: Capture library tests
+        shell: bash
+        run: build/release/plugin/sedef_capture_tests_artefacts/Release/sedef_capture_tests
       - name: UI smoke test (editor in a real WebView)
         shell: bash
         env:

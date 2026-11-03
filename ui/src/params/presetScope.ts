@@ -17,6 +17,7 @@ export const GLOBAL_PARAM_IDS: ReadonlySet<string> = new Set([
   'metronomeSound',
   'presetPrevious',
   'presetNext',
+  'captureInterfaceLevel',
 ]);
 
 export function isGlobalParam(id: string): boolean {

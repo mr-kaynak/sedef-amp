@@ -25,7 +25,8 @@ function LedFor({ id }: { id: string }) {
 
 function AmpStatus() {
   const amp = Math.round(useParamValue('ampModel'));
-  return <span className={styles.amp}>{AMP_NAMES[amp]}</span>;
+  const capture = useParamValue('ampSource') >= 0.5;
+  return <span className={styles.amp}>{capture ? 'Capture' : AMP_NAMES[amp]}</span>;
 }
 
 function EqStatus() {

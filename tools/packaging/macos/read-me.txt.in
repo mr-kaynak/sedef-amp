@@ -24,7 +24,11 @@ Where things go:
 
 UPDATING
 
-The installer replaces an older installed version. If you copied Sedef Amp into
+From version 0.3.1 on, Sedef updates itself: when a new version is out, click Update now in
+Sedef's Updates panel and enter your password. It installs over the formats you have; you don't
+need to delete anything first.
+
+This installer also replaces an older installed version. If you copied Sedef Amp into
 ~/Library/Audio/Plug-Ins by hand (version 0.1.0 shipped that way), run "Uninstall Sedef Amp"
 first so your DAW doesn't list two copies. Your presets are kept.
 

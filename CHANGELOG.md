@@ -6,6 +6,26 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **Updates install themselves:** **Update now** downloads the new version into a private folder,
+  verifies it and installs it through your OS's own installer, so there is no disk image to open,
+  no installer to click through and nothing to delete by hand. You answer your OS's password or
+  permission prompt; the installer replaces the formats you have. On macOS Apple's installer runs
+  on the verified package; on Windows the setup waits until your DAW has closed (the plug-in is
+  locked until then); on Linux the archive's `install.sh` runs, through `pkexec` for a system-wide
+  install. The panel then says "Sedef Amp 0.3.1 is installed. Restart <your DAW> to use it.", in
+  every DAW and window that still runs the old version, and the standalone app offers **Restart
+  Sedef**. Where that can't run (a copy outside the installer's folders, a sandboxed host, no
+  `pkexec`) or anything fails, **Install manually** saves the verified installer to Downloads and
+  opens it as before ([docs/updates.md](docs/updates.md)).
+- This takes effect from the update after this one: 0.2.0 and 0.3.0 install 0.3.1 the old way
+  (the installer in Downloads), and 0.3.1 and later update in one click.
+- **Windows setup:** `/WAITPID=<pid>` waits for that process to exit before installing, and
+  `/RELAUNCH` opens the standalone app afterwards.
+- **Releases** are installed over the previous release on every OS, through the updater's own
+  code, before they are published ([docs/releasing.md](docs/releasing.md#install-test)).
+
 ## [0.3.0] - 2026-11-03
 
 More gain, mics you can place anywhere over the speaker, Neural Amp Modeler captures, a doubler

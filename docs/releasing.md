@@ -14,16 +14,19 @@ publishes a GitHub release. The same scripts run locally.
 | `SHA256SUMS.txt` | `sha256sum` output for the three packages |
 
 The names carry no version on purpose: the README and docs link to
-`https://github.com/mr-kaynak/sedef-amp/releases/latest/download/<asset>`, and the in-app update
-check downloads these exact names and refuses a file without a matching line in that release's
-`SHA256SUMS.txt`. Keep the names and the checksum file in every release; renaming an asset means
+`https://github.com/mr-kaynak/sedef-amp/releases/latest/download/<asset>`, and the in-app updater
+downloads these exact names, refuses a file without a matching line in that release's
+`SHA256SUMS.txt` and installs it ([updates.md](updates.md)). Keep the names and the checksum file in every release; renaming an asset means
 changing the README, [install.md](install.md), [.github/release-notes.md](../.github/release-notes.md)
 and the update check with it. The update check also skips tags with a pre-release suffix, so a
 regular release tag is `vX.Y.Z`.
 
 Some identifiers must stay fixed so upgrades and uninstalls find earlier installs: the Inno Setup
 `AppId` in `tools/packaging/windows/sedef-amp.iss` and the macOS package IDs
-`io.github.mr-kaynak.sedef-amp.{app,vst3,au,clap}`.
+`io.github.mr-kaynak.sedef-amp.{app,vst3,au,clap}`. Installed copies of Sedef also pass the next
+release's installer the pkg's choice ids (`app`, `vst3`, `au`, `clap` in
+`tools/packaging/macos/distribution.xml.in`) and Setup's `/WAITPID` and `/RELAUNCH` switches: keep
+them too.
 
 ## Signing status
 
@@ -74,6 +77,23 @@ gh run download <run-id> --dir release-dry-run
 The run's artifacts are `package-macOS`, `package-Windows`, `package-Linux` and
 `release-preview` (the rendered `notes.md` and `SHA256SUMS.txt`). Its release notes use the
 version from `CMakeLists.txt`.
+
+## Install test
+
+After packaging, each build job installs the package it just built through the in-app updater's
+own code (`sedef-update-check --install`, see [updates.md](updates.md#for-developers)), driven by
+[tools/ci/install-test.sh](../tools/ci/install-test.sh). It runs on the dry run and on every tag;
+a failure stops the release before anything is published.
+
+| OS | What it checks |
+|---|---|
+| macOS | Installs the previous release (`OLD_TAG`, v0.3.0) with `sudo installer`, then the new disk image the way **Update now** does (mount, choose the installed formats, Apple's installer with `sudo -n` in place of the password prompt, detach). Every bundle must have the new version and the new pkg's binary, and no disk image may stay attached. Then it removes the AU and installs again: the AU must stay removed. |
+| Windows | Installs the previous release with VST3 and CLAP only, passing `/WAITPID` and `/RELAUNCH`, which that setup doesn't know and must ignore. Then the new setup starts elevated with the update's switches and a dummy process as `/WAITPID`: it must wait for that process, install this build's VST3 and CLAP binaries and leave the standalone app out, because silent Setup reuses the formats chosen last time. |
+| Linux | Installs the previous release for the runner's user, then the new archive the way Update now does: unpacked, checked and installed with `install.sh`. The VST3's version and every binary must be the new build's. |
+
+The script installs into the system's plug-in folders with root rights, which CI machines grant
+without a password. Don't run it on your own computer; `sedef_update_tests` covers the same code
+without installing anything.
 
 ## Building the packages locally
 

@@ -34,10 +34,13 @@ export function describePreset(
     if (on(id)) blocks.push(block);
   };
   add('gateEnabled', 'gate');
+  add('remoraEnabled', 'remora');
   add('tideEnabled', 'tide');
+  add('sargassoEnabled', 'sargasso');
   add('pearlEnabled', 'pearl');
   add('coralEnabled', 'coral');
   add('rippleEnabled', 'ripple');
+  add('breakerEnabled', 'breaker');
   if (eqShapes) add(`${bank}Enabled`, 'eq');
   add('doublerEnabled', 'doubler');
   add('driftEnabled', 'drift');

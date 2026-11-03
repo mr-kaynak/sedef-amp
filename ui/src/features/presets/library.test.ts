@@ -126,6 +126,16 @@ describe('preset library', () => {
       chainText(preset({ amp: 1, cab: 1, blocks: ['gate', 'pearl', 'coral', 'eq', 'drift'] })),
     ).toBe('Pearl → Coral → Reef 2x12 → EQ → Drift');
     expect(chainText(preset({ amp: 2, cab: 0, blocks: [] }))).toBe('Abyss 1x12');
+    // The fuzzes and the booster are pedals in front of the amp.
+    expect(
+      chainText(
+        preset({
+          amp: 0,
+          cab: 0,
+          blocks: ['gate', 'remora', 'sargasso', 'ripple', 'breaker', 'drift'],
+        }),
+      ),
+    ).toBe('Remora → Sargasso → Ripple → Breaker → Lagoon 1x12 → Drift');
   });
 
   it('groups the chain for the detail pane', () => {

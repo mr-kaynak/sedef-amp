@@ -6,6 +6,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-03
+
+More gain, mics you can place anywhere over the speaker, Neural Amp Modeler captures, a doubler
+that sounds like a second take, and a calm tuner.
+
 ### Added
 
 - **Doubler controls:** Variation (how loose the second take is), Width and Mix, next to Spread,
@@ -190,6 +195,7 @@ The first public build: a complete guitar rig with a tuner and an intonation wor
 - Every CI build is checked with pluginval (strictness 8), clap-validator and auval, and a smoke
   test opens the editor in a real host and WebView on every OS.
 
-[Unreleased]: https://github.com/mr-kaynak/sedef-amp/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/mr-kaynak/sedef-amp/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/mr-kaynak/sedef-amp/releases/tag/v0.1.0

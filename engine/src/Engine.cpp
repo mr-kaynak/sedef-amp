@@ -1,22 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 #include "sedef/Engine.h"
 
+#include "sedef/board/Duck.h"
+#include "sedef/board/PedalRack.h"
 #include "sedef/core/BypassFader.h"
-#include "sedef/core/DelayLine.h"
 #include "sedef/core/Denormals.h"
 #include "sedef/core/InputFold.h"
 #include "sedef/core/Math.h"
 #include "sedef/core/Smoothed.h"
-#include "sedef/dsp/Coral.h"
 #include "sedef/dsp/Doubler.h"
 #include "sedef/dsp/Drift.h"
 #include "sedef/dsp/Fathom.h"
 #include "sedef/dsp/GraphicEq.h"
 #include "sedef/dsp/Metronome.h"
-#include "sedef/dsp/NoiseGate.h"
-#include "sedef/dsp/Pearl.h"
-#include "sedef/dsp/Ripple.h"
-#include "sedef/dsp/Tide.h"
 #include "sedef/dsp/amp/AmpSection.h"
 #include "sedef/dsp/cab/CabSim.h"
 #include "sedef/dsp/capture/CaptureStage.h"
@@ -38,13 +34,7 @@ using P = ParamId;
 struct ChainSettings
 {
     float inputGain = 1.0f;
-    bool gateOn = true;
-    dsp::NoiseGate::Settings gate;
-    bool tideOn = false, pearlOn = false, coralOn = false, rippleOn = false;
-    dsp::Tide::Settings tide;
-    dsp::Pearl::Settings pearl;
-    dsp::Coral::Settings coral;
-    dsp::Ripple::Settings ripple;
+    PedalSettings pedals; // every pedal's, on the board or not (board/PedalList.inc)
     dsp::AmpSection::Settings amp;
     dsp::CabSim::Settings cab;
     dsp::CaptureStage::Settings capture;
@@ -80,17 +70,7 @@ ChainSettings chainSettings (const ParamSnapshot& p)
     // P::transpose is kept for old sessions and ignored: transpose was removed in 0.3.0
     // (docs/dsp/transpose.md, "Decision").
     s.inputGain = dbToGain (p[P::inputGain]);
-    s.gateOn = p.flag (P::gateEnabled);
-    s.gate.thresholdDb = p[P::gateThreshold];
-
-    s.tideOn = p.flag (P::tideEnabled);
-    s.tide = { p[P::tideComp], p[P::tideTone], p[P::tideLevel], p[P::tideBlend] };
-    s.pearlOn = p.flag (P::pearlEnabled);
-    s.pearl = { p[P::pearlGain], p[P::pearlTone], p[P::pearlLevel], p[P::pearlMid] };
-    s.coralOn = p.flag (P::coralEnabled);
-    s.coral = { p[P::coralGain], p[P::coralCut], p[P::coralLevel] };
-    s.rippleOn = p.flag (P::rippleEnabled);
-    s.ripple = { p.choice (P::rippleMode), p[P::rippleSpeed], p[P::rippleDepth] };
+    s.pedals = PedalSettings::from (p);
 
     auto& a = s.amp;
     a.model = std::clamp (p.choice (P::ampModel), 0, 2);
@@ -140,12 +120,8 @@ constexpr std::array<EqBank, 3> kEqBanks { {
 
 // ---------------------------------------------------------------------------------------------
 
-/// Hands a slot's settings to its module. Coming back from bypass, the module restarts from a
-/// clean state that lands directly on the current settings: reset() re-arms each module's
-/// "first settings snap" and the settings that follow consume it, so automation on the next block
-/// glides again. The settings also go in once before reset() for modules whose reset reads them
-/// (the gate starts open or closed depending on its threshold). Stale state is masked by the
-/// slot's fade-in.
+/// Hands a post effect's settings to its module. Coming back from bypass, the module restarts from
+/// a clean state that lands directly on the current settings (PedalSlot does the same for pedals).
 template <typename Module, typename Settings>
 void applySettings (Module& module, const Settings& settings, bool wasBypassed) noexcept
 {
@@ -157,82 +133,7 @@ void applySettings (Module& module, const Settings& settings, bool wasBypassed) 
     module.setSettings (settings);
 }
 
-/// Wraps a module with a click-free bypass. While bypassed, the dry path is delayed by the
-/// module's latency so the chain's total latency never changes when pedals are switched.
-template <typename Module>
-struct Slot
-{
-    Module module;
-    BypassFader fader;
-    DelayLine dryDelay;
-    std::vector<float> dry;
-    int latency = 0;
-    bool snapOnNextBlock = true; // first block after prepare/reset starts in its final state
-
-    void prepare (const ProcessSpec& spec)
-    {
-        module.prepare (spec);
-        if constexpr (requires { module.latencySamples(); })
-            latency = module.latencySamples();
-        dryDelay.prepare (std::max (latency, 1));
-        dry.assign (static_cast<size_t> (spec.maxBlockSize), 0.0f);
-        fader.prepare (spec.sampleRate);
-    }
-
-    void reset() noexcept
-    {
-        module.reset();
-        dryDelay.reset();
-        snapOnNextBlock = true;
-    }
-
-    /// Returns true when the module ran (so its telemetry is meaningful).
-    template <typename Settings, typename Run>
-    bool process (float* io, int n, bool enabled, const Settings& settings, Run&& run) noexcept
-    {
-        // The first block after prepare/reset counts as coming out of bypass, so modules whose
-        // reset() depends on their settings (the gate) get settings, reset, settings.
-        const bool wasBypassed = snapOnNextBlock || fader.isFullyBypassed();
-        if (snapOnNextBlock)
-        {
-            fader.snap (enabled);
-            snapOnNextBlock = false;
-        }
-        fader.setEnabled (enabled);
-
-        // The dry path is only needed while bypassed or crossfading, but a latency-bearing module
-        // keeps its delay line warm so a later bypass lines up from the first sample.
-        const bool needDry = !fader.isFullyActive();
-        if (latency > 0)
-        {
-            for (int i = 0; i < n; ++i)
-            {
-                dryDelay.push (io[i]);
-                if (needDry)
-                    dry[static_cast<size_t> (i)] = dryDelay.read (latency);
-            }
-        }
-        else if (needDry)
-        {
-            std::copy_n (io, n, dry.data());
-        }
-
-        if (fader.isFullyBypassed())
-        {
-            if (latency > 0)
-                std::copy_n (dry.data(), n, io);
-            return false; // settings wait until the module runs again
-        }
-        applySettings (module, settings, wasBypassed);
-
-        run (module, AudioView (io, n));
-        if (!fader.isFullyActive())
-            fader.mix (AudioView (dry.data(), n), AudioView (io, n));
-        return true;
-    }
-};
-
-/// Same idea for stereo post effects without latency.
+/// Wraps a stereo post effect without latency in a click-free bypass.
 template <typename Module>
 struct StereoSlot
 {
@@ -283,16 +184,11 @@ struct StereoSlot
     }
 };
 
-/// One instrument chain: input gain -> gate -> pedals -> amp -> cab. Mono in,
-/// stereo out.
+/// One instrument chain: input gain -> the pedalboard -> amp -> cab. Mono in, stereo out.
 struct Chain
 {
     LinearSmoothed inputGain;
-    Slot<dsp::NoiseGate> gate;
-    Slot<dsp::Tide> tide;
-    Slot<dsp::Pearl> pearl;
-    Slot<dsp::Coral> coral;
-    Slot<dsp::Ripple> ripple;
+    PedalRack rack;
     dsp::AmpSection amp;
     dsp::CabSim cab;
     dsp::CaptureStage capture; // the amp or a .nam capture, and the cab or not
@@ -300,18 +196,13 @@ struct Chain
     std::vector<float> buffer;
     std::vector<float> sidechain;
     float inputPeak = 0.0f;
-    bool gateRan = false, tideRan = false;
     bool snapGain = true;
 
     void prepare (double sampleRate, int maxBlock)
     {
         const ProcessSpec mono { sampleRate, maxBlock, 1 };
         inputGain.reset (sampleRate, 0.02);
-        gate.prepare (mono);
-        tide.prepare (mono);
-        pearl.prepare (mono);
-        coral.prepare (mono);
-        ripple.prepare (mono);
+        rack.prepare (mono);
         amp.prepare (mono);
         capture.prepare (mono, amp.latencySamples());
         cab.prepare ({ sampleRate, maxBlock, 2 });
@@ -321,23 +212,22 @@ struct Chain
 
     int latency() const noexcept
     {
-        return pearl.latency + coral.latency + capture.latencySamples() + cab.latencySamples();
+        // Every pedal's latency, whatever is on the board (PedalRack pads the difference).
+        return rack.latencySamples() + capture.latencySamples() + cab.latencySamples();
     }
 
     void reset() noexcept
     {
         snapGain = true;
-        gate.reset();
-        tide.reset();
-        pearl.reset();
-        coral.reset();
-        ripple.reset();
+        rack.reset();
         amp.reset();
         capture.reset();
         cab.reset();
     }
 
-    void process (const float* in, const AudioView& stereoOut, const ChainSettings& s) noexcept
+    /// `duck` (n gains, or null at unity) fades the board in and out while it is rewired.
+    void process (const float* in, const AudioView& stereoOut, const ChainSettings& s,
+                  const float* duck, const std::array<bool, kNumPedals>& leaving) noexcept
     {
         const int n = stereoOut.numFrames();
         float* x = buffer.data();
@@ -360,17 +250,14 @@ struct Chain
         }
         inputPeak = peak;
 
-        gateRan =
-            gate.process (x, n, s.gateOn, s.gate, [this] (dsp::NoiseGate& g, const AudioView& v) {
-                g.process (v, sidechain.data());
-            });
-        const auto run = [] (auto& m, const AudioView& v) {
-            m.process (v);
-        };
-        tideRan = tide.process (x, n, s.tideOn, s.tide, run);
-        pearl.process (x, n, s.pearlOn, s.pearl, run);
-        coral.process (x, n, s.coralOn, s.coral, run);
-        ripple.process (x, n, s.rippleOn, s.ripple, run);
+        // Ducked on the way in and out: the pedals rewire at silence and start again from it.
+        if (duck != nullptr)
+            for (int i = 0; i < n; ++i)
+                x[i] *= duck[i];
+        rack.process (x, sidechain.data(), n, s.pedals, leaving);
+        if (duck != nullptr)
+            for (int i = 0; i < n; ++i)
+                x[i] *= duck[i];
 
         capture.setSettings (s.capture);
         capture.process (amp, s.amp, AudioView (x, n));
@@ -423,6 +310,58 @@ struct Engine::Impl
     std::vector<float> monoIn;
     InputFold fold;         // stereo input -> the single chain (Summed mode)
     InputFold analysisFold; // stereo input -> the tuner in Dual mode
+
+    // The pedalboard. Both chains play the same order; chain 0's rack holds the one in force.
+    Board target = Board::legacy();          // the newest order from setBoard()
+    std::array<bool, kNumPedals> leaving {}; // forced off on their way off the board
+    Duck duck;                               // rewiring at silence
+    std::vector<float> duckGain;
+
+    void rewire (const Board& board) noexcept
+    {
+        for (auto& c : chains)
+            c.rack.rewire (board);
+        leaving.fill (false);
+    }
+
+    /// Moves the board towards `target`, at a chunk boundary. Returns how long the chunk may be,
+    /// so a fade to silence ends exactly at a boundary.
+    int stepBoard (int n) noexcept
+    {
+        const auto& rack = chains[0].rack;
+        const Board& applied = rack.order();
+        leaving.fill (false);
+        if (applied == target)
+        {
+            duck.fadeIn(); // after a rewire, or a change of mind half way down
+            return n;
+        }
+        for (const auto id : applied)
+            leaving[index (id)] = !target.contains (id);
+
+        if (rack.needsDuck (target))
+        {
+            if (duck.silent())
+            {
+                rewire (target);
+                duck.fadeIn();
+                return n;
+            }
+            duck.fadeOut();
+            return std::min (n, duck.samplesToSilence());
+        }
+
+        // Bypass fades are enough: the leaving pedals switch off, and once they are silent in the
+        // chain they leave it and the new ones join (bypassed; they fade in when on).
+        duck.fadeIn();
+        for (const auto id : applied)
+            if (leaving[index (id)] && !rack.fullyBypassed (id))
+                return n;
+        for (auto& c : chains)
+            c.rack.adopt (target);
+        leaving.fill (false);
+        return n;
+    }
 };
 
 Engine::Engine() : impl_ (std::make_unique<Impl>()) {}
@@ -462,6 +401,8 @@ void Engine::prepare (double sampleRate, int maxBlockSize, int numInputs, int nu
     d.monoIn.assign (static_cast<size_t> (block), 0.0f);
     d.fold.prepare (sampleRate);
     d.analysisFold.prepare (sampleRate);
+    d.duck.prepare (sampleRate, kBoardDuckSeconds);
+    d.duckGain.assign (static_cast<size_t> (block), 1.0f);
 
     sampleRate_.store (sampleRate, std::memory_order_release);
     maxBlockSize_.store (block, std::memory_order_release);
@@ -484,6 +425,15 @@ void Engine::reset()
     d.fathom.reset();
     d.metronome.reset();
     d.snapGains = true;
+    // Audio is stopped: the newest board applies at once.
+    board_.read (d.target);
+    d.rewire (d.target);
+    d.duck.reset();
+}
+
+void Engine::setBoard (const Board& board) noexcept
+{
+    board_.write (board);
 }
 
 void Engine::setMetronomePattern (const std::array<std::uint8_t, 13>& steps) noexcept
@@ -592,6 +542,7 @@ void Engine::process (const float* const* inputs, float* const* outputs, int num
 
     float inPeaks[2] = { 0.0f, 0.0f };
     float outPeaks[2] = { 0.0f, 0.0f };
+    board_.read (d.target); // block boundary: the newest order, if one came
 
     for (int start = 0; start < numFrames;)
     {
@@ -625,6 +576,8 @@ void Engine::process (const float* const* inputs, float* const* outputs, int num
             d.modeFade.setTarget (1.0f); // switched back before the fade-out finished
             d.modeFadeLeft = 0;
         }
+        n = d.stepBoard (n);
+        const float* duck = d.duck.render (d.duckGain.data(), n) ? d.duckGain.data() : nullptr;
 
         const float* in0 = inputs[0] + start;
         const float* in1 = numInputs == 2 ? inputs[1] + start : nullptr;
@@ -656,13 +609,13 @@ void Engine::process (const float* const* inputs, float* const* outputs, int num
         std::array<float*, 2> postPtrs { d.post[0].data(), d.post[1].data() };
         const AudioView post (postPtrs.data(), 2, n);
 
-        d.chains[0].process (chainIn, post, chain);
+        d.chains[0].process (chainIn, post, chain, duck, d.leaving);
         inPeaks[0] = std::max (inPeaks[0], d.chains[0].inputPeak);
         if (d.dual && in1 != nullptr)
         {
             std::array<float*, 2> rPtrs { d.chainR[0].data(), d.chainR[1].data() };
             const AudioView right (rPtrs.data(), 2, n);
-            d.chains[1].process (in1, right, chain);
+            d.chains[1].process (in1, right, chain, duck, d.leaving);
             inPeaks[1] = std::max (inPeaks[1], d.chains[1].inputPeak);
             // Each chain feeds its own side.
             for (int i = 0; i < n; ++i)
@@ -732,13 +685,21 @@ void Engine::process (const float* const* inputs, float* const* outputs, int num
         telemetry_.outputClip.store (true, std::memory_order_relaxed);
 
     // A bypassed module's last reading would freeze on the meters; report neutral values instead.
-    const auto& chain0 = d.chains[0];
-    telemetry_.gateOpen.store (!chain0.gateRan || chain0.gate.module.isOpen(),
-                               std::memory_order_relaxed);
-    telemetry_.gateReductionDb.store (chain0.gateRan ? chain0.gate.module.gainReductionDb() : 0.0f,
+    // (A pedal off the board doesn't run either.)
+    const auto& rack0 = d.chains[0].rack;
+    const auto& pedals = rack0.slots();
+    const bool gateRan = rack0.ran (PedalId::gate);
+    const bool tideRan = rack0.ran (PedalId::tide);
+    telemetry_.gateOpen.store (!gateRan || pedals.gate.module.isOpen(), std::memory_order_relaxed);
+    telemetry_.gateReductionDb.store (gateRan ? pedals.gate.module.gainReductionDb() : 0.0f,
                                       std::memory_order_relaxed);
-    telemetry_.tideReductionDb.store (chain0.tideRan ? chain0.tide.module.gainReductionDb() : 0.0f,
+    telemetry_.tideReductionDb.store (tideRan ? pedals.tide.module.gainReductionDb() : 0.0f,
                                       std::memory_order_relaxed);
+    for (std::size_t i = 0; i < kNumPedals; ++i)
+        telemetry_.pedalRan[i].store (rack0.ran (static_cast<PedalId> (i)),
+                                      std::memory_order_relaxed);
+    telemetry_.boardChanging.store (rack0.order() != d.target || !d.duck.idle(),
+                                    std::memory_order_relaxed);
     telemetry_.metronomeStep.store (d.metronome.currentStep(), std::memory_order_relaxed);
     telemetry_.driftTimeMs.store (d.drift.effectiveTimeMs(), std::memory_order_relaxed);
 }

@@ -16,7 +16,7 @@ describe('MockBackend', () => {
     expect(Object.keys(hello.values)).toHaveLength(163);
     expect(hello.presets.currentName).toBe('Nacre');
     expect(hello.presets.currentId).toBe('factory:nacre');
-    expect(hello.presets.items.filter((p) => p.category === 'Factory')).toHaveLength(13);
+    expect(hello.presets.items.filter((p) => p.category === 'Factory')).toHaveLength(16);
     expect(hello.presets.dirty).toBe(false);
     expect(hello.ir.slots).toHaveLength(6);
   });

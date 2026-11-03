@@ -6,7 +6,7 @@ import { DEFAULT_PRESET_ID, FACTORY_PRESETS, parsePresetFile } from './factoryPr
 
 describe('factory presets', () => {
   it('bundles every preset in presets/factory with plugin-style ids', () => {
-    expect(FACTORY_PRESETS).toHaveLength(13);
+    expect(FACTORY_PRESETS).toHaveLength(16);
     const ids = FACTORY_PRESETS.map((p) => p.info.id);
     expect(new Set(ids).size).toBe(ids.length);
     expect(ids).toContain(DEFAULT_PRESET_ID);

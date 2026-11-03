@@ -173,18 +173,33 @@ TEST_CASE ("Models are level-matched at default settings", "[amp]")
 
 TEST_CASE ("Distortion rises monotonically with gain on Reef and Abyss", "[amp]")
 {
+    // A 220 Hz sine at -18 dBFS RMS: compression (small-signal gain minus gain at this level) rises
+    // with every 0.1 of gain, and THD spans a wide range. On Reef THD itself rises at every step.
+    // On Abyss it need not: its cold clipper starts asymmetric (second harmonic, a warm crunch) and
+    // turns symmetric as it saturates (odd harmonics), and the second harmonic fades on the way, so
+    // THD dips around a third of the travel while the distortion keeps growing.
     const int model = GENERATE (1, 2);
-    std::vector<double> curve;
+    const auto gainAt = [] (const AmpSection::Settings& s, double dbfsRms) {
+        AmpSection amp;
+        test::prepareAmp (amp, s, 48000.0);
+        auto v = sine (220.0, 48000.0, 0.5, dbfsRms);
+        test::runAmp (amp, v);
+        return test::dbfs (test::rms (v, v.size() - 16384)) - dbfsRms;
+    };
+    std::vector<double> curve, squash;
     for (int g = 0; g <= 10; ++g)
     {
         auto s = defaults (model);
         s.reef.gain = s.abyss.gain = static_cast<float> (g) / 10.0f;
         curve.push_back (sineThd (s));
+        squash.push_back (gainAt (s, -100.0) - gainAt (s, -18.0));
     }
     for (size_t i = 1; i < curve.size(); ++i)
     {
-        CAPTURE (model, i, curve[i - 1], curve[i]);
-        CHECK (curve[i] > curve[i - 1]);
+        CAPTURE (model, i, curve[i - 1], curve[i], squash[i - 1], squash[i]);
+        CHECK (squash[i] > squash[i - 1]);
+        if (model == AmpSection::Reef)
+            CHECK (curve[i] > curve[i - 1]);
     }
     // The knob spans a wide range. (At the top, output THD flattens out: the stages are already
     // square and the post-clip tone stack and low-passes shape the harmonics; what keeps rising

@@ -207,10 +207,11 @@ private:
     FirstOrder inHpf_, v1Shelf_;
     TriodeStage v1_;
     AdaaTriodeStage v2_, v3_, v4_;
-    FirstOrder v1Lpf_, gainHpf_, v2Lpf_, v3Hpf_, v3Shelf_, v3Lpf_, v4Hpf_, v4Lpf_;
-    FirstOrder piHpf_, resonance_;
+    FirstOrder v1Lpf_, gainHpf_, v2Shelf_, v2Lpf_, v3Hpf_, v3Shelf_, v3Lpf_, v4Hpf_, v4Lpf_;
+    FirstOrder weight_, piHpf_, resonance_;
     MixShelf bright_, presence_;
     ToneStackFilter stack_;
+    Biquad voiceMid_;
     PowerAmp pa_;
     Biquad otHpf_;
     FirstOrder otLpf_;

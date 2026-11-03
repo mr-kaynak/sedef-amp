@@ -5,6 +5,7 @@
 #include "sedef/core/Biquad.h"
 #include "sedef/dsp/amp/AmpSection.h"
 
+#include <complex>
 #include <limits>
 #include <vector>
 
@@ -185,17 +186,23 @@ inline std::vector<double> envelopeDb (const std::vector<float>& v, double fs, d
     return env;
 }
 
-/// Sustain: seconds from the envelope's peak (20 ms RMS windows) until it first falls `dropDb`
-/// below that peak.
+/// Sustain: seconds the envelope (20 ms RMS windows) stays within `dropDb` of its peak, from the
+/// first window that gets there (the pick) to the last. Measuring from the pick rather than from
+/// the peak matters for a saturated note, whose envelope is flat to a fraction of a dB, so its
+/// highest window can come a second or two after the pick.
 inline double sustainSeconds (const std::vector<float>& v, double fs, double dropDb = 6.0)
 {
     constexpr double hopMs = 5.0;
     const auto env = envelopeDb (v, fs, 20.0, hopMs);
-    const auto peakIt = std::max_element (env.begin(), env.end());
-    auto it = peakIt;
-    while (it != env.end() && *it >= *peakIt - dropDb)
-        ++it;
-    return static_cast<double> (it - peakIt) * hopMs * 1e-3;
+    const double peakDb = *std::max_element (env.begin(), env.end());
+    size_t first = env.size(), last = 0;
+    for (size_t i = 0; i < env.size(); ++i)
+        if (env[i] >= peakDb - dropDb)
+        {
+            first = std::min (first, i);
+            last = i;
+        }
+    return first < env.size() ? static_cast<double> (last + 1 - first) * hopMs * 1e-3 : 0.0;
 }
 
 /// First level at which `values` reaches `threshold` going up through `levels` (linear
@@ -255,6 +262,172 @@ inline double worstAliasDb (const std::vector<float>& v, double f0, double fs, i
         worst = std::max (worst, toneMagnitude (d, n, f, fs));
     }
     return 20.0 * std::log10 (std::max (worst, 1.0e-15) / fundamental);
+}
+
+/// One palm-muted E5 chug (E2, B2, E3) at t = 0.05 s, as hard as the accented hits of palmChugs.
+inline std::vector<float> palmChug (double fs, double seconds, double dbfsRms = -18.0,
+                                    std::uint32_t seed = 9)
+{
+    std::vector<double> acc (static_cast<size_t> (seconds * fs), 0.0);
+    Random rng (seed);
+    const double strings[] = { 82.41, 123.47, 164.81 };
+    for (int s = 0; s < 3; ++s)
+        addString (acc, fs, strings[s], 0.05 + 0.004 * s, 1.1, rng, 0.07, 1.6);
+    return toFloat (acc, strumScale (fs, dbfsRms));
+}
+
+/// A ringing chord of the given strings, picked together at t = 0.05 s as hard as a strum at
+/// `dbfsRms`.
+inline std::vector<float> ringingChord (double fs, double seconds, const std::vector<double>& hz,
+                                        double dbfsRms = -18.0, std::uint32_t seed = 13)
+{
+    std::vector<double> acc (static_cast<size_t> (seconds * fs), 0.0);
+    Random rng (seed);
+    for (size_t s = 0; s < hz.size(); ++s)
+        addString (acc, fs, hz[s], 0.05 + 0.006 * static_cast<double> (s), 1.0, rng);
+    return toFloat (acc, strumScale (fs, dbfsRms));
+}
+
+/// Seconds from a pick at `onset` until the envelope (5 ms RMS windows, 1 ms hop) falls for good
+/// below its peak minus `dropDb`: how long a palm-muted chug rings before it stops.
+inline double ringSeconds (const std::vector<float>& v, double fs, double dropDb,
+                           double onset = 0.05)
+{
+    const auto env = envelopeDb (v, fs, 5.0, 1.0);
+    const double peakDb = *std::max_element (env.begin(), env.end());
+    size_t last = 0;
+    for (size_t i = 0; i < env.size(); ++i)
+        if (env[i] >= peakDb - dropDb)
+            last = i;
+    return static_cast<double> (last) * 1.0e-3 + 0.0025 - onset; // window centre
+}
+
+/// How far the output falls between successive chugs of palmChugs (eighths at `bpm`): the mean
+/// over chugs (skipping the first two) of the envelope's peak minus its lowest point before the
+/// next chug, in dB. A tight amp separates every chug; a fuzz runs them together.
+inline double chugDipDb (const std::vector<float>& v, double fs, double bpm)
+{
+    const auto env = envelopeDb (v, fs, 5.0, 1.0);
+    const double period = 30.0 / bpm;
+    double sum = 0.0;
+    int count = 0;
+    for (int hit = 2;; ++hit)
+    {
+        const double t0 = 0.05 + period * hit;
+        const auto a = static_cast<size_t> (t0 * 1000.0);
+        const auto b = static_cast<size_t> ((t0 + period) * 1000.0) - 3;
+        if (b >= env.size() || t0 + period > static_cast<double> (v.size()) / fs - 0.1)
+            break;
+        const auto [lo, hi] = std::minmax_element (env.begin() + static_cast<long> (a),
+                                                   env.begin() + static_cast<long> (b));
+        sum += *hi - *lo;
+        ++count;
+    }
+    return count > 0 ? sum / count : 0.0;
+}
+
+/// Power spectrum (Hann window) of n samples (a power of two) from `start`: bin k is k fs / n.
+inline std::vector<double> powerSpectrum (const std::vector<float>& v, size_t start, size_t n)
+{
+    std::vector<std::complex<double>> a (n);
+    for (size_t i = 0; i < n; ++i)
+        a[i] = static_cast<double> (v[start + i]) *
+               (0.5 - 0.5 * std::cos (kTwoPiD * static_cast<double> (i) / static_cast<double> (n)));
+    for (size_t i = 1, j = 0; i < n; ++i)
+    {
+        size_t bit = n >> 1;
+        for (; (j & bit) != 0; bit >>= 1)
+            j ^= bit;
+        j ^= bit;
+        if (i < j)
+            std::swap (a[i], a[j]);
+    }
+    for (size_t len = 2; len <= n; len <<= 1)
+    {
+        const std::complex<double> w (std::cos (kTwoPiD / static_cast<double> (len)),
+                                      -std::sin (kTwoPiD / static_cast<double> (len)));
+        for (size_t i = 0; i < n; i += len)
+        {
+            std::complex<double> wk (1.0, 0.0);
+            for (size_t k = 0; k < len / 2; ++k, wk *= w)
+            {
+                const auto x = a[i + k], y = a[i + k + len / 2] * wk;
+                a[i + k] = x + y;
+                a[i + k + len / 2] = x - y;
+            }
+        }
+    }
+    std::vector<double> p (n / 2);
+    for (size_t k = 0; k < n / 2; ++k)
+        p[k] = std::norm (a[k]);
+    return p;
+}
+
+/// Intermodulation of a chord: spectral power more than `tolHz` from every harmonic of every note,
+/// re. the power near those harmonics, between 30 Hz and `hiHz`, in dB. The DI signals here have
+/// exactly harmonic partials, so whatever lands between the harmonics is intermodulation: the
+/// sum and difference tones that blur a chord's notes into one buzz.
+inline double inharmonicDb (const std::vector<float>& v, double fs,
+                            const std::vector<double>& notes, size_t start, size_t n = 131072,
+                            double hiHz = 5000.0, double tolHz = 2.5)
+{
+    const auto p = powerSpectrum (v, start, n);
+    const double binHz = fs / static_cast<double> (n);
+    double harmonic = 0.0, other = 0.0;
+    for (size_t k = 0; k < p.size(); ++k)
+    {
+        const double f = static_cast<double> (k) * binHz;
+        if (f < 30.0 || f > hiHz)
+            continue;
+        bool near = false;
+        for (double f0 : notes)
+            near = near || std::abs (f - std::round (f / f0) * f0) <= tolHz;
+        (near ? harmonic : other) += p[k];
+    }
+    return 10.0 * std::log10 (std::max (other, 1e-30) / std::max (harmonic, 1e-30));
+}
+
+/// Two-tone intermodulation: two sines at `hz` (each at `dbfsRms`) through `process`; returns
+/// inharmonicDb of the steady output.
+template <typename ProcessFn>
+double twoToneImdDb (ProcessFn&& process, double f1, double f2, double fs, double dbfsRms)
+{
+    std::vector<float> v (static_cast<size_t> (3.0 * fs));
+    const double a = std::sqrt (2.0) * std::pow (10.0, dbfsRms / 20.0);
+    for (size_t i = 0; i < v.size(); ++i)
+    {
+        const double t = static_cast<double> (i) / fs;
+        v[i] = static_cast<float> (a * (std::sin (kTwoPiD * f1 * t) + std::sin (kTwoPiD * f2 * t)));
+    }
+    process (v);
+    return inharmonicDb (v, fs, { f1, f2 }, v.size() - 131072);
+}
+
+/// Output level (dB) of a steady sine in the last 16384 samples minus its input level: the gain
+/// of a nonlinear process at one drive level.
+template <typename ProcessFn>
+double sineGainDb (ProcessFn&& process, double hz, double fs, double dbfsRms)
+{
+    auto v = sineAt (hz, fs, 0.5, dbfsRms);
+    process (v);
+    return dbfs (rms (v, v.size() - 16384)) - dbfsRms;
+}
+
+/// Input level (dBFS RMS) where a sine at hz is compressed by `dropDb` re. its small-signal gain,
+/// searched upwards from -100 dBFS in 1 dB steps; NaN if it never is.
+template <typename ProcessFn>
+double compressionPoint (ProcessFn&& process, double hz, double fs, double dropDb)
+{
+    const double small = sineGainDb (process, hz, fs, -100.0);
+    std::vector<double> levels, loss;
+    for (int db = -100; db <= 0; ++db)
+    {
+        levels.push_back (db);
+        loss.push_back (small - sineGainDb (process, hz, fs, db));
+        if (loss.back() >= dropDb)
+            break;
+    }
+    return crossingLevel (levels, loss, dropDb);
 }
 
 /// Octave-band levels in dB re. the total RMS; each band is two RBJ band-passes in series.

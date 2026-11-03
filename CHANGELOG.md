@@ -6,6 +6,21 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **Abyss is tight again:** palm mutes stop instead of droning, power chords and triads keep their
+  notes apart, and soft picking cleans up, without giving up the lead gain at the top of the knob.
+  In 0.3.0 two fixed stages after the gain knob squared every note even at low gain, so Abyss
+  behaved like a fuzz pedal. Now the gain knob does the work, the low strings hit the clippers
+  about 18 dB later than the mids, and the knob turns like an audio-taper pot: crunch to a tight
+  rhythm sound in the lower half, the lead wall at the top. At the default gain, eighth-note chugs
+  at 150 bpm now fall 20 dB between hits (was 10), a power chord's sum and difference tones sit
+  18 dB below its notes (was 11), and 24 dB of picking strength moves the output 7 dB (was 3).
+  At full gain a single note still sustains about 5 s, even from a quiet interface. The tone
+  colour is unchanged ([docs/dsp/amps.md](docs/dsp/amps.md#5-tight-not-fuzzy)).
+- Abyss factory presets were re-voiced for the new knob: Mariana (gain 0.6) is a tight
+  palm-mute sound, and the lead presets Riptide and Bioluminescence sustain as long as before.
+
 ## [0.3.0] - 2026-11-03
 
 More gain, mics you can place anywhere over the speaker, Neural Amp Modeler captures, a doubler

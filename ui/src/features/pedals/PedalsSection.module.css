@@ -85,9 +85,15 @@
   transform: scaleX(var(--gr, 0));
 }
 
+/* A looping blink is decoration on top of the lit LED: it stands still with reduced motion. */
 .rate[data-on] {
   display: inline-flex;
-  animation: blink var(--period) ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .rate[data-on] {
+    animation: blink var(--period) ease-in-out infinite;
+  }
 }
 
 @keyframes blink {

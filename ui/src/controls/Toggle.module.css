@@ -69,7 +69,13 @@
   box-shadow: 0 2px 2px rgb(0 0 0 / 0.5);
   transform-origin: 50% 0%;
   transform: translateY(0) scaleY(1);
-  transition: transform var(--dur-2) var(--ease-out);
+}
+
+/* The throw is movement: with reduced motion the bat jumps, and the LED and label still change. */
+@media (prefers-reduced-motion: no-preference) {
+  .bat {
+    transition: transform var(--dur-2) var(--ease-out);
+  }
 }
 
 .lever:not([data-on]) .bat {

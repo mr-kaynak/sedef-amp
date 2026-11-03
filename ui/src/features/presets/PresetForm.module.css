@@ -23,7 +23,14 @@
   box-shadow:
     -24px 0 60px -30px rgb(0 0 0 / 0.8),
     inset 1px 0 0 var(--line-strong);
-  animation: slide var(--dur-2) var(--ease-out);
+  /* Fades in with the scrim; where motion is welcome it also slides in from the edge. */
+  animation: fade var(--dur-2) var(--ease-out);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .sheet {
+    animation-name: slide;
+  }
 }
 
 @keyframes slide {

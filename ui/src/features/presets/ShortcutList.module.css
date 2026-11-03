@@ -13,7 +13,20 @@
   border-radius: var(--r-pop);
   background: var(--surface-pop);
   box-shadow: var(--shadow-pop);
-  animation: rise var(--dur-2) var(--ease-out);
+  /* Fades in; where motion is welcome it also rises into place. */
+  animation: fade var(--dur-2) var(--ease-out);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .panel {
+    animation-name: rise;
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
 }
 
 @keyframes rise {

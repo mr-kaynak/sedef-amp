@@ -6,7 +6,20 @@
   background: var(--surface-pop);
   box-shadow: var(--shadow-pop);
   color: var(--bone);
-  animation: rise var(--dur-2) var(--ease-out);
+  /* Fades in; where motion is welcome it also drops into place. */
+  animation: fade var(--dur-2) var(--ease-out);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .popover {
+    animation-name: rise;
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
 }
 
 @keyframes rise {

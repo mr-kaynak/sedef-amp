@@ -104,10 +104,3 @@
 
   color-scheme: dark;
 }
-
-@media (prefers-reduced-motion: reduce) {
-  :root {
-    --dur-1: 0ms;
-    --dur-2: 0ms;
-  }
-}

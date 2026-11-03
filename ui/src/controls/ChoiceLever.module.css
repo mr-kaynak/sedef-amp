@@ -34,7 +34,13 @@
   box-shadow: 0 2px 2px rgb(0 0 0 / 0.45);
   transform-origin: 0 50%;
   transform: rotate(var(--tilt));
-  transition: transform var(--dur-2) var(--ease-out);
+}
+
+/* The swing is movement: with reduced motion the bat jumps; the labels still change. */
+@media (prefers-reduced-motion: no-preference) {
+  .bat {
+    transition: transform var(--dur-2) var(--ease-out);
+  }
 }
 
 .options {

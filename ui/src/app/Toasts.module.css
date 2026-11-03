@@ -23,7 +23,20 @@
   font-size: var(--t-12);
   white-space: nowrap;
   pointer-events: auto;
-  animation: rise var(--dur-2) var(--ease-out);
+  /* Fades in; where motion is welcome it also rises into place. */
+  animation: fade var(--dur-2) var(--ease-out);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .toast {
+    animation-name: rise;
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
 }
 
 @keyframes rise {

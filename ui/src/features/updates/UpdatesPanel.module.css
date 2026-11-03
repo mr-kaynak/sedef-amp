@@ -21,7 +21,14 @@
   background: var(--surface-pop);
   box-shadow: var(--shadow-pop);
   color: var(--bone);
-  animation: rise var(--dur-2) var(--ease-out);
+  /* Fades in with the scrim; where motion is welcome it also rises into place. */
+  animation: fade var(--dur-2) var(--ease-out);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .dialog {
+    animation-name: rise;
+  }
 }
 
 @keyframes fade {
@@ -124,7 +131,13 @@
   /* Checked: the nacre layer (controls/NacreFill.module.css) fades in while the thumb slides. */
   --fill: var(--nacre);
   --fill-shadow: none;
-  transition: transform var(--dur-2) var(--ease-out);
+}
+
+/* The slide is movement: with reduced motion the thumb jumps and only its fill fades. */
+@media (prefers-reduced-motion: no-preference) {
+  .thumb {
+    transition: transform var(--dur-2) var(--ease-out);
+  }
 }
 
 .switch[aria-checked='true'] .track {
@@ -249,7 +262,12 @@
   border-radius: inherit;
   background: var(--nacre-line);
   transform: translateX(calc(var(--p, 0%) - 100%));
-  transition: transform var(--dur-2) linear;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .bar > span {
+    transition: transform var(--dur-2) linear;
+  }
 }
 
 /* Verifying: the bar stays full and breathes (static with reduced motion). */
@@ -265,8 +283,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .scrim,
-  .dialog,
   .bar[data-indeterminate] > span {
     animation: none;
   }

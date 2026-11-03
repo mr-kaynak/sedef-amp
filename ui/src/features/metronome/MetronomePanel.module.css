@@ -88,7 +88,13 @@
   width: 60%;
   border-radius: 2px;
   background: var(--bone-3);
-  transition: height var(--dur-1) var(--ease-out);
+}
+
+/* The bar grows and shrinks only where motion is welcome; under reduced motion it jumps. */
+@media (prefers-reduced-motion: no-preference) {
+  .bar {
+    transition: height var(--dur-1) var(--ease-out);
+  }
 }
 
 .step[data-state='off'] .bar {

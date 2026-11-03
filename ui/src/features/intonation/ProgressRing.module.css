@@ -18,7 +18,13 @@
   fill: none;
   stroke-width: 7;
   stroke-linecap: round;
-  transition: stroke-dasharray var(--dur-1) linear;
+}
+
+/* Smoothed like the hold bar beside it, only where motion is welcome. */
+@media (prefers-reduced-motion: no-preference) {
+  .value {
+    transition: stroke-dasharray var(--dur-1) linear;
+  }
 }
 
 .center {

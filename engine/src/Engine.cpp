@@ -4,6 +4,7 @@
 #include "sedef/core/BypassFader.h"
 #include "sedef/core/DelayLine.h"
 #include "sedef/core/Denormals.h"
+#include "sedef/core/InputFold.h"
 #include "sedef/core/Math.h"
 #include "sedef/core/Smoothed.h"
 #include "sedef/dsp/Coral.h"
@@ -412,6 +413,8 @@ struct Engine::Impl
     std::array<std::vector<float>, 2> post;   // stereo post-chain buffers
     std::array<std::vector<float>, 2> chainR; // second chain's cab output in dual mode
     std::vector<float> monoIn;
+    InputFold fold;         // stereo input -> the single chain (Summed mode)
+    InputFold analysisFold; // stereo input -> the tuner in Dual mode
 };
 
 Engine::Engine() : impl_ (std::make_unique<Impl>()) {}
@@ -449,6 +452,8 @@ void Engine::prepare (double sampleRate, int maxBlockSize, int numInputs, int nu
         for (auto& b : *group)
             b.assign (static_cast<size_t> (block), 0.0f);
     d.monoIn.assign (static_cast<size_t> (block), 0.0f);
+    d.fold.prepare (sampleRate);
+    d.analysisFold.prepare (sampleRate);
 
     sampleRate_.store (sampleRate, std::memory_order_release);
     maxBlockSize_.store (block, std::memory_order_release);
@@ -466,6 +471,8 @@ void Engine::reset()
     d.eq.reset();
     d.doubler.reset();
     d.drift.reset();
+    d.fold.reset();
+    d.analysisFold.reset();
     d.fathom.reset();
     d.metronome.reset();
     d.snapGains = true;
@@ -607,12 +614,13 @@ void Engine::process (const float* const* inputs, float* const* outputs, int num
         const float* in0 = inputs[0] + start;
         const float* in1 = numInputs == 2 ? inputs[1] + start : nullptr;
 
-        // Mono source for the single chain (summed at -6 dB in stereo-summed mode).
+        // Mono source for the single chain. In Summed mode the fold averages the two inputs, or
+        // takes the live one at unity when the other carries nothing (a guitar on one input of a
+        // stereo track would otherwise reach the amp 6 dB down; core/InputFold.h).
         const float* chainIn = in0;
         if (in1 != nullptr && !d.dual)
         {
-            for (int i = 0; i < n; ++i)
-                d.monoIn[static_cast<size_t> (i)] = 0.5f * (in0[i] + in1[i]);
+            d.fold.process (in0, in1, d.monoIn.data(), n);
             chainIn = d.monoIn.data();
         }
 
@@ -621,8 +629,7 @@ void Engine::process (const float* const* inputs, float* const* outputs, int num
             // The tuner hears the instrument: the summed input in Dual mode too.
             if (d.dual && in1 != nullptr)
             {
-                for (int i = 0; i < n; ++i)
-                    d.monoIn[static_cast<size_t> (i)] = 0.5f * (in0[i] + in1[i]);
+                d.analysisFold.process (in0, in1, d.monoIn.data(), n);
                 analysisRing_.push (d.monoIn.data(), static_cast<size_t> (n));
             }
             else

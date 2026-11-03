@@ -199,8 +199,9 @@ at DI levels of -30, -24, -18 and -12 dBFS RMS.
 Either strum hard and set Input Gain so the input meter peaks around -4 to -2 dBFS, or, if you
 know your interface's maximum input level X dBu at the gain you use, set Input Gain to
 X + 0.6 dB (for example +13 dB for an interface that clips at +12.5 dBu). Presets are voiced at
-this level. In Summed stereo mode a guitar on one input only reaches the amp 6 dB down (the two
-inputs are averaged); use a mono input or add 6 dB of Input Gain.
+this level. In Summed stereo mode a guitar on one input of a stereo track reaches the amp at full
+level: the input fold (`engine/include/sedef/core/InputFold.h`) passes the live side at unity when
+the other is 30 dB or more quieter, and averages otherwise.
 
 ### Targets from real cascaded-triode preamps
 
@@ -415,7 +416,5 @@ engine-level allocation test (ADR-0005) covers it permanently.
 - The input calibration (section 4) is a documented convention, not a control: Input Gain is the
   trim. A target mark on the input meter, or an "auto-set from a strum" helper, would make it
   easier to find.
-- In Summed stereo mode a guitar on one input only is averaged with silence and reaches the amp
-  6 dB down.
 - Stereo processes the channels one after another. Interleaving them would roughly halve the
   stereo cost if the amp is ever run in stereo (the engine's channel strip is mono).

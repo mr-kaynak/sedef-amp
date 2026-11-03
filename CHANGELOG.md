@@ -51,6 +51,12 @@ All notable changes to this project are documented here. The format follows
   The parameter stays so sessions still load; sessions that used it now play at the original
   pitch.
 
+### Fixed
+
+- **Stereo input:** a guitar plugged into one input of a stereo track no longer reaches the amp
+  6 dB down in "Sum to mono". The live side now passes at unity when the other carries nothing,
+  and a mono source copied to both sides is averaged as before.
+
 ## [0.2.0] - 2026-11-01
 
 A preset browser you can audition from, an intonation workbench that works with a real guitar,

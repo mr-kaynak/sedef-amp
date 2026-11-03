@@ -45,7 +45,8 @@ export function SettingsPanel() {
         <h3 className={styles.heading}>Stereo input</h3>
         <Segmented param="stereoMode" labels={['Sum to mono', 'Two channels']} />
         <p className={styles.note}>
-          Applies when the host feeds a stereo signal. Two channels runs a full rig per side.
+          Applies when the host feeds a stereo signal. Sum to mono plays a guitar on either input at
+          full level. Two channels runs a full rig per side.
         </p>
       </section>
       <UpdatesSettings className={styles.section} />

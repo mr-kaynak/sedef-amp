@@ -169,7 +169,7 @@ own instead, so their tails ring out ("spillover") after being switched off.
 |---|---|---|
 | 1 in / 1 out | Mono | `Channel` → `PostChain` (folded to mono) |
 | 1 in / 2 out | Mono → Stereo | `Channel` → `PostChain` |
-| 2 in / 2 out, `stereoMode = Summed` | Summed | L+R (−6 dB) → `Channel` → `PostChain` |
+| 2 in / 2 out, `stereoMode = Summed` | Summed | `InputFold` (L+R averaged, or the live side at unity when the other carries nothing) → `Channel` → `PostChain` |
 | 2 in / 2 out, `stereoMode = Dual` | Dual | two `Channel`s (L, R) → `PostChain` |
 
 The gate detector always listens to the raw input before input gain, so gating

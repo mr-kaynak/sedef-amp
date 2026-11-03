@@ -3,10 +3,10 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 12px 14px 12px;
+  padding: 11px 13px;
+  border: 1px solid var(--line);
   border-radius: var(--r-panel);
   background: rgb(6 17 25 / 0.5);
-  box-shadow: inset 0 0 0 1px var(--line);
 }
 
 .strip[data-off] .knobs,
@@ -25,6 +25,8 @@
   place-items: center;
   width: 20px;
   height: 20px;
+  /* The disc is a background, which forced colors drop: the transparent border keeps its edge. */
+  border: 1px solid transparent;
   border-radius: 50%;
   color: var(--ink-1);
   font-size: var(--t-11);
@@ -72,7 +74,8 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 6px 6px 10px;
+  padding: 5px 5px 5px 9px;
+  border: 1px solid transparent;
   border-radius: var(--r-ctl);
   background: var(--ink-0);
   color: var(--bone-3);

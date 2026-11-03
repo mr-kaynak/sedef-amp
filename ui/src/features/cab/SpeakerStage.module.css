@@ -153,9 +153,16 @@
   stroke-width: 1.5;
 }
 
+/* Focus is the dot's stroke, not an outline; forced colors get it in the system colour. */
 .marker:focus-visible .dot {
   stroke: var(--bone);
   stroke-width: 2.5;
+}
+
+@media (forced-colors: active) {
+  .marker:focus-visible .dot {
+    stroke: Highlight;
+  }
 }
 
 /* Where the miked speaker sits among the others (2x12, 4x12). */

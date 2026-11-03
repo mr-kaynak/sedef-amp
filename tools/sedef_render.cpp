@@ -6,10 +6,14 @@
 //   sedef-render --in my-di.wav --set ampModel=2 --set abyssGain=0.8 --out lead.wav
 //   sedef-render --check presets/factory/*.sedefpreset
 //   sedef-render --capture amp.nam --set captureCab=0 --out capture.wav
+//   sedef-render --set pearlEnabled=1 --set coralEnabled=1 --board coral,pearl --out swapped.wav
 //
-// Without --in, a synthetic guitar DI (plucked-string chords and single notes) is used.
+// Without --in, a synthetic guitar DI (plucked-string chords and single notes) is used. The
+// pedalboard is the preset's "board", else --board, else the board a preset saved before the
+// board gets: the legacy board plus any other pedal the parameters switch on.
 
 #include "sedef/Engine.h"
+#include "sedef/board/Board.h"
 #include "sedef/core/Math.h"
 #include "sedef/core/Random.h"
 #include "sedef/dsp/capture/CaptureFile.h"
@@ -71,6 +75,48 @@ std::optional<std::map<std::string, float>> readPresetParameters (const std::str
         pos = static_cast<std::size_t> (end - text.c_str());
     }
     return values;
+}
+
+/// A preset's "board": a flat list of pedal ids. Nothing when the preset has none.
+std::optional<Board> readPresetBoard (const std::string& path)
+{
+    std::ifstream f (path);
+    const std::string text ((std::istreambuf_iterator<char> (f)), std::istreambuf_iterator<char>());
+    const auto key = text.find ("\"board\"");
+    if (key == std::string::npos)
+        return std::nullopt;
+    const auto open = text.find ('[', key);
+    const auto close = open == std::string::npos ? std::string::npos : text.find (']', open);
+    if (close == std::string::npos)
+        return std::nullopt;
+    Board board;
+    for (auto q1 = text.find ('"', open); q1 < close; q1 = text.find ('"', q1 + 1))
+    {
+        const auto q2 = text.find ('"', q1 + 1);
+        if (const auto id = findPedal (text.substr (q1 + 1, q2 - q1 - 1)))
+            board.insert (*id, board.size());
+        q1 = q2;
+    }
+    return board;
+}
+
+Board boardFromList (const std::string& list)
+{
+    Board board;
+    std::stringstream ss (list);
+    for (std::string id; std::getline (ss, id, ',');)
+    {
+        if (const auto pedal = findPedal (id))
+            board.insert (*pedal, board.size());
+        else
+            std::fprintf (stderr, "--board: unknown pedal '%s'\n", id.c_str());
+    }
+    return board;
+}
+
+Board legacyBoard (const ParamSnapshot& snap)
+{
+    return Board::legacyFor ([&snap] (ParamId id) { return snap.flag (id); });
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -271,9 +317,10 @@ struct RenderResult
 };
 
 RenderResult render (const std::vector<float>& input, double fs, const ParamSnapshot& params,
-                     int block = 256, const dsp::CaptureFile* capture = nullptr)
+                     const Board& board, int block = 256, const dsp::CaptureFile* capture = nullptr)
 {
     Engine engine;
+    engine.setBoard (board);
     engine.prepare (fs, block, 1, 2);
     if (capture != nullptr)
         for (int c = 0; c < engine.numCabs(); ++c)
@@ -321,6 +368,7 @@ int usage()
 {
     std::fputs ("usage: sedef-render [--preset FILE] [--in DI.wav] [--out OUT.wav] [--seconds S]\n"
                 "                    [--rate HZ] [--capture FILE.nam] [--set id=value]...\n"
+                "                    [--board id,id,...]\n"
                 "       sedef-render --check PRESET...\n",
                 stderr);
     return 2;
@@ -354,7 +402,8 @@ int main (int argc, char** argv)
                 ++failures;
                 continue;
             }
-            const auto r = render (di, rate, snap);
+            const auto r =
+                render (di, rate, snap, readPresetBoard (args[i]).value_or (legacyBoard (snap)));
             const auto s = measure (r.left, r.right, static_cast<std::size_t> (rate * 0.5));
             const bool ok = s.finite && s.peakDb < -1.0f && s.rmsDb > -24.0f && s.rmsDb < -18.0f;
             std::printf ("%s  %-48s rms %6.1f dBFS  peak %6.1f dBFS\n", ok ? "ok  " : "FAIL",
@@ -366,6 +415,7 @@ int main (int argc, char** argv)
     }
 
     std::string presetPath, inPath, outPath, capturePath;
+    std::optional<std::string> boardList;
     std::map<std::string, float> overrides;
     for (std::size_t i = 0; i < args.size(); ++i)
     {
@@ -384,6 +434,8 @@ int main (int argc, char** argv)
             rate = std::stod (next());
         else if (args[i] == "--capture")
             capturePath = next();
+        else if (args[i] == "--board")
+            boardList = next();
         else if (args[i] == "--set")
         {
             const auto kv = next();
@@ -449,7 +501,13 @@ int main (int argc, char** argv)
         input = syntheticDi (rate, seconds);
     }
 
-    const auto r = render (input, rate, snap, 256, capture.get());
+    std::optional<Board> board;
+    if (!presetPath.empty())
+        board = readPresetBoard (presetPath);
+    if (boardList)
+        board = boardFromList (*boardList);
+    const auto r =
+        render (input, rate, snap, board.value_or (legacyBoard (snap)), 256, capture.get());
     const auto s = measure (r.left, r.right, 0);
     std::printf ("{\"rmsDb\": %.2f, \"peakDb\": %.2f, \"finite\": %s, \"latency\": %d}\n",
                  static_cast<double> (s.rmsDb), static_cast<double> (s.peakDb),

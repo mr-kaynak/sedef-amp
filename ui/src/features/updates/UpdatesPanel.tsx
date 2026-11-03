@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // The Updates panel: a modal sheet over the canvas with the versions, the automatic-check switch,
-// the release notes and the download. Opened from the header pill or from Settings.
+// the release notes and the update itself: download, install through the OS's installer, then a
+// restart. Opened from the header pill or from Settings.
 import { useEffect, useId, useRef } from 'react';
 import type { CSSProperties, KeyboardEvent } from 'react';
 import buttons from '../../controls/Button.module.css';
@@ -9,13 +10,17 @@ import { Icon, ICON_STROKE_LABEL } from '../../controls/Icon';
 import { ReleaseNotes } from './ReleaseNotes';
 import {
   AFTER_DOWNLOAD,
-  BEFORE_INSTALL,
+  beforeInstall,
   errorMessage,
   formatBytes,
   formatDate,
   formatSince,
+  installStep,
+  manualOnly,
+  restartText,
 } from './text';
 import {
+  needsRestart,
   selectSupported,
   updateActions,
   useUpdateStore,
@@ -30,6 +35,45 @@ function fallbackFocus(): HTMLElement | null {
   return document.querySelector<HTMLElement>('header button[aria-label="Settings"]');
 }
 
+function isTransferring(state: SupportedUpdateState): boolean {
+  return state.phase === 'downloading' || state.phase === 'verifying';
+}
+
+/** A labelled bar: determinate with `value` of `max`, else full and breathing. */
+function Bar({
+  labelId,
+  value,
+  max,
+  text,
+}: {
+  labelId: string;
+  value?: number;
+  max?: number;
+  text: string;
+}) {
+  const determinate = value !== undefined && max !== undefined;
+  return (
+    <div
+      role="progressbar"
+      aria-labelledby={labelId}
+      aria-valuemin={determinate ? 0 : undefined}
+      aria-valuemax={determinate ? max : undefined}
+      aria-valuenow={determinate ? value : undefined}
+      aria-valuetext={text}
+      className={styles.bar}
+      data-indeterminate={determinate ? undefined : true}
+    >
+      <span
+        style={
+          {
+            '--p': `${determinate && max > 0 ? Math.min(100, (value / max) * 100) : 0}%`,
+          } as CSSProperties
+        }
+      />
+    </div>
+  );
+}
+
 function Progress({ state }: { state: SupportedUpdateState }) {
   const labelId = useId();
   const verifying = state.phase === 'verifying';
@@ -40,31 +84,55 @@ function Progress({ state }: { state: SupportedUpdateState }) {
       <p id={labelId} className={styles.progressLabel}>
         {verifying ? `Checking ${name}…` : `Downloading ${name}`}
       </p>
-      <div
-        role="progressbar"
-        aria-labelledby={labelId}
-        aria-valuemin={verifying ? undefined : 0}
-        aria-valuemax={verifying ? undefined : total}
-        aria-valuenow={verifying ? undefined : received}
-        aria-valuetext={
-          verifying ? 'Verifying' : `${formatBytes(received)} of ${formatBytes(total)}`
-        }
-        className={styles.bar}
-        data-indeterminate={verifying || undefined}
-      >
-        <span
-          style={
-            {
-              '--p': `${total > 0 ? Math.min(100, (received / total) * 100) : 0}%`,
-            } as CSSProperties
-          }
+      {verifying ? (
+        <Bar labelId={labelId} text="Verifying" />
+      ) : (
+        <Bar
+          labelId={labelId}
+          value={received}
+          max={total}
+          text={`${formatBytes(received)} of ${formatBytes(total)}`}
         />
-      </div>
+      )}
       <p className={styles.note}>
         {verifying
           ? 'Comparing its SHA-256 with the checksum published with the release.'
           : `${formatBytes(received)} of ${formatBytes(total)}`}
       </p>
+    </div>
+  );
+}
+
+/** The OS's installer runs: which step, and what (if anything) the user has to do. */
+function Installing({ state }: { state: SupportedUpdateState }) {
+  const labelId = useId();
+  const step = installStep(
+    state.install?.step ?? 'preparing',
+    state.platform,
+    state.latest?.version ?? '',
+  );
+  return (
+    <div className={styles.progress}>
+      <p id={labelId} className={styles.progressLabel}>
+        {step.label}
+      </p>
+      <Bar labelId={labelId} text={step.label.replace('…', '')} />
+      <p className={styles.note}>{step.note}</p>
+    </div>
+  );
+}
+
+/** Installed, or waiting for the host to exit: what's left is a restart. */
+function Restart({ state }: { state: SupportedUpdateState }) {
+  const text = restartText(state);
+  return (
+    <div className={styles.done}>
+      <p className={styles.headline}>
+        <Icon name="check" stroke={ICON_STROKE_LABEL} />
+        <span className={styles.file}>{text.headline}</span>
+      </p>
+      <p className={styles.status}>{text.status}</p>
+      <p className={styles.note}>{text.note}</p>
     </div>
   );
 }
@@ -126,14 +194,42 @@ function Actions({ state }: { state: SupportedUpdateState }) {
   const latest = state.latest;
   const page = latest?.url ?? state.releasesUrl;
   const openPage = () => void updateActions.openPage(page);
-  const transferring = state.phase === 'downloading' || state.phase === 'verifying';
+  const close = (
+    <button type="button" className={buttons.solid} onClick={updateActions.closePanel}>
+      {state.phase === 'installing' ? 'Close' : 'Done'}
+    </button>
+  );
 
-  if (transferring) {
+  if (isTransferring(state)) {
     return (
       <div className={styles.actions}>
         <button type="button" className={buttons.solid} onClick={() => void updateActions.cancel()}>
           Cancel
         </button>
+      </div>
+    );
+  }
+  // The OS's installer has its own prompt to cancel in; closing the panel doesn't stop it.
+  if (state.phase === 'installing') return <div className={styles.actions}>{close}</div>;
+  if (needsRestart(state)) {
+    return (
+      <div className={styles.actions}>
+        {state.canRestart ? (
+          <>
+            <button type="button" className={buttons.ghost} onClick={updateActions.closePanel}>
+              Later
+            </button>
+            <button
+              type="button"
+              className={buttons.nacre}
+              onClick={() => void updateActions.restart()}
+            >
+              Restart Sedef
+            </button>
+          </>
+        ) : (
+          close
+        )}
       </div>
     );
   }
@@ -148,9 +244,7 @@ function Actions({ state }: { state: SupportedUpdateState }) {
           <Icon name="folder" stroke={ICON_STROKE_LABEL} />
           Show in folder
         </button>
-        <button type="button" className={buttons.solid} onClick={updateActions.closePanel}>
-          Done
-        </button>
+        {close}
       </div>
     );
   }
@@ -173,44 +267,58 @@ function Actions({ state }: { state: SupportedUpdateState }) {
 
   const skipped = state.skippedVersion === latest.version;
   const canInstall = !!latest.installer && latest.hasChecksums;
+  const automatic = state.autoInstall.available;
+  const busy = state.phase === 'checking';
+  const install = () => void updateActions.install();
+  const manually = () => void updateActions.installManually();
   return (
     <>
       <p className={styles.note}>
-        {canInstall
-          ? BEFORE_INSTALL[state.platform]
-          : errorMessage(latest.installer ? 'noChecksum' : 'noInstaller', state.platform)}
+        {!canInstall
+          ? errorMessage(latest.installer ? 'noChecksum' : 'noInstaller', state.platform)
+          : automatic
+            ? beforeInstall(state)
+            : manualOnly(state.autoInstall.reason, state)}
       </p>
       <div className={styles.actions}>
         <button type="button" className={buttons.ghost} onClick={updateActions.later}>
           Later
         </button>
-        <button
-          type="button"
-          className={buttons.ghost}
-          onClick={() =>
-            void (skipped ? updateActions.unskip() : updateActions.skip(latest.version))
-          }
-        >
-          {skipped ? 'Offer this version again' : 'Skip this version'}
-        </button>
+        {/* After a failure the row holds the ways forward instead. */}
+        {!(failed && canInstall) && (
+          <button
+            type="button"
+            className={buttons.ghost}
+            onClick={() =>
+              void (skipped ? updateActions.unskip() : updateActions.skip(latest.version))
+            }
+          >
+            {skipped ? 'Offer this version again' : 'Skip this version'}
+          </button>
+        )}
         <span className={styles.spacer} />
-        {canInstall && failed && (
-          <button type="button" className={buttons.ghost} onClick={openPage}>
+        {(failed || !canInstall) && (
+          <button
+            type="button"
+            className={canInstall ? buttons.ghost : buttons.nacre}
+            onClick={openPage}
+          >
             Open releases page
           </button>
         )}
-        {canInstall ? (
+        {canInstall && automatic && failed && (
+          <button type="button" className={buttons.ghost} disabled={busy} onClick={manually}>
+            Install manually
+          </button>
+        )}
+        {canInstall && (
           <button
             type="button"
             className={buttons.nacre}
-            disabled={state.phase === 'checking'}
-            onClick={() => void updateActions.download()}
+            disabled={busy}
+            onClick={automatic ? install : manually}
           >
-            Download &amp; install
-          </button>
-        ) : (
-          <button type="button" className={buttons.nacre} onClick={openPage}>
-            Open releases page
+            {!automatic ? 'Install manually' : failed ? 'Try again' : 'Update now'}
           </button>
         )}
       </div>
@@ -227,6 +335,17 @@ function announcement(state: SupportedUpdateState): string {
       return 'Downloading the update';
     case 'verifying':
       return 'Verifying the download';
+    case 'installing':
+      return installStep(
+        state.install?.step ?? 'preparing',
+        state.platform,
+        state.latest?.version ?? '',
+      ).label;
+    case 'installed':
+    case 'scheduled': {
+      const text = restartText(state);
+      return `${text.headline}. ${text.status}`;
+    }
     case 'done':
       return 'Download verified. The installer is open.';
     case 'error':
@@ -243,6 +362,7 @@ export function UpdatesPanel() {
   const titleId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
+  const phase = state?.phase;
 
   // Focus moves into the panel and back to where it came from; Escape closes it. The listener
   // sits on window in the capture phase so it runs before the preset browser's (document,
@@ -263,6 +383,14 @@ export function UpdatesPanel() {
       target?.focus({ preventScroll: true });
     };
   }, []);
+
+  // A phase swaps the buttons: when the focused one is gone, focus stays in the dialog (on its
+  // heading) instead of falling out of it.
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (dialog && !dialog.contains(document.activeElement))
+      headingRef.current?.focus({ preventScroll: true });
+  }, [phase]);
 
   // Tab stays inside, and the app's shortcuts (1–5 switch sections) stay out while it is open.
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
@@ -285,9 +413,7 @@ export function UpdatesPanel() {
   };
 
   if (!state) return null;
-  const busy =
-    state.phase === 'checking' || state.phase === 'downloading' || state.phase === 'verifying';
-  const transferring = state.phase === 'downloading' || state.phase === 'verifying';
+  const busy = state.phase === 'checking' || isTransferring(state) || state.phase === 'installing';
 
   return (
     <div
@@ -322,7 +448,7 @@ export function UpdatesPanel() {
         <div className={styles.summary}>
           <dl className={styles.facts}>
             <div>
-              <dt>Installed</dt>
+              <dt>Running</dt>
               <dd>{state.currentVersion}</dd>
             </div>
             <div>
@@ -372,8 +498,12 @@ export function UpdatesPanel() {
               {errorMessage(state.error.code, state.platform)}
             </p>
           )}
-          {transferring ? (
+          {isTransferring(state) ? (
             <Progress state={state} />
+          ) : state.phase === 'installing' ? (
+            <Installing state={state} />
+          ) : needsRestart(state) ? (
+            <Restart state={state} />
           ) : state.phase === 'done' && state.download ? (
             <div className={styles.done}>
               <p className={styles.headline}>

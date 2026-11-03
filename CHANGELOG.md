@@ -6,6 +6,32 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Remora**, a two-transistor feedback fuzz, first on the board. Germanium is soft and warm,
+  silicon harder, brighter and louder; Bias moves from a gated, sputtering starve through
+  symmetric at noon to hot; Guitar volume stands in for the guitar's own knob, and rolling it back
+  cleans the fuzz up (from 42 % to 7 % distortion between 10 and 5, only 3 dB quieter) the way the
+  real circuit does ([docs/dsp/remora.md](docs/dsp/remora.md)).
+- **Sargasso**, a four-stage sustain fuzz after the compressor. Sustain holds a plucked note above
+  −20 dB for 1.7 s at minimum and 3.5 s at full; Tone blends a low-pass and a high-pass, with a
+  9 dB mid scoop near 1 kHz at noon ([docs/dsp/sargasso.md](docs/dsp/sargasso.md)).
+- **Breaker**, a germanium treble booster last on the board, straight into the amp. Treble peaks
+  at 1.5 kHz and keeps the lows out; Full peaks at 460 Hz for a broad boost; Boost goes from
+  +3 to +31 dB at the peak and clips softly when pushed ([docs/dsp/breaker.md](docs/dsp/breaker.md)).
+- Both fuzzes leave at their input level with Volume at noon, every pedal switches click-free, and
+  aliasing on high notes stays below −69 dB.
+- The pedals page shows every pedal in signal order and scrolls sideways when they do not fit.
+- New parameters: `remoraEnabled`, `remoraFuzz`, `remoraVolume`, `remoraBias`,
+  `remoraGuitarVolume`, `remoraTransistor`, `sargassoEnabled`, `sargassoSustain`, `sargassoTone`,
+  `sargassoVolume`, `breakerEnabled`, `breakerBoost`, `breakerRange` (149 → 162).
+
+### Changed
+
+- The plug-in reports 224 samples of latency at 48 kHz (was 113), whichever pedals are on: each
+  of the three new oversampled pedals adds its oversampler's 37 samples (31 at 88.2/96 kHz, none
+  above), so switching them never moves the timeline.
+
 ## [0.3.0] - 2026-11-03
 
 More gain, mics you can place anywhere over the speaker, Neural Amp Modeler captures, a doubler

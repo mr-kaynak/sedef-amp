@@ -10,8 +10,9 @@ VST3 / AU / CLAP plugin and as a standalone application. It ships a complete
 rig in one window:
 
 ```
-Input ─► Tuner tap ─► Input Gain ─► Gate ─► Tide (comp)
-      ─► Pearl (overdrive) ─► Coral (distortion) ─► Ripple (modulation)
+Input ─► Tuner tap ─► Input Gain ─► Gate ─► Remora (fuzz) ─► Tide (comp)
+      ─► Sargasso (sustain fuzz) ─► Pearl (overdrive) ─► Coral (distortion)
+      ─► Ripple (modulation) ─► Breaker (treble booster)
       ─► Amp (Lagoon | Reef | Abyss) ─► Cab (2 mics + room)
       ─► 9-band EQ (one bank per amp) ─► Doubler ─► Drift (tape echo)
       ─► Fathom (plate | hall reverb) ─► Metronome ─► Output Gain ─► Output
@@ -162,8 +163,8 @@ own instead, so their tails ring out ("spillover") after being switched off.
 
 `Engine` builds the chain from two reusable halves:
 
-- `Channel`: Input Gain → Gate → Tide → Pearl → Coral → Ripple →
-  Amp → Cab. Mono in, mono or stereo out.
+- `Channel`: Input Gain → Gate → Remora → Tide → Sargasso → Pearl → Coral →
+  Ripple → Breaker → Amp → Cab. Mono in, mono or stereo out.
 - `PostChain`: EQ → Doubler → Drift → Fathom → Metronome → Output Gain. Stereo.
 
 | Host layout | Mode | Graph |
@@ -185,10 +186,13 @@ The EQ bank always follows the amp.
 | Module | Character | Notes |
 |---|---|---|
 | Gate | Sidechained downward expander with hysteresis and hold | detector on raw input |
+| Remora | Two-transistor feedback fuzz, germanium / silicon | Ebers–Moll pair, guitar-volume clean-up, bias servo, 4× OS ([remora.md](dsp/remora.md)) |
 | Tide | Fixed-threshold 3:1 compressor, tilt EQ, parallel blend | soft knee, program-dependent release |
+| Sargasso | Four-stage sustain fuzz, low-pass/high-pass tone blend | two cascaded clippers, 4× OS ([sargasso.md](dsp/sargasso.md)) |
 | Pearl | Mid-hump overdrive with mid-boost | clipping in the feedback path, 4× OS |
 | Coral | Hard-clipping distortion with low-pass "cut" | 4× OS |
 | Ripple | Tremolo, chorus, vibrato | 0.69–7.19 Hz |
+| Breaker | Germanium treble booster, Treble / Full range | resonant input network, Ebers–Moll stage, 4× OS ([breaker.md](dsp/breaker.md)) |
 | Lagoon | Clean amp, glassy and wide | two triode stages, FMV tone stack |
 | Reef | Crunch amp, three voicings | cascaded stages, British-style tone stack |
 | Abyss | High-gain lead amp, bright and shift switches | four stages, shifted mid |

@@ -38,6 +38,8 @@ private:
     void emitIrs();
     void loadIr (int mic, int cab, juce::WebBrowserComponent::NativeFunctionCompletion completion);
     void emitCapture();
+    juce::var boardState();
+    void emitBoard();
     void loadCapture (juce::WebBrowserComponent::NativeFunctionCompletion completion);
 
     // UI smoke test (SEDEF_UI_SMOKE_TEST=<result file>): see smokeTestTick().
@@ -61,6 +63,8 @@ private:
     int lastPresetRevision_ = -1;
     int lastIrRevision_ = -1;
     int lastCaptureRevision_ = -1;
+    int lastBoardRevision_ = -1;
+    juce::int64 boardStateRevision_ = 0; ///< BoardState.revision: counts every board state sent
     bool lastDirty_ = false;
     int tick_ = 0;
     bool pageReady_ = false;

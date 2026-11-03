@@ -312,6 +312,18 @@ juce::WebBrowserComponent::Options SedefEditor::makeOptions()
         done (proc.captures().stateAsVar());
     });
 
+    // Pedalboard -------------------------------------------------------------------------------
+    // The UI sends the whole board (ids in signal order); unknown ids and repeats are dropped.
+    fn ("sedef_board_set", [this, &proc] (const juce::Array<juce::var>& a, Completion done) {
+        if (const auto board = boardFromVar (a.isEmpty() ? juce::var() : a[0]))
+            proc.setBoard (*board);
+        lastBoardRevision_ = proc.boardRevision.load();
+        // The board counts towards "dirty": show it now, not on the next poll.
+        if (proc.presets().isDirty() != lastDirty_)
+            emitPresets();
+        done (boardState());
+    });
+
     // Tuner, metronome, UI ----------------------------------------------------------------------
     fn ("sedef_tuner_setActive", [&proc] (const juce::Array<juce::var>& a, Completion done) {
         proc.analysis().setActive (!a.isEmpty() && static_cast<bool> (a[0]));
@@ -426,6 +438,18 @@ void SedefEditor::loadCapture (Completion completion)
         });
 }
 
+juce::var SedefEditor::boardState()
+{
+    return object (
+        { { "pedals", boardToVar (processor_.board()) }, { "revision", ++boardStateRevision_ } });
+}
+
+void SedefEditor::emitBoard()
+{
+    lastBoardRevision_ = processor_.boardRevision.load();
+    browser_->emitEventIfBrowserIsVisible ("sedef:board", boardState());
+}
+
 void SedefEditor::emitCapture()
 {
     lastCaptureRevision_ = processor_.captures().revision.load();
@@ -481,6 +505,7 @@ juce::var SedefEditor::hello()
     lastPresetRevision_ = processor_.presetRevision.load();
     lastIrRevision_ = processor_.irRevision.load();
     lastCaptureRevision_ = processor_.captures().revision.load();
+    lastBoardRevision_ = processor_.boardRevision.load();
     lastDirty_ = processor_.presets().isDirty();
 
     return object ({ { "protocol", kProtocolVersion },
@@ -495,7 +520,8 @@ juce::var SedefEditor::hello()
                      { "uiState", processor_.uiState() },
                      { "presets", processor_.presets().stateAsVar() },
                      { "ir", processor_.irs().stateAsVar() },
-                     { "capture", processor_.captures().stateAsVar() } });
+                     { "capture", processor_.captures().stateAsVar() },
+                     { "board", boardState() } });
 }
 
 void SedefEditor::timerCallback()
@@ -533,6 +559,9 @@ void SedefEditor::timerCallback()
     }
     if (processor_.captures().revision.load() != lastCaptureRevision_)
         emitCapture();
+    // Preset loads, A/B, snapshot restores and host restores change the board too.
+    if (processor_.boardRevision.load() != lastBoardRevision_)
+        emitBoard();
 }
 
 void SedefEditor::emitParams()
@@ -620,9 +649,9 @@ void SedefEditor::emitIrs()
 
 namespace
 {
-/// Exercises the preset bridge the way the browser and A/B do, straight over JUCE's native
-/// function protocol, and leaves the outcome in window.__sedefSmokePresets. Auditions don't record
-/// Recent picks, so the test leaves the user's settings alone.
+/// Exercises the preset and board bridge the way the browser, A/B and the pedalboard do, straight
+/// over JUCE's native function protocol, and leaves the outcome in window.__sedefSmokePresets.
+/// Auditions don't record Recent picks, so the test leaves the user's settings alone.
 constexpr const char* kSmokePresetScript = R"js((() => {
   if (window.__sedefSmokePresetsStarted) return 'running';
   window.__sedefSmokePresetsStarted = true;
@@ -683,12 +712,36 @@ constexpr const char* kSmokePresetScript = R"js((() => {
     const compareMismatches = differences(before, await values());
     const compare = back.compare.active === 'A' && !!back.compare.other &&
       back.compare.other.name === 'Riptide' && back.currentName === start.currentName;
+    // The pedalboard travels with snapshots, presets and A/B, and counts towards "dirty".
+    const pedals = async () => (await call('sedef_hello', 2)).board.pedals;
+    const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+    const startBoard = hello.board.pedals;
+    const reversed = [...startBoard].reverse();
+    await call('sedef_presets_snapshot', 'browse');
+    const setAnswer = await call('sedef_board_set', [...reversed, 'no-such-pedal', reversed[0]]);
+    const boardSet = same(setAnswer.pedals, reversed) && (await call('sedef_presets_list')).dirty;
+    await call('sedef_presets_load', 'factory:mariana', true); // saved before the board
+    const presetBoard = same(await pedals(), ['gate', 'tide', 'pearl', 'coral', 'ripple']);
+    await call('sedef_presets_restore', 'browse');
+    const boardRestored = same(await pedals(), reversed);
+    await call('sedef_presets_compare', 'switch'); // to B: Riptide, from the earlier A/B
+    await call('sedef_board_set', ['pearl']);
+    await call('sedef_presets_compare', 'switch');
+    const boardA = same(await pedals(), reversed);
+    await call('sedef_presets_compare', 'switch');
+    const boardB = same(await pedals(), ['pearl']);
+    await call('sedef_presets_compare', 'switch');
+    await call('sedef_presets_restore', 'undo');
+    const boardUndone = same(await pedals(), startBoard) &&
+      differences(before, await values()).length === 0;
+    const board = { boardSet, presetBoard, boardRestored, boardA, boardB, boardUndone };
+
     const ok = metadata && auditionChanged > 0 && restoreMismatches.length === 0 &&
       restoredPreset && stressMismatches.length === 0 && undoMismatches.length === 0 &&
-      compareMismatches.length === 0 && compare;
+      compareMismatches.length === 0 && compare && Object.values(board).every(Boolean);
     window.__sedefSmokePresets = { ok, metadata, auditionChanged, restoreMismatches,
       restoredPreset, skewed: skewed.length, stressMismatches, undoMismatches, compareMismatches,
-      compare };
+      compare, board };
   })().catch((error) => { window.__sedefSmokePresets = { ok: false, error: String(error) }; });
   return 'started';
 })())js";

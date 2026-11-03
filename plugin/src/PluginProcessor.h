@@ -2,6 +2,7 @@
 #pragma once
 
 #include "AnalysisWorker.h"
+#include "BoardText.h"
 #include "CaptureLibrary.h"
 #include "IrLibrary.h"
 #include "PresetManager.h"
@@ -73,6 +74,13 @@ public:
     double uiScale() const noexcept { return uiScale_.load (std::memory_order_relaxed); }
     void setUiScale (double s) noexcept { uiScale_.store (s, std::memory_order_relaxed); }
 
+    /// The pedalboard (board/Board.h): not a parameter, saved with the session and presets.
+    /// Any thread.
+    Board board() const;
+    void setBoard (const Board& board);
+    /// Bumped whenever the board changes, so the editor can push it.
+    std::atomic<int> boardRevision { 0 };
+
     void setMetronomePattern (const std::array<std::uint8_t, 13>& steps);
     std::array<std::uint8_t, 13> metronomePattern() const;
     /// Registers a tap and returns the new tempo (BPM).
@@ -125,6 +133,7 @@ private:
     };
     std::array<LoadedValue, kNumParams> loaded_ {};
     std::array<std::uint8_t, 13> metronomePattern_ { 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+    Board board_ = Board::legacy(); // guarded by extraLock_, which also serialises engine_.setBoard
     std::atomic<double> uiScale_ { 1.0 };
     std::array<double, 4> taps_ {};
     int numTaps_ = 0;

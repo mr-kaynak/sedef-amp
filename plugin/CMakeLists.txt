@@ -248,6 +248,46 @@ if(SEDEF_UPDATE_CHECK AND SEDEF_BUILD_TOOLS)
             juce::juce_recommended_warning_flags)
 endif()
 
+# --- Plug-in state: unit tests --------------------------------------------------------------------
+# The processor without its editor: session state, presets, snapshots and A/B (the pedalboard).
+
+if(SEDEF_BUILD_PLUGIN_TESTS)
+    CPMAddPackage(
+        NAME Catch2
+        GITHUB_REPOSITORY catchorg/Catch2
+        VERSION 3.16.1)
+
+    juce_add_console_app(sedef_plugin_tests PRODUCT_NAME "sedef_plugin_tests")
+    target_sources(sedef_plugin_tests PRIVATE
+        tests/BoardStateTests.cpp
+        src/PluginProcessor.cpp src/PluginProcessor.h src/PresetManager.cpp src/PresetManager.h
+        src/BoardText.cpp src/BoardText.h src/ParameterLayout.cpp src/ParameterLayout.h
+        src/CaptureLibrary.cpp src/CaptureLibrary.h src/IrLibrary.cpp src/IrLibrary.h
+        src/AnalysisWorker.cpp src/AnalysisWorker.h)
+    target_include_directories(sedef_plugin_tests PRIVATE src)
+    target_compile_definitions(sedef_plugin_tests PRIVATE
+        JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 SEDEF_PLUGIN_TESTS=1)
+    target_link_libraries(sedef_plugin_tests
+        PRIVATE
+            SedefPresetData
+            sedef::engine
+            juce::juce_audio_formats
+            juce::juce_audio_processors
+            juce::juce_audio_utils
+            juce::juce_core
+            juce::juce_cryptography
+            juce::juce_data_structures
+            juce::juce_events
+            Catch2::Catch2WithMain
+        PUBLIC
+            juce::juce_recommended_config_flags
+            juce::juce_recommended_warning_flags)
+
+    list(APPEND CMAKE_MODULE_PATH ${Catch2_SOURCE_DIR}/extras)
+    include(Catch)
+    catch_discover_tests(sedef_plugin_tests DISCOVERY_MODE PRE_TEST TEST_PREFIX "plugin: ")
+endif()
+
 # --- Capture library: unit tests ------------------------------------------------------------------
 # CaptureLibrary (session state, preset references, recent list) against the real engine.
 

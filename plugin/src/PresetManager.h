@@ -98,19 +98,34 @@ public:
 
     static bool isGlobal (ParamId id) noexcept;
 
-    /// Something a preset refers to besides its parameters (the amp capture, CaptureLibrary):
-    /// saved under `key` as whatever `reference (true)` returns (void: nothing), brought back
-    /// on load (`select (ref, false)`), and carried exactly by snapshots and A/B
+    /// Something a preset refers to besides its parameters (the amp capture, CaptureLibrary; the
+    /// pedalboard): saved under `key` as whatever `reference (true)` returns (void: nothing),
+    /// brought back on load (`select (ref, false)`), and carried exactly by snapshots and A/B
     /// (`reference (false)`, `select (ref, true)`). `differs` adds to "dirty".
+    ///
+    /// `resolve`, when given, turns what a preset file holds under `key` (void when the file has
+    /// none) into the reference it stands for, given the file's parameters: a preset saved
+    /// before the pedalboard loads the board that matches its parameters. With `selectOnInit`,
+    /// Init selects what an empty preset resolves to.
     struct Attachment
     {
         juce::String key;
         std::function<juce::var (bool forPreset)> reference;
         std::function<void (const juce::var& ref, bool exact)> select;
         std::function<bool (const juce::var& ref)> differs;
+        std::function<juce::var (const juce::var& stored, const juce::var& parameters)> resolve;
+        bool selectOnInit = false;
     };
-    void setAttachment (Attachment a) { attachment_ = std::move (a); }
+    void addAttachment (Attachment a);
     static juce::File userFolder();
+#if SEDEF_PLUGIN_TESTS
+    /// Where the test build keeps what a release keeps under the user's application data.
+    static juce::File& testRoot()
+    {
+        static juce::File root;
+        return root;
+    }
+#endif
     /// Serialises the current per-preset parameters (used by save and by tests).
     juce::var captureParameters() const;
 
@@ -136,7 +151,7 @@ private:
         juce::String id, name;
         bool dirty = false;
         int generation = 0;
-        juce::var attachment, loadedAttachment;
+        std::vector<juce::var> attachments, loadedAttachments; ///< one each, as attachments_
     };
 
     struct Removed
@@ -154,7 +169,8 @@ private:
     const Entry* find (const juce::String& id) const;
     std::optional<juce::var> read (const Entry& e) const;
     void apply (const juce::var& parameters);
-    static void describe (Entry& e, const juce::var& parameters);
+    /// The browser's summary of a preset file: amp, cab, and what it switches on.
+    static void describe (Entry& e, const juce::var& preset);
     Snapshot capture() const;
     bool restore (const Snapshot& s);
     /// The current-preset bookkeeping for a session the host restored (the values are its own).
@@ -185,8 +201,11 @@ private:
     juce::String currentId_;
     juce::String currentName_ { "Init" };
     std::map<ParamId, float> loadedValues_;
-    Attachment attachment_;
-    juce::var loadedAttachment_; ///< what the current preset's attachment was when loaded or saved
+    std::vector<Attachment> attachments_;
+    /// What the current preset's attachments were when loaded or saved, one each.
+    std::vector<juce::var> loadedAttachments_;
+    /// What a preset file's attachment stands for (Attachment::resolve).
+    juce::var resolved (const Attachment& a, const juce::var& file) const;
 
     std::array<std::optional<Snapshot>, 2> slots_;
     std::optional<Snapshot> compareOther_;

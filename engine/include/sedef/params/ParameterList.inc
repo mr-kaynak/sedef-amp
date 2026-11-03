@@ -167,6 +167,6 @@ SEDEF_PARAM(urchinTone, "Urchin Tone", "Urchin", Float, 0.0f, 1.0f, 0.5f, 1.0f, 
 SEDEF_PARAM(urchinLevel, "Urchin Level", "Urchin", Float, 0.0f, 1.0f, 0.5f, 1.0f, "knob", "", true)
 SEDEF_PARAM(trenchEnabled, "Trench", "Trench", Bool, 0.0f, 1.0f, 0.0f, 1.0f, "", "", true)
 SEDEF_PARAM(trenchDirect, "Trench Direct", "Trench", Float, 0.0f, 1.0f, 0.5f, 1.0f, "knob", "", true)
-SEDEF_PARAM(trenchSub1, "Trench Sub 1", "Trench", Float, 0.0f, 1.0f, 0.5f, 1.0f, "knob", "", true)
-SEDEF_PARAM(trenchSub2, "Trench Sub 2", "Trench", Float, 0.0f, 1.0f, 0.0f, 1.0f, "knob", "", true)
+SEDEF_PARAM(trenchSub1, "Trench Sub -1", "Trench", Float, 0.0f, 1.0f, 0.5f, 1.0f, "knob", "", true)
+SEDEF_PARAM(trenchSub2, "Trench Sub -2", "Trench", Float, 0.0f, 1.0f, 0.0f, 1.0f, "knob", "", true)
 SEDEF_PARAM(trenchTone, "Trench Tone", "Trench", Float, 0.0f, 1.0f, 0.5f, 1.0f, "knob", "", true)

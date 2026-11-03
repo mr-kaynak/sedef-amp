@@ -161,8 +161,8 @@
     {"id": "urchinLevel", "name": "Urchin Level", "group": "Urchin", "kind": "float", "min": 0, "max": 1, "default": 0.5, "skew": 1, "unit": "knob", "automatable": true, "choices": []},
     {"id": "trenchEnabled", "name": "Trench", "group": "Trench", "kind": "bool", "min": 0, "max": 1, "default": 0, "skew": 1, "unit": "", "automatable": true, "choices": []},
     {"id": "trenchDirect", "name": "Trench Direct", "group": "Trench", "kind": "float", "min": 0, "max": 1, "default": 0.5, "skew": 1, "unit": "knob", "automatable": true, "choices": []},
-    {"id": "trenchSub1", "name": "Trench Sub 1", "group": "Trench", "kind": "float", "min": 0, "max": 1, "default": 0.5, "skew": 1, "unit": "knob", "automatable": true, "choices": []},
-    {"id": "trenchSub2", "name": "Trench Sub 2", "group": "Trench", "kind": "float", "min": 0, "max": 1, "default": 0, "skew": 1, "unit": "knob", "automatable": true, "choices": []},
+    {"id": "trenchSub1", "name": "Trench Sub -1", "group": "Trench", "kind": "float", "min": 0, "max": 1, "default": 0.5, "skew": 1, "unit": "knob", "automatable": true, "choices": []},
+    {"id": "trenchSub2", "name": "Trench Sub -2", "group": "Trench", "kind": "float", "min": 0, "max": 1, "default": 0, "skew": 1, "unit": "knob", "automatable": true, "choices": []},
     {"id": "trenchTone", "name": "Trench Tone", "group": "Trench", "kind": "float", "min": 0, "max": 1, "default": 0.5, "skew": 1, "unit": "knob", "automatable": true, "choices": []}
   ]
 }

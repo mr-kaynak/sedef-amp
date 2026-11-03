@@ -56,12 +56,13 @@
   font-size: var(--t-10);
 }
 
+/* Signal order, left to right: Trench, Tide, Urchin, Pearl, Kelp, Coral, Ripple. */
 .board {
   flex: 1;
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  gap: 30px;
+  gap: 14px;
   padding-top: 2px;
 }
 

@@ -2,8 +2,9 @@
 // Still frames of real UI states for the product film: the 1200x760 canvas at 3x (3600x2280),
 // rendered from dist/ against the frozen mock. Every state comes from URL flags (?set=, ?preset=)
 // or the ?demo hook, so frames in a sequence differ only in what the sequence animates.
-//   pnpm build && pnpm captures [--out <dir>] [name ...]
-// Default output: <repo>/media/trailer/assets/shots. The lacquer grain is turned off (?grain=0):
+//   pnpm build && pnpm captures [--out <dir>] [--scale <factor>] [name ...]
+// Default output: <repo>/media/trailer/assets/shots, at 3x. --scale 0.75 and --scale 1 show the
+// canvas as the plugin draws it at its smallest and default window sizes. The lacquer grain is turned off (?grain=0):
 // it is invisible at video resolution and makes every PNG several times larger.
 import { mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -17,12 +18,18 @@ const outFlag = args.indexOf('--out');
 const outDir = resolve(
   outFlag >= 0 ? args[outFlag + 1] : resolve(root, '../media/trailer/assets/shots'),
 );
-// Without --out, outFlag + 1 is 0: don't let that drop the first name.
-const wanted = args.filter((a, i) => outFlag < 0 || (i !== outFlag && i !== outFlag + 1));
+const scaleFlag = args.indexOf('--scale');
+const scale = scaleFlag >= 0 ? Number(args[scaleFlag + 1]) : 3;
+if (!(scale > 0)) throw new Error('--scale needs a positive number');
+// A flag's value is not a capture name.
+const flagged = new Set([outFlag, scaleFlag].filter((i) => i >= 0).flatMap((i) => [i, i + 1]));
+const wanted = args.filter((_, i) => !flagged.has(i));
 mkdirSync(outDir, { recursive: true });
 
 const BASE = 'fresh&freeze&demo&grain=0&host=standalone';
-const PEDALS_OFF = 'tideEnabled:0,pearlEnabled:0,coralEnabled:0,rippleEnabled:0';
+const PEDALS = ['trench', 'tide', 'urchin', 'pearl', 'kelp', 'coral', 'ripple'];
+const PEDALS_OFF = PEDALS.map((p) => `${p}Enabled:0`).join(',');
+const PEDALS_ON = PEDALS.map((p) => `${p}Enabled:1`).join(',');
 // The 4x12 with Mic A at 9 o'clock (azimuth -90°): its five positions lie on one horizontal line
 // from the dust cap to the cone's edge, so the film's drag is a straight sweep across the cone.
 const CAB = 'section=cab&set=ampCabLink:0,cabModel:2,micAAzimuth:-90,micADistance:0.15';
@@ -50,6 +57,7 @@ const result = (cents) => ({
 /** name -> [query, prepare?, screenshot options?] */
 const SHOTS = {
   'pedals-off': [`section=pedals&set=${PEDALS_OFF}`],
+  'pedals-all-on': [`section=pedals&set=${PEDALS_ON}`],
   'pedals-pearl-on': [`section=pedals&set=${PEDALS_OFF},pearlEnabled:1`],
   ...Object.fromEntries(
     [0.2, 0.4, 0.6, 0.8].map((gain, i) => [
@@ -152,7 +160,7 @@ const SHOTS = {
 };
 
 const names = wanted.length ? wanted : Object.keys(SHOTS);
-const session = await startSession(root, { scale: 3 });
+const session = await startSession(root, { scale });
 try {
   for (const name of names) {
     const shot = SHOTS[name];

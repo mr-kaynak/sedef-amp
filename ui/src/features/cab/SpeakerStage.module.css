@@ -38,10 +38,15 @@
   stroke: rgb(0 0 0 / 0.5);
 }
 
-.scaleText {
-  fill: var(--bone-3);
-  font-size: 10px;
-  text-anchor: middle;
+/* Clicking the cone brings the selected mic there. */
+.pad {
+  fill: transparent;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.pad[data-dragging] {
+  cursor: grabbing;
 }
 
 .marker {
@@ -54,9 +59,10 @@
   cursor: grabbing;
 }
 
-.lane {
-  stroke: rgb(237 230 214 / 0.14);
-  stroke-dasharray: 2 4;
+/* An impulse response holds its own placement: the marker only shows where it was left. */
+.marker[data-ir] {
+  cursor: default;
+  pointer-events: none;
 }
 
 .hit {
@@ -82,11 +88,28 @@
   pointer-events: none;
 }
 
+/* The mic body seen from the front, leaning out as the capsule turns towards the dust cap. */
+.stem {
+  stroke-width: 3;
+  stroke-linecap: round;
+  opacity: 0.75;
+  pointer-events: none;
+}
+
+.angle {
+  fill: var(--bone-2);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  text-anchor: middle;
+  pointer-events: none;
+}
+
 .marker[data-mic='A'] .dot {
   fill: var(--nacre-aqua);
 }
 
-.marker[data-mic='A'] .ring {
+.marker[data-mic='A'] .ring,
+.marker[data-mic='A'] .stem {
   stroke: var(--nacre-aqua);
 }
 
@@ -94,7 +117,8 @@
   fill: var(--nacre-rose);
 }
 
-.marker[data-mic='B'] .ring {
+.marker[data-mic='B'] .ring,
+.marker[data-mic='B'] .stem {
   stroke: var(--nacre-rose);
 }
 
@@ -102,9 +126,69 @@
   opacity: 0.35;
 }
 
+.marker[data-ir] .dot {
+  fill: var(--ink-1);
+  stroke-width: 1.5;
+}
+
+.marker[data-mic='A'][data-ir] .dot {
+  stroke: var(--nacre-aqua);
+}
+
+.marker[data-mic='B'][data-ir] .dot {
+  stroke: var(--nacre-rose);
+}
+
+.marker[data-mic='A'][data-ir] .letter {
+  fill: var(--nacre-aqua);
+}
+
+.marker[data-mic='B'][data-ir] .letter {
+  fill: var(--nacre-rose);
+}
+
+/* The mic a click on the cone moves. */
+.marker[data-selected] .dot {
+  stroke: rgb(237 230 214 / 0.7);
+  stroke-width: 1.5;
+}
+
 .marker:focus-visible .dot {
   stroke: var(--bone);
   stroke-width: 2.5;
+}
+
+/* Where the miked speaker sits among the others (2x12, 4x12). */
+.map {
+  pointer-events: none;
+}
+
+.mapBox {
+  fill: #0f1a21;
+  stroke: rgb(237 230 214 / 0.25);
+}
+
+.mapSpeaker {
+  fill: #1b2a33;
+  stroke: rgb(237 230 214 / 0.2);
+}
+
+.mapMiked {
+  fill: #1b2a33;
+  stroke: var(--bone-3);
+  stroke-width: 1.2;
+}
+
+.mapMic[data-mic='A'] {
+  fill: var(--nacre-aqua);
+}
+
+.mapMic[data-mic='B'] {
+  fill: var(--nacre-rose);
+}
+
+.mapMic[data-off] {
+  opacity: 0.4;
 }
 
 .caption {

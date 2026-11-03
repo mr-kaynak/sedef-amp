@@ -152,3 +152,7 @@ SEDEF_PARAM(captureInput, "Capture Input", "Capture", Float, -24.0f, 24.0f, 0.0f
 SEDEF_PARAM(captureOutput, "Capture Output", "Capture", Float, -24.0f, 24.0f, 0.0f, 1.0f, "dB", "", true)
 SEDEF_PARAM(captureCab, "Capture Through Cab", "Capture", Bool, 0.0f, 1.0f, 1.0f, 1.0f, "", "", true)
 SEDEF_PARAM(captureInterfaceLevel, "Interface Level", "Capture", Float, -10.0f, 30.0f, 12.0f, 1.0f, "dBu", "", false)
+SEDEF_PARAM(micAAzimuth, "Mic A Azimuth", "Mic A", Float, -180.0f, 180.0f, 60.0f, 1.0f, "deg", "", true)
+SEDEF_PARAM(micAOffAxis, "Mic A Off-Axis", "Mic A", Float, 0.0f, 60.0f, 0.0f, 1.0f, "deg", "", true)
+SEDEF_PARAM(micBAzimuth, "Mic B Azimuth", "Mic B", Float, -180.0f, 180.0f, 120.0f, 1.0f, "deg", "", true)
+SEDEF_PARAM(micBOffAxis, "Mic B Off-Axis", "Mic B", Float, 0.0f, 60.0f, 0.0f, 1.0f, "deg", "", true)

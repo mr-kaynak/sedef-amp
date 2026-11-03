@@ -89,7 +89,7 @@ TEST_CASE ("CabSim benchmark", "[.bench]")
         s.mics[0].position = 0.5f;
         cab.setSettings (s);
         cab.reset();
-        // Continuous automation of position and distance on both mics.
+        // Continuous automation of the whole pose: around the cone, across, back and turning.
         ScopedNoDenormals noDenormals;
         std::vector<float> x (static_cast<size_t> (block), 0.1f);
         Buffer out (2, block);
@@ -99,14 +99,16 @@ TEST_CASE ("CabSim benchmark", "[.bench]")
         {
             const float t = static_cast<float> (b) / 300.0f;
             s.mics[0].position = 0.5f + 0.5f * std::sin (t);
+            s.mics[0].azimuthDeg = 90.0f * t;
             s.mics[1].distance = 0.5f + 0.5f * std::sin (1.3f * t);
+            s.mics[1].offAxisDeg = 30.0f + 30.0f * std::sin (0.7f * t);
             cab.setSettings (s);
             cab.process (x.data(), out.view());
         }
         const auto ns =
             std::chrono::duration<double, std::nano> (std::chrono::steady_clock::now() - start)
                 .count();
-        report ("2 procedural mics + rooms, automating",
+        report ("2 procedural mics + rooms, automating the pose",
                 ns / (static_cast<double> (blocks) * block), fs);
     }
     {

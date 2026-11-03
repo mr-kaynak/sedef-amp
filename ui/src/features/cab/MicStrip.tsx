@@ -78,10 +78,18 @@ export function MicStrip({ mic, cab }: { mic: 'A' | 'B'; cab: number }) {
         <Toggle param={`mic${mic}Phase`} label="Invert phase" />
       </header>
       <ChoiceSelect param={typeId} ariaLabel={`Mic ${mic} type`} className={styles.type} />
-      {isCustom && <IrSlot mic={mic === 'A' ? 0 : 1} cab={cab} />}
+      {isCustom && (
+        <>
+          <IrSlot mic={mic === 'A' ? 0 : 1} cab={cab} />
+          <p className={styles.irNote}>
+            The impulse response holds its own position and distance. Off-axis still turns the mic.
+          </p>
+        </>
+      )}
       <div className={styles.knobs}>
-        <Knob param={`mic${mic}Position`} label="Position" size="sm" />
-        <Knob param={`mic${mic}Distance`} label="Distance" size="sm" />
+        <Knob param={`mic${mic}Position`} label="Position" size="sm" disabled={isCustom} />
+        <Knob param={`mic${mic}Distance`} label="Distance" size="sm" disabled={isCustom} />
+        <Knob param={`mic${mic}OffAxis`} label="Off-axis" size="sm" />
         <Knob param={`mic${mic}Level`} label="Level" size="sm" />
         <Knob param={`mic${mic}Pan`} label="Pan" size="sm" />
         <div className={styles.room}>

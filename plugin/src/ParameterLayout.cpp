@@ -141,7 +141,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
 
         const juce::ParameterID id { toJuce (spec.id), 1 };
         const auto name = toJuce (spec.name);
-        const auto label = spec.unit == "knob" ? juce::String() : toJuce (spec.unit);
+        // Knobs read 0-10 and angles carry their degree sign in the text.
+        const auto label =
+            spec.unit == "knob" || spec.unit == "deg" ? juce::String() : toJuce (spec.unit);
 
         switch (spec.kind)
         {

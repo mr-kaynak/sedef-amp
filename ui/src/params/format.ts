@@ -71,6 +71,8 @@ export function formatValue(spec: ParamSpec, value: number): string {
       return `${Math.abs(value - Math.round(value)) < 0.05 ? Math.round(value) : value.toFixed(1)} bpm`;
     case 'knob':
       return (value * 10).toFixed(1);
+    case 'deg':
+      return `${signed(Math.round(value), 0).replace('+', '')}°`;
     default:
       return spec.kind === 'int' ? String(Math.round(value)) : value.toFixed(2);
   }

@@ -28,7 +28,7 @@ struct ParamSpec
     float max;
     float defaultValue;
     float skew;               ///< JUCE NormalisableRange skew: norm = proportion^skew
-    std::string_view unit;    ///< "dB", "Hz", "ms", "s", "st", "%", "bpm", "knob" or empty
+    std::string_view unit;    ///< "dB", "Hz", "ms", "s", "st", "%", "bpm", "deg", "knob" or empty
     std::string_view choices; ///< '|'-separated labels for Choice parameters
     bool automatable;
 

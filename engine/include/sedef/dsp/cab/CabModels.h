@@ -2,7 +2,9 @@
 #pragma once
 
 #include "sedef/core/Biquad.h"
+#include "sedef/core/Math.h"
 
+#include <algorithm>
 #include <array>
 #include <complex>
 #include <cstdint>
@@ -30,102 +32,96 @@ struct Stage
 
 namespace detail
 {
-inline void runStage (Stage& st, float* buf, int n) noexcept
+/// N stages in one pass. Each stage's recursion is latency-bound; interleaving them lets the CPU
+/// overlap them (stage k at sample n+1 runs alongside stage k+1 at sample n). With Ramp, stages
+/// that glide interpolate their coefficients per sample, landing exactly on the target (the
+/// others get zero steps). States are flushed to zero at the end of the block, so a decaying tail
+/// never runs through subnormal values even without flush-to-zero.
+template <int N, bool Ramp>
+inline void runFused (Stage* st, float* buf, int n) noexcept
 {
-    float s1 = st.s1, s2 = st.s2;
-    if (!st.ramp)
+    BiquadCoeffs c[N], d[N];
+    float s1[N], s2[N];
+    const float inv = 1.0f / static_cast<float> (n);
+    for (int k = 0; k < N; ++k)
     {
-        const BiquadCoeffs c = st.c;
-        for (int i = 0; i < n; ++i)
+        c[k] = st[k].c;
+        s1[k] = st[k].s1;
+        s2[k] = st[k].s2;
+        if constexpr (Ramp)
         {
-            const float x = buf[i];
-            const float y = c.b0 * x + s1;
-            s1 = c.b1 * x - c.a1 * y + s2;
-            s2 = c.b2 * x - c.a2 * y;
-            buf[i] = y;
+            const BiquadCoeffs& t = st[k].ramp ? st[k].target : st[k].c;
+            d[k] = { (t.b0 - c[k].b0) * inv, (t.b1 - c[k].b1) * inv, (t.b2 - c[k].b2) * inv,
+                     (t.a1 - c[k].a1) * inv, (t.a2 - c[k].a2) * inv };
         }
     }
-    else
-    {
-        // Linear per-sample coefficient interpolation, landing exactly on the target.
-        BiquadCoeffs c = st.c;
-        const float inv = 1.0f / static_cast<float> (n);
-        const BiquadCoeffs d { (st.target.b0 - c.b0) * inv, (st.target.b1 - c.b1) * inv,
-                               (st.target.b2 - c.b2) * inv, (st.target.a1 - c.a1) * inv,
-                               (st.target.a2 - c.a2) * inv };
-        for (int i = 0; i < n; ++i)
-        {
-            c.b0 += d.b0;
-            c.b1 += d.b1;
-            c.b2 += d.b2;
-            c.a1 += d.a1;
-            c.a2 += d.a2;
-            const float x = buf[i];
-            const float y = c.b0 * x + s1;
-            s1 = c.b1 * x - c.a1 * y + s2;
-            s2 = c.b2 * x - c.a2 * y;
-            buf[i] = y;
-        }
-        st.c = st.target;
-        st.ramp = false;
-    }
-    st.s1 = s1;
-    st.s2 = s2;
-}
-
-/// Four static stages in one pass. Each stage's recursion is latency-bound; interleaving four
-/// lets the CPU overlap them (stage k at sample n+1 runs alongside stage k+1 at sample n).
-inline void runFourStages (Stage* st, float* buf, int n) noexcept
-{
-    const BiquadCoeffs c0 = st[0].c, c1 = st[1].c, c2 = st[2].c, c3 = st[3].c;
-    float a1 = st[0].s1, a2 = st[0].s2, b1 = st[1].s1, b2 = st[1].s2;
-    float d1 = st[2].s1, d2 = st[2].s2, e1 = st[3].s1, e2 = st[3].s2;
     for (int i = 0; i < n; ++i)
     {
-        const float x0 = buf[i];
-        const float y0 = c0.b0 * x0 + a1;
-        a1 = c0.b1 * x0 - c0.a1 * y0 + a2;
-        a2 = c0.b2 * x0 - c0.a2 * y0;
-        const float y1 = c1.b0 * y0 + b1;
-        b1 = c1.b1 * y0 - c1.a1 * y1 + b2;
-        b2 = c1.b2 * y0 - c1.a2 * y1;
-        const float y2 = c2.b0 * y1 + d1;
-        d1 = c2.b1 * y1 - c2.a1 * y2 + d2;
-        d2 = c2.b2 * y1 - c2.a2 * y2;
-        const float y3 = c3.b0 * y2 + e1;
-        e1 = c3.b1 * y2 - c3.a1 * y3 + e2;
-        e2 = c3.b2 * y2 - c3.a2 * y3;
-        buf[i] = y3;
+        float x = buf[i];
+        for (int k = 0; k < N; ++k)
+        {
+            if constexpr (Ramp)
+            {
+                c[k].b0 += d[k].b0;
+                c[k].b1 += d[k].b1;
+                c[k].b2 += d[k].b2;
+                c[k].a1 += d[k].a1;
+                c[k].a2 += d[k].a2;
+            }
+            const float y = c[k].b0 * x + s1[k];
+            s1[k] = c[k].b1 * x - c[k].a1 * y + s2[k];
+            s2[k] = c[k].b2 * x - c[k].a2 * y;
+            x = y;
+        }
+        buf[i] = x;
     }
-    st[0].s1 = a1;
-    st[0].s2 = a2;
-    st[1].s1 = b1;
-    st[1].s2 = b2;
-    st[2].s1 = d1;
-    st[2].s2 = d2;
-    st[3].s1 = e1;
-    st[3].s2 = e2;
+    for (int k = 0; k < N; ++k)
+    {
+        st[k].s1 = flushToZero (s1[k]);
+        st[k].s2 = flushToZero (s2[k]);
+        if constexpr (Ramp)
+        {
+            if (st[k].ramp)
+            {
+                st[k].c = st[k].target;
+                st[k].ramp = false;
+            }
+        }
+    }
+}
+
+template <int N>
+inline void runGroup (Stage* st, float* buf, int n) noexcept
+{
+    bool ramp = false;
+    for (int k = 0; k < N; ++k)
+        ramp = ramp || st[k].ramp;
+    if (ramp)
+        runFused<N, true> (st, buf, n);
+    else
+        runFused<N, false> (st, buf, n);
 }
 } // namespace detail
 
-/// Runs `count` cascaded stages over buf[0..n) in place. Ramping stages interpolate their
-/// coefficients per sample (see Stage::rampTo).
+/// Runs `count` cascaded stages over buf[0..n) in place, fused in groups of up to four. Gliding
+/// stages interpolate their coefficients per sample (see Stage::rampTo).
 inline void runStages (Stage* stages, int count, float* buf, int n) noexcept
 {
-    int s = 0;
-    while (s < count)
+    // Every group is no larger than the stages left, by the test that picks it. Five split 3 + 2
+    // rather than leaving a lone one.
+    while (count > 0)
     {
-        if (s + 4 <= count &&
-            !(stages[s].ramp || stages[s + 1].ramp || stages[s + 2].ramp || stages[s + 3].ramp))
-        {
-            detail::runFourStages (stages + s, buf, n);
-            s += 4;
-        }
+        const int group = count >= 4 && count != 5 ? 4 : std::min (count, 3);
+        if (group == 4)
+            detail::runGroup<4> (stages, buf, n);
+        else if (group == 3)
+            detail::runGroup<3> (stages, buf, n);
+        else if (group == 2)
+            detail::runGroup<2> (stages, buf, n);
         else
-        {
-            detail::runStage (stages[s], buf, n);
-            ++s;
-        }
+            detail::runGroup<1> (stages, buf, n);
+        stages += group;
+        count -= group;
     }
 }
 
@@ -151,9 +147,11 @@ BiquadCoeffs designFilter (const FilterSpec& f, double sampleRate) noexcept;
 inline constexpr int kMaxBodyStages = 10;
 inline constexpr int kMaxMicStages = 4;
 inline constexpr int kPositionStages = 3; // presence peak, edge roll-off, edge warmth
-inline constexpr int kDistanceStages = 2; // proximity shelf, air shelf
-inline constexpr int kMaxStages =
-    kMaxBodyStages + kPositionStages + kMaxMicStages + kDistanceStages;
+/// Position, then proximity and air: what only the miked cone's sound gets.
+inline constexpr int kNearStages = kPositionStages + 2;
+inline constexpr int kOffAxisStages = 2; // presence fade, off-axis treble shelf
+inline constexpr int kMaxStages = kMaxBodyStages + kNearStages + kMaxMicStages + kOffAxisStages;
+inline constexpr int kMaxNeighbours = 3; // the other speakers of a 4x12
 
 /// Speaker + cabinet: the response at the reference mic position, then what moving the mic across
 /// the cone changes.
@@ -178,6 +176,12 @@ struct CabModel
     float edgeWarmthDb = 1.5f;
 
     float speakerHeightM = 0.3f; ///< speaker centre above the floor (floor bounce geometry)
+
+    /// Centres of the other speakers on the baffle, relative to the miked one, in metres (front
+    /// view: x to the right, y up). The miked speaker is the left one of the 2x12 and the
+    /// bottom-left one of the 4x12.
+    std::array<std::array<float, 2>, kMaxNeighbours> neighbours {};
+    int numNeighbours = 0;
 };
 
 struct MicModel
@@ -186,23 +190,75 @@ struct MicModel
     int numEq = 0;
     float proximityDb = 0.0f; ///< bass boost on the grille (0 for an omni)
     float proximityHz = 160.0f;
+
+    /// Polar pattern A + (1 - A) cos(angle): 1 omni, 0.5 cardioid, 0.37 supercardioid,
+    /// 0 figure-of-eight (whose rear lobe is inverted).
+    float polar = 0.5f;
+    /// Off axis: the on-axis presence peak fades and a treble shelf grows. Both are given at
+    /// 60 degrees and scale with sin^2 of the angle (see offAxisAmount).
+    float presenceHz = 5000.0f;
+    float presenceQ = 1.0f;
+    float presenceDb = 0.0f;
+    float offAxisHz = 4000.0f;
+    float offAxisDb = 0.0f;
 };
 
 const CabModel& cabModel (int cab) noexcept;
 const MicModel& micModel (int type) noexcept;
 
-/// What the distance knob means physically.
+/// Where a capsule sits and how it is aimed. Front view of the miked speaker in cone radii: x to
+/// the right, y up, so hypot (x, y) is the position knob (0 dust cap, 1 cone edge).
+struct MicPose
+{
+    float x = 0.0f;
+    float y = 0.0f;
+    float distance = 0.0f;   ///< 0 on the grille .. 1 far
+    float offAxisDeg = 0.0f; ///< capsule tilt towards the dust cap, 0..60 degrees
+
+    float position() const noexcept;
+    /// azimuthDeg runs clockwise from 12 o'clock as you face the cab.
+    static MicPose polar (float position, float azimuthDeg, float distance,
+                          float offAxisDeg) noexcept;
+    bool operator== (const MicPose&) const = default;
+};
+
+inline constexpr float kMaxOffAxisDeg = 60.0f;
+inline constexpr float kConeRadiusM = 0.12f; ///< effective piston radius; position 1 sits here
+
+/// One of the other speakers as the capsule hears it, relative to the direct sound.
+struct Bleed
+{
+    float delaySec = 0.0f;     ///< extra path over the direct sound
+    float gain = 0.0f;         ///< level relative to the direct sound (signed: polar rear lobe)
+    float lowpassHz = 1000.0f; ///< the neighbour seen off its axis beams its treble away
+};
+
+/// What the pose means physically.
 struct Placement
 {
     float arrivalSec = 0.0f; ///< extra time of flight relative to the grille
     float bounceSec = 0.0f;  ///< floor bounce arrival, same reference
     float bounceGain = 0.0f; ///< floor bounce level relative to the direct sound
-    float levelGain = 1.0f;  ///< small level falloff
+    float levelGain = 1.0f;  ///< small level falloff with distance, times the polar gain off axis
     float proximityDb = 0.0f;
     float airDb = 0.0f;
+    float presenceCutDb = 0.0f; ///< off axis: the capsule's presence peak fading
+    float offAxisShelfDb = 0.0f;
+    std::array<Bleed, kMaxNeighbours> bleed {};
+    int numBleed = 0;
+    /// Low shelf on the neighbours' sum: their gains above are held under the miked cone (see
+    /// placement()), the shelf gives the low end back, where they cannot cancel it.
+    float bleedShelfHz = 100.0f;
+    float bleedShelfDb = 0.0f;
 };
 
-Placement placement (const CabModel& cab, const MicModel& mic, float distance) noexcept;
+Placement placement (const CabModel& cab, const MicModel& mic, const MicPose& pose) noexcept;
+
+/// 0 on axis, 1 at 60 degrees: sin^2 of the angle, like the first-order loss of a receiving
+/// piston (2 J1(x) / x ~ 1 - x^2 / 8 with x proportional to sin angle).
+float offAxisAmount (float offAxisDeg) noexcept;
+/// Polar gain A + (1 - A) cos(angle) of a mic at that angle.
+float polarGain (const MicModel& mic, float angleDeg) noexcept;
 
 inline constexpr float kBounceLpHz = 1800.0f;
 inline constexpr float kAirShelfHz = 7000.0f;
@@ -211,20 +267,33 @@ inline constexpr float kAirShelfHz = 7000.0f;
 int designBodyStages (const CabModel& cab, double sampleRate, Stage* out) noexcept;
 void designPositionStages (const CabModel& cab, float position, double sampleRate,
                            Stage* out) noexcept;
-int designMicStages (const MicModel& mic, double sampleRate, Stage* out) noexcept;
-void designDistanceStages (const MicModel& mic, const Placement& p, double sampleRate,
+void designProximityStage (const MicModel& mic, const Placement& p, double sampleRate,
                            Stage* out) noexcept;
+int designMicStages (const MicModel& mic, double sampleRate, Stage* out) noexcept;
+void designOffAxisStages (const MicModel& mic, const Placement& p, double sampleRate,
+                          Stage* out) noexcept;
+void designAirStage (const Placement& p, double sampleRate, Stage* out) noexcept;
+BiquadCoeffs designBleedFilter (const Bleed& b, double sampleRate) noexcept;
+BiquadCoeffs designBleedShelf (const Placement& p, double sampleRate) noexcept;
+
+/// The capsule a custom IR was presumably recorded with: its off-axis model is what the angle
+/// control applies after an IR (the IR itself already holds position and distance).
+inline constexpr int kIrCapsuleType = 0;
 
 /// One-pole low-pass coefficient: y += a (x - y).
 float onePoleCoeff (double hz, double sampleRate) noexcept;
 
 /// Complex response of a procedural voice before level normalisation. With bodyOnly, only the
 /// speaker + cabinet part (what the room mic hears) is evaluated.
-std::complex<double> voiceResponse (int cab, int type, float position, float distance,
-                                    double sampleRate, double hz, bool bodyOnly = false) noexcept;
+std::complex<double> voiceResponse (int cab, int type, const MicPose& pose, double sampleRate,
+                                    double hz, bool bodyOnly = false) noexcept;
 
-/// Gains that bring every procedural (cab, mic) voice, measured at position 0.5 and distance 0, to
-/// a loudness index of 0 dB (see loudnessIndexDb). Non-real-time.
+/// The pose every procedural voice is normalised at: position 0.5 at mic A's default 2 o'clock,
+/// on the grille, on axis.
+MicPose referencePose() noexcept;
+
+/// Gains that bring every procedural (cab, mic) voice, measured at the reference pose, to a
+/// loudness index of 0 dB (see loudnessIndexDb). Non-real-time.
 struct Calibration
 {
     std::array<std::array<float, 10>, 3> voice {};

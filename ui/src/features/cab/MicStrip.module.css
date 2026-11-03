@@ -92,3 +92,10 @@
 .irEmpty {
   color: var(--bone-3);
 }
+
+.irNote {
+  margin: -4px 0 0;
+  color: var(--bone-3);
+  font-size: var(--t-11);
+  line-height: 1.45;
+}

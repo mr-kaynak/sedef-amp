@@ -108,7 +108,10 @@ export function PedalsSection() {
         </div>
       </div>
 
+      {/* Left to right in signal order: the filters before the drives, the modulation after. */}
       <div className={styles.board} onWheel={scrollBoard}>
+        <AnemonePedal />
+        <ConchPedal />
         <Pedal
           name="Tide"
           kind="Compressor"
@@ -132,6 +135,9 @@ export function PedalsSection() {
           <Knob param="coralCut" label="Cut" />
           <Knob param="coralLevel" label="Level" className={styles.span2} />
         </Pedal>
+        <BeaconPedal />
+        <GyrePedal />
+        <JettyPedal />
         <Pedal
           name="Ripple"
           kind="Modulation"
@@ -148,12 +154,6 @@ export function PedalsSection() {
           <Knob param="rippleSpeed" label="Speed" />
           <Knob param="rippleDepth" label="Depth" />
         </Pedal>
-        {/* mods lane: until the pedalboard orders them, they follow the original four. */}
-        <AnemonePedal />
-        <ConchPedal />
-        <BeaconPedal />
-        <GyrePedal />
-        <JettyPedal />
       </div>
     </div>
   );

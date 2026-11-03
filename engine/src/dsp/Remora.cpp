@@ -50,7 +50,9 @@ constexpr double kServoStrength = 1.0;
 
 constexpr double kGainRampSeconds = 0.03;
 constexpr double kKnobSmoothingSeconds = 0.02;
-constexpr double kMaterialSmoothingSeconds = 0.01;
+// The germanium/silicon switch morphs between the two over this time: gain, bias servo and
+// curves change together, slowly enough not to thump.
+constexpr double kMaterialMorphSeconds = 0.05;
 
 double logLerp (double a, double b, double t) noexcept
 {
@@ -161,7 +163,7 @@ void Remora::prepare (const ProcessSpec& spec)
     outputGain_.reset (sampleRate_, kGainRampSeconds);
     guitarKnob_.reset (sampleRate_, kKnobSmoothingSeconds);
     biasKnob_.reset (sampleRate_, kKnobSmoothingSeconds);
-    materialKnob_.reset (sampleRate_, kMaterialSmoothingSeconds);
+    materialKnob_.reset (sampleRate_, kMaterialMorphSeconds);
 
     dcBlock_.setCoeffs (design::highpass1 (sampleRate_, kDcBlockHz));
     fizzLp_.setCoeffs (design::lowpass (sampleRate_, kFizzHz, kFizzQ));

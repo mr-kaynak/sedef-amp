@@ -205,9 +205,9 @@ public:
         const double tHi = 1.0 - edge;
         const double wHi =
             std::log1p (s.xs * tHi) + s.g * s.xs * tHi + s.kappa * s.xs * (rHi - tHi);
-        uLo_ = warp (wLo);
-        du_ = (warp (wHi) - uLo_) / (kNodes - 1);
-        invDu_ = 1.0 / du_;
+        // Half the nodes on each side, with one exactly at w = 0 so silence stays silence.
+        invDuNeg_ = kZeroNode / -warp (wLo);
+        invDuPos_ = (kNodes - 1 - kZeroNode) / warp (wHi);
 
         w_.assign (kNodes, 0.0);
         x_.assign (kNodes, 0.0);
@@ -218,9 +218,11 @@ public:
         for (int k = 0; k < kNodes; ++k)
         {
             const auto i = static_cast<size_t> (k);
-            const double u = uLo_ + k * du_;
+            const double u =
+                k < kZeroNode ? (k - kZeroNode) / invDuNeg_ : (k - kZeroNode) / invDuPos_;
             w_[i] = (u < 0.0 ? negScale_ : posScale_) * u / (1.0 - std::abs (u));
-            p = bjt::solve (s, w_[i], p, wPrev);
+            p = k == kZeroNode ? BjtPoint { 0.0, 0.0, 0.0, 1.0, 1.0 + s.g }
+                               : bjt::solve (s, w_[i], p, wPrev);
             wPrev = w_[i];
             x_[i] = p.x;
             slope_[i] = 1.0 / driveSlope (s, p.x);
@@ -232,7 +234,8 @@ public:
     /// x(w) and its running integral. Real-time safe.
     Value at (double w) const noexcept
     {
-        const double pos = (warp (w) - uLo_) * invDu_;
+        const double u = warp (w);
+        const double pos = kZeroNode + u * (u < 0.0 ? invDuNeg_ : invDuPos_);
         if (!(pos > 0.0))
             return { x_.front(), x_.front() * (w - w_.front()) };
         if (pos >= kNodes - 1)
@@ -279,7 +282,8 @@ private:
                     (t3 - 0.5 * t4) * x_[i + 1] + (0.25 * t4 - t3 / 3.0) * h * slope_[i + 1]);
     }
 
-    double negScale_ = 1.0, posScale_ = 1.0, uLo_ = 0.0, du_ = 1.0, invDu_ = 1.0;
+    static constexpr int kZeroNode = kNodes / 2;
+    double negScale_ = 1.0, posScale_ = 1.0, invDuNeg_ = 1.0, invDuPos_ = 1.0;
     std::vector<double> w_, x_, slope_, sum_;
 };
 

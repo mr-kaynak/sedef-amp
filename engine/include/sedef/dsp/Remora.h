@@ -74,7 +74,8 @@ private:
 
     LinearSmoothed inputGain_;  // guitar loading x the pair's drive
     LinearSmoothed outputGain_; // trim x volume
-    ExpSmoothed guitarKnob_, biasKnob_, materialKnob_;
+    ExpSmoothed guitarKnob_, biasKnob_;
+    LinearSmoothed materialKnob_; // the germanium/silicon switch, as a morph
 
     Biquad guitarLp_;         // pickup inductance into the fuzz's input impedance
     Biquad dcBlock_, bandLp_; // output coupling, transistor bandwidth

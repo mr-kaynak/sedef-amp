@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import buttons from '../../controls/Button.module.css';
-import { Icon } from '../../controls/Icon';
+import { Icon, ICON_STROKE_LABEL } from '../../controls/Icon';
 import { centsBetween, midiLabel } from '../../lib/music';
 import { pitch, useLiveFrame, useLiveSelector } from '../../state/live';
 import { TunerGauge } from '../tuner/TunerGauge';
@@ -280,10 +280,10 @@ function ResultStep({ index }: { index: number }) {
         <div className={styles.resultActions}>
           <button
             type="button"
-            className={buttons.solid}
+            className={`${buttons.solid} ${buttons.lead}`}
             onClick={() => intonationActions.remeasure()}
           >
-            <Icon name="refresh" size={14} />
+            <Icon name="refresh" size={14} stroke={ICON_STROKE_LABEL} />
             Measure again
           </button>
           <button type="button" className={buttons.nacre} onClick={() => intonationActions.next()}>

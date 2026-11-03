@@ -5,12 +5,14 @@
   box-sizing: border-box;
 }
 
+/* The editor never scrolls as a page: no rubber-band of the whole canvas in the WebView. */
 html,
 body,
 #root {
   margin: 0;
   height: 100%;
   overflow: hidden;
+  overscroll-behavior: none;
 }
 
 body {
@@ -50,8 +52,11 @@ button {
   outline: none;
 }
 
+/* The ring is a box-shadow, which forced-colors mode removes: the transparent outline in the same
+   place is drawn there in the system's colour instead. */
 :focus-visible {
-  outline: none;
+  outline: 2px solid transparent;
+  outline-offset: 2px;
   box-shadow: var(--focus);
 }
 
@@ -64,12 +69,8 @@ button {
   white-space: nowrap;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.001ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.001ms !important;
-  }
-}
+/*
+ * Reduced motion is handled where the motion is, not by cutting every duration: enters fade
+ * instead of sliding, levers and thumbs jump, buttons do not scale and looping lamps stand still,
+ * while colour and opacity transitions stay (docs/ui.md, Design).
+ */

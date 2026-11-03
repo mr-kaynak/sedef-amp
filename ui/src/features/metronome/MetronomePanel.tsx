@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
+import buttons from '../../controls/Button.module.css';
+import nacre from '../../controls/NacreFill.module.css';
 import { ChoiceSelect } from '../../controls/ChoiceSelect';
-import { Icon } from '../../controls/Icon';
+import { IconSwap } from '../../controls/IconSwap';
 import { Knob } from '../../controls/Knob';
 import { setParam, useParamValue } from '../../params/useParam';
 import { telemetry, useLiveSelector } from '../../state/live';
@@ -42,19 +44,23 @@ export function MetronomePanel() {
       <div className={styles.top}>
         <button
           type="button"
-          className={styles.play}
+          className={`${buttons.press} ${nacre.fill} ${styles.play}`}
           aria-pressed={playing}
           aria-label={playing ? 'Stop metronome' : 'Start metronome'}
           onClick={() => setParam('metronomeEnabled', playing ? 0 : 1)}
         >
-          <Icon name={playing ? 'stop' : 'play'} size={18} filled />
+          <IconSwap active={playing} icon="play" activeIcon="stop" size={18} filled />
         </button>
         <div className={styles.tempo}>
           <span className={styles.bpm}>{Math.round(bpm)}</span>
           <span className={styles.unit}>bpm</span>
         </div>
         <Knob param="tempo" size="sm" label="Tempo" hideValue />
-        <button type="button" className={styles.tap} onClick={() => void tapTempo()}>
+        <button
+          type="button"
+          className={`${buttons.tap} ${styles.tap}`}
+          onClick={() => void tapTempo()}
+        >
           Tap
         </button>
       </div>
@@ -71,7 +77,7 @@ export function MetronomePanel() {
             <button
               key={i}
               type="button"
-              className={styles.step}
+              className={`${buttons.press} ${styles.step}`}
               data-state={STEP_NAMES[state]}
               data-now={i === currentStep || undefined}
               aria-label={`Beat ${i + 1}: ${STEP_NAMES[state]}`}

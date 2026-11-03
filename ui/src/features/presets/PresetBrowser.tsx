@@ -4,8 +4,9 @@
 // double-click keeps it; Esc goes back to the sound from when the browser opened.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
-import { Icon } from '../../controls/Icon';
+import { Icon, ICON_STROKE_LABEL } from '../../controls/Icon';
 import buttons from '../../controls/Button.module.css';
+import nacre from '../../controls/NacreFill.module.css';
 import segmented from '../../controls/Segmented.module.css';
 import { useRadioGroup } from '../../controls/useRadioGroup';
 import { useAppStore } from '../../state/appStore';
@@ -131,7 +132,12 @@ function SortSwitch() {
         onKeyDown={onKeyDown}
       >
         {SORTS.map((s, i) => (
-          <button key={s.id} type="button" className={segmented.option} {...radio(i)}>
+          <button
+            key={s.id}
+            type="button"
+            className={`${nacre.fill} ${segmented.option}`}
+            {...radio(i)}
+          >
             {s.label}
           </button>
         ))}
@@ -314,7 +320,7 @@ function BrowserPanel() {
               {filter.query && (
                 <button
                   type="button"
-                  className={styles.clearSearch}
+                  className={`${buttons.press} ${styles.clearSearch}`}
                   aria-label="Clear search"
                   onClick={() => {
                     presetBrowser.setFilter({ query: '' });
@@ -336,7 +342,7 @@ function BrowserPanel() {
                 <button
                   key={t.name}
                   type="button"
-                  className={styles.chip}
+                  className={`${buttons.press} ${nacre.fill} ${styles.chip}`}
                   aria-pressed={filter.tags.includes(t.name)}
                   onClick={() => toggleTag(t.name)}
                 >
@@ -346,7 +352,7 @@ function BrowserPanel() {
               {tags.length > shownTags.length || allTags ? (
                 <button
                   type="button"
-                  className={styles.moreChips}
+                  className={`${buttons.press} ${styles.moreChips}`}
                   aria-expanded={allTags}
                   onClick={() => setAllTags(!allTags)}
                 >
@@ -360,7 +366,11 @@ function BrowserPanel() {
               {visible.length === 1 ? '1 preset' : `${visible.length} presets`}
             </span>
             {filtered && visible.length > 0 && (
-              <button type="button" className={styles.clear} onClick={clearFilters}>
+              <button
+                type="button"
+                className={`${buttons.link} ${styles.clear}`}
+                onClick={clearFilters}
+              >
                 Clear filters
               </button>
             )}
@@ -404,7 +414,7 @@ function BrowserPanel() {
           </span>
           <button
             type="button"
-            className={styles.back}
+            className={`${buttons.press} ${styles.back}`}
             data-armed={auditioned || undefined}
             aria-label={`Back to ${origin?.name ?? state.currentName}${origin?.dirty ? ' with your edits' : ''}`}
             aria-keyshortcuts="Escape"
@@ -420,11 +430,11 @@ function BrowserPanel() {
         <span className={styles.spacer} />
         <button
           type="button"
-          className={`${buttons.ghost} ${buttons.small}`}
+          className={`${buttons.ghost} ${buttons.small} ${buttons.lead}`}
           title="Start from the default sound"
           onClick={() => void newPreset()}
         >
-          <Icon name="plus" size={12} />
+          <Icon name="plus" size={12} stroke={ICON_STROKE_LABEL} />
           New
         </button>
         {canReveal && (

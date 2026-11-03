@@ -66,6 +66,9 @@
   border-radius: var(--r-ctl);
   background: rgb(6 17 25 / 0.55);
   overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ink-4) transparent;
 }
 
 .notes pre code {
@@ -85,20 +88,27 @@
   border-top: 1px solid var(--line);
 }
 
+/* The editor's text link (controls/Button.module.css .link), for links Markdown produces. */
 .notes a {
+  border-radius: 2px;
   color: var(--nacre-aqua);
   text-decoration: underline;
-  text-underline-offset: 2px;
-  border-radius: 2px;
+  text-underline-offset: 3px;
+  transition: color var(--dur-1) var(--ease-out);
 }
 
-.notes a:hover {
-  color: var(--bone);
+@media (hover: hover) {
+  .notes a:hover {
+    color: var(--bone);
+  }
 }
 
 .tableWrap {
   margin: 0 0 8px;
   overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ink-4) transparent;
 }
 
 .notes table {

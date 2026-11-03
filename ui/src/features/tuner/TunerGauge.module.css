@@ -17,7 +17,11 @@
   stroke: var(--bone-4);
   stroke-width: 6;
   stroke-linecap: round;
-  transition: stroke var(--dur-2);
+  /* A transparent glow at rest, so the in-tune glow fades in with the colour. */
+  filter: drop-shadow(0 0 8px rgb(200 241 234 / 0));
+  transition:
+    stroke var(--dur-2) var(--ease-out),
+    filter var(--dur-2) var(--ease-out);
 }
 
 .gauge[data-state='in-tune'] .zone {
@@ -100,7 +104,7 @@
 /* In tune: the note is inlaid with nacre. */
 .gauge[data-state='in-tune'] .letter,
 .gauge[data-state='in-tune'] .accidental {
-  background: conic-gradient(from 160deg at 45% 55%, #cdeeee, #ddd6f6, #f6dbe2, #f2e8cb, #cdeeee);
+  background: var(--nacre-ink);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;

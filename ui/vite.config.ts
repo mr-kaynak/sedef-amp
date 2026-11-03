@@ -25,7 +25,9 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
-    css: { modules: { classNameStrategy: 'non-scoped' } },
+    // jsdom applies no stylesheets, so tests that pin a CSS rule read the file with `?raw`; only
+    // those imports go through Vite's pipeline (the modules themselves keep unscoped names).
+    css: { include: [/\.css\?raw$/], modules: { classNameStrategy: 'non-scoped' } },
     include: ['src/**/*.test.{ts,tsx}'],
   },
 });

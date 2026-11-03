@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
+import buttons from '../../controls/Button.module.css';
 import { Knob } from '../../controls/Knob';
 import { Segmented } from '../../controls/Segmented';
 import { useParamValue } from '../../params/useParam';
@@ -38,7 +39,11 @@ function DriftTiming() {
       )}
       {sync === 2 && (
         <div className={styles.tapBox}>
-          <button type="button" className={styles.tap} onClick={() => void tapTempo()}>
+          <button
+            type="button"
+            className={`${buttons.tap} ${styles.tap}`}
+            onClick={() => void tapTempo()}
+          >
             Tap
           </button>
           <span className={styles.bpm}>{bpm.toFixed(1).replace(/\.0$/, '')} bpm</span>

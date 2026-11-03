@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { useEffect } from 'react';
-import { Icon } from '../../controls/Icon';
+import { Icon, ICON_STROKE_LABEL } from '../../controls/Icon';
 import { Toggle } from '../../controls/Toggle';
 import buttons from '../../controls/Button.module.css';
 import { setParam, useParamValue } from '../../params/useParam';
@@ -15,7 +15,7 @@ function ReferenceControl() {
   return (
     <div className={styles.reference}>
       <span className={styles.label}>Reference A4</span>
-      <div className={styles.stepper}>
+      <div className={`${buttons.stepper} ${styles.stepper}`}>
         <button
           type="button"
           aria-label="Lower reference by 1 Hz"
@@ -37,7 +37,7 @@ function ReferenceControl() {
       {Math.round(ref) !== 440 && (
         <button
           type="button"
-          className={styles.resetRef}
+          className={`${buttons.link} ${styles.resetRef}`}
           onClick={() => setParam('tunerReference', 440)}
         >
           Back to 440 Hz
@@ -55,10 +55,10 @@ export function TunerOverlay() {
         <h2 className={styles.title}>Tuner</h2>
         <button
           type="button"
-          className={`${buttons.ghost} ${buttons.small}`}
+          className={`${buttons.ghost} ${buttons.small} ${buttons.lead}`}
           onClick={() => uiActions.openOverlay(null)}
         >
-          <Icon name="close" size={14} />
+          <Icon name="close" size={14} stroke={ICON_STROKE_LABEL} />
           Close
         </button>
       </header>

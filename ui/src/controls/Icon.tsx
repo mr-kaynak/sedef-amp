@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Inline stroke icons on a 16px grid. Kept in one place so line weight stays consistent.
+// Inline stroke icons on a 16px grid. Kept in one place so line weight stays consistent: the
+// stroke is given in rendered pixels and converted into the 16-unit viewBox, so a 10px and an 18px
+// icon draw the same line. 1.5px suits regular (400) text; beside medium and semibold (500-600)
+// labels pass stroke={2}. Not vector-effect: non-scaling-stroke, because the Stage scales the whole
+// canvas with a transform and the line must scale with it.
 
 const PATHS = {
   prev: 'M10 3.5 5.5 8 10 12.5',
@@ -29,21 +33,30 @@ const PATHS = {
   list: 'M2.5 4h11M2.5 8h11M2.5 12h11',
   clock: 'M8 14.5a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13zM8 4.6V8l2.4 1.6',
   spark: 'M8 1.8v12.4M1.8 8h12.4M3.6 3.6l8.8 8.8M12.4 3.6l-8.8 8.8',
-  keyboard: 'M1.5 4.5h13v7h-13zM4 7h.5M6.5 7h.5M9 7h.5M11.5 7h.5M5 9.2h6',
+  // Three keys and a spacebar in a taller case: at 14px the four-key row filled the case in.
+  keyboard: 'M1.5 3.5h13v9h-13zM4.5 6.5h.01M8 6.5h.01M11.5 6.5h.01M5 9.5h6',
   save: 'M2.5 2.5h8.5l2.5 2.5v8.5h-11zM5 2.5v3h5v-3M4.5 13.5V9.5h7v4',
   user: 'M8 7.8a2.8 2.8 0 1 0 0-5.6 2.8 2.8 0 0 0 0 5.6zM2.6 14c.6-2.7 2.7-4.2 5.4-4.2s4.8 1.5 5.4 4.2',
 } as const;
 
 export type IconName = keyof typeof PATHS;
 
+/** Rendered stroke for icons beside regular text, in CSS px. */
+export const ICON_STROKE = 1.5;
+/** Rendered stroke for icons beside medium and semibold labels (the buttons' 540-600). */
+export const ICON_STROKE_LABEL = 2;
+
 export function Icon({
   name,
   size = 16,
+  stroke = ICON_STROKE,
   filled = false,
   className,
 }: {
   name: IconName;
   size?: number;
+  /** Rendered line width in CSS px, whatever the size. */
+  stroke?: number;
   filled?: boolean;
   className?: string;
 }) {
@@ -55,7 +68,7 @@ export function Icon({
       viewBox="0 0 16 16"
       fill={filled ? 'currentColor' : 'none'}
       stroke="currentColor"
-      strokeWidth={1.4}
+      strokeWidth={(stroke * 16) / size}
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"

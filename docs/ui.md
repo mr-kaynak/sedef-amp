@@ -264,8 +264,27 @@ something is alive.
   starting or has ended (the next note is announced again, even in the same state); the state is
   also written ("In tune", "Tune up"), not only coloured. Text meets WCAG AA (4.5:1):
   `--bone-3` is the quietest text colour (`--bone-4` is for lines and fills only), and the
-  enclosure legends' dim tone is strong enough on every paint. `prefers-reduced-motion` disables
-  transitions and the strobe; the needle keeps its damping because it carries information.
+  enclosure legends' dim tone is strong enough on every paint. With `prefers-reduced-motion`,
+  movement turns into a cross-fade rather than a cut: panels, sheets, popovers and toasts fade in
+  without sliding, lever bats and switch thumbs jump, buttons don't scale when pressed, and the
+  Ripple lamp stops blinking. Colour and opacity changes still fade. The strobe is hidden, and
+  the needle keeps its damping because it carries information. Motion is gated where it is
+  defined (`@media (prefers-reduced-motion: no-preference)`), never by zeroing durations
+  globally.
+- **Interaction states**: hover styles apply only on pointers that can hover
+  (`@media (hover: hover)`), so a tap on a touchscreen never leaves a control looking selected,
+  and a disabled button never lights up. A pressed button scales to 0.96 over 150 ms
+  (`controls/Button.module.css`, `.press` for custom buttons, `.static` to opt out). Rows, rail
+  items, cards and segments don't scale. A nacre fill fades in on a layer
+  (`controls/NacreFill.module.css`), because a gradient cannot transition. Under forced colors
+  (Windows High Contrast) shadows and gradients disappear, so every edge that is only a shadow
+  ring also has a transparent border or outline, and selected states use `border-color` with a
+  `Highlight` fallback.
+- **Icons**: one stroke set on a 16-unit grid (`controls/Icon.tsx`). The `stroke` prop is the
+  rendered line in CSS px at any size: 1.5px by default, 2px (`ICON_STROKE_LABEL`) beside the
+  540–600 weight button labels. Check a dense glyph at its render size before giving it 2px (the
+  keyboard stays at 1.5px). Icons are `currentColor`. An infrequent swap (copy to copied, play to
+  stop) cross-fades through `controls/IconSwap.tsx`.
 
 ## Known gaps
 

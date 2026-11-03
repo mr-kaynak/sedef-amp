@@ -6,6 +6,7 @@ import { pitch } from '../../state/live';
 import { setupMock, type Harness } from '../../test/harness';
 import { IntonationWorkbench } from './IntonationWorkbench';
 import { useIntonationStore, type StringResult } from './store';
+import workbenchCss from './Workbench.module.css?raw';
 
 describe('Intonation workbench', () => {
   let h: Harness;
@@ -184,6 +185,29 @@ describe('Intonation workbench', () => {
       current: 0,
       step: 'tune',
     });
+  });
+
+  it('leaves the summary table selectable when the clipboard is unavailable', async () => {
+    useIntonationStore.setState({
+      phase: 'summary',
+      results: [3.6, -2, 1, 0.5, 4, -1].map(result),
+    });
+    render(<IntonationWorkbench />);
+    // jsdom has neither the async clipboard nor execCommand, as in a locked-down WebView.
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Copy as text' }));
+    });
+    expect(screen.getByText(/Select the table and copy it instead/)).toHaveAttribute(
+      'role',
+      'status',
+    );
+
+    // The body is unselectable (global.css), so the table must opt back in, or the fallback the
+    // message offers is a dead end. jsdom does not apply CSS modules: read the rule instead.
+    expect(screen.getByRole('table')).toHaveClass('table');
+    const rule = /(?:^|\n)\.table \{([^}]*)\}/.exec(workbenchCss)?.[1] ?? '';
+    expect(rule).toMatch(/(?:^|\s)user-select: text;/);
+    expect(rule).toMatch(/-webkit-user-select: text;/);
   });
 
   it('returns to the summary after re-measuring a string', () => {

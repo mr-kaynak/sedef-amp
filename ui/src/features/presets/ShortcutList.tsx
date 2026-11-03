@@ -17,11 +17,12 @@ export function ShortcutList({
     <div className={styles.anchor}>
       <button
         type="button"
-        className={`${buttons.ghost} ${buttons.small}`}
+        className={`${buttons.ghost} ${buttons.small} ${buttons.lead}`}
         aria-expanded={open}
         aria-controls="preset-shortcuts"
         onClick={() => onToggle(!open)}
       >
+        {/* The regular 1.5px line: at 2px the keys fill the 14px case in. */}
         <Icon name="keyboard" size={14} />
         Shortcuts
       </button>

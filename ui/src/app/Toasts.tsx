@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react';
 import { Icon } from '../controls/Icon';
 import { dismissToast, runToastAction, useToastStore } from '../state/toastStore';
+import buttons from '../controls/Button.module.css';
 import { modKey } from './platform';
 import styles from './Toasts.module.css';
 
@@ -42,7 +43,7 @@ export function Toasts() {
           {toast.action && (
             <button
               type="button"
-              className={styles.action}
+              className={`${buttons.ghost} ${styles.action}`}
               aria-keyshortcuts={`${modKey().aria}+Z`}
               onClick={() => runToastAction()}
             >
@@ -54,7 +55,7 @@ export function Toasts() {
           )}
           <button
             type="button"
-            className={styles.close}
+            className={`${buttons.ghost} ${buttons.icon} ${styles.close}`}
             aria-label="Dismiss"
             onClick={() => dismissToast(toast.id)}
           >

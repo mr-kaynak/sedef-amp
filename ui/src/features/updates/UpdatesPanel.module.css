@@ -15,13 +15,23 @@
 .dialog {
   display: flex;
   flex-direction: column;
+  /* The size is the content's; the transparent border (for forced colors) goes outside it. */
+  box-sizing: content-box;
   width: 560px;
   max-height: 640px;
+  border: 1px solid transparent;
   border-radius: var(--r-pop);
-  background: linear-gradient(180deg, #13293a, #0d1f2c);
+  background: var(--surface-pop);
   box-shadow: var(--shadow-pop);
   color: var(--bone);
-  animation: rise var(--dur-2) var(--ease-out);
+  /* Fades in with the scrim; where motion is welcome it also rises into place. */
+  animation: fade var(--dur-2) var(--ease-out);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .dialog {
+    animation-name: rise;
+  }
 }
 
 @keyframes fade {
@@ -105,33 +115,57 @@
   position: relative;
   width: 30px;
   height: 18px;
+  border: 1px solid var(--line-strong);
   border-radius: 9px;
   background: var(--ink-0);
-  box-shadow: inset 0 0 0 1px var(--line-strong);
-  transition: background var(--dur-1);
+  transition:
+    background-color var(--dur-1) var(--ease-out),
+    border-color var(--dur-1) var(--ease-out);
 }
 
 .thumb {
   position: absolute;
-  top: 3px;
-  left: 3px;
+  top: 2px;
+  left: 2px;
   width: 12px;
   height: 12px;
   border-radius: 50%;
   background: var(--bone-3);
-  transition:
-    transform var(--dur-2) var(--ease-out),
-    background var(--dur-1);
+  /* Checked: the nacre layer (controls/NacreFill.module.css) fades in while the thumb slides. */
+  --fill: var(--nacre);
+  --fill-shadow: none;
+}
+
+/* The slide is movement: with reduced motion the thumb jumps and only its fill fades. */
+@media (prefers-reduced-motion: no-preference) {
+  .thumb {
+    transition: transform var(--dur-2) var(--ease-out);
+  }
 }
 
 .switch[aria-checked='true'] .track {
+  border-color: rgb(205 238 238 / 0.45);
   background: rgb(205 238 238 / 0.18);
-  box-shadow: inset 0 0 0 1px rgb(205 238 238 / 0.45);
 }
 
 .switch[aria-checked='true'] .thumb {
   transform: translateX(12px);
-  background: var(--nacre);
+}
+
+.switch[aria-checked='true'] .thumb::after {
+  opacity: 1;
+}
+
+/* Forced colors force backgrounds to the page colour: draw the thumb, and the checked one in the
+   selection colour. */
+@media (forced-colors: active) {
+  .thumb {
+    background: CanvasText;
+  }
+
+  .switch[aria-checked='true'] .thumb {
+    background: Highlight;
+  }
 }
 
 .body {
@@ -173,11 +207,14 @@
 .notes {
   min-height: 0;
   max-height: 250px;
-  padding: 12px 14px;
+  padding: 11px 13px;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ink-4) transparent;
+  border: 1px solid var(--line);
   border-radius: var(--r-ctl);
   background: rgb(6 17 25 / 0.4);
-  box-shadow: inset 0 0 0 1px var(--line);
 }
 
 .status {
@@ -193,19 +230,12 @@
   line-height: 1.45;
 }
 
-.link {
-  color: var(--nacre-aqua);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  border-radius: 2px;
-}
-
 .error {
   margin: 0;
-  padding: 9px 12px;
+  padding: 8px 11px;
+  border: 1px solid rgb(233 199 125 / 0.35);
   border-radius: var(--r-ctl);
   background: rgb(233 199 125 / 0.08);
-  box-shadow: inset 0 0 0 1px rgb(233 199 125 / 0.35);
   color: var(--amber);
   line-height: 1.45;
 }
@@ -240,19 +270,30 @@
   border-radius: 3px;
   background: var(--ink-0);
   box-shadow: inset 0 0 0 1px var(--line);
+  /* An outline, not a border: a border would thin the 6px fill. Forced colors draw it. */
+  outline: 1px solid transparent;
+  outline-offset: -1px;
 }
 
+/* The fill slides in from the left by --p (0-100%), clipped by the bar: a transform, so the
+   progress never re-runs layout. */
 .bar > span {
   position: absolute;
-  inset: 0 auto 0 0;
+  inset: 0;
   border-radius: inherit;
   background: var(--nacre-line);
-  transition: width var(--dur-2) linear;
+  transform: translateX(calc(var(--p, 0%) - 100%));
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .bar > span {
+    transition: transform var(--dur-2) linear;
+  }
 }
 
 /* Verifying: the bar stays full and breathes (static with reduced motion). */
 .bar[data-indeterminate] > span {
-  width: 100% !important;
+  transform: none;
   animation: breathe 1.2s ease-in-out infinite alternate;
 }
 
@@ -263,8 +304,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .scrim,
-  .dialog,
   .bar[data-indeterminate] > span {
     animation: none;
   }

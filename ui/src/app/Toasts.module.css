@@ -13,9 +13,11 @@
   align-items: center;
   gap: 4px;
   min-height: 40px;
-  padding: 0 6px 0 16px;
+  /* 1px less than the 6px inset, for the border: the close button's 6 + 6 = 12 radius holds. */
+  padding: 0 5px 0 15px;
+  border: 1px solid transparent;
   border-radius: var(--r-pop);
-  background: linear-gradient(180deg, #17324a, #10273a);
+  background: var(--surface-pop);
   box-shadow:
     var(--shadow-pop),
     inset 0 1px 0 rgb(255 255 255 / 0.06);
@@ -23,7 +25,20 @@
   font-size: var(--t-12);
   white-space: nowrap;
   pointer-events: auto;
-  animation: rise var(--dur-2) var(--ease-out);
+  /* Fades in; where motion is welcome it also rises into place. */
+  animation: fade var(--dur-2) var(--ease-out);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .toast {
+    animation-name: rise;
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
 }
 
 @keyframes rise {
@@ -37,22 +52,22 @@
   margin-right: 8px;
 }
 
+/* The shared ghost button, tinted aqua: the one action a toast offers. */
 .action {
-  display: inline-flex;
-  align-items: center;
   gap: 8px;
   height: 28px;
   padding: 0 10px;
-  border: 1px solid rgb(205 238 238 / 0.28);
-  border-radius: var(--r-ctl);
-  background: rgb(205 238 238 / 0.08);
+  border-color: var(--on-line);
+  background: var(--on-fill);
   color: var(--nacre-aqua);
-  font-size: var(--t-12);
   font-weight: 600;
 }
 
-.action:hover {
-  background: rgb(205 238 238 / 0.14);
+@media (hover: hover) {
+  .action:not(:disabled):hover {
+    background: rgb(205 238 238 / 0.14);
+    color: var(--nacre-aqua);
+  }
 }
 
 .kbd {
@@ -62,17 +77,9 @@
   font-weight: 500;
 }
 
+/* The shared ghost icon button at 28px, so the toast's 12px radius stays 6 + 6 inset. */
 .close {
-  display: grid;
-  place-items: center;
   width: 28px;
   height: 28px;
-  border: none;
-  border-radius: var(--r-ctl);
-  background: transparent;
   color: var(--bone-3);
-}
-
-.close:hover {
-  color: var(--bone);
 }

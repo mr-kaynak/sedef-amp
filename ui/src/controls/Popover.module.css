@@ -2,11 +2,28 @@
 .popover {
   position: absolute;
   z-index: 50;
+  /* Transparent, under the shadow ring: forced-colors mode drops shadows and draws this. The
+     -1px margin takes the border back, so the content sits where it did against the anchor. */
+  margin: -1px;
+  border: 1px solid transparent;
   border-radius: var(--r-pop);
-  background: linear-gradient(180deg, #13293a, #0d1f2c);
+  background: var(--surface-pop);
   box-shadow: var(--shadow-pop);
   color: var(--bone);
-  animation: rise var(--dur-2) var(--ease-out);
+  /* Fades in; where motion is welcome it also drops into place. */
+  animation: fade var(--dur-2) var(--ease-out);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .popover {
+    animation-name: rise;
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
 }
 
 @keyframes rise {

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { Component } from 'react';
 import type { ErrorInfo, ReactNode } from 'react';
+import buttons from '../controls/Button.module.css';
 import styles from './ErrorBoundary.module.css';
 
 interface State {
@@ -44,11 +45,15 @@ export class ErrorBoundary extends Component<Props, State> {
       <div className={`${styles.fallback} ${className ?? ''}`} role="alert">
         <p>This page could not be drawn. Your sound is not affected.</p>
         {onClose ? (
-          <button type="button" onClick={onClose}>
+          <button type="button" className={buttons.solid} onClick={onClose}>
             Close
           </button>
         ) : (
-          <button type="button" onClick={() => this.setState({ error: null })}>
+          <button
+            type="button"
+            className={buttons.solid}
+            onClick={() => this.setState({ error: null })}
+          >
             Try again
           </button>
         )}

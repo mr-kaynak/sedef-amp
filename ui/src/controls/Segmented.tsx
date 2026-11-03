@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { useParam } from '../params/useParam';
 import { useRadioGroup } from './useRadioGroup';
+import nacre from './NacreFill.module.css';
 import styles from './Segmented.module.css';
 
 export interface SegmentedProps {
@@ -30,7 +31,12 @@ export function Segmented({ param, labels, ariaLabel, size = 'md', className }: 
       onKeyDown={onKeyDown}
     >
       {options.map((label, i) => (
-        <button key={label} type="button" className={styles.option} {...radio(i)}>
+        <button
+          key={label}
+          type="button"
+          className={`${nacre.fill} ${styles.option}`}
+          {...radio(i)}
+        >
           {label}
         </button>
       ))}

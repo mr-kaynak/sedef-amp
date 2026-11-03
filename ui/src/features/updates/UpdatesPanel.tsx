@@ -2,9 +2,10 @@
 // The Updates panel: a modal sheet over the canvas with the versions, the automatic-check switch,
 // the release notes and the download. Opened from the header pill or from Settings.
 import { useEffect, useId, useRef } from 'react';
-import type { KeyboardEvent } from 'react';
+import type { CSSProperties, KeyboardEvent } from 'react';
 import buttons from '../../controls/Button.module.css';
-import { Icon } from '../../controls/Icon';
+import nacre from '../../controls/NacreFill.module.css';
+import { Icon, ICON_STROKE_LABEL } from '../../controls/Icon';
 import { ReleaseNotes } from './ReleaseNotes';
 import {
   AFTER_DOWNLOAD,
@@ -51,7 +52,13 @@ function Progress({ state }: { state: SupportedUpdateState }) {
         className={styles.bar}
         data-indeterminate={verifying || undefined}
       >
-        <span style={{ width: `${total > 0 ? Math.min(100, (received / total) * 100) : 0}%` }} />
+        <span
+          style={
+            {
+              '--p': `${total > 0 ? Math.min(100, (received / total) * 100) : 0}%`,
+            } as CSSProperties
+          }
+        />
       </div>
       <p className={styles.note}>
         {verifying
@@ -82,7 +89,7 @@ function Release({ state }: { state: SupportedUpdateState }) {
         Sedef Amp is up to date.{' '}
         <a
           href={latest.url}
-          className={styles.link}
+          className={buttons.link}
           onClick={(e) => {
             e.preventDefault();
             void updateActions.openPage(latest.url);
@@ -133,8 +140,12 @@ function Actions({ state }: { state: SupportedUpdateState }) {
   if (state.phase === 'done' && state.download) {
     return (
       <div className={styles.actions}>
-        <button type="button" className={buttons.ghost} onClick={() => void updateActions.reveal()}>
-          <Icon name="folder" />
+        <button
+          type="button"
+          className={`${buttons.ghost} ${buttons.lead}`}
+          onClick={() => void updateActions.reveal()}
+        >
+          <Icon name="folder" stroke={ICON_STROKE_LABEL} />
           Show in folder
         </button>
         <button type="button" className={buttons.solid} onClick={updateActions.closePanel}>
@@ -325,11 +336,11 @@ export function UpdatesPanel() {
           </dl>
           <button
             type="button"
-            className={`${buttons.solid} ${buttons.small}`}
+            className={`${buttons.solid} ${buttons.small} ${buttons.lead}`}
             disabled={busy}
             onClick={() => void updateActions.checkNow()}
           >
-            <Icon name="refresh" size={14} />
+            <Icon name="refresh" size={14} stroke={ICON_STROKE_LABEL} />
             Check now
           </button>
         </div>
@@ -344,7 +355,7 @@ export function UpdatesPanel() {
             onClick={() => void updateActions.setAutoCheck(!state.autoCheck)}
           >
             <span className={styles.track} aria-hidden="true">
-              <span className={styles.thumb} />
+              <span className={`${nacre.fill} ${styles.thumb}`} />
             </span>
             Check for updates automatically
           </button>
@@ -366,7 +377,7 @@ export function UpdatesPanel() {
           ) : state.phase === 'done' && state.download ? (
             <div className={styles.done}>
               <p className={styles.headline}>
-                <Icon name="check" />
+                <Icon name="check" stroke={ICON_STROKE_LABEL} />
                 <span className={styles.file}>{state.download.fileName}</span>
               </p>
               <p className={styles.status}>Downloaded to your Downloads folder and verified.</p>

@@ -14,10 +14,27 @@
   font-size: var(--t-12);
   font-weight: 540;
   white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
   transition:
-    background var(--dur-1),
-    border-color var(--dur-1),
-    color var(--dur-1);
+    background-color var(--dur-1) var(--ease-out),
+    border-color var(--dur-1) var(--ease-out),
+    color var(--dur-1) var(--ease-out),
+    filter var(--dur-1) var(--ease-out),
+    scale 150ms ease-out;
+}
+
+/* Press: a pressed button gives way to 0.96, only where motion is welcome; a disabled one never
+   moves. Custom buttons add the .press class and list `scale 150ms ease-out` in their transition.
+   .static opts a button out where the motion would distract. Rows, rail items, cards and segments
+   stay still. */
+.press {
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :is(.ghost, .solid, .nacre, .press, .stepper button):not(:disabled, .static):active {
+    scale: 0.96;
+  }
 }
 
 .ghost {
@@ -26,16 +43,26 @@
   color: var(--bone-2);
 }
 
-.ghost:hover {
-  color: var(--bone);
-  background: rgb(237 230 214 / 0.06);
+@media (hover: hover) {
+  .ghost:where(:not(:disabled)):hover {
+    color: var(--bone);
+    background: rgb(237 230 214 / 0.06);
+  }
 }
 
 .ghost[aria-pressed='true'],
 .ghost[aria-expanded='true'] {
   color: var(--bone);
-  background: rgb(205 238 238 / 0.08);
-  border-color: rgb(205 238 238 / 0.22);
+  background: var(--on-fill);
+  border-color: var(--on-line);
+}
+
+/* Forced colors drop the tint: pressed and expanded keep their edge in the selection colour. */
+@media (forced-colors: active) {
+  .ghost[aria-pressed='true'],
+  .ghost[aria-expanded='true'] {
+    border-color: Highlight;
+  }
 }
 
 .solid {
@@ -44,8 +71,10 @@
   color: var(--bone);
 }
 
-.solid:hover {
-  background: var(--ink-4);
+@media (hover: hover) {
+  .solid:where(:not(:disabled)):hover {
+    background: var(--ink-4);
+  }
 }
 
 .nacre {
@@ -56,14 +85,16 @@
   box-shadow: 0 2px 10px -2px rgb(200 241 234 / 0.35);
 }
 
-.nacre:hover {
-  filter: brightness(1.05);
+@media (hover: hover) {
+  .nacre:where(:not(:disabled)):hover {
+    filter: brightness(1.05);
+  }
 }
 
 .ghost:disabled,
 .solid:disabled,
 .nacre:disabled {
-  opacity: 0.4;
+  opacity: var(--disabled-opacity);
   cursor: default;
 }
 
@@ -76,4 +107,90 @@
   height: 24px;
   padding: 0 9px;
   font-size: var(--t-11);
+}
+
+/* After .small, which would otherwise widen a small icon button with its padding. */
+.small.icon {
+  width: 24px;
+  padding: 0;
+}
+
+/* An icon before the label: 2px less on the icon side, where equal padding looks heavier. */
+.lead {
+  padding-inline-start: 10px;
+}
+
+.small.lead {
+  padding-inline-start: 7px;
+}
+
+/* Tap tempo: a solid button the player hits in time. Each panel sets only its size. */
+.tap {
+  composes: solid;
+  padding: 0;
+  font-weight: 600;
+}
+
+/* Pressed: a darker well with the aqua "on" edge, so a tap shows in colour, apart from the
+   hover's lighter fill and also under reduced motion. It lands at once (only the scale eases
+   in) and eases back on release. */
+.tap:not(:disabled):active {
+  border-color: var(--on-line);
+  background: var(--ink-0);
+  transition: scale 150ms ease-out;
+}
+
+/* Inline text actions ("Back to 440 Hz", "Read the licence"): aqua, underlined, bone on hover.
+   The size comes from the surrounding text. */
+.link {
+  padding: 0;
+  border: none;
+  border-radius: 2px;
+  background: none;
+  color: var(--nacre-aqua);
+  font-size: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: color var(--dur-1) var(--ease-out);
+}
+
+@media (hover: hover) {
+  .link:hover {
+    color: var(--bone);
+  }
+}
+
+/* − value + steppers: a dark well holding two quiet buttons. Each panel sets the sizes. */
+.stepper {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-ctl);
+  background: var(--ink-0);
+}
+
+.stepper button {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--bone-2);
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    color var(--dur-1) var(--ease-out),
+    scale 150ms ease-out;
+}
+
+@media (hover: hover) {
+  .stepper button:not(:disabled):hover {
+    color: var(--bone);
+  }
+}
+
+.stepper button:disabled {
+  opacity: var(--disabled-opacity);
+  cursor: default;
+}
+
+.stepper output {
+  text-align: center;
 }

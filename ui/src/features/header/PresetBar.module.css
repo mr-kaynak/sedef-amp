@@ -26,10 +26,15 @@
   color: var(--bone-3);
   display: grid;
   place-items: center;
+  transition:
+    color var(--dur-1) var(--ease-out),
+    scale 150ms ease-out;
 }
 
-.step:hover {
-  color: var(--bone);
+@media (hover: hover) {
+  .step:hover {
+    color: var(--bone);
+  }
 }
 
 .current {
@@ -47,10 +52,13 @@
   border-right: 1px solid var(--line);
   background: transparent;
   text-align: left;
+  transition: background-color var(--dur-1) var(--ease-out);
 }
 
-.current:hover .name {
-  color: #fff;
+@media (hover: hover) {
+  .current:hover .name {
+    color: #fff;
+  }
 }
 
 .where {
@@ -65,14 +73,14 @@
 
 .category {
   height: 14px;
-  padding: 0 5px;
+  padding: 0 4px;
+  border: 1px solid var(--line-strong);
   border-radius: 3px;
-  box-shadow: inset 0 0 0 1px var(--line-strong);
   color: var(--bone-2);
   font-size: var(--t-10);
   font-stretch: var(--legend-stretch);
   font-weight: 560;
-  line-height: 14px;
+  line-height: 12px;
 }
 
 .nameRow {
@@ -90,6 +98,7 @@
   font-size: var(--t-16);
   font-weight: 560;
   line-height: 1.15;
+  transition: color var(--dur-1) var(--ease-out);
 }
 
 .dirty {
@@ -121,7 +130,8 @@
   gap: 3px;
   height: 42px;
   padding: 0 5px;
-  border-radius: var(--r-panel);
+  /* Concentric with the 6px buttons inside: 6 + 5. */
+  border-radius: 11px;
   background: var(--ink-0);
   box-shadow:
     inset 0 1px 3px rgb(0 0 0 / 0.6),
@@ -150,13 +160,16 @@
   background: transparent;
   color: var(--bone-3);
   transition:
-    color var(--dur-1),
-    background var(--dur-1);
+    color var(--dur-1) var(--ease-out),
+    background-color var(--dur-1) var(--ease-out),
+    scale 150ms ease-out;
 }
 
-.save:hover {
-  color: var(--bone);
-  background: rgb(237 230 214 / 0.06);
+@media (hover: hover) {
+  .save:hover {
+    color: var(--bone);
+    background: rgb(237 230 214 / 0.06);
+  }
 }
 
 /* Unsaved edits: the save button picks up the dirty dot's amber. */
@@ -185,13 +198,14 @@
   font-style: italic;
   font-weight: 600;
   line-height: 1;
-  transition:
-    color var(--dur-1),
-    background var(--dur-1);
+  /* Selected: the nacre layer (controls/NacreFill.module.css) fades in as the letter darkens. */
+  transition: color var(--dur-1) var(--ease-out);
 }
 
-.slot:hover {
-  color: var(--bone);
+@media (hover: hover) {
+  .slot:hover {
+    color: var(--bone);
+  }
 }
 
 .slot[data-empty] {
@@ -200,8 +214,6 @@
 
 .slot[aria-checked='true'] {
   color: var(--ink-1);
-  background: var(--nacre-line);
-  box-shadow: 0 1px 6px -1px rgb(200 241 234 / 0.4);
 }
 
 .slotDirty {
@@ -224,9 +236,15 @@
   border-radius: var(--r-ctl);
   background: transparent;
   color: var(--bone-3);
+  transition:
+    color var(--dur-1) var(--ease-out),
+    background-color var(--dur-1) var(--ease-out),
+    scale 150ms ease-out;
 }
 
-.copy:hover {
-  color: var(--bone);
-  background: rgb(237 230 214 / 0.06);
+@media (hover: hover) {
+  .copy:hover {
+    color: var(--bone);
+    background: rgb(237 230 214 / 0.06);
+  }
 }

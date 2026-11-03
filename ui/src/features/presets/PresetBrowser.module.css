@@ -9,7 +9,20 @@
     radial-gradient(90% 60% at 60% 0%, rgb(34 70 92 / 0.32), rgb(34 70 92 / 0) 70%),
     linear-gradient(180deg, #0d2130 0%, var(--ink-1) 38%);
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.04);
-  animation: open var(--dur-2) var(--ease-out);
+  /* Fades in; where motion is welcome it also drops into place. */
+  animation: fade var(--dur-2) var(--ease-out);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .browser {
+    animation-name: open;
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
 }
 
 @keyframes open {
@@ -24,12 +37,11 @@
   place-items: center;
   min-width: 18px;
   height: 18px;
-  padding: 0 4px;
+  padding: 0 3px;
+  border: 1px solid var(--line-strong);
   border-radius: 4px;
   background: rgb(237 230 214 / 0.06);
-  box-shadow:
-    inset 0 0 0 1px var(--line-strong),
-    inset 0 -1px 0 rgb(0 0 0 / 0.35);
+  box-shadow: inset 0 -1px 0 rgb(0 0 0 / 0.35);
   color: var(--bone-2);
   font-family: var(--font-ui);
   font-size: var(--t-10);
@@ -62,20 +74,22 @@
   align-items: center;
   gap: 10px;
   height: 36px;
-  padding: 0 10px 0 14px;
+  padding: 0 9px 0 13px;
+  /* A real border, like the form inputs: an input's edge survives forced colors. */
+  border: 1px solid var(--line);
   border-radius: var(--r-panel);
   background: var(--ink-0);
   color: var(--bone-3);
-  box-shadow:
-    inset 0 1px 3px rgb(0 0 0 / 0.55),
-    inset 0 0 0 1px var(--line);
-  transition: box-shadow var(--dur-1);
+  box-shadow: inset 0 1px 3px rgb(0 0 0 / 0.55);
+  transition:
+    border-color var(--dur-1) var(--ease-out),
+    box-shadow var(--dur-1) var(--ease-out);
 }
 
 .search:focus-within {
+  border-color: rgb(205 238 238 / 0.45);
   box-shadow:
     inset 0 1px 3px rgb(0 0 0 / 0.55),
-    inset 0 0 0 1px rgb(205 238 238 / 0.45),
     0 0 0 3px rgb(205 238 238 / 0.08);
 }
 
@@ -110,10 +124,15 @@
   border-radius: 50%;
   background: rgb(237 230 214 / 0.08);
   color: var(--bone-2);
+  transition:
+    color var(--dur-1) var(--ease-out),
+    scale 150ms ease-out;
 }
 
-.clearSearch:hover {
-  color: var(--bone);
+@media (hover: hover) {
+  .clearSearch:hover {
+    color: var(--bone);
+  }
 }
 
 .searchKey {
@@ -145,6 +164,7 @@
   width: 188px;
   padding: 20px 10px 14px 14px;
   overflow-y: auto;
+  overscroll-behavior: contain;
   border-right: 1px solid var(--line);
   background: rgb(6 17 25 / 0.32);
   scrollbar-width: thin;
@@ -183,13 +203,15 @@
   font-size: var(--t-12);
   text-align: left;
   transition:
-    background var(--dur-1),
-    color var(--dur-1);
+    background-color var(--dur-1) var(--ease-out),
+    color var(--dur-1) var(--ease-out);
 }
 
-.railItem:hover {
-  color: var(--bone);
-  background: rgb(237 230 214 / 0.04);
+@media (hover: hover) {
+  .railItem:hover {
+    color: var(--bone);
+    background: rgb(237 230 214 / 0.04);
+  }
 }
 
 .railItem[aria-checked='true'] {
@@ -249,42 +271,51 @@
 .chip,
 .moreChips {
   height: 26px;
-  padding: 0 11px;
-  border: none;
+  padding: 0 10px;
+  border: 1px solid var(--line);
   border-radius: 13px;
   background: rgb(237 230 214 / 0.04);
-  box-shadow: inset 0 0 0 1px var(--line);
   color: var(--bone-2);
   font-size: var(--t-11);
   transition:
-    background var(--dur-1),
-    color var(--dur-1),
-    box-shadow var(--dur-1);
+    background-color var(--dur-1) var(--ease-out),
+    color var(--dur-1) var(--ease-out),
+    border-color var(--dur-1) var(--ease-out),
+    scale 150ms ease-out;
 }
 
-.chip:hover {
-  color: var(--bone);
-  background: rgb(237 230 214 / 0.07);
+@media (hover: hover) {
+  .chip:hover {
+    color: var(--bone);
+    background: rgb(237 230 214 / 0.07);
+  }
 }
 
+.chip {
+  position: relative;
+  --fill-inset: -1px;
+}
+
+/* Pressed: the nacre layer (controls/NacreFill.module.css) fades in over the border too. */
 .chip[aria-pressed='true'] {
+  border-color: transparent;
   color: var(--ink-1);
-  background: var(--nacre-line);
-  box-shadow: 0 1px 6px -1px rgb(200 241 234 / 0.35);
   font-weight: 600;
 }
 
 .moreChips {
+  border-color: transparent;
   background: transparent;
-  box-shadow: none;
   color: var(--bone-3);
   text-decoration: underline;
   text-decoration-color: var(--bone-4);
   text-underline-offset: 3px;
 }
 
-.moreChips:hover {
-  color: var(--bone);
+@media (hover: hover) {
+  .moreChips:hover {
+    color: var(--bone);
+  }
 }
 
 .resultHead {
@@ -302,14 +333,7 @@
 }
 
 .clear {
-  border: none;
-  background: transparent;
-  color: var(--nacre-aqua);
   font-size: var(--t-11);
-}
-
-.clear:hover {
-  text-decoration: underline;
 }
 
 /* Footer -------------------------------------------------------------------------------------- */
@@ -329,10 +353,10 @@
   align-items: center;
   gap: 6px;
   height: 32px;
-  padding: 0 4px 0 12px;
+  padding: 0 3px 0 11px;
+  border: 1px solid var(--line);
   border-radius: var(--r-panel);
   background: rgb(237 230 214 / 0.03);
-  box-shadow: inset 0 0 0 1px var(--line);
   color: var(--bone-3);
   font-size: var(--t-12);
 }
@@ -352,17 +376,24 @@
   background: transparent;
   color: var(--bone-2);
   font-size: var(--t-12);
+  transition:
+    color var(--dur-1) var(--ease-out),
+    background-color var(--dur-1) var(--ease-out),
+    scale 150ms ease-out;
 }
 
-.back:hover {
-  color: var(--bone);
-  background: rgb(237 230 214 / 0.06);
+@media (hover: hover) {
+  .back:hover {
+    color: var(--bone);
+    background: rgb(237 230 214 / 0.06);
+  }
 }
 
 .back[data-armed] kbd {
+  border-color: transparent;
   color: var(--ink-1);
   background: var(--nacre-line);
-  box-shadow: 0 1px 6px -1px rgb(200 241 234 / 0.35);
+  box-shadow: var(--shadow-nacre-sel);
 }
 
 .back strong {

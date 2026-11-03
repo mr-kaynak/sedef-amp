@@ -8,7 +8,7 @@
 }
 
 .vslider[data-disabled] {
-  opacity: 0.45;
+  opacity: var(--disabled-opacity);
 }
 
 .readout {
@@ -16,7 +16,7 @@
   color: var(--bone-3);
   font-size: var(--t-11);
   font-weight: 500;
-  transition: color var(--dur-1);
+  transition: color var(--dur-1) var(--ease-out);
 }
 
 .readout[data-active] {

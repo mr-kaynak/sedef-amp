@@ -2,6 +2,8 @@
 // The header's preset bar: previous/next, the current preset (opens the browser) with its
 // category and dirty dot, A/B compare and Save. Shortcuts: [ ] P A B ⌘S.
 import { modKey } from '../../app/platform';
+import buttons from '../../controls/Button.module.css';
+import nacre from '../../controls/NacreFill.module.css';
 import { Icon } from '../../controls/Icon';
 import { useRadioGroup } from '../../controls/useRadioGroup';
 import { currentPreset, usePresetStore } from '../../state/presetStore';
@@ -45,7 +47,7 @@ function CompareSwitch() {
             <button
               key={s.slot}
               type="button"
-              className={styles.slot}
+              className={`${nacre.fill} ${styles.slot}`}
               data-empty={s.empty || undefined}
               aria-label={`${s.slot}: ${description}`}
               aria-keyshortcuts={s.slot}
@@ -60,7 +62,7 @@ function CompareSwitch() {
       </div>
       <button
         type="button"
-        className={styles.copy}
+        className={`${buttons.press} ${styles.copy}`}
         aria-label={`Copy ${active} to ${inactive}`}
         title={`Copy ${active} to ${inactive}`}
         onClick={() => void compareCopy()}
@@ -79,7 +81,7 @@ function SaveButton() {
   return (
     <button
       type="button"
-      className={styles.save}
+      className={`${buttons.press} ${styles.save}`}
       data-dirty={state.dirty || undefined}
       aria-label={label}
       aria-keyshortcuts={`${mod.aria}+S`}
@@ -101,7 +103,7 @@ export function PresetBar() {
       <div className={styles.bar}>
         <button
           type="button"
-          className={styles.step}
+          className={`${buttons.press} ${styles.step}`}
           aria-label="Previous preset"
           aria-keyshortcuts="["
           title="Previous preset ([)"
@@ -132,7 +134,7 @@ export function PresetBar() {
         </button>
         <button
           type="button"
-          className={styles.step}
+          className={`${buttons.press} ${styles.step}`}
           aria-label="Next preset"
           aria-keyshortcuts="]"
           title="Next preset (])"

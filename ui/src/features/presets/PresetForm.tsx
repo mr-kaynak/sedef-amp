@@ -152,15 +152,18 @@ function SaveAsForm() {
       <div className={styles.row}>
         <label className={styles.field}>
           <span className={styles.label}>Category</span>
-          <select value={category} onChange={(e) => setCategory(e.target.value)}>
-            <option value="">No category</option>
-            {categories.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-            <option value={NEW_CATEGORY}>New category…</option>
-          </select>
+          <span className={styles.selectWrap}>
+            <select value={category} onChange={(e) => setCategory(e.target.value)}>
+              <option value="">No category</option>
+              {categories.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+              <option value={NEW_CATEGORY}>New category…</option>
+            </select>
+            <Icon name="down" size={14} className={styles.chevron} />
+          </span>
         </label>
         {creating && (
           <label className={styles.field}>
@@ -217,7 +220,7 @@ function SaveAsForm() {
               <button
                 key={t}
                 type="button"
-                className={styles.suggestion}
+                className={`${buttons.press} ${styles.suggestion}`}
                 onClick={() => {
                   addTags(t);
                   tagRef.current?.focus();

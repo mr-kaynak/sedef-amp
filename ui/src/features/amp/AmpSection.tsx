@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { useRef } from 'react';
 import type { KeyboardEvent } from 'react';
+import buttons from '../../controls/Button.module.css';
 import { Icon } from '../../controls/Icon';
 import { Toggle } from '../../controls/Toggle';
 import { setParam, useParamSpec, useParamValue } from '../../params/useParam';
@@ -116,7 +117,7 @@ function CabLink({ amp }: { amp: number }) {
       </span>
       <button
         type="button"
-        className={styles.linkButton}
+        className={`${buttons.press} ${styles.linkButton}`}
         onClick={() => uiActions.setSection('cab')}
       >
         Open cab

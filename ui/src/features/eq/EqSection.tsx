@@ -9,6 +9,7 @@ import { beginGesture, endGesture } from '../../params/sender';
 import { useShallow } from 'zustand/react/shallow';
 import { useParamStore } from '../../params/paramStore';
 import { AMP_NAMES } from '../../params/schema';
+import { NACRE_STOPS } from '../../styles/nacre';
 import { EQ_BAND_HZ, logFrequencies, responseCurve, type EqSettings } from './response';
 import styles from './EqSection.module.css';
 
@@ -72,15 +73,14 @@ function ResponseGraph({ settings, enabled }: { settings: EqSettings; enabled: b
     >
       <defs>
         <linearGradient id="eq-stroke" x1="0" x2="1" y1="0" y2="0">
-          <stop offset="0" stopColor="#cdeeee" />
-          <stop offset="0.35" stopColor="#ddd6f6" />
-          <stop offset="0.7" stopColor="#f6dbe2" />
-          <stop offset="1" stopColor="#f2e8cb" />
+          {NACRE_STOPS.map(([offset, color]) => (
+            <stop key={offset} offset={offset} style={{ stopColor: color }} />
+          ))}
         </linearGradient>
         <linearGradient id="eq-fill" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0" stopColor="#cdeeee" stopOpacity="0.12" />
-          <stop offset="0.5" stopColor="#cdeeee" stopOpacity="0.01" />
-          <stop offset="1" stopColor="#cdeeee" stopOpacity="0.07" />
+          <stop offset="0" style={{ stopColor: 'var(--nacre-aqua)' }} stopOpacity="0.12" />
+          <stop offset="0.5" style={{ stopColor: 'var(--nacre-aqua)' }} stopOpacity="0.01" />
+          <stop offset="1" style={{ stopColor: 'var(--nacre-aqua)' }} stopOpacity="0.07" />
         </linearGradient>
       </defs>
       <g className={styles.grid}>

@@ -114,7 +114,7 @@ function CabRow({ info }: { info: CaptureInfo }) {
         {through && (
           <button
             type="button"
-            className={styles.textButton}
+            className={`${buttons.link} ${styles.textButton}`}
             onClick={() => uiActions.setSection('cab')}
           >
             Open the {cabName} cab
@@ -277,7 +277,7 @@ export function CapturePanel() {
           </div>
           <button
             type="button"
-            className={styles.textButton}
+            className={`${buttons.link} ${styles.textButton}`}
             onClick={() => void invoke('sedef_openUrl', CAPTURE_SITE_URL)}
           >
             Find captures on TONE3000

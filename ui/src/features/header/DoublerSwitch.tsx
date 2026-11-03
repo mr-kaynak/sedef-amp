@@ -3,6 +3,7 @@
 // page. Its settings stay with the unit on the FX page.
 import { Led } from '../../controls/Led';
 import { useParam } from '../../params/useParam';
+import buttons from '../../controls/Button.module.css';
 import styles from './DoublerSwitch.module.css';
 
 export function DoublerSwitch() {
@@ -13,7 +14,7 @@ export function DoublerSwitch() {
       type="button"
       role="switch"
       aria-checked={on}
-      className={styles.switch}
+      className={`${buttons.press} ${styles.switch}`}
       data-on={on || undefined}
       title="Double tracking: a second take of your part on the right. Shape it on the FX page."
       onClick={() => {

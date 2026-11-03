@@ -9,11 +9,3 @@
   color: var(--bone-2);
   font-size: var(--t-14);
 }
-
-.fallback button {
-  height: 30px;
-  padding: 0 14px;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--r-ctl);
-  background: var(--ink-3);
-}

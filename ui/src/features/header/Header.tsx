@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { useCallback, useRef } from 'react';
 import type { ReactNode } from 'react';
-import { Icon } from '../../controls/Icon';
+import { Icon, ICON_STROKE_LABEL } from '../../controls/Icon';
 import { Knob } from '../../controls/Knob';
 import { Popover } from '../../controls/Popover';
 import buttons from '../../controls/Button.module.css';
@@ -60,26 +60,26 @@ export function Header() {
         <UpdateSlot />
         <button
           type="button"
-          className={buttons.ghost}
+          className={`${buttons.ghost} ${buttons.lead}`}
           aria-pressed={overlay === 'tuner'}
           onClick={() => {
             presetBrowser.keep();
             uiActions.toggleOverlay('tuner');
           }}
         >
-          <Icon name="fork" />
+          <Icon name="fork" stroke={ICON_STROKE_LABEL} />
           Tuner
         </button>
         <button
           type="button"
-          className={buttons.ghost}
+          className={`${buttons.ghost} ${buttons.lead}`}
           aria-pressed={overlay === 'intonation'}
           onClick={() => {
             presetBrowser.keep();
             uiActions.toggleOverlay('intonation');
           }}
         >
-          <Icon name="ruler" />
+          <Icon name="ruler" stroke={ICON_STROKE_LABEL} />
           Intonation
         </button>
         {standalone && (

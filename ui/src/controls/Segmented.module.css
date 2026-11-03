@@ -1,10 +1,11 @@
 /* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* A real hairline, kept in forced colors: radius 6 = the options' 4 + 1 padding + 1 border. */
 .segmented {
   display: inline-flex;
-  padding: 2px;
+  padding: 1px;
+  border: 1px solid var(--line);
   border-radius: var(--r-ctl);
   background: rgb(6 17 25 / 0.55);
-  box-shadow: 0 0 0 1px var(--line) inset;
 }
 
 .option {
@@ -19,19 +20,18 @@
   font-stretch: 108%;
   font-weight: 520;
   white-space: nowrap;
-  transition:
-    color var(--dur-1),
-    background var(--dur-1);
+  /* Selected: the nacre layer (controls/NacreFill.module.css) fades in as the label darkens. */
+  transition: color var(--dur-1) var(--ease-out);
 }
 
-.option:hover {
-  color: var(--bone);
+@media (hover: hover) {
+  .option:hover {
+    color: var(--bone);
+  }
 }
 
 .option[aria-checked='true'] {
   color: var(--ink-1);
-  background: var(--nacre-line);
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.4);
 }
 
 .sm .option {

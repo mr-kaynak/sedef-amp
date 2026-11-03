@@ -27,7 +27,7 @@ function CustomTuning() {
     <div className={styles.custom}>
       <div className={styles.customHead}>
         <span>Strings</span>
-        <div className={styles.countStepper}>
+        <div className={`${buttons.stepper} ${styles.countStepper}`}>
           <button
             type="button"
             aria-label="Remove a string"

@@ -9,11 +9,25 @@
   bottom: calc(100% + 10px);
   z-index: 3;
   width: 360px;
-  padding: 14px 16px 6px;
+  padding: 13px 15px 5px;
+  border: 1px solid transparent;
   border-radius: var(--r-pop);
-  background: linear-gradient(180deg, #13293a, #0d1f2c);
+  background: var(--surface-pop);
   box-shadow: var(--shadow-pop);
-  animation: rise var(--dur-2) var(--ease-out);
+  /* Fades in; where motion is welcome it also rises into place. */
+  animation: fade var(--dur-2) var(--ease-out);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .panel {
+    animation-name: rise;
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
 }
 
 @keyframes rise {

@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // The browser's right pane: the highlighted preset in full (category and author, the name in the
 // display face, its note, the chain by stage, tags) and what you can do with it.
-import { Icon } from '../../controls/Icon';
+import { Icon, ICON_STROKE_LABEL } from '../../controls/Icon';
 import { Led } from '../../controls/Led';
 import buttons from '../../controls/Button.module.css';
+import nacre from '../../controls/NacreFill.module.css';
 import type { PresetInfo } from '../../bridge/protocol';
 import { presetActions, usePresetStore } from '../../state/presetStore';
 import { modKey } from '../../app/platform';
@@ -72,7 +73,7 @@ export function PresetDetail({ preset }: { preset: PresetInfo | undefined }) {
                   <button
                     key={t}
                     type="button"
-                    className={styles.tag}
+                    className={`${buttons.press} ${nacre.fill} ${styles.tag}`}
                     aria-pressed={filterTags.includes(t)}
                     onClick={() => toggleTag(t)}
                   >
@@ -83,12 +84,12 @@ export function PresetDetail({ preset }: { preset: PresetInfo | undefined }) {
             )}
             <button
               type="button"
-              className={`${buttons.ghost} ${buttons.small} ${styles.favourite}`}
+              className={`${buttons.ghost} ${buttons.small} ${buttons.lead} ${styles.favourite}`}
               aria-pressed={preset.favorite}
               aria-keyshortcuts="F"
               onClick={() => void presetActions.setFavorite(preset.id, !preset.favorite)}
             >
-              <Icon name="star" size={13} filled={preset.favorite} />
+              <Icon name="star" size={13} filled={preset.favorite} stroke={ICON_STROKE_LABEL} />
               {preset.favorite ? 'Favourite' : 'Add to favourites'}
             </button>
           </>

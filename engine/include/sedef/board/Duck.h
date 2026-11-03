@@ -9,15 +9,19 @@
 namespace sedef
 {
 
-/// The board's duck: a raised-cosine fade to silence, a hold there while the owner rewires the
-/// pedals, and a raised-cosine fade back. Either fade can turn round half way; it continues from
-/// the gain it reached, so a change of mind never jumps.
+/// The board's duck: raised-cosine fades to silence, a hold there while the owner rewires the
+/// pedals, and the same fades back. There are two gains: one for the board's input and one for
+/// its output, which trails the input by `lag` samples on the way down, so by the time it is
+/// silent the signal has left every pedal's pipeline (whatever the rewired pedals hold is then
+/// silence). Either way the duck can turn round half way; it continues from the gains it
+/// reached, so a change of mind never jumps.
 class Duck
 {
 public:
-    void prepare (double sampleRate, double fadeSeconds) noexcept
+    void prepare (double sampleRate, double fadeSeconds, int lagSamples) noexcept
     {
         length_ = std::max (1, static_cast<int> (std::lround (fadeSeconds * sampleRate)));
+        lag_ = std::max (0, lagSamples);
         reset();
     }
 
@@ -33,38 +37,45 @@ public:
 
     bool idle() const noexcept { return depth_ == 0 && direction_ <= 0; }
     bool fadingOut() const noexcept { return direction_ > 0; }
-    /// At silence, waiting for fadeIn().
-    bool silent() const noexcept { return depth_ == length_; }
-    int fadeSamples() const noexcept { return length_; }
+    /// Both gains at zero, waiting for fadeIn().
+    bool silent() const noexcept { return depth_ == bottom(); }
+    /// Samples from unity to silence.
+    int downSamples() const noexcept { return bottom(); }
     /// Samples until silence while fading out, else 0.
-    int samplesToSilence() const noexcept { return direction_ > 0 ? length_ - depth_ : 0; }
+    int samplesToSilence() const noexcept { return direction_ > 0 ? bottom() - depth_ : 0; }
 
-    /// Writes the gains of the next n samples and advances. False, writing nothing, at unity.
-    bool render (float* gain, int n) noexcept
+    /// Writes the input and output gains of the next n samples and advances. False, writing
+    /// nothing, at unity.
+    bool render (float* input, float* output, int n) noexcept
     {
         if (idle())
             return false;
         for (int i = 0; i < n; ++i)
         {
-            depth_ = std::clamp (depth_ + direction_, 0, length_);
-            gain[i] = gainAt (depth_);
+            depth_ = std::clamp (depth_ + direction_, 0, bottom());
+            input[i] = curve (std::min (depth_, length_));
+            output[i] = curve (std::max (0, depth_ - lag_));
         }
         if (depth_ == 0)
             direction_ = 0;
         return true;
     }
 
-    float gain() const noexcept { return gainAt (depth_); }
+    float inputGain() const noexcept { return curve (std::min (depth_, length_)); }
+    float outputGain() const noexcept { return curve (std::max (0, depth_ - lag_)); }
 
 private:
-    float gainAt (int depth) const noexcept
+    int bottom() const noexcept { return length_ + lag_; }
+
+    float curve (int depth) const noexcept
     {
         const double x = static_cast<double> (depth) / static_cast<double> (length_);
         return static_cast<float> (0.5 + 0.5 * std::cos (kPiD * x));
     }
 
     int length_ = 1;
-    int depth_ = 0;     // 0 = unity, length_ = silence
+    int lag_ = 0;
+    int depth_ = 0;     // 0 = unity, bottom() = silence
     int direction_ = 0; // +1 fading out, -1 fading in, 0 holding
 };
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 #include "sedef/Engine.h"
 
-#include "sedef/board/Duck.h"
+#include "sedef/board/BoardSwitch.h"
 #include "sedef/board/PedalRack.h"
 #include "sedef/core/BypassFader.h"
 #include "sedef/core/Denormals.h"
@@ -225,9 +225,10 @@ struct Chain
         cab.reset();
     }
 
-    /// `duck` (n gains, or null at unity) fades the board in and out while it is rewired.
+    /// `duck` fades the board in and out while it is rewired.
     void process (const float* in, const AudioView& stereoOut, const ChainSettings& s,
-                  const float* duck, const std::array<bool, kNumPedals>& leaving) noexcept
+                  const BoardSwitch::Gains& duck,
+                  const std::array<bool, kNumPedals>& leaving) noexcept
     {
         const int n = stereoOut.numFrames();
         float* x = buffer.data();
@@ -250,14 +251,10 @@ struct Chain
         }
         inputPeak = peak;
 
-        // Ducked on the way in and out: the pedals rewire at silence and start again from it.
-        if (duck != nullptr)
-            for (int i = 0; i < n; ++i)
-                x[i] *= duck[i];
+        // Ducked on the way in and out while the board rewires (BoardSwitch).
+        BoardSwitch::apply (x, duck.input, n);
         rack.process (x, sidechain.data(), n, s.pedals, leaving);
-        if (duck != nullptr)
-            for (int i = 0; i < n; ++i)
-                x[i] *= duck[i];
+        BoardSwitch::apply (x, duck.output, n);
 
         capture.setSettings (s.capture);
         capture.process (amp, s.amp, AudioView (x, n));
@@ -311,57 +308,9 @@ struct Engine::Impl
     InputFold fold;         // stereo input -> the single chain (Summed mode)
     InputFold analysisFold; // stereo input -> the tuner in Dual mode
 
-    // The pedalboard. Both chains play the same order; chain 0's rack holds the one in force.
-    Board target = Board::legacy();          // the newest order from setBoard()
-    std::array<bool, kNumPedals> leaving {}; // forced off on their way off the board
-    Duck duck;                               // rewiring at silence
-    std::vector<float> duckGain;
+    BoardSwitch board; // takes both chains' racks to the newest pedal order
 
-    void rewire (const Board& board) noexcept
-    {
-        for (auto& c : chains)
-            c.rack.rewire (board);
-        leaving.fill (false);
-    }
-
-    /// Moves the board towards `target`, at a chunk boundary. Returns how long the chunk may be,
-    /// so a fade to silence ends exactly at a boundary.
-    int stepBoard (int n) noexcept
-    {
-        const auto& rack = chains[0].rack;
-        const Board& applied = rack.order();
-        leaving.fill (false);
-        if (applied == target)
-        {
-            duck.fadeIn(); // after a rewire, or a change of mind half way down
-            return n;
-        }
-        for (const auto id : applied)
-            leaving[index (id)] = !target.contains (id);
-
-        if (rack.needsDuck (target))
-        {
-            if (duck.silent())
-            {
-                rewire (target);
-                duck.fadeIn();
-                return n;
-            }
-            duck.fadeOut();
-            return std::min (n, duck.samplesToSilence());
-        }
-
-        // Bypass fades are enough: the leaving pedals switch off, and once they are silent in the
-        // chain they leave it and the new ones join (bypassed; they fade in when on).
-        duck.fadeIn();
-        for (const auto id : applied)
-            if (leaving[index (id)] && !rack.fullyBypassed (id))
-                return n;
-        for (auto& c : chains)
-            c.rack.adopt (target);
-        leaving.fill (false);
-        return n;
-    }
+    std::array<PedalRack*, 2> racks() noexcept { return { &chains[0].rack, &chains[1].rack }; }
 };
 
 Engine::Engine() : impl_ (std::make_unique<Impl>()) {}
@@ -401,8 +350,7 @@ void Engine::prepare (double sampleRate, int maxBlockSize, int numInputs, int nu
     d.monoIn.assign (static_cast<size_t> (block), 0.0f);
     d.fold.prepare (sampleRate);
     d.analysisFold.prepare (sampleRate);
-    d.duck.prepare (sampleRate, kBoardDuckSeconds);
-    d.duckGain.assign (static_cast<size_t> (block), 1.0f);
+    d.board.prepare (sampleRate, block, d.chains[0].rack.latencySamples());
 
     sampleRate_.store (sampleRate, std::memory_order_release);
     maxBlockSize_.store (block, std::memory_order_release);
@@ -426,9 +374,9 @@ void Engine::reset()
     d.metronome.reset();
     d.snapGains = true;
     // Audio is stopped: the newest board applies at once.
-    board_.read (d.target);
-    d.rewire (d.target);
-    d.duck.reset();
+    Board target = d.board.target();
+    board_.read (target);
+    d.board.reset (target, d.racks());
 }
 
 void Engine::setBoard (const Board& board) noexcept
@@ -542,7 +490,8 @@ void Engine::process (const float* const* inputs, float* const* outputs, int num
 
     float inPeaks[2] = { 0.0f, 0.0f };
     float outPeaks[2] = { 0.0f, 0.0f };
-    board_.read (d.target); // block boundary: the newest order, if one came
+    if (Board next; board_.read (next)) // a block boundary: the newest order, if one came
+        d.board.setTarget (next);
 
     for (int start = 0; start < numFrames;)
     {
@@ -576,8 +525,8 @@ void Engine::process (const float* const* inputs, float* const* outputs, int num
             d.modeFade.setTarget (1.0f); // switched back before the fade-out finished
             d.modeFadeLeft = 0;
         }
-        n = d.stepBoard (n);
-        const float* duck = d.duck.render (d.duckGain.data(), n) ? d.duckGain.data() : nullptr;
+        n = d.board.step (n, d.racks());
+        const auto duck = d.board.duckGains (n);
 
         const float* in0 = inputs[0] + start;
         const float* in1 = numInputs == 2 ? inputs[1] + start : nullptr;
@@ -609,13 +558,13 @@ void Engine::process (const float* const* inputs, float* const* outputs, int num
         std::array<float*, 2> postPtrs { d.post[0].data(), d.post[1].data() };
         const AudioView post (postPtrs.data(), 2, n);
 
-        d.chains[0].process (chainIn, post, chain, duck, d.leaving);
+        d.chains[0].process (chainIn, post, chain, duck, d.board.leaving());
         inPeaks[0] = std::max (inPeaks[0], d.chains[0].inputPeak);
         if (d.dual && in1 != nullptr)
         {
             std::array<float*, 2> rPtrs { d.chainR[0].data(), d.chainR[1].data() };
             const AudioView right (rPtrs.data(), 2, n);
-            d.chains[1].process (in1, right, chain, duck, d.leaving);
+            d.chains[1].process (in1, right, chain, duck, d.board.leaving());
             inPeaks[1] = std::max (inPeaks[1], d.chains[1].inputPeak);
             // Each chain feeds its own side.
             for (int i = 0; i < n; ++i)
@@ -698,8 +647,7 @@ void Engine::process (const float* const* inputs, float* const* outputs, int num
     for (std::size_t i = 0; i < kNumPedals; ++i)
         telemetry_.pedalRan[i].store (rack0.ran (static_cast<PedalId> (i)),
                                       std::memory_order_relaxed);
-    telemetry_.boardChanging.store (rack0.order() != d.target || !d.duck.idle(),
-                                    std::memory_order_relaxed);
+    telemetry_.boardChanging.store (d.board.changing (rack0), std::memory_order_relaxed);
     telemetry_.metronomeStep.store (d.metronome.currentStep(), std::memory_order_relaxed);
     telemetry_.driftTimeMs.store (d.drift.effectiveTimeMs(), std::memory_order_relaxed);
 }

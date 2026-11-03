@@ -151,8 +151,9 @@ public:
     /// stay on the board change their relative order, or a pedal with latency joins or leaves.
     /// Anything else is bypass fades (adopt()).
     bool needsDuck (const Board& next) const noexcept;
-    /// A new order at silence: the pedals on it restart from a clean state (the next block snaps
-    /// each to its switch) and the pad takes up the latency of the pedals off it.
+    /// A new order at silence: joining pedals start from a clean state (the next block snaps
+    /// each to its switch), the others keep theirs, and the pad takes up the latency of the
+    /// pedals off the board.
     void rewire (const Board& order) noexcept;
     /// A new order that only adds or drops pedals without latency, keeping the others' order.
     /// Joining pedals start bypassed and fade in when on; leaving ones must already be fully

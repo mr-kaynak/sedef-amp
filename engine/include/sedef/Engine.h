@@ -47,9 +47,6 @@ public:
         std::atomic<bool> boardChanging { false };
     };
 
-    /// Each fade of the duck that rewires the board (fade out, rewire, fade in).
-    static constexpr double kBoardDuckSeconds = 0.006;
-
     Engine();
     ~Engine();
     Engine (const Engine&) = delete;

@@ -33,7 +33,8 @@ void PedalRack::prepare (const ProcessSpec& mono)
     keyDelay_.prepare (totalLatency_ + mono.maxBlockSize);
     keyed_.assign (static_cast<size_t> (mono.maxBlockSize), 0.0f);
     ran_.fill (false);
-    rewire (order_); // latencies depend on the sample rate
+    padLength_ = totalLatency_ - latencyOf (order_); // latencies depend on the sample rate
+    pad_.reset();
 }
 
 void PedalRack::reset() noexcept
@@ -80,9 +81,12 @@ bool PedalRack::needsDuck (const Board& next) const noexcept
 
 void PedalRack::rewire (const Board& order) noexcept
 {
-    order_ = order;
-    for (const auto id : order_)
+    // Pedals that stay keep their state: the signal faded out through them, so what they hold is
+    // quiet, and a compressor that kept its envelope doesn't overshoot when the signal returns.
+    for (const auto id : order)
     {
+        if (order_.contains (id))
+            continue;
         switch (id)
         {
 #define SEDEF_PEDAL(pid, name, category, rank, enable, Module, settings)                           \
@@ -95,8 +99,11 @@ void PedalRack::rewire (const Board& order) noexcept
             break;
         }
     }
-    padLength_ = totalLatency_ - latencyOf (order_);
-    pad_.reset();
+    order_ = order;
+    const int pad = totalLatency_ - latencyOf (order_);
+    if (pad != padLength_)
+        pad_.reset(); // what it holds was delayed by the old length
+    padLength_ = pad;
 }
 
 void PedalRack::adopt (const Board& order) noexcept

@@ -53,6 +53,13 @@ constexpr float kCfKnee = 0.5f, kCfInvWidth2 = 1.0f / (0.5f * 0.5f);
 constexpr double kStackCapLow = 47e-9, kStackCapHigh = 18e-9;
 constexpr float kStackMakeup = 1.6f;
 
+// Fixed voicing after the stack. Cutting the low end ahead of the clippers changes what they
+// square, and with it the spectrum of what comes out: less below 250 Hz, more at 1-2 kHz. These
+// two filters put back the v0.3.0 balance (octave bands through a cab within 0.8 dB on average),
+// so the change is in how the amp moves, not in its colour.
+constexpr double kWeightHz = 120.0, kWeightDb = 4.0;
+constexpr double kVoiceMidHz = 1300.0, kVoiceMidQ = 0.6, kVoiceMidDb = -3.5;
+
 // Power amp: resonance (fixed low shelf) and presence (variable high shelf) model the frequency
 // dependent negative feedback, applied ahead of the output stage so they also shape its clipping.
 constexpr double kResonanceHz = 100.0;
@@ -65,7 +72,7 @@ constexpr PowerAmp::Config kPowerAmp { 0.18f, 0.05f, 5.0, 120.0 };
 // Level follows only part of a drive increase (drive^(1 - comp) while the stages are still
 // linear); the rest turns into saturation.
 constexpr float kGainComp = 0.02f, kMasterComp = 0.35f;
-constexpr float kMakeup = 0.4337f;
+constexpr float kMakeup = 0.497f;
 
 float gainDrive (float g) noexcept
 {
@@ -119,6 +126,8 @@ void AbyssModel::prepare (double sampleRate)
     v4Hpf_.setCoeffs (design::highpass1 (fsOs_, 50.0));
     v4_.configure (kV4Curve, kV4Shift, fsOs_);
     v4Lpf_.setCoeffs (design::lowpass1 (fsOs_, 3000.0));
+    weight_.setCoeffs (design::lowShelf1 (fsOs_, kWeightHz, kWeightDb));
+    voiceMid_.setCoeffs (design::peaking (fsOs_, kVoiceMidHz, kVoiceMidQ, kVoiceMidDb));
     piHpf_.setCoeffs (design::highpass1 (fsOs_, 20.0));
     resonance_.setCoeffs (design::lowShelf1 (fsOs_, kResonanceHz, kResonanceDb));
     presence_.setHigh (fsOs_, kPresenceHz);
@@ -141,7 +150,7 @@ void AbyssModel::reset() noexcept
 
     os_.reset();
     for (auto* f : { &inHpf_, &v1Shelf_, &v1Lpf_, &gainHpf_, &v2Shelf_, &v2Lpf_, &v3Hpf_, &v3Shelf_,
-                     &v3Lpf_, &v4Hpf_, &v4Lpf_, &piHpf_, &resonance_, &otLpf_ })
+                     &v3Lpf_, &v4Hpf_, &v4Lpf_, &weight_, &piHpf_, &resonance_, &otLpf_ })
         f->reset();
     bright_.reset();
     presence_.reset();
@@ -149,6 +158,7 @@ void AbyssModel::reset() noexcept
     for (auto* v : { &v2_, &v3_, &v4_ })
         v->reset();
     stack_.reset();
+    voiceMid_.reset();
     pa_.reset();
     otHpf_.reset();
 }
@@ -179,7 +189,7 @@ void AbyssModel::updateCoeffs() noexcept
 void AbyssModel::snapState() noexcept
 {
     for (auto* f : { &inHpf_, &v1Shelf_, &v1Lpf_, &gainHpf_, &v2Shelf_, &v2Lpf_, &v3Hpf_, &v3Shelf_,
-                     &v3Lpf_, &v4Hpf_, &v4Lpf_, &piHpf_, &resonance_, &otLpf_ })
+                     &v3Lpf_, &v4Hpf_, &v4Lpf_, &weight_, &piHpf_, &resonance_, &otLpf_ })
         f->snapToZero();
     bright_.snapToZero();
     presence_.snapToZero();
@@ -187,6 +197,7 @@ void AbyssModel::snapState() noexcept
     for (auto* v : { &v2_, &v3_, &v4_ })
         v->snapToZero();
     stack_.snapToZero();
+    voiceMid_.snapToZero();
     pa_.snapToZero();
     otHpf_.snapToZero();
 }
@@ -240,6 +251,7 @@ void AbyssModel::processChunk (const AudioView& io) noexcept
             x = v4Lpf_.process (ch, x);
             x = cathodeFollower (x, kCfKnee, kCfInvWidth2);
             x = stack_.processSample (ch, x);
+            x = voiceMid_.processSample (ch, weight_.process (ch, x));
             x = piHpf_.process (ch, x);
             x = resonance_.process (ch, x);
             x = presence_.process (ch, x, gpr);

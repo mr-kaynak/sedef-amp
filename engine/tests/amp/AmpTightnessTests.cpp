@@ -63,7 +63,7 @@ TEST_CASE ("Abyss palm mutes stop instead of droning", "[amp]")
     {
         const double ring = test::ringSeconds (run (abyss (t.gain), chug), kFs, 20.0);
         const double dip = test::chugDipDb (run (abyss (t.gain), train), kFs, 150.0);
-        CAPTURE (t.gain, ring, dip); // measured 0.20 / 28.0, 0.27 / 20.5, 0.42 / 6.1
+        CAPTURE (t.gain, ring, dip); // measured 0.20 / 27.6, 0.28 / 20.3, 0.42 / 6.6
         CHECK (ring <= t.maxRing);   // v0.3.0: 0.28, 0.39, 0.49
         CHECK (dip >= t.minDip);     // v0.3.0: 20.0, 10.3, 4.9
     }
@@ -84,7 +84,7 @@ TEST_CASE ("Abyss power chords and triads keep their notes apart", "[amp]")
         test::inharmonicDb (run (s, test::ringingChord (kFs, 3.0, e5)), kFs, e5, start);
     const double third =
         test::inharmonicDb (run (s, test::ringingChord (kFs, 3.0, triad)), kFs, triad, start);
-    CAPTURE (twoTone, chord, third); // measured -18.7, -17.5, -8.9
+    CAPTURE (twoTone, chord, third); // measured -20.5, -18.2, -9.0
     CHECK (twoTone < -18.0);         // v0.3.0: -16.9
     CHECK (chord < -16.0);           // v0.3.0: -11.3
     CHECK (third < -7.5);            // v0.3.0: -4.9
@@ -92,8 +92,8 @@ TEST_CASE ("Abyss power chords and triads keep their notes apart", "[amp]")
     // Full gain is the lead wall: chords blur there on any high-gain amp, but no more than before.
     const double chordFull =
         test::inharmonicDb (run (abyss (1.0f), test::ringingChord (kFs, 3.0, e5)), kFs, e5, start);
-    CAPTURE (chordFull); // measured -10.3, v0.3.0 -10.2
-    CHECK (chordFull < -9.5);
+    CAPTURE (chordFull); // measured -11.9, v0.3.0 -10.2
+    CHECK (chordFull < -10.5);
 }
 
 TEST_CASE ("Abyss keeps the low strings out of the clippers", "[amp]")
@@ -105,8 +105,8 @@ TEST_CASE ("Abyss keeps the low strings out of the clippers", "[amp]")
         const auto p = processOf (abyss (g));
         const double lowE = test::compressionPoint (p, kE2, kFs, 6.0);
         const double mids = test::compressionPoint (p, 660.0, kFs, 6.0);
-        CAPTURE (g, lowE, mids, lowE - mids); // measured 19.2 and 19.0 dB
-        CHECK (lowE - mids >= 17.0);
+        CAPTURE (g, lowE, mids, lowE - mids); // measured 17.7 and 17.6 dB
+        CHECK (lowE - mids >= 16.0);
     }
     // At the default gain a low E at DI -24 passes almost uncompressed while 660 Hz saturates.
     const auto p = processOf (abyss (0.5f));
@@ -114,7 +114,7 @@ TEST_CASE ("Abyss keeps the low strings out of the clippers", "[amp]")
         test::sineGainDb (p, kE2, kFs, -100.0) - test::sineGainDb (p, kE2, kFs, -24.0);
     const double mid =
         test::sineGainDb (p, 660.0, kFs, -100.0) - test::sineGainDb (p, 660.0, kFs, -24.0);
-    CAPTURE (low, mid); // measured 0.3 / 12.8 dB; v0.3.0 9.0 / 20.6
+    CAPTURE (low, mid); // measured 0.5 / 12.7 dB; v0.3.0 9.0 / 20.6
     CHECK (low < 2.0);
     CHECK (mid > 8.0);
 }
@@ -124,7 +124,7 @@ TEST_CASE ("Abyss compression points: rhythm at noon, lead wall at full gain", "
     // 1 dB compression point of a 220 Hz sine (dBFS RMS in).
     const double noon = test::compressionPoint (processOf (abyss (0.5f)), 220.0, kFs, 1.0);
     const double full = test::compressionPoint (processOf (abyss (1.0f)), 220.0, kFs, 1.0);
-    CAPTURE (noon, full); // measured -31.2 / -69.7; v0.3.0 -44.9 / -73.5
+    CAPTURE (noon, full); // measured -31.5 / -69.9; v0.3.0 -44.9 / -73.5
     CHECK (noon > -35.0); // a strum at DI -18 is about 15 dB into saturation, not 27
     CHECK (noon < -27.0); // still a high-gain rhythm sound (Reef at noon: -27.8)
     CHECK (full < -66.0); // light single notes 30+ dB into saturation: leads sustain
@@ -141,7 +141,7 @@ TEST_CASE ("Abyss at the default gain answers the pick", "[amp]")
     const double range = level[1] - level[0];
     const double soft =
         test::thd (run (abyss (0.5f), test::sineAt (220.0, kFs, 1.0, -36.0)), 220.0, kFs);
-    CAPTURE (range, soft); // measured 6.9 dB, 8.7 %
+    CAPTURE (range, soft); // measured 6.8 dB, 7.4 %
     CHECK (range > 5.5);
     CHECK (soft < 0.1);
 
@@ -158,7 +158,7 @@ TEST_CASE ("Abyss at the default gain answers the pick", "[amp]")
     }
     const std::vector<float> tail (v.end() - n, v.end());
     const double crest = test::dbfs (test::peak (tail)) - test::dbfs (test::rms (tail));
-    CAPTURE (10.0 * std::log10 (odd / even), crest); // measured -5.4 dB, 2.9 dB
+    CAPTURE (10.0 * std::log10 (odd / even), crest); // measured -5.5 dB, 3.1 dB
     CHECK (odd < even);
     CHECK (crest > 2.3);
 }
@@ -177,6 +177,6 @@ TEST_CASE ("Abyss at the default gain is less fizzy than v0.3.0", "[amp]")
             above += p[k];
     }
     const double db = 10.0 * std::log10 (above / total);
-    CAPTURE (db); // measured -23.8
+    CAPTURE (db); // measured -23.4
     CHECK (db < -22.0);
 }

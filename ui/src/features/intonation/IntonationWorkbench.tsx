@@ -78,7 +78,7 @@ export function IntonationWorkbench() {
         <PhaseTrail phase={phase} />
         <button
           type="button"
-          className={`${buttons.ghost} ${buttons.small}`}
+          className={`${buttons.ghost} ${buttons.small} ${buttons.lead}`}
           onClick={() => uiActions.openOverlay(null)}
         >
           <Icon name="close" size={14} stroke={ICON_STROKE_LABEL} />

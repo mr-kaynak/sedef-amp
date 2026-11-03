@@ -140,7 +140,11 @@ function Actions({ state }: { state: SupportedUpdateState }) {
   if (state.phase === 'done' && state.download) {
     return (
       <div className={styles.actions}>
-        <button type="button" className={buttons.ghost} onClick={() => void updateActions.reveal()}>
+        <button
+          type="button"
+          className={`${buttons.ghost} ${buttons.lead}`}
+          onClick={() => void updateActions.reveal()}
+        >
           <Icon name="folder" stroke={ICON_STROKE_LABEL} />
           Show in folder
         </button>
@@ -332,7 +336,7 @@ export function UpdatesPanel() {
           </dl>
           <button
             type="button"
-            className={`${buttons.solid} ${buttons.small}`}
+            className={`${buttons.solid} ${buttons.small} ${buttons.lead}`}
             disabled={busy}
             onClick={() => void updateActions.checkNow()}
           >

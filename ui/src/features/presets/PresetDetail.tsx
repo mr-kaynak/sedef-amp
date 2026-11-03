@@ -84,7 +84,7 @@ export function PresetDetail({ preset }: { preset: PresetInfo | undefined }) {
             )}
             <button
               type="button"
-              className={`${buttons.ghost} ${buttons.small} ${styles.favourite}`}
+              className={`${buttons.ghost} ${buttons.small} ${buttons.lead} ${styles.favourite}`}
               aria-pressed={preset.favorite}
               aria-keyshortcuts="F"
               onClick={() => void presetActions.setFavorite(preset.id, !preset.favorite)}

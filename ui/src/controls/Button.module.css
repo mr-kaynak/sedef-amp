@@ -107,6 +107,15 @@
   padding: 0;
 }
 
+/* An icon before the label: 2px less on the icon side, where equal padding looks heavier. */
+.lead {
+  padding-inline-start: 10px;
+}
+
+.small.lead {
+  padding-inline-start: 7px;
+}
+
 /* Tap tempo: a solid button the player hits in time. Each panel sets only its size. */
 .tap {
   composes: solid;

@@ -86,7 +86,11 @@ export function SummaryStep() {
           </tbody>
         </table>
         <div className={styles.resultActions}>
-          <button type="button" className={buttons.solid} onClick={() => void copy()}>
+          <button
+            type="button"
+            className={`${buttons.solid} ${buttons.lead}`}
+            onClick={() => void copy()}
+          >
             <IconSwap
               active={copied === 'done'}
               icon="copy"

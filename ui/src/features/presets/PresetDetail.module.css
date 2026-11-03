@@ -134,8 +134,9 @@
   color: rgb(11 28 39 / 0.5);
 }
 
+/* The star lines up with the text above: 7px lead padding - 6px. */
 .favourite {
-  margin: 14px 0 0 -8px;
+  margin: 14px 0 0 -6px;
 }
 
 .favourite[aria-pressed='true'] svg {

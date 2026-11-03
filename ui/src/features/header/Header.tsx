@@ -60,7 +60,7 @@ export function Header() {
         <UpdateSlot />
         <button
           type="button"
-          className={buttons.ghost}
+          className={`${buttons.ghost} ${buttons.lead}`}
           aria-pressed={overlay === 'tuner'}
           onClick={() => {
             presetBrowser.keep();
@@ -72,7 +72,7 @@ export function Header() {
         </button>
         <button
           type="button"
-          className={buttons.ghost}
+          className={`${buttons.ghost} ${buttons.lead}`}
           aria-pressed={overlay === 'intonation'}
           onClick={() => {
             presetBrowser.keep();

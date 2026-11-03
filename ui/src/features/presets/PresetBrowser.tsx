@@ -430,7 +430,7 @@ function BrowserPanel() {
         <span className={styles.spacer} />
         <button
           type="button"
-          className={`${buttons.ghost} ${buttons.small}`}
+          className={`${buttons.ghost} ${buttons.small} ${buttons.lead}`}
           title="Start from the default sound"
           onClick={() => void newPreset()}
         >

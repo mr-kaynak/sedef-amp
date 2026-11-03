@@ -17,7 +17,7 @@ export function ShortcutList({
     <div className={styles.anchor}>
       <button
         type="button"
-        className={`${buttons.ghost} ${buttons.small}`}
+        className={`${buttons.ghost} ${buttons.small} ${buttons.lead}`}
         aria-expanded={open}
         aria-controls="preset-shortcuts"
         onClick={() => onToggle(!open)}

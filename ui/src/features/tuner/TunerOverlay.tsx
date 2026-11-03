@@ -55,7 +55,7 @@ export function TunerOverlay() {
         <h2 className={styles.title}>Tuner</h2>
         <button
           type="button"
-          className={`${buttons.ghost} ${buttons.small}`}
+          className={`${buttons.ghost} ${buttons.small} ${buttons.lead}`}
           onClick={() => uiActions.openOverlay(null)}
         >
           <Icon name="close" size={14} stroke={ICON_STROKE_LABEL} />

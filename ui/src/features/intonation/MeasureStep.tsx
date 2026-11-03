@@ -280,7 +280,7 @@ function ResultStep({ index }: { index: number }) {
         <div className={styles.resultActions}>
           <button
             type="button"
-            className={buttons.solid}
+            className={`${buttons.solid} ${buttons.lead}`}
             onClick={() => intonationActions.remeasure()}
           >
             <Icon name="refresh" size={14} stroke={ICON_STROKE_LABEL} />

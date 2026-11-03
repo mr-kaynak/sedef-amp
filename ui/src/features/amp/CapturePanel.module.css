@@ -210,8 +210,10 @@
   color: var(--bone-2);
 }
 
+/* The icon leads, so its side is 2px tighter, as on the buttons' .lead. */
 .error {
-  padding: 8px 12px;
+  padding-block: 8px;
+  padding-inline: 10px 12px;
   border-radius: var(--r-ctl);
   background: rgb(240 123 128 / 0.1);
   color: var(--bone);

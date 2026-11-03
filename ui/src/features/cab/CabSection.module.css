@@ -35,8 +35,10 @@
   text-align: left;
 }
 
-.cab:hover {
-  background: rgb(6 17 25 / 0.7);
+@media (hover: hover) {
+  .cab:hover {
+    background: rgb(6 17 25 / 0.7);
+  }
 }
 
 .cab[aria-checked='true'] {

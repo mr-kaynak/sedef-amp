@@ -57,7 +57,7 @@ function RateLed() {
   const speed = useParamValue('rippleSpeed');
   useLiveFrame(telemetry, (_t, dt) => {
     const el = ref.current;
-    if (!el) return;
+    if (!el || !on) return;
     phase.current = (phase.current + speed * dt) % 1;
     // Full brightness at the start of each cycle, 0.35 halfway, as the lamp's old keyframes.
     const brightness = 0.675 + 0.325 * Math.cos(2 * Math.PI * phase.current);

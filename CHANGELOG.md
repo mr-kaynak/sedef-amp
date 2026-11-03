@@ -6,6 +6,31 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Five filter and modulation pedals**, each with its own enclosure on the Pedals page:
+  - **Anemone**, an envelope filter: low-, band- or high-pass that opens (or closes) with your
+    picking, with a fast attack and a slower release for funk
+    ([docs/dsp/anemone.md](docs/dsp/anemone.md)).
+  - **Conch**, an inductor wah: Position is the rocker (automatable), Resonance sets the peak, and
+    Auto rocks the pedal from your picking ([docs/dsp/conch.md](docs/dsp/conch.md)).
+  - **Beacon**, a photocell vibe: four staggered stages and a lamp that throbs rather than sways,
+    in Chorus or Vibrato ([docs/dsp/beacon.md](docs/dsp/beacon.md)).
+  - **Gyre**, a phaser with 4 or 6 stages and Feedback ([docs/dsp/gyre.md](docs/dsp/gyre.md)).
+  - **Jetty**, a bucket-brigade flanger with Feedback in either polarity
+    ([docs/dsp/jetty.md](docs/dsp/jetty.md)).
+
+  Anemone and Conch sit before the drives, Beacon, Gyre and Jetty after them, before Ripple. All
+  five are off by default, so existing sessions and presets sound the same.
+- New parameters (174 in all): `anemoneEnabled`, `anemoneSensitivity`, `anemoneRange`,
+  `anemoneResonance`, `anemoneMode`, `anemoneDirection`, `conchEnabled`, `conchMode`,
+  `conchPosition`, `conchResonance`, `conchSensitivity`, `beaconEnabled`, `beaconSpeed`,
+  `beaconDepth`, `beaconMode`, `gyreEnabled`, `gyreSpeed`, `gyreDepth`, `gyreFeedback`,
+  `gyreStages`, `jettyEnabled`, `jettySpeed`, `jettyDepth`, `jettyDelay`, `jettyFeedback`.
+- **Sargasso** factory preset: Lagoon pushed by Coral into the Beacon vibe, with a plate.
+- The Pedals board scrolls sideways when the pedals don't fit; the mouse wheel scrolls it and
+  keyboard focus brings the focused pedal into view.
+
 ## [0.3.0] - 2026-11-03
 
 More gain, mics you can place anywhere over the speaker, Neural Amp Modeler captures, a doubler

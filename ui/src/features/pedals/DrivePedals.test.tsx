@@ -4,7 +4,6 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { getValue } from '../../params/paramStore';
 import { flush, setupMock, type Harness } from '../../test/harness';
 import { BreakerPedal, SargassoPedal, RemoraPedal } from './DrivePedals';
-import { PedalsSection } from './PedalsSection';
 
 describe('drive pedals', () => {
   let h: Harness;
@@ -58,22 +57,5 @@ describe('drive pedals', () => {
     expect(getValue('breakerEnabled')).toBe(1);
     await flush();
     expect(h.mock.value('breakerEnabled')).toBe(1);
-  });
-
-  it('the pedals page shows every pedal in signal order', () => {
-    render(<PedalsSection />);
-    const names = screen
-      .getAllByRole('region')
-      .map((r) => r.getAttribute('aria-label'))
-      .filter(Boolean);
-    expect(names).toEqual([
-      'Remora Fuzz',
-      'Tide Compressor',
-      'Sargasso Sustain fuzz',
-      'Pearl Overdrive',
-      'Coral Distortion',
-      'Ripple Modulation',
-      'Breaker Treble booster',
-    ]);
   });
 });

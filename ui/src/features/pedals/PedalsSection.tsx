@@ -6,9 +6,12 @@ import { Segmented } from '../../controls/Segmented';
 import { Toggle } from '../../controls/Toggle';
 import { useParamValue } from '../../params/useParam';
 import { telemetry, useLiveFrame, useLiveSelector } from '../../state/live';
-import { BreakerPedal, SargassoPedal, RemoraPedal } from './DrivePedals';
+import { BreakerPedal, RemoraPedal, SargassoPedal } from './DrivePedals';
+import { KelpPedal } from './KelpPedal';
 import { Pedal, type PedalFinish } from './Pedal';
 import styles from './PedalsSection.module.css';
+import { TrenchPedal } from './TrenchPedal';
+import { UrchinPedal } from './UrchinPedal';
 
 const FINISH: Record<'tide' | 'pearl' | 'coral' | 'ripple', PedalFinish> = {
   tide: { paint: ['#46677a', '#2c4757'], legend: '#eef0ea', legendDim: 'rgb(238 240 234 / 0.86)' },
@@ -104,6 +107,7 @@ export function PedalsSection() {
         className={styles.board}
         onFocus={(e) => e.target.scrollIntoView({ block: 'nearest', inline: 'nearest' })}
       >
+        <TrenchPedal />
         <RemoraPedal />
         <Pedal
           name="Tide"
@@ -117,6 +121,7 @@ export function PedalsSection() {
           <Knob param="tideLevel" label="Level" />
           <Knob param="tideBlend" label="Blend" />
         </Pedal>
+        <UrchinPedal />
         <SargassoPedal />
         <Pedal name="Pearl" kind="Overdrive" enableParam="pearlEnabled" finish={FINISH.pearl}>
           <Knob param="pearlGain" label="Gain" />
@@ -124,6 +129,7 @@ export function PedalsSection() {
           <Knob param="pearlLevel" label="Level" />
           <Knob param="pearlMid" label="Mid boost" />
         </Pedal>
+        <KelpPedal />
         <Pedal name="Coral" kind="Distortion" enableParam="coralEnabled" finish={FINISH.coral}>
           <Knob param="coralGain" label="Gain" />
           <Knob param="coralCut" label="Cut" />

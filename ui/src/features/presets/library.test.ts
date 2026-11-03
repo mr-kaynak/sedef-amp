@@ -126,7 +126,26 @@ describe('preset library', () => {
       chainText(preset({ amp: 1, cab: 1, blocks: ['gate', 'pearl', 'coral', 'eq', 'drift'] })),
     ).toBe('Pearl → Coral → Reef 2x12 → EQ → Drift');
     expect(chainText(preset({ amp: 2, cab: 0, blocks: [] }))).toBe('Abyss 1x12');
-    // The fuzzes and the booster are pedals in front of the amp.
+    expect(
+      chainText(
+        preset({
+          amp: 2,
+          cab: 2,
+          blocks: [
+            'gate',
+            'trench',
+            'tide',
+            'urchin',
+            'pearl',
+            'kelp',
+            'coral',
+            'ripple',
+            'fathom',
+          ],
+        }),
+      ),
+    ).toBe('Trench → Tide → Urchin → Pearl → Kelp → Coral → Ripple → Abyss 4x12 → Fathom');
+    // The drives lane's fuzzes and booster are pedals in front of the amp too.
     expect(
       chainText(
         preset({

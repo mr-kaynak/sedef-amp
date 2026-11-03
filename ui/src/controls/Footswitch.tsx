@@ -3,7 +3,16 @@ import { useParam } from '../params/useParam';
 import styles from './Footswitch.module.css';
 
 /** Stomp switch for a module's enable parameter. */
-export function Footswitch({ param, label }: { param: string; label?: string }) {
+export function Footswitch({
+  param,
+  label,
+  describedBy,
+}: {
+  param: string;
+  label?: string;
+  /** Id of a visible hint that tells how to play the effect. */
+  describedBy?: string;
+}) {
   const p = useParam(param);
   const on = p.value >= 0.5;
   const toggle = () => {
@@ -17,6 +26,7 @@ export function Footswitch({ param, label }: { param: string; label?: string }) 
       role="switch"
       aria-checked={on}
       aria-label={label ?? p.spec.name}
+      aria-describedby={describedBy}
       className={styles.footswitch}
       data-on={on || undefined}
       onClick={toggle}

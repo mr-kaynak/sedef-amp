@@ -95,9 +95,10 @@ Aliasing at full sustain, worst inharmonic component re the fundamental, 0.3 FS 
 
 ## Chain position
 
-**After the compressor, before the overdrives.** The sustain fuzz does not depend on the guitar's
-impedance, so it can follow Tide; a compressor in front evens out the attack it clips and makes
-the sustain smoother. Remora still goes first, because its clean-up needs the guitar directly.
+**After the compressor and the octave-up fuzz, before the overdrives.** The sustain fuzz doesn't
+depend on the guitar's impedance, so it can follow Tide, and a compressor in front evens out the
+attack it clips, which smooths the sustain. Urchin goes ahead of it because its rectifier needs an
+unclipped note. Remora still comes first of all, because its clean-up needs the guitar directly.
 
 ## Tests (`engine/tests/pedals/SargassoTests.cpp`)
 

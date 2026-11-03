@@ -1,0 +1,27 @@
+{
+  "format": "sedef-preset",
+  "version": 1,
+  "name": "Benthic",
+  "folder": "Crunch",
+  "author": "Sedef",
+  "tags": [
+    "octave",
+    "rhythm",
+    "rock"
+  ],
+  "description": "Single-note riffs doubled an octave below, like a baritone. Play one note at a time.",
+  "parameters": {
+    "ampModel": 1,
+    "reefGain": 0.45,
+    "reefBass": 0.45,
+    "trenchEnabled": 1,
+    "trenchDirect": 0.5,
+    "trenchSub1": 0.45,
+    "trenchTone": 0.35,
+    "kelpEnabled": 1,
+    "kelpDrive": 0.2,
+    "kelpLevel": 0.5,
+    "gateThreshold": -62.0,
+    "reefOutput": 0.3313
+  }
+}

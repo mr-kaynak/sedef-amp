@@ -40,10 +40,13 @@ export type ParamValues = Record<string, number>;
 /** Blocks a preset can switch on besides the amp and cab, in signal order. */
 export type PresetBlock =
   | 'gate'
+  | 'trench'
   | 'remora'
   | 'tide'
+  | 'urchin'
   | 'sargasso'
   | 'pearl'
+  | 'kelp'
   | 'coral'
   | 'ripple'
   | 'breaker'

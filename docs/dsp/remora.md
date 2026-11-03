@@ -142,9 +142,12 @@ Aliasing at full fuzz, worst inharmonic component re the fundamental, 0.3 FS sin
 
 ## Chain position
 
-**First, straight after the gate.** The clean-up depends on seeing the guitar's pickup and volume
-pot directly; a buffer, compressor or another drive in front changes the source impedance and the
-level, and the fuzz no longer cleans up. In the real circuit the same holds: this fuzz goes first.
+**Right after the gate and the octave divider, ahead of the compressor and every drive.** The
+clean-up depends on seeing the guitar's pickup and volume pot directly. A buffer, compressor or
+another drive in front changes the source impedance and the level, and the fuzz no longer cleans
+up; the real circuit has the same rule, which is why this fuzz goes first. The one pedal ahead of
+it is Trench: an octave divider can't track a fuzzed note, and its subs into a fuzz are a
+classic pairing.
 
 ## Tests (`engine/tests/pedals/RemoraTests.cpp`, `BjtStageTests.cpp`)
 

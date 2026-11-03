@@ -65,10 +65,10 @@
     // Screen position of design point q while the camera frames p.
     const at = (q, p) => ({ x: 960 + (q.x - p.x) * B * p.z, y: 540 + (q.y - p.y) * B * p.z });
     const W = { x: 600, y: 380, z: 0.86 }; // the whole window (where the last scene landed)
-    const R = { x: 600, y: 387, z: 1.04 }; // tabs, Gate, Transpose and the four pedals
-    const A = { x: 600, y: 337.5, z: 1 }; // the amp page full width, header to controls
+    const R = { x: 600, y: 399, z: 1.02 }; // tabs, Gate and the four pedals, from just below the header
+    const A = { x: 600, y: 345.1, z: 0.978 }; // the amp page: header to the whole amp head
     const footswitch = { x: 467, y: 658 };
-    const abyssCard = { x: 834, y: 168 }; // the card's swatch, clear of its name
+    const abyssCard = { x: 642, y: 172 }; // lower right of the card's swatch, clear of its name
     const cabTab = { x: 468, y: 100 };
     const tl = gsap.timeline({ paused: true });
     const press = (t) => tl.fromTo("#pd-cur svg", { scale: 1 }, { scale: 0.86, duration: 0.06, yoyo: true, repeat: 1, ease: "power1.inOut", transformOrigin: "3px 3px", immediateRender: false }, t);

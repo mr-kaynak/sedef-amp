@@ -27,13 +27,13 @@
       width: 1200px;
       height: 760px;
     }
-    /* The fretboard's nacre, now the size of Pearl's gain knob cap at the opening zoom. */
+    /* The fretboard's nacre, now the size of Pearl's gain knob cap at the opening zoom (26 px). */
     #rg-disc {
       position: absolute;
-      left: 875px;
-      top: 455px;
-      width: 170px;
-      height: 170px;
+      left: 876.8px;
+      top: 456.8px;
+      width: 166.4px;
+      height: 166.4px;
       border-radius: 50%;
       --sheen: 160deg;
       background:
@@ -53,8 +53,8 @@
     // Camera on a 1200x760 capture: frame design point p at zoom z (1 = 1.6x, the window 1920 wide).
     const B = 1.6;
     const F = (p) => ({ x: 960 - p.x * B * p.z, y: 540 - p.y * B * p.z, scale: B * p.z });
-    const K = { x: 417, y: 310, z: 4 }; // Pearl's gain knob cap, 170 px across
-    const P = { x: 467, y: 486, z: 1.35 }; // Pearl between Tide and Coral, below Gate/Transpose
+    const K = { x: 417, y: 308.2, z: 4 }; // Pearl's gain knob cap, 166 px across
+    const P = { x: 460, y: 483, z: 1.453 }; // Tide, Pearl and Coral whole, below Gate, clear of Ripple
     const W = { x: 600, y: 380, z: 0.86 }; // the whole window
     const move = (p, t, d = 0.6) => {
       tl.to("#rg-cam", { ...F(p), duration: d, ease: "power2.inOut" }, t);

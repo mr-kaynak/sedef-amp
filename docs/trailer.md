@@ -109,7 +109,7 @@ None of the product on screen is drawn for the film. From `ui/`:
 pnpm build && pnpm captures
 ```
 
-This renders 23 PNGs into `media/trailer/assets/shots/`. Each is the 1200 × 760 design canvas at
+This renders 24 PNGs into `media/trailer/assets/shots/`. Each is the 1200 × 760 design canvas at
 3× (3600 × 2280), from `dist/` against the frozen mock backend (see
 [`ui.md`](ui.md#trailer-captures-and-brand-assets)). Every capture uses
 `?fresh&freeze&demo&grain=0&host=standalone`:
@@ -123,18 +123,25 @@ This renders 23 PNGs into `media/trailer/assets/shots/`. Each is the 1200 × 760
 
 The state of each shot comes from the other flags: `section=pedals|amp|cab|fx`,
 `overlay=intonation`, and `set=` for parameter values. For example,
-`set=ampCabLink:0,cabModel:2,micAPosition:0.5` gives the third of the five Mic A positions. Frames
-in a sequence differ only in what the sequence animates. The same command writes the brand assets
-the film uses: `logo.svg` (the star), `wordmark.svg`, `lockup.svg` and the bundled fonts.
+`set=ampCabLink:0,cabModel:2,micAAzimuth:-90,micAPosition:0.5` gives the third of the five Mic A
+positions, at 9 o'clock on the cone. Frames in a sequence differ only in what the sequence
+animates. One shot, `cab-mic-a`, is Mic A's marker alone: the page is hidden around it and the
+PNG has a transparent ground. The same command writes the brand assets the film uses:
+`logo.svg` (the star), `wordmark.svg`, `lockup.svg` and the bundled fonts.
 
 The shots are gitignored (`media/trailer/.gitignore`), so run the command before previewing or
 rendering. They are the only product images in the film.
 
-When the UI changes, retake the shots and check every scene that aims at a control. The header
-scene (`compositions/header.html`) places the nacre disc over the Output knob's cap and lands the
-cursor on the Intonation button by canvas coordinates; for 0.2.0, which added the A/B group to the
-header, both were re-measured from the built UI's DOM (`getBoundingClientRect` of the Output Gain
-slider and the Intonation button) and the film was rendered again with the same voice and music.
+When the UI changes, retake the shots and check every scene that aims at a control or frames
+text: the framings, the cursor targets and the nacre discs are canvas coordinates. For 0.3.0 the
+film was rendered again from the 0.3.0 UI, with the same story, voice, music, clip placements and
+word timings. Transpose has left the pedals page, the Doubler switch sits under the output meter,
+the amp page has a fourth card (Capture), the FX page a Doubler panel, the cab page places the
+mics in 2D with the other speakers' map, and the whole UI had a polish pass. Every framing, click
+target and disc was measured again from the built UI's DOM (`getBoundingClientRect`, in the states
+`pnpm captures` shoots), and each held framing was checked against the boxes of every word, line
+and painted element. What moved, and why, is in
+[`REVIEW.md`](../media/trailer/REVIEW.md#030-re-render).
 
 ## Scenes and camera
 
@@ -163,29 +170,33 @@ A capture sits on a 1200 × 760 element. One helper frames any point of it, as i
 ```js
 const B = 1.6; // zoom 1 = the 1200-px canvas at 1920 px, 1.6x its design size
 const F = (p) => ({ x: 960 - p.x * B * p.z, y: 540 - p.y * B * p.z, scale: B * p.z });
-tl.to("#cam", { ...F({ x: 417, y: 310, z: 4 }), duration: 0.6, ease: "power2.inOut" }, t);
+tl.to("#cam", { ...F({ x: 417, y: 308.2, z: 4 }), duration: 0.6, ease: "power2.inOut" }, t);
 ```
 
 `F({x, y, z})` puts design point (x, y) at the centre of the frame at zoom z. A companion,
 `at(q, p)`, gives the on-screen position of a control while the camera frames p, which is where
 the cursor goes. Camera moves take 0.6 s on `power2.inOut`, with a 4 px blur peaking mid-move.
-Arrivals use `power3.out`, and zooms through a cap use `power3.in`. Most framings are 1.6× to 3.5×
-the design size. The push-in on "1.42 mm" is 4.8×, and the knob caps at the world changes reach
-6.4×. The full window at 10.7 s is the one framing below 1.6×: at 1.38× the whole window fits.
+Arrivals use `power3.out`, and zooms through a cap use `power3.in`. Most framings are 1.6× to 3.8×
+the design size. The push-in on "1.42 mm" is 4.8×, and the knob caps at the world changes reach 6×
+(Fathom's Decay) and 6.4× (Pearl's Gain). Two framings sit below 1.6×: the full window at 10.7 s
+(1.38×) and the amp page (1.56×), where the whole amp head fits under the header.
 The cursor is a 64 px macOS arrow, white with a 2 px ink stroke, and each click changes the screen
 on the same frame.
 
 No held framing cuts a word at the frame edge. The position and size of every word in every UI
 state was measured in the built UI (the same states `pnpm captures` shoots). Each framing was then
-chosen so that every line of text, and each group such as the intonation steps or the Gate and
-Transpose panels, is either wholly in frame or wholly out. The summary table is framed at 2.065×,
-so its smallest text is 36 px. On the end card, the camera settles at 2× on the 12th fret, so
-"Free & open source" and the URL can be set at 60 px (a 41 px cap height) and still fit between
-the frets.
+chosen so that every line of text, and each group such as the intonation steps, the Gate panel, a
+pedal or a mic strip, is either wholly in frame or wholly out. The summary table is framed at
+3.44× (z 2.15), so its smallest text is 38 px; its buttons stay out of that framing. On the end
+card, the camera settles at 2× on the 12th fret, so "Free & open source" and the URL can be set
+at 60 px (a 41 px cap height) and still fit between the frets.
 
-The mic drag uses only real pixels. The five `cab-mic-*` captures swap underneath as Mic A passes
-each state, so the Position knob reads 1.0 to 9.0. The marker moves continuously over a strip of
-the same cone, cut from the two captures that are clean there.
+The mic drag uses only real pixels. The five `cab-mic-*` captures put Mic A at 9 o'clock
+(`micAAzimuth:-90`), so its five positions lie on one line from the dust cap to the cone's edge,
+clear of Mic B. They swap underneath as Mic A passes each state, so the Position knob reads 1.0 to
+9.0 and Mic A's dot on the speakers' map follows. The marker moves continuously over a strip of
+the same cone, cut from the two captures that are clean there. The marker itself is `cab-mic-a`:
+its ring is unfilled, so a marker cut from a capture would carry the cone under it.
 
 ## Sound
 
@@ -204,6 +215,7 @@ the same cone, cut from the two captures that are clean there.
   [`media/trailer/REVIEW.md`](../media/trailer/REVIEW.md).
 - The delivery render measured −15.8 LUFS integrated with ffmpeg `ebur128`, true peak −1.4 dBTP,
   loudness range 4.2 LU. The mix needs no normalising pass. This was measured, not listened to.
+  The 0.3.0 re-render measures the same, and its audio stream is bit-identical to the 0.2.0 copy's.
 - The repo copy is re-encoded to fit under 15 MB at 1080p (12.2 MB, SSIM 0.995 against the render),
   with the audio copied untouched.
 

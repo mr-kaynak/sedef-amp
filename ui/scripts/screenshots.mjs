@@ -25,7 +25,7 @@ const SHOTS = {
       await page.getByRole('button', { name: 'Load…' }).click();
     },
   },
-  fx: { query: 'section=fx&preset=soft-focus' },
+  fx: { query: 'section=fx&preset=soft-focus&set=doublerEnabled:1' },
   tuner: {
     query: 'overlay=tuner',
     async prepare(page) {

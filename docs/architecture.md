@@ -195,7 +195,7 @@ The EQ bank always follows the amp.
 | EQ | 9 bands (65 Hz–16 kHz, ±12 dB) + low/high cut | one bank per amp |
 | Drift | Multi-head tape echo, wow/flutter, tape drive | host/tap/free sync |
 | Fathom | Plate (Dattorro topology) and hall (FDN) | 1–60 s decay |
-| Doubler | Mono → stereo double-tracking | 3–20 ms spread |
+| Doubler | Mono → stereo double tracking | second take re-timed per note, 3–20 ms spread; onsets from the DI |
 | Transpose | ±12 semitone polyphonic shifter | WSOLA-style splicing |
 
 Each module has a page in [`docs/dsp/`](dsp/) describing its model, the public

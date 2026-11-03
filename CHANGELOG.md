@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Doubler controls:** Variation (how loose the second take is), Width and Mix, next to Spread,
+  and a sketch of the two takes showing how far behind the second one lands.
+- **Doubler switch** in the header, under the output meter, so double tracking is one click away
+  on every page.
+
 ### Changed
 
 - **Amp gain:** Abyss at full gain is now a modern high-gain wall: light picking and single notes
@@ -20,6 +27,12 @@ All notable changes to this project are documented here. The format follows
   ([docs/dsp/amps.md](docs/dsp/amps.md#4-gain-targets-and-input-level)): strum hard and set
   Input Gain so the input meter peaks around -4 to -2 dBFS, or set it to your interface's maximum
   input level in dBu plus 0.6 dB.
+- **Doubler:** the second take now differs from note to note, as a real one does. At every pick
+  attack it draws its own timing (around Spread, with a memory of the phrase), a detune of a few
+  cents, and a slightly different level and tone, then moves there between notes, so it never
+  sounds like a fixed delay or a chorus. The side you play is passed through untouched, with no
+  delay. With a mono output it stays off, since there it could only comb-filter your part
+  ([docs/dsp/doubler.md](docs/dsp/doubler.md)).
 
 ## [0.2.0] - 2026-11-01
 

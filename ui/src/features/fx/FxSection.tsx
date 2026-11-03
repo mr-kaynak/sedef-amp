@@ -7,6 +7,7 @@ import { formatMs } from '../../params/format';
 import { tapTempo } from '../metronome/actions';
 import { DecayGraph } from './DecayGraph';
 import { FxPanel } from './FxPanel';
+import { TakesSketch } from './TakesSketch';
 import { TapeHeads } from './TapeHeads';
 import styles from './FxSection.module.css';
 
@@ -97,13 +98,16 @@ export function FxSection() {
         </div>
       </FxPanel>
 
-      <FxPanel name="Doubler" kind="Stereo double" enableParam="doublerEnabled">
+      <FxPanel name="Doubler" kind="Double tracking" enableParam="doublerEnabled">
         <div className={styles.doubler}>
-          <Knob param="doublerSpread" label="Spread" size="lg" />
-          <p className={styles.note}>
-            Turns a mono part into a wide pair, as if you had tracked it twice. More spread sounds
-            looser.
-          </p>
+          <TakesSketch />
+          <div className={styles.knobRow}>
+            <Knob param="doublerSpread" label="Spread" />
+            <Knob param="doublerVariation" label="Variation" />
+            <span className={styles.divider} />
+            <Knob param="doublerWidth" label="Width" />
+            <Knob param="doublerMix" label="Mix" />
+          </div>
         </div>
       </FxPanel>
     </div>

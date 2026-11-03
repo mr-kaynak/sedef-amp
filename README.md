@@ -27,7 +27,7 @@ around them.
 | **Amps** | **Lagoon** — glassy, wide clean · **Reef** — British crunch with three voicings · **Abyss** — tight, saturated lead with bright and mid-shift switches |
 | **Cabs** | 1x12 open, 2x12 open, 4x12 closed · two mics per cab from ten mic models, freely placed on the cone · room mics · load your own IRs |
 | **EQ** | 9-band graphic EQ with low/high cut, one bank per amp |
-| **Post** | **Drift** multi-head tape echo with wow, flutter and tape saturation · **Fathom** plate and hall reverbs · double-tracking **Doubler** |
+| **Post** | **Drift** multi-head tape echo with wow, flutter and tape saturation · **Fathom** plate and hall reverbs · **Doubler**, a second take that differs from note to note, switched on from the header |
 | **Tools** | precision tuner · **intonation workbench** · metronome with odd meters (standalone) |
 | **Presets** | browser with categories, tags and search · click to audition, Esc to go back · A/B compare · Undo when a load or delete would lose work |
 

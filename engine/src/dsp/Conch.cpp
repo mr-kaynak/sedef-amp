@@ -113,7 +113,7 @@ void Conch::process (const AudioView& io) noexcept
         const float rocker = rocker_.next();
         const float q = q_.next();
         const float sensitivity = sensitivity_.next();
-        const float autoMix = autoMix_.next();
+        const float autoMix = crossfadeCurve (autoMix_.next());
         const float travel = autoMix > 0.0f ? autoMix * autoTravel (env, sensitivity) : 0.0f;
         position_ = rocker + (1.0f - rocker) * travel;
 

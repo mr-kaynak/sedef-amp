@@ -17,6 +17,14 @@ inline float tptGain (double hz, double sampleRate) noexcept
     return static_cast<float> (std::tan (kPiD * clampFrequency (hz, sampleRate) / sampleRate));
 }
 
+/// Shapes a 0..1 linear crossfade ramp into a smoothstep (3w^2 - 2w^3): the same end points and
+/// the same sum for a two-way fade (s(w) + s(1 - w) = 1), but no kink where the ramp starts and
+/// stops, so a switch between two differently filtered signals leaves no corner in the output.
+inline float crossfadeCurve (float w) noexcept
+{
+    return w * w * (3.0f - 2.0f * w);
+}
+
 /// Outputs of one state-variable filter step.
 struct SvfOutputs
 {

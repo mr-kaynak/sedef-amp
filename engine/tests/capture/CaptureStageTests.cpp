@@ -9,6 +9,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
 #include <cmath>
+#include <limits>
 #include <optional>
 #include <thread>
 
@@ -414,4 +415,166 @@ TEST_CASE ("Publishing, clearing and collecting while audio runs is safe", "[cap
     CHECK (dsp::CaptureModel::liveInstances() <= liveBefore + 3);
     holder.reset();
     CHECK (dsp::CaptureModel::liveInstances() == liveBefore);
+}
+
+TEST_CASE ("Preparing for larger blocks during a crossfade never runs a capture past its buffers",
+           "[capture]")
+{
+    // setModel() takes a model from any thread, so one built for the next prepare() can arrive
+    // while another plays. The one fading out was built for the old blocks and must not run
+    // with the new ones.
+    const auto a = nt::parseOrFail (nt::linear ({ 1.0f }));
+    const auto b = nt::parseOrFail (nt::linear ({ 0.5f }));
+    nt::StageRig rig (48000.0, 64);
+    rig.settings.useCapture = true;
+    rig.load (a);
+    std::vector<float> v (48000);
+    test::fillSine (v, 220.0, 48000.0, 0.25f);
+    std::vector<float> head (v.begin(), v.begin() + 4800);
+    rig.run (head);
+
+    rig.amp.prepare ({ 48000.0, 512, 1 });
+    const dsp::CaptureSpec big {
+        48000.0, 512, dsp::CaptureStage::latencyFor (48000.0, rig.amp.latencySamples())
+    };
+    rig.stage.setModel (b->instantiate (big)); // can't play yet: A starts fading out
+    std::vector<float> one (v.begin() + 4800, v.begin() + 4864);
+    rig.run (one);
+    const int before = dsp::CaptureModel::oversizedCalls();
+    rig.stage.prepare ({ 48000.0, 512, 1 }, rig.amp.latencySamples()); // before the fade is over
+    rig.maxBlock = 512;
+    std::vector<float> tail (v.begin() + 4864, v.end());
+    rig.run (tail);
+    CHECK (dsp::CaptureModel::oversizedCalls() == before);
+    CHECK (test::allFinite (tail));
+    CHECK (rig.stage.playingFile() == b.get()); // built for these blocks, so it plays
+}
+
+TEST_CASE ("A capture that arrives while fading to the amp never holds up later ones", "[capture]")
+{
+    const auto a = nt::parseOrFail (nt::linear ({ 1.0f }));
+    const auto b = nt::parseOrFail (nt::linear ({ 0.5f }));
+    const auto c = nt::parseOrFail (nt::linear ({ 0.25f }));
+    const bool viaReset = GENERATE (false, true);
+    CAPTURE (viaReset);
+    nt::StageRig rig (48000.0, 64);
+    std::vector<float> v (48000);
+    test::fillSine (v, 220.0, 48000.0, 0.25f);
+    std::size_t pos = 0;
+    const auto play = [&] (std::size_t n) {
+        std::vector<float> chunk (v.begin() + static_cast<long> (pos),
+                                  v.begin() + static_cast<long> (pos + n));
+        rig.run (chunk);
+        pos += n;
+    };
+    rig.settings.useCapture = true;
+    rig.load (a);
+    play (4800);
+    rig.settings.useCapture = false; // towards the built-in amp...
+    play (640);
+    rig.load (b); // ...when B arrives: A fades into B while both fade out
+    play (64);
+    if (viaReset)
+        rig.stage.reset(); // or the engine resets the chain right then
+    play (9600);           // the amp alone, long after every fade
+    rig.load (c);
+    for (int i = 0; i < 20; ++i)
+    {
+        play (64);
+        rig.stage.collectGarbage();
+    }
+    rig.settings.useCapture = true;
+    play (4800);
+    CHECK (rig.stage.playingFile() == c.get());
+}
+
+TEST_CASE ("The newest of captures loaded within one crossfade plays, with no collector running",
+           "[capture]")
+{
+    const auto a = nt::parseOrFail (nt::linear ({ 1.0f }));
+    const auto b = nt::parseOrFail (nt::linear ({ 0.5f }));
+    const auto c = nt::parseOrFail (nt::linear ({ 0.25f }));
+    const int liveBefore = dsp::CaptureModel::liveInstances();
+    {
+        nt::StageRig rig (48000.0, 64);
+        rig.settings.useCapture = true;
+        rig.load (a);
+        std::vector<float> v (48000);
+        test::fillSine (v, 220.0, 48000.0, 0.25f);
+        std::vector<float> first (v.begin(), v.begin() + 4800);
+        rig.run (first);
+        rig.load (b);
+        std::vector<float> fading (v.begin() + 4800, v.begin() + 5120);
+        rig.run (fading); // A into B, a third of the way
+        rig.load (c);     // nothing collects in between
+        std::vector<float> rest (v.begin() + 5120, v.end());
+        rig.run (rest);
+        CHECK (rig.stage.playingFile() == c.get());
+        rig.stage.collectGarbage();
+        CHECK (dsp::CaptureModel::liveInstances() == liveBefore + 1); // only C is left
+    }
+    CHECK (dsp::CaptureModel::liveInstances() == liveBefore);
+}
+
+TEST_CASE ("A non-finite input sample doesn't silence a recurrent capture", "[capture]")
+{
+    // An LSTM carries its state from sample to sample: one NaN in it would stay there for good.
+    const auto f = nt::parseOrFail (
+        nt::file ("LSTM", nt::lstmConfig (1, 8),
+                  nt::randomWeights (static_cast<std::size_t> (nt::lstmWeights (1, 8)), 5, 0.4f)));
+    const auto render = [&f] (float sample, float inputDb) {
+        nt::StageRig rig (48000.0, 64);
+        rig.settings.useCapture = true;
+        rig.settings.inputDb = inputDb;
+        rig.load (f);
+        auto v = test::guitarStrum (48000.0, 1.0);
+        v[12000] = sample;
+        rig.run (v);
+        return v;
+    };
+    const auto clean = render (0.0f, 0.0f);
+    for (const float bad :
+         { std::numeric_limits<float>::quiet_NaN(), std::numeric_limits<float>::infinity(),
+           -std::numeric_limits<float>::infinity() })
+    {
+        CAPTURE (bad);
+        CHECK (render (bad, 0.0f) == clean); // counts as silence
+    }
+    // A finite sample the input trim pushes beyond float range: a click, then it plays on.
+    const auto loud = render (3.0e38f, 12.0f);
+    const auto cleanLoud = render (0.0f, 12.0f);
+    CHECK (test::allFinite (loud));
+    const auto tail = [] (const std::vector<float>& x) {
+        return test::dbfs (test::rms (std::vector<float> (x.end() - 12000, x.end()), 0));
+    };
+    CHECK (std::abs (tail (loud) - tail (cleanLoud)) < 0.5);
+}
+
+TEST_CASE ("The model spec is never read half-written", "[capture]")
+{
+    // modelSpec() is read by loader threads while the host may be preparing the stage.
+    dsp::CaptureStage stage;
+    const ProcessSpec one { 48000.0, 64, 1 }, two { 96000.0, 512, 1 };
+    stage.prepare (one, 37);
+    const auto specOne = stage.modelSpec();
+    stage.prepare (two, 31);
+    const auto specTwo = stage.modelSpec();
+    REQUIRE (!(specOne == specTwo));
+    std::atomic<bool> stop { false };
+    std::atomic<long> torn { 0 }, reads { 0 };
+    std::thread reader ([&] {
+        while (!stop.load (std::memory_order_relaxed))
+        {
+            const auto s = stage.modelSpec();
+            if (!(s == specOne || s == specTwo))
+                torn.fetch_add (1, std::memory_order_relaxed);
+            reads.fetch_add (1, std::memory_order_relaxed);
+        }
+    });
+    for (int i = 0; i < 20000; ++i)
+        stage.prepare (i % 2 == 0 ? one : two, i % 2 == 0 ? 37 : 31);
+    stop = true;
+    reader.join();
+    CAPTURE (reads.load());
+    CHECK (torn.load() == 0);
 }

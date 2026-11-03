@@ -16,11 +16,13 @@ namespace sedef::dsp
 /// captures can take Sedef's cab out of the path. Both paths share one latency, fixed per
 /// prepare(), so switching never moves the timing.
 ///
-/// Threading follows the custom IRs (docs/dsp/cab.md, docs/dsp/nam.md):
+/// Threading (docs/dsp/nam.md):
 ///
-///   setModel()        any non-real-time thread: RtHandoff::publish (null clears)
+///   setModel()        any non-real-time thread (null clears); the newest model always plays
+///                     next, once the fade in progress (at most 30 ms) is over
 ///   process*()        audio thread: picks up a new model once per block, never frees
-///   collectGarbage()  any non-real-time thread, periodically: frees retired models
+///   collectGarbage()  any non-real-time thread, periodically: frees retired models (all but
+///                     the one fading out; setModel() collects too)
 class CaptureStage
 {
 public:
@@ -68,6 +70,8 @@ public:
 
     /// True while the capture is what you hear (not fading, not falling back). Audio thread.
     bool captureAudible() const noexcept;
+    /// The file of the model the audio thread plays (null for none). Audio thread, or tests.
+    const CaptureFile* playingFile() const noexcept;
 
     void setModel (std::unique_ptr<CaptureModel> model);
     void collectGarbage();

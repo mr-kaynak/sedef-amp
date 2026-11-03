@@ -132,9 +132,11 @@ public:
     /// normalised and exactly spec().latencySamples late. Non-finite model output becomes silence.
     void process (const float* in, float* out, int n) noexcept;
 
-    /// Instrumentation for tests: models alive now, and models destroyed by the calling thread.
+    /// Instrumentation for tests: models alive now, models destroyed by the calling thread, and
+    /// calls with more frames than the model was built for (refused: the output is silence).
     static int liveInstances() noexcept;
     static int destroyedOnThisThread() noexcept;
+    static int oversizedCalls() noexcept;
 
 private:
     struct Impl;

@@ -24,6 +24,7 @@ namespace
 using capture::Limits;
 
 std::atomic<int> gLiveModels { 0 };
+std::atomic<int> gOversizedCalls { 0 };
 thread_local int tDestroyedModels = 0;
 
 /// Output beyond +36 dBFS at the model is a broken capture, not a loud one: it is clipped there,
@@ -226,6 +227,11 @@ int CaptureModel::destroyedOnThisThread() noexcept
     return tDestroyedModels;
 }
 
+int CaptureModel::oversizedCalls() noexcept
+{
+    return gOversizedCalls.load (std::memory_order_relaxed);
+}
+
 bool CaptureModel::empty() const noexcept
 {
     return impl_->dsp == nullptr;
@@ -312,8 +318,10 @@ std::unique_ptr<CaptureModel> CaptureFile::instantiate (const CaptureSpec& spec,
 void CaptureModel::process (const float* in, float* out, int n) noexcept
 {
     auto& d = *impl_;
-    if (d.dsp == nullptr)
+    if (d.dsp == nullptr || n > d.spec.maxBlockSize)
     {
+        if (d.dsp != nullptr)
+            gOversizedCalls.fetch_add (1, std::memory_order_relaxed); // the buffers are smaller
         std::fill_n (out, n, 0.0f);
         return;
     }

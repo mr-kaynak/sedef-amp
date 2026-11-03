@@ -91,7 +91,8 @@ Communication:
   `Engine::Telemetry`, sampled by a 30 Hz timer on the message thread.
 - **Heavy objects → audio (IRs, captures):** built on the loader thread, published through
   `core/RtHandoff.h` (atomic pointer swap; the old object is reclaimed on the
-  message thread, never freed on the audio thread).
+  message thread, never freed on the audio thread). Captures use the same scheme with room for
+  several retired models, so the newest always gets through ([nam.md](dsp/nam.md#5-real-time)).
 
 ## 4. Parameter schema
 

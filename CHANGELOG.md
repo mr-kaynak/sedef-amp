@@ -15,7 +15,8 @@ All notable changes to this project are documented here. The format follows
   amps; input and output trims, "Through cab" (off by default for full-rig captures) and, for
   captures that record it, the interface level (a rig setting, not stored in presets). Switching
   and replacing crossfade. Sessions store the capture itself, so they play the same anywhere;
-  presets keep a reference, and a missing file is named with a way to find it
+  presets keep a reference, and a missing file is named with a way to find it. A capture too
+  heavy to play in real time is refused with a message saying why
   ([docs/dsp/nam.md](docs/dsp/nam.md)).
 - New parameters: `ampSource`, `captureInput`, `captureOutput`, `captureCab`,
   `captureInterfaceLevel`.
@@ -23,8 +24,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
-- At 88.2 kHz and above the plug-in's latency rises by 0.4–0.74 ms, so a capture and the built-in
-  amps share one latency.
+- The plug-in's latency rises by 2 samples at 48 kHz and by 0.46–0.81 ms at 88.2 kHz and above,
+  so captures made at 44.1 to 192 kHz and the built-in amps share one latency, each capture with
+  its full-quality rate conversion.
 
 ## [0.2.0] - 2026-11-01
 

@@ -89,15 +89,29 @@ Every file comes from somewhere else, so nothing in it reaches the core unchecke
   index out of bounds are refused);
 - the weight count is computed from the config exactly as the core consumes it and must match;
   every weight is finite and within ±10⁶;
-- cost limits: 2 M weights, 250 k multiply-adds per model sample, a receptive field of 2¹⁷ samples
-  (2¹⁸ taps for Linear), 32 MB of convolution history, 512 channels, 8 layer arrays of 64 layers,
-  kernels up to 64, dilations up to 32768, 16 LSTM layers;
+- cost limits: 2 M weights; 3 billion multiply-adds per second at the capture's own rate (a
+  standard WaveNet needs 0.66 billion at 48 kHz, about 10 % of a core, and fits up to 192 kHz);
+  2 billion to start, which is the receptive field times the multiply-adds per sample, run once
+  by every instance before it plays; a receptive field of 2¹⁷ samples (2¹⁸ taps for Linear);
+  32 MB of convolution history and weights; 512 channels, 8 layer arrays of 64 layers, kernels
+  up to 64, dilations up to 32768, 16 LSTM layers;
+- costs are counted as the core runs them: a grouped convolution keeps its full matrix (zeros
+  between the groups) and multiplies all of it, so it costs what the ungrouped one does; only a
+  depthwise one (groups = inputs = outputs) runs channel by channel;
+- no matrix product takes more than 64 channels in or makes more than 512: Eigen packs larger
+  ones into buffers it takes from the heap, on the audio thread (`EIGEN_STACK_ALLOCATION_LIMIT`
+  is 128 KB, and 64 × 512 floats fill it exactly whatever the CPU's caches, since blocking only
+  ever shrinks a dimension). Every trainer architecture uses at most 16 channels;
+- a PReLU in a gated or blended layer has one slope per channel: the core applies those
+  activations to every channel without wrapping around the slopes;
 - model rates from 16 to 192 kHz (48 kHz when the file doesn't say);
 - metadata strings are cut to 120 bytes of printable UTF-8; numbers outside sane ranges are
   dropped.
 
 A conditioning model (`condition_dsp`) is validated the same way, one level deep, and the core
-is handed the cleaned copy. Messages are sentences a player can act on: "The capture file is
+is handed the cleaned copy. It can't be a ConvNet: the core builds it itself, and its own ConvNet
+allocates while it processes. A Linear one has an impulse response and a bias per output, as the
+core reads it. Messages are sentences a player can act on: "The capture file is
 damaged: …", "This capture is too large to play in real time: …", "This isn't a NAM capture: …".
 The fuzz test corrupts a valid file 200 times and must never crash.
 
@@ -107,11 +121,21 @@ The fuzz test corrupts a valid file 200 times and must never crash.
   0.5 s of CPU for a standard WaveNet, on the plug-in's loader thread). `instantiate()` builds the
   runnable model for one chain with its rate bridge and buffers, then the core's `Reset()` sizes
   everything for 512-sample model blocks and prewarms it (about 6 ms).
-- **Handover.** `CaptureStage::setModel` publishes through `RtHandoff`, as custom IRs do: the
-  audio thread picks it up at the start of a block, crossfades, and hands the old one back; a
-  non-blocking `busy` flag keeps the collector from freeing a model that is still fading out.
-  The audio thread never allocates or frees (`EngineTests`: "never allocates while captures play,
-  switch and swap"; `CaptureStageTests`: no model is destroyed on the audio thread).
+- **Handover.** `CaptureStage::setModel` publishes the model; the audio thread picks it up at the
+  start of a block and crossfades from the old one, which it retires into one of four slots it
+  never frees. One fade runs at a time, so a model published during a fade plays once that fade
+  is over (at most 30 ms). The collector (`setModel` itself, and the plug-in's 20 Hz timer) frees
+  every retired model except the one still fading out, so the newest model always gets through,
+  timer or not. `prepare()` and `reset()` end a fade at once: the model fading out was built for
+  the old spec. The spec loader threads build for is written under a sequence count, so it is
+  never read half-written. The audio thread never allocates or frees (`EngineTests`: "never
+  allocates while captures play, switch and swap"; `CaptureStageTests`: no model is destroyed on
+  the audio thread).
+- **Input.** What reaches a model is cleaned first: non-finite samples become silence and
+  anything beyond ±10⁶ (+120 dBFS) is clamped. A recurrent model would otherwise keep one NaN in
+  its state for good; a model that is handed more frames than it was built for plays silence.
+- **First block.** `instantiate()` also runs twice the latency of silence through the rate
+  bridge, so a model that rests at an offset starts there instead of stepping up to it.
 - **ConvNet.** The core's ConvNet allocates while it processes, so Sedef runs its own copy
   (`RtConvNet.cpp`) with the core's `Conv1D`, batch norm folded into a scale and offset, reading
   the weights in the same order. It matches the core sample for sample.
@@ -129,21 +153,23 @@ the output doesn't depend on the block size, bit for bit. At equal rates it is a
 pass-through.
 
 The bridge needs to look ahead, so it adds latency. The stage latency is the larger of the
-built-in amp's oversampler latency and what a 48 kHz capture needs at that rate, so both sources
-share it:
+built-in amp's oversampler latency and what captures made at 44.1, 48, 88.2 or 96 kHz need at
+that rate, so both sources share it, and how well a capture plays never depends on the amp's
+latency or on which capture is loaded:
 
 | Host rate | Built-in amp | Stage (both sources) | Added |
 |---|---|---|---|
 | 44.1 kHz | 37 | 37 | 0 |
-| 48 kHz | 37 | 37 | 0 |
-| 88.2 kHz | 31 | 66 | 35 samples, 0.40 ms |
-| 96 kHz | 31 | 72 | 41 samples, 0.43 ms |
-| 176.4 kHz | 0 | 131 | 0.74 ms |
-| 192 kHz | 0 | 143 | 0.74 ms |
+| 48 kHz | 37 | 39 | 2 samples, 0.04 ms |
+| 88.2 kHz | 31 | 72 | 41 samples, 0.46 ms |
+| 96 kHz | 31 | 78 | 47 samples, 0.49 ms |
+| 176.4 kHz | 0 | 143 | 0.81 ms |
+| 192 kHz | 0 | 155 | 0.81 ms |
 
-The latency is reported to the host through `Engine::latencySamples()`. A capture trained at
-another rate (44.1 kHz, 96 kHz) uses fewer zero crossings if needed to fit the same latency
-(at least 14 at the rates above).
+The latency is reported to the host through `Engine::latencySamples()`. Captures made at 44.1 to
+192 kHz get the full 16-zero-crossing filter at every host rate; captures made at 16 to 32 kHz
+get 5 to 12. Budgeting for a 48 kHz capture only would leave a 44.1 kHz capture 15 zero
+crossings at 48 kHz and 14 above, and none at all next to an amp without latency.
 
 ## 7. In the plug-in
 
@@ -156,10 +182,19 @@ another rate (44.1 kHz, 96 kHz) uses fewer zero crossings if needed to fit the s
 - **Session state.** `getStateInformation` writes
   `<Capture name fileName path sha256 normalisationDb data>`, where `data` is the file itself,
   gzip-compressed and base64-encoded. A session therefore sounds the same on a machine that
-  doesn't have the file. A standard WaveNet capture (407 KB) costs **177 KB** in the session. The
-  restore is synchronous (the capture plays from the first block) and, when the embedded file's
-  SHA-256 matches, trusts the stored level instead of measuring again: about 17 ms instead of
-  0.5 s. Load-then-save reproduces the state byte for byte, also while the capture is missing.
+  doesn't have the file. A standard WaveNet capture (407 KB) costs **177 KB** in the session.
+  With the file embedded the restore is synchronous (the capture plays from the first block) and,
+  when the file's SHA-256 matches, uses the stored level instead of measuring again: about 17 ms
+  instead of 0.5 s. The worker measures it afterwards; a stored level more than 0.5 dB off (a
+  damaged or crafted session) is replaced by the measured one. A state without the file, or with
+  a damaged one, is looked up on disk on the worker, never on the thread restoring the state.
+  Load-then-save reproduces the state byte for byte, also while the capture is missing or still
+  being looked for.
+- **Paths** from sessions, presets and the recent list must be absolute (a relative one would
+  mean whatever the host's working folder holds) and name a regular file: links are followed,
+  pipes and devices are refused without waiting on them, and a file is read once, at most 24 MB
+  of it, so what was hashed is what loads. A dropped file whose name Windows keeps for a device
+  (CON, NUL, COM1 …, whatever follows the first dot) is kept with a leading underscore.
 - **Presets** keep a reference only, `"capture": { name, fileName, path, sha256 }`, and only when
   the preset plays a capture: a preset is a small file people share, and a capture can be tens
   of megabytes and may not be theirs to share. Loading a preset finds the capture by, in order:
@@ -216,32 +251,47 @@ amp mode builds one instance per chain and costs twice as much.
   the core's; the standard WaveNet loads with 13,802 weights; normalisation lands at −15 dBFS for
   every architecture; calibration shifts the level by the interface difference; a known level
   skips the measurement and plays bit for bit the same; a conditioned WaveNet counts each array's
-  weights on its own and plays at its measured level.
+  weights on its own and plays at its measured level, also with a Linear conditioning model of
+  three outputs; a capture resting at an offset plays it from the first sample, through the
+  bridge too; an LSTM settles for at least the core's half second.
 - **Untrusted files** (`CaptureValidationTests.cpp`): not JSON, wrong versions, unknown and
   unsupported architectures, wrong weight counts, missing and mistyped fields, shapes that would
   crash the core, absurd sizes (refused without allocating them), deep nesting, bad numbers,
-  silent and garbage models, and 200 rounds of random corruption.
-- **Rate bridge** (`RateBridgeTests.cpp`): latencies per rate; round trip within ±0.05 dB and
+  silent and garbage models, and 200 rounds of random corruption; a PReLU with one slope in a
+  gated or blended layer; grouped convolutions counted at their real cost; the per-second and
+  start caps; products wider than Eigen's stack buffers (and that the allowed ones fit, from
+  Eigen's own blocking); a ConvNet as the conditioning model.
+- **Rate bridge** (`RateBridgeTests.cpp`): latencies per rate, with the full filter for
+  44.1–96 kHz captures at every host rate whatever the amp's latency; round trip within ±0.05 dB and
   error below −60 dB in the pass band; exact, linear-phase latency; output independent of block
   size; more than 70 dB rejection of what the lower rate can't carry.
 - **Stage** (`CaptureStageTests.cpp`): level at every host rate (−15 ± 0.25 dB, within 1 dB of
   Reef at 44.1 and 48 kHz); trims and calibration; bit-exact built-in amp with no capture; time alignment of the two
   paths; click-free switching and model crossfades; nothing freed on the audio thread; clearing;
   settling; the cab bypass and its level; every block size from 1 to 4096 at 44.1–192 kHz;
-  models built for another rate ignored; publishing, clearing and collecting while audio runs.
+  models built for another rate ignored; publishing, clearing and collecting while audio runs; a
+  prepare for larger blocks during a fade; a capture arriving during a fade to the amp (and a
+  reset then); two captures loaded within one fade with no collector; NaN and infinite input to
+  an LSTM; the spec read while the host prepares.
 - **Engine** (`EngineTests.cpp`): no allocation while captures play, switch and swap.
 - **Plug-in** (`CaptureLibraryTests.cpp`): metadata, damaged files, a byte-exact session round
   trip that plays bit for bit the same without the file on disk, missing captures, dropped
   files, the recent list across instances, preset references by hash, path and recent list, the
-  newest request winning, and rebuilding after a rate change.
+  newest request winning, and rebuilding after a rate change; pipes, devices, links to them and
+  empty files refused without waiting; relative paths missing; one read per file; Windows device
+  names; disk restores on the worker; a session's stored level measured again.
 - **UI** (`capture.test.tsx`): the Capture card and keyboard, empty, loaded, full-rig, recent,
   clear, drop, missing and loading states, and the link.
 
 ## 11. Limitations
 
 - Slimmable WaveNets and the container architectures don't load yet.
-- The stage latency rises at 88.2 kHz and above for everyone, not only while a capture plays
-  (table above), because the host can't be told about a latency change cleanly mid-session.
+- The stage latency rises by 2 samples at 48 kHz and by 0.46–0.81 ms at 88.2 kHz and above for
+  everyone, not only while a capture plays (table above), because the host can't be told about a
+  latency change cleanly mid-session.
+- The no-allocation tests count `operator new`; Eigen takes its buffers with `malloc`, which they
+  don't see. The product-size limit (section 4) is what keeps Eigen off the heap, and a test
+  checks it against Eigen's blocking.
 - The level is matched with one strum. Captures compress differently from the built-in amps, so
   with other playing they can sit a few dB apart: with `tools/sedef-render`'s DI, the core's
   example standard WaveNet renders at −11.7 dBFS through the cab, next to Lagoon −17.2, Reef

@@ -44,7 +44,9 @@ public:
 
     void prepare (double hopSeconds) noexcept;
     void reset() noexcept;
-    void setReferenceHz (double a4Hz) noexcept { referenceHz_ = a4Hz > 0.0 ? a4Hz : 440.0; }
+    /// A new A4 reference re-names the note shown at once (also while it is held); the same value
+    /// again changes nothing, so it can be set before every block.
+    void setReferenceHz (double a4Hz) noexcept;
 
     /// One hop. Returns true when the reading has moved away from the long window: the tracker
     /// then restarts the long window at the current position.
@@ -62,12 +64,16 @@ private:
     };
 
     void startSegment() noexcept;
+    /// The long window is ready: follow it, and name the note it reads if the attack named another.
+    void startTracking (double precise) noexcept;
+    void nameFrom (double precise) noexcept;
     /// One-pole approach to `cents` with time constant `tau` (or straight there when empty).
     void follow (double cents, double tau) noexcept;
     /// The approach whose time constant follows the measurement's noise and the error.
     void smooth (double cents, double variance, bool moving) noexcept;
     double midiOf (double cents) const noexcept;
     void lockNote (double cents, bool force) noexcept;
+    int nearestNote (double cents) const noexcept;
     void publish() noexcept;
 
     double hop_ = 0.005;
@@ -78,26 +84,32 @@ private:
     bool haveValue_ = false;
     double value_ = 0.0; ///< pitch shown, cents re 1 Hz
     int note_ = 0;
-    double noteAway_ = 0.0;   ///< seconds the pitch has been outside the locked note
+    double noteAway_ = 0.0;   ///< seconds the pitch has been beyond the note's hysteresis
+    double edgeAway_ = 0.0;   ///< seconds the pitch has been closer to another note
     double pendingFor_ = 0.0; ///< seconds a pitch change has persisted
     double invalidFor_ = 0.0; ///< seconds without a valid reading
     bool newNote_ = false;    ///< a pluck, and no reading of it yet
+    double sinceOnset_ = 0.0; ///< seconds since the last pluck
     bool revealing_ = false;  ///< a new note's first readings, not shown yet
     double revealIn_ = 0.0;
     double candidate_ = 0.0;
 
     // Scatter of the two estimates from one hop to the next (cents^2).
-    bool haveReading_ = false, havePrecise_ = false, preciseFresh_ = true;
-    double lastReading_ = 0.0, lastPrecise_ = 0.0;
+    bool haveReading_ = false, haveDiff_ = false, havePrecise_ = false, preciseFresh_ = true;
+    double lastReading_ = 0.0, lastDiff_ = 0.0, lastPrecise_ = 0.0;
     double readingVar_ = 1.0, preciseVar_ = 1.0;
+    double readingNoise_ = 0.01; ///< the reading's noise without its moves (cents^2)
 
     // Moves: the reading's low-passed departure from the long window, against its usual spread.
     double residual_ = 0.0;
-    double moveVar_ = 1.0;    ///< usual (reading - long window)^2, bias and noise included
-    double moveWarmup_ = 0.0; ///< seconds of the segment's learning of moveVar_
-    bool moving_ = false;     ///< following the reading while the pitch moves
+    double moveVar_ = 1.0;          ///< usual (reading - long window)^2, bias and noise included
+    double moveWarmup_ = 0.0;       ///< seconds of the segment's learning of moveVar_
+    bool settledSinceMove_ = false; ///< settled since the segment began or the pitch last moved
+    bool moving_ = false;           ///< following the reading while the pitch moves
     double movingFor_ = 0.0, stillFor_ = 0.0;
-    double slope_ = 0.0;           ///< of the reading, cents per second
+    double slope_ = 0.0;    ///< of the reading, cents per second
+    double trendFor_ = 0.0; ///< seconds the slope has been beyond the noise, one way
+    int trendDirection_ = 0;
     bool awaitingPrecise_ = false; ///< the move is over and the long window is still too short
 };
 

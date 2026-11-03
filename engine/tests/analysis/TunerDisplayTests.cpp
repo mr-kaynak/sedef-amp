@@ -23,10 +23,11 @@ namespace
 struct Shown
 {
     double t;
-    bool visible; ///< a note and a needle position are shown
-    int note;     ///< midi, when visible
-    double cents; ///< needle position relative to the scenario's nominal note
-    int state;    ///< 0 idle, 1 neutral, 2 in tune, 3 sharp, 4 flat
+    bool visible;         ///< a note and a needle position are shown
+    int note;             ///< midi, when visible
+    double cents;         ///< needle position relative to the scenario's nominal note
+    int state;            ///< 0 idle, 1 neutral, 2 in tune, 3 sharp, 4 flat
+    bool settled = false; ///< precise (0.2.0: the stability window)
 };
 
 /// The 0.2.0 gauge: an exponential approach (16 per second) at 60 frames per second to the raw
@@ -49,6 +50,7 @@ std::vector<Shown> legacyGauge (const std::vector<test::TunerPoll>& polls,
         x.cents = angle + (r.valid ? 100.0 * (r.midiNote - nominalMidi) : 0.0);
         if (r.valid)
             x.state = std::abs (r.cents) <= 1.0f ? 2 : (r.cents > 0.0f ? 3 : 4);
+        x.settled = r.stable;
         out.push_back (x);
     }
     return out;
@@ -67,6 +69,7 @@ std::vector<Shown> displayGauge (const std::vector<test::TunerPoll>& polls,
         x.cents = r.displayCents + 100.0 * (r.displayNote - nominalMidi);
         if (r.displayValid && !r.displayHeld)
             x.state = std::abs (r.displayCents) <= 1.0f ? 2 : (r.displayCents > 0.0f ? 3 : 4);
+        x.settled = r.displaySettled;
         out.push_back (x);
     }
     return out;
@@ -88,7 +91,10 @@ struct Metrics
     int tuneEntries = 0;
     int tuneExits = 0;
     double lastValid = -1.0;
-    double holdMove = 0.0; ///< how far the needle moves in the second after the note ends
+    double holdMove = 0.0;   ///< how far the needle moves in the second after the note ends
+    double settledAt = -1.0; ///< first settled reading after the move ends (or the pick), s
+    double finalCents = 0.0; ///< the last needle shown while the note rings, re the nominal note
+    int finalNote = -1;
 };
 
 Metrics measure (const std::vector<Shown>& shown, const std::vector<test::TunerPoll>& polls,
@@ -102,7 +108,7 @@ Metrics measure (const std::vector<Shown>& shown, const std::vector<test::TunerP
 
     double sum2 = 0.0, lo = 1e9, hi = -1e9, tlo = 1e9, thi = -1e9;
     int n = 0, prevNote = -1, prevState = 0;
-    bool wasVisible = false, hidden = false;
+    bool wasVisible = false, hidden = false, moveNoticed = false;
     for (const auto& x : shown)
     {
         if (x.t < 0.0)
@@ -133,6 +139,17 @@ Metrics measure (const std::vector<Shown>& shown, const std::vector<test::TunerP
                 m.settle = -1.0;
             else if (x.t >= s.moveEnd && m.settle < 0.0)
                 m.settle = x.t - s.moveEnd;
+        }
+        // Settled again after a move (the first settled reading once the move was noticed), or
+        // for the first time after the pick.
+        if (s.moveAt >= 0.0 && x.t >= s.moveAt && !x.settled)
+            moveNoticed = true;
+        if (x.settled && m.settledAt < 0.0 && (s.moveAt < 0.0 || moveNoticed))
+            m.settledAt = x.t - std::max (0.0, s.moveEnd);
+        if (x.visible && x.t <= m.lastValid)
+        {
+            m.finalCents = x.cents;
+            m.finalNote = x.note;
         }
         if (x.visible)
         {
@@ -209,8 +226,10 @@ void printMetrics (const char* label, const Metrics& m)
     if (m.lag > 0.0 || m.settle >= 0.0)
         std::printf ("  lag %5.2f  settle %4.0f ms  over %4.2f", m.lag, 1000.0 * m.settle,
                      m.overshoot);
-    std::printf ("  notes %d  drop %d  in-tune %d/%d  hold %5.2f\n", m.noteFlips, m.dropouts,
-                 m.tuneEntries, m.tuneExits, m.holdMove);
+    std::printf (
+        "  notes %d  drop %d  in-tune %d/%d  hold %5.2f  settled %4.0f ms  final %d %+.2f\n",
+        m.noteFlips, m.dropouts, m.tuneEntries, m.tuneExits, m.holdMove, 1000.0 * m.settledAt,
+        m.finalNote, m.finalCents);
 }
 } // namespace
 
@@ -432,6 +451,164 @@ TEST_CASE ("TunerDisplay reads the same at any sample rate and host block size",
     }
 }
 
+namespace
+{
+int nominalNote (const test::TunerScenario& s)
+{
+    return static_cast<int> (std::lround (69.0 + 12.0 * std::log2 (s.nominalHz / 440.0)));
+}
+
+} // namespace
+
+TEST_CASE ("TunerDisplay lands, settles and can confirm in tune after any turn of the peg",
+           "[analysis][display]")
+{
+    // From 35 cents flat, a turn that starts while the long window does, a 50-cent turn, drop D
+    // back to standard and a re-pluck while the peg turns: the needle keeps up (never further
+    // behind than the 0.2.0 needle on the same signal), lands without overshoot and the long
+    // window returns, so the reading settles to a tenth again soon after the peg stops.
+    for (const char* name :
+         { "a2-peg", "e2-peg35", "a2-peg-early", "e2-peg50", "d2-to-e2", "e2-repluck-turning" })
+    {
+        const auto s = scenario (name);
+        const auto polls = test::pollTracker (s);
+        const auto m = measure (displayGauge (polls, s), polls, s);
+        const auto before = measure (legacyGauge (polls, s), polls, s);
+        CAPTURE (name, m.lag, before.lag, m.settle, m.overshoot, m.settledAt, m.finalNote,
+                 m.finalCents);
+        CHECK (m.lag < before.lag);
+        CHECK (m.settle >= 0.0);
+        CHECK (m.settle < 0.15);
+        CHECK (m.overshoot < 0.1);
+        CHECK (m.settledAt >= 0.0);
+        CHECK (m.settledAt < 0.35);
+        CHECK (m.finalNote == nominalNote (s));
+        CHECK (std::abs (m.finalCents - s.trueCents (m.lastValid)) < 0.1);
+    }
+}
+
+TEST_CASE ("TunerDisplay follows a step at any moment, also while the long window starts",
+           "[analysis][display]")
+{
+    // The long window's first 100 ms learn how far the two windows usually disagree; a step in
+    // them is still a step. And the reading's scatter, spiked by the step, must not hold back the
+    // settled reading afterwards.
+    const double at = GENERATE (0.16, 0.18, 0.2, 0.22, 0.24, 0.26, 0.28, 0.3, 0.35, 0.4, 1.0);
+    const double cents = GENERATE (5.0, 20.0, 40.0);
+    auto s = scenario ("g3-step");
+    s.note.f1 = test::etHz (55) * std::exp2 (-cents / 1200.0);
+    s.note.stepAt = at;
+    s.note.stepCents = cents;
+    s.moveAt = s.moveEnd = at;
+    s.sustainFrom = at + 0.4;
+    const auto polls = test::pollTracker (s);
+    const auto m = measure (displayGauge (polls, s), polls, s);
+    CAPTURE (at, cents, m.settle, m.overshoot, m.settledAt);
+    CHECK (m.settle >= 0.0);
+    CHECK (m.settle < 0.18);
+    CHECK (m.overshoot < 0.1);
+    CHECK (m.settledAt >= 0.0);
+    CHECK (m.settledAt < 0.35);
+}
+
+TEST_CASE ("TunerDisplay names the nearest note, also at the edge of one", "[analysis][display]")
+{
+    // A string near +-50 cents: a hammer-on from E2 45 flat lands on F2 45 flat (not E2 55 sharp);
+    // a hard pick of E2 44 sharp reads beyond F2's edge at first but is E2 44 sharp; the open E2
+    // 45 sharp after its first fret has died is E2, not F2 55 flat; a slide over three frets ends
+    // on the third. Once the note has settled, the cents never pass 50.
+    struct Case
+    {
+        const char* name;
+        int note;
+        double cents;
+        double from;
+    };
+    for (const auto& c :
+         { Case { "e2-flat-hammer", 41, -45.0, 1.3 }, Case { "e2-sharp44", 40, 44.0, 0.45 },
+           Case { "e2-after-held-f2", 40, 45.0, 0.45 }, Case { "g3-slide", 58, 0.0, 1.4 } })
+    {
+        const auto s = scenario (c.name);
+        const auto polls = test::pollTracker (s);
+        int wrong = 0;
+        double worst = 0.0;
+        for (const auto& p : polls)
+            if (p.t >= c.from && p.r.valid)
+            {
+                wrong += p.r.displayNote != c.note ? 1 : 0;
+                worst = std::max (worst, std::abs (p.r.displayCents - c.cents));
+            }
+        CAPTURE (c.name, wrong, worst);
+        CHECK (wrong == 0);
+        CHECK (worst < 0.5);
+    }
+}
+
+TEST_CASE ("TunerDisplay follows a new reference at once, also while the note is held",
+           "[analysis][display]")
+{
+    // A2 at 440 Hz is A#2 19.6 cents flat against A4 = 420 Hz.
+    const double expected =
+        1200.0 * std::log2 (test::etHz (45) / (420.0 * std::exp2 (-23.0 / 12.0)));
+    for (const double change : { 2.2, 0.8 }) // held, ringing
+    {
+        auto s = scenario ("a2-ref-held");
+        s.referenceAt = change;
+        const auto polls = test::pollTracker (s);
+        int checked = 0;
+        for (const auto& p : polls)
+            if (p.t >= change + test::kTunerPoll && p.r.displayValid)
+            {
+                CAPTURE (change, p.t, p.r.displayNote, p.r.displayCents, p.r.displayHeld);
+                CHECK (p.r.displayNote == 46);
+                CHECK (std::abs (p.r.displayCents - expected) < 0.2);
+                ++checked;
+            }
+        CHECK (checked > 20);
+        CHECK (polls.back().r.displayHeld);
+    }
+}
+
+TEST_CASE ("TunerDisplay keeps a held reading's precision and ignores impossible input",
+           "[analysis][display]")
+{
+    {
+        // The tenths of a settled note stay good while it is held (a gauge opened later shows
+        // them).
+        const auto s = scenario ("e2-clean");
+        auto quiet = s;
+        quiet.note.decaySeconds = 0.4;
+        const auto polls = test::pollTracker (quiet);
+        CHECK (polls.back().r.displayHeld);
+        CHECK (polls.back().r.displaySettled);
+    }
+    {
+        analysis::TunerDisplay d;
+        d.prepare (0.005);
+        analysis::TunerDisplay::Input in;
+        in.onset = true;
+        in.readingValid = true;
+        for (const double hz : { 0.0, -110.0, std::nan ("") })
+        {
+            in.readingHz = in.preciseHz = hz;
+            in.preciseValid = true;
+            in.preciseSeconds = 0.3;
+            for (int hop = 0; hop < 40; ++hop)
+            {
+                d.update (in);
+                in.onset = false;
+            }
+            CHECK_FALSE (d.output().valid);
+        }
+        in.readingHz = in.preciseHz = 110.0;
+        for (int hop = 0; hop < 100; ++hop)
+            d.update (in);
+        CHECK (d.output().valid);
+        CHECK (std::isfinite (d.output().cents));
+        CHECK (d.output().note == 45);
+    }
+}
+
 TEST_CASE ("Tuner display report", "[.report][tuner-report]")
 {
     for (const auto& s : test::tunerScenarios())
@@ -440,6 +617,25 @@ TEST_CASE ("Tuner display report", "[.report][tuner-report]")
         std::printf ("\n%s: %s\n", s.name.c_str(), s.what.c_str());
         printMetrics ("before", measure (legacyGauge (polls, s), polls, s));
         printMetrics ("display", measure (displayGauge (polls, s), polls, s));
+    }
+}
+
+TEST_CASE ("Tuner display trace", "[.trace][tuner-trace]")
+{
+    // SEDEF_TUNER_TRACE=<scenario>: every third 60 Hz reading of one scenario, for debugging.
+    const char* name = environment ("SEDEF_TUNER_TRACE");
+    REQUIRE (name != nullptr);
+    const auto s = scenario (name);
+    const auto polls = test::pollTracker (s);
+    std::printf ("%s: %s\n     t   true  shown note  valid held settled  reading\n", name,
+                 s.what.c_str());
+    for (size_t i = 0; i < polls.size(); i += 3)
+    {
+        const auto& p = polls[i];
+        std::printf ("%6.3f %6.2f %6.2f %4d  %d %d %d  %d %6.2f\n", p.t, s.trueCents (p.t),
+                     displayed (s, p.r), p.r.displayNote, p.r.displayValid, p.r.displayHeld,
+                     p.r.displaySettled, p.r.valid,
+                     p.r.valid ? test::centsError (p.r.frequencyHz, s.nominalHz) : 0.0);
     }
 }
 
@@ -518,8 +714,19 @@ TEST_CASE ("Tuner display fixtures for the UI", "[.dump][tuner-fixtures]")
     // displayCents, true cents from the nominal note (A4 = 440 Hz).
     const char* path = environment ("SEDEF_TUNER_FIXTURES");
     REQUIRE (path != nullptr);
-    const char* names[] = { "e2-hum", "g3-real", "b3-edge", "a2-after-e2",
-                            "a2-peg", "g3-step", "d3-dies", "e4-repluck" };
+    const char* names[] = { "e2-hum",
+                            "g3-real",
+                            "b3-edge",
+                            "a2-after-e2",
+                            "a2-peg",
+                            "g3-step",
+                            "d3-dies",
+                            "e4-repluck",
+                            "e2-peg35",
+                            "d2-to-e2",
+                            "e2-repluck-turning",
+                            "e2-flat-hammer",
+                            "a2-ref-held" };
     std::ofstream f (path);
     REQUIRE (f.good());
     f << "{\n\"about\":\"PitchTracker display fields at 60 Hz for tuner scenarios; regenerate with "

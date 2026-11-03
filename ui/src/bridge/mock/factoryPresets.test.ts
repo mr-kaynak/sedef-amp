@@ -19,7 +19,8 @@ describe('factory presets', () => {
     const categories = ['Clean', 'Crunch', 'High Gain', 'Lead', 'Ambient'];
     const vocabulary = new Set(
       [
-        'compressor overdrive boost distortion chorus tremolo vibrato delay slapback plate hall',
+        'compressor overdrive boost distortion fuzz octave chorus tremolo vibrato delay slapback',
+        'plate hall',
         'rhythm solo swell drone blues rock metal funk neo-soul surf rockabilly garage',
       ]
         .join(' ')

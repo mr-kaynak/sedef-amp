@@ -299,7 +299,8 @@ public:
     {
         curves_.assign (static_cast<size_t> (std::max (count, 2)), BjtCurve {});
         for (size_t k = 0; k < curves_.size(); ++k)
-            curves_[k].build (shapeAt (static_cast<double> (k) / (curves_.size() - 1)));
+            curves_[k].build (
+                shapeAt (static_cast<double> (k) / static_cast<double> (curves_.size() - 1)));
     }
 
     BjtCurve::Value at (double w, double knob) const noexcept

@@ -123,8 +123,13 @@
   font-weight: 600;
 }
 
+/* Pressed: a darker well with the aqua "on" edge, so a tap shows in colour, apart from the
+   hover's lighter fill and also under reduced motion. It lands at once (only the scale eases
+   in) and eases back on release. */
 .tap:not(:disabled):active {
-  background: var(--ink-4);
+  border-color: var(--on-line);
+  background: var(--ink-0);
+  transition: scale 150ms ease-out;
 }
 
 /* Inline text actions ("Back to 440 Hz", "Read the licence"): aqua, underlined, bone on hover.

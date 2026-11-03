@@ -141,7 +141,10 @@ set(SEDEF_UPDATE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/update)
 set(SEDEF_UPDATE_CORE_SOURCES
     ${SEDEF_UPDATE_DIR}/UpdateLogic.cpp ${SEDEF_UPDATE_DIR}/UpdateLogic.h
     ${SEDEF_UPDATE_DIR}/UpdateClient.cpp ${SEDEF_UPDATE_DIR}/UpdateClient.h
-    ${SEDEF_UPDATE_DIR}/DownloadMark.cpp ${SEDEF_UPDATE_DIR}/DownloadMark.h)
+    ${SEDEF_UPDATE_DIR}/DownloadMark.cpp ${SEDEF_UPDATE_DIR}/DownloadMark.h
+    ${SEDEF_UPDATE_DIR}/InstallLogic.cpp ${SEDEF_UPDATE_DIR}/InstallLogic.h
+    ${SEDEF_UPDATE_DIR}/Process.cpp ${SEDEF_UPDATE_DIR}/Process.h
+    ${SEDEF_UPDATE_DIR}/Installer.cpp ${SEDEF_UPDATE_DIR}/Installer.h)
 target_sources(SedefAmp PRIVATE ${SEDEF_UPDATE_DIR}/UpdateBridge.cpp ${SEDEF_UPDATE_DIR}/UpdateBridge.h)
 if(SEDEF_UPDATE_CHECK)
     target_sources(SedefAmp PRIVATE ${SEDEF_UPDATE_CORE_SOURCES}
@@ -208,6 +211,7 @@ if(SEDEF_UPDATE_CHECK AND SEDEF_BUILD_PLUGIN_TESTS)
     juce_add_console_app(sedef_update_tests PRODUCT_NAME "sedef_update_tests")
     target_sources(sedef_update_tests PRIVATE
         tests/UpdateTests.cpp tests/UpdateClientTests.cpp tests/UpdateServiceTests.cpp
+        tests/InstallTests.cpp
         ${SEDEF_UPDATE_CORE_SOURCES} ${SEDEF_UPDATE_DIR}/UpdateService.cpp)
     target_include_directories(sedef_update_tests PRIVATE ${SEDEF_UPDATE_DIR} tests)
     target_compile_definitions(sedef_update_tests PRIVATE

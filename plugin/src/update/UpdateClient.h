@@ -27,6 +27,10 @@ enum class Error
     Incomplete,       // the download ended early or has the wrong size
     Disk,             // could not write to the download folder
     OpenFailed,       // verified, but the OS would not open it
+    BadPackage,       // verified, but its contents are not what Sedef's installer looks like
+    ElevationFailed,  // the OS could not ask for permission (a sandbox, no polkit agent)
+    InstallFailed,    // the OS's installer ran and reported a failure
+    Unverified,       // installed, but the installed files don't have the release's version
     Cancelled
 };
 
@@ -67,7 +71,18 @@ struct DownloadResult
 {
     Error error = Error::None;
     juce::String detail;
-    juce::File file; // the verified file, on success
+    juce::File file;     // the verified file, on success
+    juce::String sha256; // its checksum from SHA256SUMS.txt, on success
+};
+
+struct DownloadOptions
+{
+    /// Give the file the OS's downloaded-file mark (markAsDownloaded). Off for the private cache:
+    /// Sedef hands that copy to the OS's installer itself.
+    bool mark = true;
+    /// A different file with the same name is replaced instead of left alone (the cache is
+    /// Sedef's own).
+    bool replace = false;
 };
 
 enum class DownloadStage
@@ -111,7 +126,7 @@ public:
     /// OS's downloaded-file mark (markAsDownloaded), so the OS checks it before it runs.
     DownloadResult downloadVerified (const Release& release, const Asset& asset,
                                      const juce::File& folder, const DownloadProgress& progress,
-                                     Cancellation& cancel) const;
+                                     Cancellation& cancel, DownloadOptions options = {}) const;
 
 private:
     struct Response
@@ -147,5 +162,13 @@ private:
 
 /// The user's Downloads folder (XDG_DOWNLOAD_DIR on Linux), or the home folder without one.
 juce::File downloadsFolder();
+
+/// Copies a verified file into `folder` for the user to run ("Install manually"): checked again
+/// against `sha256`, written as "<name>.part" and renamed, with the OS's downloaded-file mark. A
+/// verified copy already there is reused; a different file with the same name is left alone and
+/// the copy is numbered, as downloadVerified does.
+DownloadResult copyVerified (const juce::File& file, const juce::String& sha256,
+                             const juce::File& folder, const juce::String& sourceUrl,
+                             const juce::String& pageUrl);
 
 } // namespace sedef::update

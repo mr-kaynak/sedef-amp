@@ -11,6 +11,10 @@
     inset 0 0 0 5px #11191f,
     0 30px 50px -24px rgb(0 0 0 / 0.9);
   padding: 9px;
+  /* The head's edge is a shadow ring, which forced colors drop; they draw this outline. An
+     outline rather than a border, so the 5px bezel and the grille keep their places. */
+  outline: 1px solid transparent;
+  outline-offset: -1px;
 }
 
 .grille {

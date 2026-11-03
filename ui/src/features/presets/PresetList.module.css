@@ -96,6 +96,15 @@
   box-shadow: var(--focus);
 }
 
+/* Forced colors drop the row's tint and the focus shadow: outline the selected row instead (an
+   outline, so the dividers and the nacre edge keep their places). */
+@media (forced-colors: active) {
+  .row[aria-selected='true'] {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+}
+
 .star {
   display: grid;
   place-items: center;

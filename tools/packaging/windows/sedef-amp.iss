@@ -3,6 +3,13 @@
 ; Inno Setup script for Sedef-Amp-Windows-Setup.exe (x64). build-installer.sh runs it as
 ;   iscc /DAppVersion=<x.y.z> /DArtefactsDir=<JUCE artefacts folder> /O<output folder> sedef-amp.iss
 ; Needs Inno Setup 6.
+;
+; The in-app updater (docs/updates.md) starts this setup elevated with
+;   /SILENT /SUPPRESSMSGBOXES /NORESTART /NOCLOSEAPPLICATIONS /RESTARTEXITCODE=3010 /WAITPID=<pid>
+; and, from the standalone app, /RELAUNCH. /WAITPID makes Setup wait until that process (the DAW
+; that has the plugin loaded, and locked) has exited before it installs anything; /RELAUNCH opens
+; the standalone app again afterwards. Silent mode keeps the formats chosen at the previous install
+; (UsePreviousSetupType). Setups from before 0.3.1 ignore both switches.
 
 #ifndef AppVersion
   #error Define AppVersion, e.g. iscc /DAppVersion=0.2.0
@@ -80,3 +87,56 @@ Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExe}"; Components: stan
 
 [Run]
 Filename: "{app}\{#AppExe}"; Description: "Open {#AppName} now"; Components: standalone; Flags: nowait postinstall skipifsilent unchecked runasoriginaluser
+; /RELAUNCH: the updater restarts the standalone app. Sedef starts Setup elevated, and then
+; runasoriginaluser has no effect (Setup never saw the user's own credentials), so Explorer opens
+; the app: it runs at the desktop's normal privileges, as when you start it yourself.
+Filename: "{win}\explorer.exe"; Parameters: """{app}\{#AppExe}"""; Components: standalone; Flags: nowait runasoriginaluser; Check: ShouldRelaunch
+
+[Code]
+const
+  SYNCHRONIZE = $00100000;
+  WAIT_TIMEOUT = $00000102;
+
+function OpenProcess(DesiredAccess: Cardinal; InheritHandle: Cardinal; ProcessId: Cardinal): NativeInt;
+  external 'OpenProcess@kernel32.dll stdcall';
+function WaitForSingleObject(Handle: NativeInt; Milliseconds: Cardinal): Cardinal;
+  external 'WaitForSingleObject@kernel32.dll stdcall';
+function CloseHandle(Handle: NativeInt): Cardinal;
+  external 'CloseHandle@kernel32.dll stdcall';
+
+{ Whether the command line holds /Name (any case). }
+function HasSwitch(const Name: String): Boolean;
+var
+  I: Integer;
+begin
+  Result := False;
+  for I := 1 to ParamCount do
+    if CompareText(ParamStr(I), Name) = 0 then
+      Result := True;
+end;
+
+function ShouldRelaunch: Boolean;
+begin
+  Result := HasSwitch('/RELAUNCH');
+end;
+
+{ /WAITPID=<pid>: wait until that process has exited, so the files it holds are free. A process
+  that is already gone (or never existed) means no wait. }
+function InitializeSetup: Boolean;
+var
+  Pid: Integer;
+  Process: NativeInt;
+begin
+  Result := True;
+  Pid := StrToIntDef(ExpandConstant('{param:WAITPID|0}'), 0);
+  if Pid <= 0 then
+    Exit;
+  Process := OpenProcess(SYNCHRONIZE, 0, Pid);
+  if Process = 0 then
+    Exit;
+  Log(Format('Waiting for process %d to exit', [Pid]));
+  while WaitForSingleObject(Process, 250) = WAIT_TIMEOUT do
+    ;
+  CloseHandle(Process);
+  Log(Format('Process %d has exited', [Pid]));
+end;

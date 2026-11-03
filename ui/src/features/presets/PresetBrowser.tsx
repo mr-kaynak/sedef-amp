@@ -445,7 +445,7 @@ function BrowserPanel() {
             title="Show the preset folder"
             onClick={() => void presetActions.reveal()}
           >
-            <Icon name="folder" size={14} stroke={ICON_STROKE_LABEL} />
+            <Icon name="folder" size={14} />
           </button>
         )}
         <ShortcutList open={showKeys} onToggle={setShowKeys} />

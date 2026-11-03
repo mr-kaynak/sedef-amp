@@ -94,7 +94,7 @@ export function Header() {
               aria-expanded={popover === 'metronome'}
               onClick={() => uiActions.togglePopover('metronome')}
             >
-              <Icon name="metronome" stroke={ICON_STROKE_LABEL} />
+              <Icon name="metronome" />
             </button>
             <Popover
               open={popover === 'metronome'}
@@ -118,7 +118,7 @@ export function Header() {
             aria-expanded={popover === 'settings'}
             onClick={() => uiActions.togglePopover('settings')}
           >
-            <Icon name="sliders" stroke={ICON_STROKE_LABEL} />
+            <Icon name="sliders" />
           </button>
           <Popover
             open={popover === 'settings'}

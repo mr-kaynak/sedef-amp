@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // The keyboard shortcuts, behind a button in the browser's footer.
 import { Fragment } from 'react';
-import { Icon, ICON_STROKE_LABEL } from '../../controls/Icon';
+import { Icon } from '../../controls/Icon';
 import buttons from '../../controls/Button.module.css';
 import { shortcuts } from '../../app/shortcuts';
 import styles from './ShortcutList.module.css';
@@ -22,7 +22,8 @@ export function ShortcutList({
         aria-controls="preset-shortcuts"
         onClick={() => onToggle(!open)}
       >
-        <Icon name="keyboard" size={14} stroke={ICON_STROKE_LABEL} />
+        {/* The regular 1.5px line: at 2px the keys fill the 14px case in. */}
+        <Icon name="keyboard" size={14} />
         Shortcuts
       </button>
       {open && (

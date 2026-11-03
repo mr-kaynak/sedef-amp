@@ -32,7 +32,10 @@ constexpr double kMaxBleedSeconds = 0.0025; // the far speaker of a 4x12 is ~1.7
 constexpr float kOffAxisRest = 1.0e-7f;     // relative state below which the off-axis stages stop
 constexpr float kOffAxisFloor = 1.0e-12f;   // and absolute (-240 dB), for when the input is silent
 constexpr double kMaxReflectionSeconds = 0.003;
+// A glide ends with a snap this close to the target (0.01 mm across the cone, 0.03 mm back, 0.006
+// degrees off axis, 0.01 degrees round); ten times coarser doubles the residue under automation.
 constexpr float kSnapTolerance = 1.0e-4f;
+constexpr float kAzimuthSnapDeg = 0.01f;
 constexpr float kRoomPanWidth = 0.5f; // room sends follow the mic pan, narrower
 constexpr int kNumSlots = CabSim::kNumMics * CabSim::kNumCabs;
 
@@ -171,8 +174,11 @@ struct CabSim::Impl
         float fade = 0.0f;   // starts below 0: the pre-roll
         bool idle = true;
 
-        ExpSmoothed x, y, distance, offAxis;       // pose in Cartesian coordinates; angle / 60
+        // The pose glides in polar coordinates, so a move round the cone keeps its radius;
+        // azimuth in degrees, unwrapped (it takes the short way and may leave -180..180).
+        ExpSmoothed position, azimuth, distance, offAxis; // offAxis: angle / 60
         cab::MicPose applied;                      // what the voices' filters are designed for
+        float appliedPosition = 0.0f;              // the position it was built from
         LinearSmoothed gainL, gainR, roomL, roomR; // level x pan
         SwitchRamp micSwitch;                      // 0 off, +1 on, -1 on and inverted
         SwitchRamp roomSwitch;
@@ -225,7 +231,7 @@ struct CabSim::Impl
                 v.air.prepare (airMax);
                 v.bleedLine.prepare (bleedMax);
             }
-            for (auto* g : { &mic.x, &mic.y, &mic.distance, &mic.offAxis })
+            for (auto* g : { &mic.position, &mic.azimuth, &mic.distance, &mic.offAxis })
                 g->reset (fs, kPlacementSmoothingSeconds);
             for (auto* g : { &mic.gainL, &mic.gainR, &mic.roomL, &mic.roomR })
                 g->reset (fs, kGainRampSeconds);
@@ -275,7 +281,7 @@ struct CabSim::Impl
         for (int m = 0; m < kNumMics; ++m)
         {
             Mic& mic = mics[static_cast<size_t> (m)];
-            for (auto* g : { &mic.x, &mic.y, &mic.distance, &mic.offAxis })
+            for (auto* g : { &mic.position, &mic.azimuth, &mic.distance, &mic.offAxis })
                 g->setCurrentAndTarget (g->target());
             for (auto* g : { &mic.gainL, &mic.gainR, &mic.roomL, &mic.roomR })
                 g->setCurrentAndTarget (g->target());
@@ -295,15 +301,15 @@ struct CabSim::Impl
             const MicSettings& s = settings.mics[static_cast<size_t> (m)];
             Mic& mic = mics[static_cast<size_t> (m)];
             const float defaultAzimuth = Settings {}.mics[static_cast<size_t> (m)].azimuthDeg;
-            const cab::MicPose pose = cab::MicPose::polar (
-                sanitise (s.position, 0.0f, 1.0f, 0.5f),
-                std::isfinite (s.azimuthDeg) ? std::fmod (s.azimuthDeg, 360.0f) : defaultAzimuth,
-                sanitise (s.distance, 0.0f, 1.0f, 0.0f),
-                sanitise (s.offAxisDeg, 0.0f, cab::kMaxOffAxisDeg, 0.0f));
-            mic.x.setTarget (pose.x);
-            mic.y.setTarget (pose.y);
-            mic.distance.setTarget (pose.distance);
-            mic.offAxis.setTarget (pose.offAxisDeg / cab::kMaxOffAxisDeg);
+            const float azimuth =
+                std::isfinite (s.azimuthDeg) ? std::fmod (s.azimuthDeg, 360.0f) : defaultAzimuth;
+            // The short way round from where the glide is now (179 -> -179 is two degrees).
+            const float from = mic.azimuth.current();
+            mic.position.setTarget (sanitise (s.position, 0.0f, 1.0f, 0.5f));
+            mic.azimuth.setTarget (from + std::remainder (azimuth - from, 360.0f));
+            mic.distance.setTarget (sanitise (s.distance, 0.0f, 1.0f, 0.0f));
+            mic.offAxis.setTarget (sanitise (s.offAxisDeg, 0.0f, cab::kMaxOffAxisDeg, 0.0f) /
+                                   cab::kMaxOffAxisDeg);
 
             const float level = dbToGain (sanitise (s.levelDb, -100.0f, 24.0f, 0.0f));
             const PanGains pan = constantPowerPan (s.pan);
@@ -461,7 +467,7 @@ struct CabSim::Impl
         const cab::MicModel& micModel = cab::micModel (cfg.type);
         const cab::Placement pl = cab::placement (cabModel, micModel, pose);
         v.numBody = cab::designBodyStages (cabModel, fs, v.stages.data());
-        cab::designPositionStages (cabModel, pose.position(), fs, v.stages.data() + v.numBody);
+        cab::designPositionStages (cabModel, mic.appliedPosition, fs, v.stages.data() + v.numBody);
         cab::designProximityStage (micModel, pl, fs, v.stages.data() + proximityIndex (v));
         cab::designAirStage (pl, fs, v.stages.data() + proximityIndex (v) + 1);
         v.capsuleIndex = v.numBody + cab::kNearStages;
@@ -510,12 +516,14 @@ struct CabSim::Impl
     void wake (int m) noexcept
     {
         Mic& mic = mics[static_cast<size_t> (m)];
-        for (auto* g : { &mic.x, &mic.y, &mic.distance, &mic.offAxis })
+        for (auto* g : { &mic.position, &mic.azimuth, &mic.distance, &mic.offAxis })
             g->setCurrentAndTarget (g->target());
         for (auto* g : { &mic.gainL, &mic.gainR, &mic.roomL, &mic.roomR })
             g->setCurrentAndTarget (g->target());
-        mic.applied = { mic.x.current(), mic.y.current(), mic.distance.current(),
-                        mic.offAxis.current() * cab::kMaxOffAxisDeg };
+        mic.appliedPosition = mic.position.current();
+        mic.applied =
+            cab::MicPose::polar (mic.appliedPosition, mic.azimuth.current(), mic.distance.current(),
+                                 mic.offAxis.current() * cab::kMaxOffAxisDeg);
         release (mic.voices[0]);
         release (mic.voices[1]);
         mic.active = 0;
@@ -525,30 +533,42 @@ struct CabSim::Impl
         startVoice (mic, mic.voices[0], targetConfig (m));
     }
 
-    /// The pose glides (one-pole, in Cartesian coordinates so a move across the cone or across
-    /// the azimuth wrap takes the short way); filters follow once per control block.
+    /// The pose glides (one-pole, in polar coordinates: a move round the cone keeps its radius,
+    /// and the azimuth takes the short way); filters follow once per control block.
     void updatePlacement (Mic& mic, int n) noexcept
     {
-        const auto glide = [n] (ExpSmoothed& s) {
+        const auto glide = [n] (ExpSmoothed& s, float tolerance) {
             float v = s.skip (n);
-            if (std::abs (v - s.target()) < kSnapTolerance)
+            if (std::abs (v - s.target()) < tolerance)
             {
                 s.setCurrentAndTarget (s.target());
                 v = s.target();
             }
             return v;
         };
-        const cab::MicPose pose { glide (mic.x), glide (mic.y), glide (mic.distance),
-                                  glide (mic.offAxis) * cab::kMaxOffAxisDeg };
-        if (pose == mic.applied)
+        const float position = glide (mic.position, kSnapTolerance);
+        float azimuth = glide (mic.azimuth, kAzimuthSnapDeg);
+        if (std::abs (azimuth) > 180.0f)
+        {
+            // Keep the unwrapped angle near the -180..180 range (an endless orbit stays exact).
+            const float turns = 360.0f * std::round (azimuth / 360.0f);
+            const float target = mic.azimuth.target() - turns;
+            azimuth -= turns;
+            mic.azimuth.setCurrentAndTarget (azimuth);
+            mic.azimuth.setTarget (target);
+        }
+        const cab::MicPose pose =
+            cab::MicPose::polar (position, azimuth, glide (mic.distance, kSnapTolerance),
+                                 glide (mic.offAxis, kSnapTolerance) * cab::kMaxOffAxisDeg);
+        if (pose == mic.applied && position == mic.appliedPosition)
             return;
         const cab::MicPose old = mic.applied;
+        const bool across = position != mic.appliedPosition;
         mic.applied = pose;
-        const bool moved = pose.x != old.x || pose.y != old.y;
+        mic.appliedPosition = position;
+        const bool moved = across || pose.x != old.x || pose.y != old.y;
         const bool pulled = pose.distance != old.distance;
         const bool turned = pose.offAxisDeg != old.offAxisDeg;
-        const float position = pose.position();
-        const bool across = position != old.position();
 
         const auto rampGroup = [] (cab::Stage* to, const cab::Stage* from, int count) {
             for (int i = 0; i < count; ++i)

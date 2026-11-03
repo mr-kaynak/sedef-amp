@@ -589,6 +589,48 @@ TEST_CASE ("The other speakers arrive when their path says", "[cab][placement]")
     }
 }
 
+TEST_CASE ("Moving round the cone keeps the mic's distance from the centre", "[cab][placement]")
+{
+    // A jump in azimuth glides along the circle (the short way), not straight across the cone
+    // through the dust cap, whose presence peak would flash up on the way.
+    const double fs = 48000.0;
+    const int block = 64;
+    std::vector<float> x (static_cast<size_t> (0.6 * fs));
+    fillNoise (x, 0.5f, 45);
+    const size_t step = x.size() / 3;
+    const auto render = [&] (float before, float after) {
+        CabSim cab;
+        cab.prepare ({ fs, block, 2 });
+        return renderLeft (cab, x, block, [&] (size_t p) {
+            return soloMicA (k1x12, kDynClassic, 1.0f, 0.0f, p < step ? before : after);
+        });
+    };
+    // Treble (4-6 kHz) in 5 ms windows through the glide, against the mic standing still: on the
+    // 1x12 only the floor bounce (-32 dB on the grille) knows the azimuth.
+    const auto treble = [&] (std::vector<float> y) {
+        std::array<model::Stage, 2> band {};
+        band[0].c = design::highpass (fs, 4000.0, 0.7071);
+        band[1].c = design::lowpass (fs, 6000.0, 0.7071);
+        model::runStages (band.data(), 2, y.data(), static_cast<int> (y.size()));
+        return y;
+    };
+    const auto still = treble (render (-60.0f, -60.0f));
+    const auto moved = treble (render (-60.0f, 120.0f));
+    double worst = 0.0;
+    const size_t window = 240;
+    for (size_t w = step; w + window <= step + static_cast<size_t> (0.3 * fs); w += window)
+    {
+        double a = 0.0, b = 0.0;
+        for (size_t i = w; i < w + window; ++i)
+        {
+            a += static_cast<double> (still[i]) * still[i];
+            b += static_cast<double> (moved[i]) * moved[i];
+        }
+        worst = std::max (worst, std::abs (10.0 * std::log10 (b / a)));
+    }
+    CHECK (worst < 1.0);
+}
+
 TEST_CASE ("After the input stops the cab settles to exact silence", "[cab][placement]")
 {
     // Engine::process runs with flush-to-zero, but CabSim does not count on it: filter states are

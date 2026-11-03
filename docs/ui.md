@@ -166,8 +166,8 @@ tolerance. The mock starts on Nacre.
   `stable` (window full, spread under 0.5 cent), `stableHz` (mean), `stableStdCents` (sample
   standard deviation) and `stableCount`. The `display*` fields follow the engine's tuner display
   in outline (a new note shows 50 ms after its first reading, a re-pluck keeps the needle still,
-  the reading is followed while the peg turns, the last value holds). With no intent it tunes the
-  strings of a guitar one after another. The intonation workbench sets
+  the reading is followed while the peg turns, the last value holds, settled if it was). With no
+  intent it tunes the strings of a guitar one after another. The intonation workbench sets
   intents through the optional `simulator` hook (`tune` an open string, `fret` the 12th fret with
   a configurable error per string), so the whole flow is demoable in a browser.
 
@@ -261,7 +261,8 @@ something is alive.
   [ui/presets.md](ui/presets.md)); digit keys never switch sections while you type or while it is
   open, and toasts are a polite live region that never takes focus. The tuner announces a settled state ("E 2, in tune") through
   a polite live region once it has held 0.6 s, at most every 2 s, and says nothing while a note is
-  starting or has ended; the state is also written ("In tune", "Tune up"), not only coloured. Text meets WCAG AA (4.5:1):
+  starting or has ended (the next note is announced again, even in the same state); the state is
+  also written ("In tune", "Tune up"), not only coloured. Text meets WCAG AA (4.5:1):
   `--bone-3` is the quietest text colour (`--bone-4` is for lines and fills only), and the
   enclosure legends' dim tone is strong enough on every paint. `prefers-reduced-motion` disables
   transitions and the strobe; the needle keeps its damping because it carries information.

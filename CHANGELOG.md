@@ -11,11 +11,13 @@ All notable changes to this project are documented here. The format follows
 - **Tuner:** a calm, steady needle. It reads the long, precise analysis window whenever the pitch
   holds and the quick one only while a peg turns, so hum, a string still ringing and the pick's
   sharp attack no longer make it swing (with hum 28 dB under a low E it now wanders 0.002 cents
-  instead of 1.4). In tune is confirmed after a moment and kept with hysteresis, the note name
-  stays put from the pick to the end of the note, and the last reading holds, then fades, when
-  the note dies. The numbers change at most four times a second and show tenths only when steady,
-  a hint under them says "Tune up", "Tune down" or "In tune", and screen readers hear each state
-  once ([docs/dsp/tuner.md](docs/dsp/tuner.md#3-display)).
+  instead of 1.4). It keeps up with a peg turned from far off, also right after a pick or a
+  re-pluck, and lands and settles on the pitch. In tune is confirmed after a moment and kept with
+  hysteresis, the note name stays put from the pick to the end of the note and is the nearest one
+  even at the edge of a note, and the last reading holds, then fades, when the note dies; a new
+  reference renames it at once. The numbers change at most four times a second and show tenths
+  only when steady, a hint under them says "Tune up", "Tune down" or "In tune", and screen readers
+  hear each state once ([docs/dsp/tuner.md](docs/dsp/tuner.md#3-display)).
 
 ## [0.2.0] - 2026-11-01
 

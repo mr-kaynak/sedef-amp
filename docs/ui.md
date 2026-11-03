@@ -202,7 +202,7 @@ browser the canvas fits the window. Everything is vector or text, so it stays cr
 | Tuner      | needle + strobe, note and octave, cents, Hz, "Tune up" hint, reference 420–460 Hz, mute; in tune within ±1 cent after 0.15 s, with hysteresis; holds the last reading ([tuner.md](dsp/tuner.md#3-display))                       |
 | Intonation | instrument → measure each string (tune open, capture 12th fret, result with saddle diagram) → summary with copy as text                                                                                                          |
 | Metronome  | play/stop, tempo knob + tap, signature, sound, volume, step grid (off/normal/accent/soft), live beat                                                                                                                             |
-| Updates    | header pill when a newer release is out ("Update available") or installed ("Restart to update"); panel with versions, last check, Check now, the automatic-check switch, release notes, Update now (download with progress and Cancel, then the OS installer's steps), Restart Sedef in the standalone app, Install manually and the releases page after a failure, Skip this version, Later ([updates.md](updates.md)) |
+| Updates    | header pill when a newer release is out ("Update available"), while it updates ("Updating…") or once installed ("Restart to update"); panel with versions, last check, Check now, the automatic-check switch, release notes, Update now (download with progress and Cancel, then the OS installer's steps), Restart Sedef in the standalone app, Install manually and the releases page after a failure, Skip this version, Later ([updates.md](updates.md)) |
 
 ### EQ curve
 

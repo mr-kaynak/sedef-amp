@@ -28,6 +28,7 @@ and open it, as described under [Install manually](#install-manually), for their
 3. **Download.** Sedef downloads `SHA256SUMS.txt` and this OS's installer from the same release
    into a private folder of its own (below), checks the size the release lists and the installer's
    SHA-256 against that list. A file that doesn't match is deleted. **Cancel** stops the download.
+   You can close the panel meanwhile; the pill reads "Updating…" until it's done.
 4. **Install.** Sedef checks the file's SHA-256 once more and installs it through the OS's own
    installer:
 

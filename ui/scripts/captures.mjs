@@ -17,7 +17,8 @@ const outFlag = args.indexOf('--out');
 const outDir = resolve(
   outFlag >= 0 ? args[outFlag + 1] : resolve(root, '../media/trailer/assets/shots'),
 );
-const wanted = args.filter((a, i) => a !== '--out' && i !== outFlag + 1);
+// Without --out, outFlag + 1 is 0: don't let that drop the first name.
+const wanted = args.filter((a, i) => outFlag < 0 || (i !== outFlag && i !== outFlag + 1));
 mkdirSync(outDir, { recursive: true });
 
 const BASE = 'fresh&freeze&demo&grain=0&host=standalone';

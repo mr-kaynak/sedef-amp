@@ -2,6 +2,7 @@
 #pragma once
 
 #include "sedef/core/Biquad.h"
+#include "sedef/core/Math.h"
 
 #include <algorithm>
 #include <array>
@@ -31,67 +32,42 @@ struct Stage
 
 namespace detail
 {
-inline void runStage (Stage& st, float* buf, int n) noexcept
-{
-    float s1 = st.s1, s2 = st.s2;
-    if (!st.ramp)
-    {
-        const BiquadCoeffs c = st.c;
-        for (int i = 0; i < n; ++i)
-        {
-            const float x = buf[i];
-            const float y = c.b0 * x + s1;
-            s1 = c.b1 * x - c.a1 * y + s2;
-            s2 = c.b2 * x - c.a2 * y;
-            buf[i] = y;
-        }
-    }
-    else
-    {
-        // Linear per-sample coefficient interpolation, landing exactly on the target.
-        BiquadCoeffs c = st.c;
-        const float inv = 1.0f / static_cast<float> (n);
-        const BiquadCoeffs d { (st.target.b0 - c.b0) * inv, (st.target.b1 - c.b1) * inv,
-                               (st.target.b2 - c.b2) * inv, (st.target.a1 - c.a1) * inv,
-                               (st.target.a2 - c.a2) * inv };
-        for (int i = 0; i < n; ++i)
-        {
-            c.b0 += d.b0;
-            c.b1 += d.b1;
-            c.b2 += d.b2;
-            c.a1 += d.a1;
-            c.a2 += d.a2;
-            const float x = buf[i];
-            const float y = c.b0 * x + s1;
-            s1 = c.b1 * x - c.a1 * y + s2;
-            s2 = c.b2 * x - c.a2 * y;
-            buf[i] = y;
-        }
-        st.c = st.target;
-        st.ramp = false;
-    }
-    st.s1 = s1;
-    st.s2 = s2;
-}
-
-/// N static stages in one pass. Each stage's recursion is latency-bound; interleaving them lets
-/// the CPU overlap them (stage k at sample n+1 runs alongside stage k+1 at sample n).
-template <int N>
+/// N stages in one pass. Each stage's recursion is latency-bound; interleaving them lets the CPU
+/// overlap them (stage k at sample n+1 runs alongside stage k+1 at sample n). With Ramp, stages
+/// that glide interpolate their coefficients per sample, landing exactly on the target (the
+/// others get zero steps). States are flushed to zero at the end of the block, so a decaying tail
+/// never runs through subnormal values even without flush-to-zero.
+template <int N, bool Ramp>
 inline void runFused (Stage* st, float* buf, int n) noexcept
 {
-    BiquadCoeffs c[N];
+    BiquadCoeffs c[N], d[N];
     float s1[N], s2[N];
+    const float inv = 1.0f / static_cast<float> (n);
     for (int k = 0; k < N; ++k)
     {
         c[k] = st[k].c;
         s1[k] = st[k].s1;
         s2[k] = st[k].s2;
+        if constexpr (Ramp)
+        {
+            const BiquadCoeffs& t = st[k].ramp ? st[k].target : st[k].c;
+            d[k] = { (t.b0 - c[k].b0) * inv, (t.b1 - c[k].b1) * inv, (t.b2 - c[k].b2) * inv,
+                     (t.a1 - c[k].a1) * inv, (t.a2 - c[k].a2) * inv };
+        }
     }
     for (int i = 0; i < n; ++i)
     {
         float x = buf[i];
         for (int k = 0; k < N; ++k)
         {
+            if constexpr (Ramp)
+            {
+                c[k].b0 += d[k].b0;
+                c[k].b1 += d[k].b1;
+                c[k].b2 += d[k].b2;
+                c[k].a1 += d[k].a1;
+                c[k].a2 += d[k].a2;
+            }
             const float y = c[k].b0 * x + s1[k];
             s1[k] = c[k].b1 * x - c[k].a1 * y + s2[k];
             s2[k] = c[k].b2 * x - c[k].a2 * y;
@@ -101,44 +77,58 @@ inline void runFused (Stage* st, float* buf, int n) noexcept
     }
     for (int k = 0; k < N; ++k)
     {
-        st[k].s1 = s1[k];
-        st[k].s2 = s2[k];
+        st[k].s1 = flushToZero (s1[k]);
+        st[k].s2 = flushToZero (s2[k]);
+        if constexpr (Ramp)
+        {
+            if (st[k].ramp)
+            {
+                st[k].c = st[k].target;
+                st[k].ramp = false;
+            }
+        }
     }
+}
+
+template <int N>
+inline void runGroup (Stage* st, float* buf, int n) noexcept
+{
+    bool ramp = false;
+    for (int k = 0; k < N; ++k)
+        ramp = ramp || st[k].ramp;
+    if (ramp)
+        runFused<N, true> (st, buf, n);
+    else
+        runFused<N, false> (st, buf, n);
 }
 } // namespace detail
 
-/// Runs `count` cascaded stages over buf[0..n) in place. Ramping stages interpolate their
-/// coefficients per sample (see Stage::rampTo); static ones run fused in groups of up to four.
+/// Runs `count` cascaded stages over buf[0..n) in place, fused in groups of up to four. Gliding
+/// stages interpolate their coefficients per sample (see Stage::rampTo).
 inline void runStages (Stage* stages, int count, float* buf, int n) noexcept
 {
     int s = 0;
     while (s < count)
     {
-        int run = 0;
-        while (s + run < count && !stages[s + run].ramp)
-            ++run;
-        // Five static stages split 3 + 2 rather than leaving a lone one.
-        const int group = run == 5 ? 3 : std::min (run, 4);
+        // Five stages split 3 + 2 rather than leaving a lone one.
+        const int left = count - s;
+        const int group = left == 5 ? 3 : std::min (left, 4);
         switch (group)
         {
-        case 0:
         case 1:
-            detail::runStage (stages[s], buf, n);
-            s += 1;
+            detail::runGroup<1> (stages + s, buf, n);
             break;
         case 2:
-            detail::runFused<2> (stages + s, buf, n);
-            s += 2;
+            detail::runGroup<2> (stages + s, buf, n);
             break;
         case 3:
-            detail::runFused<3> (stages + s, buf, n);
-            s += 3;
+            detail::runGroup<3> (stages + s, buf, n);
             break;
         default:
-            detail::runFused<4> (stages + s, buf, n);
-            s += 4;
+            detail::runGroup<4> (stages + s, buf, n);
             break;
         }
+        s += group;
     }
 }
 
@@ -263,6 +253,10 @@ struct Placement
     float offAxisShelfDb = 0.0f;
     std::array<Bleed, kMaxNeighbours> bleed {};
     int numBleed = 0;
+    /// Low shelf on the neighbours' sum: their gains above are held under the miked cone (see
+    /// placement()), the shelf gives the low end back, where they cannot cancel it.
+    float bleedShelfHz = 100.0f;
+    float bleedShelfDb = 0.0f;
 };
 
 Placement placement (const CabModel& cab, const MicModel& mic, const MicPose& pose) noexcept;
@@ -287,6 +281,7 @@ void designOffAxisStages (const MicModel& mic, const Placement& p, double sample
                           Stage* out) noexcept;
 void designAirStage (const Placement& p, double sampleRate, Stage* out) noexcept;
 BiquadCoeffs designBleedFilter (const Bleed& b, double sampleRate) noexcept;
+BiquadCoeffs designBleedShelf (const Placement& p, double sampleRate) noexcept;
 
 /// The capsule a custom IR was presumably recorded with: its off-axis model is what the angle
 /// control applies after an IR (the IR itself already holds position and distance).

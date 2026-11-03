@@ -6,9 +6,12 @@
 #include "sedef/dsp/cab/CabModels.h"
 #include "sedef/dsp/cab/ConvolutionKernel.h"
 
+#include <array>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
+#include <complex>
+#include <string>
 
 using namespace sedef;
 using namespace sedef::test;
@@ -19,8 +22,8 @@ namespace model = sedef::dsp::cab;
 namespace
 {
 constexpr int k1x12 = 0, k2x12 = 1, k4x12 = 2;
-constexpr int kDynClassic = 0, kDynOffAxis = 1, kCondSmall = 4, kCondLarge = 5;
-constexpr int kCondPrecision = 6, kRibbonSmooth = 8;
+constexpr int kDynClassic = 0, kDynOffAxis = 1, kDynBright = 2, kCondSmall = 4, kCondLarge = 5;
+constexpr int kCondPrecision = 6, kRibbonSmooth = 8, kRibbonDark = 9;
 
 /// Third-octave band centres from 100 Hz to 8 kHz.
 std::vector<double> bands (double lo = 100.0, double hi = 8000.0)
@@ -83,6 +86,50 @@ float maxDifference (const std::vector<float>& a, const std::vector<float>& b, s
     for (size_t i = from; i < std::min (a.size(), b.size()); ++i)
         d = std::max (d, std::abs (a[i] - b[i]));
     return d;
+}
+
+/// A neighbour's level in the low end, where the shelf on the neighbours' sum gives back what is
+/// held above (see docs/dsp/cab.md, 3.4): the plain geometry and polar pattern.
+double lowEndGain (const model::Placement& pl, int k)
+{
+    return static_cast<double> (pl.bleed[static_cast<size_t> (k)].gain) *
+           std::pow (10.0, static_cast<double> (pl.bleedShelfDb) / 20.0);
+}
+
+/// Complex response of a cascade of biquads at one frequency.
+std::complex<double> chainAt (const BiquadCoeffs* c, int count, double hz, double fs)
+{
+    const std::complex<double> z1 = std::polar (1.0, -kTwoPiD * hz / fs), z2 = z1 * z1;
+    std::complex<double> h = 1.0;
+    for (int i = 0; i < count; ++i)
+        h *= (static_cast<double> (c[i].b0) + static_cast<double> (c[i].b1) * z1 +
+              static_cast<double> (c[i].b2) * z2) /
+             (1.0 + static_cast<double> (c[i].a1) * z1 + static_cast<double> (c[i].a2) * z2);
+    return h;
+}
+
+/// Group delay of a cascade of biquads at one frequency, seconds.
+double groupDelaySec (const BiquadCoeffs* c, int count, double hz, double fs)
+{
+    const double dHz = 0.5;
+    const double phase =
+        std::arg (chainAt (c, count, hz + dHz, fs) / chainAt (c, count, hz - dHz, fs));
+    return -phase / (kTwoPiD * 2.0 * dHz);
+}
+
+/// What only the miked cone's sound passes through (position, proximity, air), as CabSim builds it.
+std::array<BiquadCoeffs, model::kNearStages>
+nearCoeffs (int c, int type, const model::MicPose& pose, const model::Placement& pl, double fs)
+{
+    std::array<model::Stage, model::kNearStages> st {};
+    model::designPositionStages (model::cabModel (c), pose.position(), fs, st.data());
+    model::designProximityStage (model::micModel (type), pl, fs,
+                                 st.data() + model::kPositionStages);
+    model::designAirStage (pl, fs, st.data() + model::kPositionStages + 1);
+    std::array<BiquadCoeffs, model::kNearStages> out {};
+    for (size_t i = 0; i < st.size(); ++i)
+        out[i] = st[i].c;
+    return out;
 }
 } // namespace
 
@@ -172,8 +219,8 @@ TEST_CASE ("Placement over a multi-speaker baffle matters, and more so with dist
                 const auto kk = static_cast<size_t> (k);
                 CHECK (toward.bleed[kk].delaySec < centre.bleed[kk].delaySec);
                 CHECK (centre.bleed[kk].delaySec < away.bleed[kk].delaySec);
-                CHECK (toward.bleed[kk].gain > centre.bleed[kk].gain);
-                CHECK (centre.bleed[kk].gain > away.bleed[kk].gain);
+                CHECK (lowEndGain (toward, k) > lowEndGain (centre, k));
+                CHECK (lowEndGain (centre, k) > lowEndGain (away, k));
             }
         }
         // Backing off, the other cones catch up with the miked one (spherical spreading).
@@ -182,8 +229,8 @@ TEST_CASE ("Placement over a multi-speaker baffle matters, and more so with dist
         {
             const auto pl =
                 model::placement (closed, dyn, model::MicPose::polar (0.5f, 60.0f, distance, 0));
-            CHECK (pl.bleed[0].gain > previous);
-            previous = pl.bleed[0].gain;
+            CHECK (lowEndGain (pl, 0) > previous);
+            previous = lowEndGain (pl, 0);
         }
         CHECK (previous > 0.5f);
         CHECK (model::cabModel (k1x12).numNeighbours == 0);
@@ -401,4 +448,182 @@ TEST_CASE ("Azimuth wraps the short way round", "[cab][placement]")
     const auto opposite = render (179.0f, 0.0f);   // straight across the cone
     const auto from = x.size() / 2;
     CHECK (maxDifference (steady, wrapped, from) < 0.05f * maxDifference (steady, opposite, from));
+}
+
+TEST_CASE ("No other speaker outweighs the miked one and their combs stay finite",
+           "[cab][placement]")
+{
+    // A grid of poses on the 2x12 and the 4x12, for every capsule family, on axis and turned.
+    // No neighbour, and above the low end not even all of them together, outweighs the miked
+    // cone, so their comb with it (the miked cone plus the others, relative to the miked cone
+    // alone, 150 Hz - 3 kHz) never notches below the floor the room's diffuse field sets at that
+    // distance (see docs/dsp/cab.md, 3.4). In the low end, where they cannot oppose it, the others
+    // still add up: a backed-off 4x12 gains low end.
+    const double fs = 48000.0;
+    constexpr double grille = 0.025, span = 0.325, roomQ = 4.0, sabins = 0.161 * 100.0 / 0.5;
+    for (int c : { k2x12, k4x12 })
+    {
+        double single = 0.0, together = 0.0, lows = 0.0, notch = 0.0, belowFloor = 0.0;
+        std::string where;
+        for (int type :
+             { kDynClassic, kDynBright, kCondLarge, kCondPrecision, kRibbonSmooth, kRibbonDark })
+            for (float offAxis : { 0.0f, 30.0f, 60.0f })
+                for (float distance : { 0.0f, 0.25f, 0.5f, 0.75f, 1.0f })
+                    for (float position : { 0.0f, 0.25f, 0.5f, 0.75f, 1.0f })
+                        for (float azimuth = -180.0f; azimuth < 180.0f; azimuth += 15.0f)
+                        {
+                            const auto pose =
+                                model::MicPose::polar (position, azimuth, distance, offAxis);
+                            const auto pl = model::placement (model::cabModel (c),
+                                                              model::micModel (type), pose);
+                            const auto shelf = model::designBleedShelf (pl, fs);
+                            double sum = 0.0;
+                            std::array<BiquadCoeffs, model::kMaxNeighbours> lp {};
+                            for (size_t k = 0; k < static_cast<size_t> (pl.numBleed); ++k)
+                            {
+                                const double g = std::abs (pl.bleed[k].gain);
+                                single = std::max (single, g);
+                                sum += g;
+                                lp[k] = model::designBleedFilter (pl.bleed[k], fs);
+                            }
+                            together = std::max (together, sum);
+                            lows = std::max (lows, sum * std::abs (chainAt (&shelf, 1, 20.0, fs)));
+                            const double z = grille + span * distance;
+                            const double floorDb =
+                                10.0 * std::log10 (16.0 * kPiD * z * z / (roomQ * sabins));
+                            const auto near = nearCoeffs (c, type, pose, pl, fs);
+                            for (double hz = 150.0; hz <= 3000.0; hz *= std::exp2 (1.0 / 36.0))
+                            {
+                                std::complex<double> others = 0.0;
+                                for (size_t k = 0; k < static_cast<size_t> (pl.numBleed); ++k)
+                                    others +=
+                                        static_cast<double> (pl.bleed[k].gain) *
+                                        chainAt (&lp[k], 1, hz, fs) *
+                                        std::polar (1.0,
+                                                    -kTwoPiD * hz *
+                                                        static_cast<double> (pl.bleed[k].delaySec));
+                                others *= chainAt (&shelf, 1, hz, fs);
+                                const double db =
+                                    20.0 *
+                                    std::log10 (std::abs (
+                                        1.0 + others / chainAt (near.data(), model::kNearStages, hz,
+                                                                fs)));
+                                belowFloor = std::max (belowFloor, floorDb - db);
+                                if (db < notch)
+                                {
+                                    notch = db;
+                                    where = "type " + std::to_string (type) + " off axis " +
+                                            std::to_string (offAxis) + " distance " +
+                                            std::to_string (distance) + " position " +
+                                            std::to_string (position) + " azimuth " +
+                                            std::to_string (azimuth) + " at " +
+                                            std::to_string (hz) + " Hz";
+                                }
+                            }
+                        }
+        INFO ("cab " << c << ": loudest neighbour " << single << ", all together " << together
+                     << " (low end " << lows << "), deepest notch " << notch << " dB (" << where
+                     << "), most below the room floor " << belowFloor << " dB");
+        CHECK (single < 1.0);
+        CHECK (together < 1.0);
+        CHECK (lows < 2.5);
+        CHECK (notch > -25.0);
+        CHECK (belowFloor < 1.0);
+        if (c == k4x12)
+            CHECK (lows > 2.0); // three coherent cones at 35 cm: about 0.7 of the miked one each
+    }
+}
+
+TEST_CASE ("The other speakers arrive when their path says", "[cab][placement]")
+{
+    // Relative to the miked cone, a neighbour's sound lags by its extra path (R - z) / c. Both
+    // paths run through filters that delay them (the neighbour's beaming low-pass and the shelf on
+    // the neighbours' sum; the miked cone's position, proximity and air stages), so the bleed
+    // delay makes up the difference. Checked as group delay at the neighbour's beaming corner,
+    // where its comb with the miked cone forms.
+    const double fs = GENERATE (44100.0, 48000.0);
+    constexpr double c = 343.0, grille = 0.025, span = 0.325; // as in CabModels.cpp
+    for (int cab : { k2x12, k4x12 })
+    {
+        double worst = 0.0;
+        std::string where;
+        for (int type : { kDynClassic, kCondPrecision, kRibbonSmooth })
+            for (float distance : { 0.0f, 0.25f, 0.5f, 0.75f, 1.0f })
+                for (float position : { 0.0f, 0.5f, 1.0f })
+                    for (float azimuth = -180.0f; azimuth < 180.0f; azimuth += 30.0f)
+                    {
+                        const auto pose = model::MicPose::polar (position, azimuth, distance, 0);
+                        const auto& geometry = model::cabModel (cab);
+                        const auto pl = model::placement (geometry, model::micModel (type), pose);
+                        const auto near = nearCoeffs (cab, type, pose, pl, fs);
+                        const double z = grille + span * distance;
+                        for (size_t k = 0; k < static_cast<size_t> (pl.numBleed); ++k)
+                        {
+                            const double dx =
+                                geometry.neighbours[k][0] - pose.x * model::kConeRadiusM;
+                            const double dy =
+                                geometry.neighbours[k][1] - pose.y * model::kConeRadiusM;
+                            const double path = (std::sqrt (dx * dx + dy * dy + z * z) - z) / c;
+                            const double hz = pl.bleed[k].lowpassHz;
+                            const std::array<BiquadCoeffs, 2> others {
+                                model::designBleedFilter (pl.bleed[k], fs),
+                                model::designBleedShelf (pl, fs)
+                            };
+                            const double arrival =
+                                pl.bleed[k].delaySec + groupDelaySec (others.data(), 2, hz, fs) -
+                                groupDelaySec (near.data(), model::kNearStages, hz, fs);
+                            if (std::abs (arrival - path) > std::abs (worst))
+                            {
+                                worst = arrival - path;
+                                where = "type " + std::to_string (type) + " distance " +
+                                        std::to_string (distance) + " position " +
+                                        std::to_string (position) + " azimuth " +
+                                        std::to_string (azimuth) + " neighbour " +
+                                        std::to_string (k);
+                            }
+                        }
+                    }
+        INFO ("cab " << cab << " at " << fs << ": worst arrival error " << worst * 1e6 << " us ("
+                     << where << ")");
+        CHECK (std::abs (worst) < 20.0e-6);
+    }
+}
+
+TEST_CASE ("After the input stops the cab settles to exact silence", "[cab][placement]")
+{
+    // Engine::process runs with flush-to-zero, but CabSim does not count on it: filter states are
+    // flushed at the end of each block, and the off-axis stages stop once back on axis and quiet.
+    // Here, without flush-to-zero, nothing may decay through subnormal values after the music
+    // stops, also when the capsule is turned back while it is silent.
+    const double fs = GENERATE (48000.0, 192000.0);
+    const int block = 32;
+    std::vector<float> unit (64, 0.0f);
+    unit[0] = 1.0f;
+    for (int type : { kDynClassic, kRibbonSmooth, CabSim::kCustomIrType })
+        for (int c : { k1x12, k4x12 })
+        {
+            CabSim cab;
+            cab.prepare ({ fs, block, 2 });
+            cab.setCustomIr (0, c, CabSim::makeKernel (unit.data(), 64, fs, fs, block));
+            const auto playing = soloMicA (c, type, 0.7f, 0.6f, 60.0f, 30.0f);
+            auto quiet = playing;
+            quiet.mics[0].offAxisDeg = 0.0f;
+            std::vector<float> x (static_cast<size_t> (2.0 * fs), 0.0f);
+            const auto heard = static_cast<size_t> (0.2 * fs);
+            std::vector<float> head (heard);
+            fillNoise (head, 0.5f, 46);
+            std::copy (head.begin(), head.end(), x.begin());
+            const auto l = renderLeft (cab, x, block, [&] (size_t p) {
+                return p < heard + static_cast<size_t> (0.05 * fs) ? playing : quiet;
+            });
+            size_t subnormal = 0;
+            for (float v : l)
+                subnormal += std::fpclassify (v) == FP_SUBNORMAL ? 1 : 0;
+            INFO ("cab " << c << " type " << type << " at " << fs);
+            CHECK (subnormal == 0);
+            bool silent = true;
+            for (size_t i = l.size() - static_cast<size_t> (0.5 * fs); i < l.size(); ++i)
+                silent = silent && l[i] == 0.0f;
+            CHECK (silent);
+        }
 }

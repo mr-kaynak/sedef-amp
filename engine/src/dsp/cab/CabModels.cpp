@@ -219,10 +219,59 @@ constexpr float kPistonCorner = 1.62f; // k a sin(phi) where 2 J1(x) / x is 3 dB
 // with a nearly constant group delay, which the path delay gives back.
 constexpr float kBleedLpQ = 0.57735027f;
 constexpr float kBesselCorner = 0.78615138f;  // its -3 dB point relative to the design frequency
-constexpr float kBesselDelay = 0.21666156f;   // its group delay (s) times the -3 dB frequency (Hz)
 constexpr float kMinBleedDelaySec = 25.0e-6f; // at least one sample at 44.1 kHz (Hermite reads)
-constexpr float kCapRadiusM = 0.03f;          // inside the dust cap the capsule's lean fades out
+// The room a real close mic also hears (Hopkins-Stryker): its diffuse field against the direct
+// sound at r is 16 pi r^2 / (Q A), with A = 0.161 V / T sabins. A typical recording room (100 m^3,
+// 0.5 s) and a cab radiating with Q = 4 put it 13 dB down at 35 cm and 36 dB down at 2.5 cm.
+constexpr float kRoomQ = 4.0f;
+constexpr float kRoomSabins = 0.161f * 100.0f / 0.5f;
+constexpr float kBleedShelfQ = 0.7071f;
+constexpr float kCapRadiusM = 0.03f; // inside the dust cap the capsule's lean fades out
 constexpr float kDegToRad = kPi / 180.0f;
+
+/// Group delay of the analog prototype of one cookbook section (num / den, each c2 s^2 + c1 s + c0
+/// in s / w0), for matching path delays. The bilinear designs follow their prototypes closely
+/// below a few kHz, where the bleed matters.
+struct SectionDelay
+{
+    float n2 = 0.0f, n1 = 0.0f, n0 = 1.0f, d2 = 1.0f, d1 = 1.0f, d0 = 1.0f;
+    float f0 = 1000.0f;
+
+    /// Phase slope of one quadratic factor at s = j x.
+    static float slope (float c2, float c1, float c0, float x) noexcept
+    {
+        const float re = c0 - c2 * x * x, im = c1 * x;
+        return c1 * (c0 + c2 * x * x) / std::max (re * re + im * im, 1.0e-30f);
+    }
+
+    float at (float hz) const noexcept
+    {
+        const float x = hz / f0;
+        return (slope (d2, d1, d0, x) - slope (n2, n1, n0, x)) / (kTwoPi * f0);
+    }
+
+    static SectionDelay lowpass (float f0, float q) noexcept
+    {
+        return { 0.0f, 0.0f, 1.0f, 1.0f, 1.0f / q, 1.0f, f0 };
+    }
+    static SectionDelay peak (float f0, float q, float db) noexcept
+    {
+        const float a = dbToGain (0.5f * db);
+        return { 1.0f, a / q, 1.0f, 1.0f, 1.0f / (a * q), 1.0f, f0 };
+    }
+    static SectionDelay lowShelf (float f0, float q, float db) noexcept
+    {
+        const float a = dbToGain (0.5f * db), k = std::sqrt (a) / q;
+        return { 1.0f, k, a, a, k, 1.0f, f0 };
+    }
+    static SectionDelay highShelf (float f0, float q, float db) noexcept
+    {
+        const float a = dbToGain (0.5f * db), k = std::sqrt (a) / q;
+        return { a, k, 1.0f, 1.0f, k, a, f0 };
+    }
+};
+
+constexpr float kEdgeTopHz = 18000.0f; // the position low-pass at the dust cap (see below)
 
 std::complex<double> stageResponse (const BiquadCoeffs& c, std::complex<double> z1) noexcept
 {
@@ -347,11 +396,30 @@ Placement placement (const CabModel& cab, const MicModel& m, const MicPose& pose
     // the miked cone, it beams its treble away (2 J1(x) / x, x = k a sin(phi)), and the capsule
     // weighs its arrival with the polar pattern. The axis leans towards the dust cap by the
     // off-axis angle; directly over the cap the lean fades out.
+    //
+    // The capsule never hears a neighbour better than the miked cone through its pattern. The
+    // direct sound is weighed as a plane wave along the cone's axis (P(angle)), which is the
+    // least favourable direction it can come from: the miked cone is an extended source that
+    // reaches the capsule from its whole surface, and the capsule leans towards the dust cap, into
+    // that surface. Letting the plain ratio P(arrival) / P(angle) rise above 1 would have a cone
+    // 0.4 m away outweigh the one under the capsule (up to 1.4 times, with a turned ribbon).
     constexpr float a = kConeRadiusM;
     const float nearLf = std::sqrt (z * z + a * a) - z;
     const float lean = std::sin (angle * kDegToRad) / std::max (std::hypot (mx, my), kCapRadiusM);
     const float hx = -mx * lean, hy = -my * lean;
     const float hz = std::sqrt (std::max (0.0f, 1.0f - hx * hx - hy * hy));
+    if (cab.numNeighbours == 0)
+        return p;
+    // What delays the miked cone's own path: its position, proximity and air stages.
+    const float position = std::min (1.0f, radius);
+    const std::array<SectionDelay, kNearStages> near {
+        SectionDelay::peak (cab.presenceHz, cab.presenceQ, cab.presenceDb * (1.0f - position)),
+        SectionDelay::lowpass (kEdgeTopHz * std::pow (cab.edgeLpHz / kEdgeTopHz, position),
+                               cab.edgeLpQ),
+        SectionDelay::peak (cab.edgeWarmthHz, 0.8f, cab.edgeWarmthDb * position),
+        SectionDelay::lowShelf (m.proximityHz, 0.6f, p.proximityDb),
+        SectionDelay::highShelf (kAirShelfHz, 0.7f, p.airDb)
+    };
     p.numBleed = cab.numNeighbours;
     for (int k = 0; k < cab.numNeighbours; ++k)
     {
@@ -360,11 +428,48 @@ Placement placement (const CabModel& cab, const MicModel& m, const MicPose& pose
         const float rho = std::hypot (dx, dy);
         const float r = std::sqrt (rho * rho + z * z);
         const float cosArrival = (hx * dx + hy * dy + hz * z) / r;
+        const float heard =
+            std::clamp ((m.polar + (1.0f - m.polar) * cosArrival) / polar, -1.0f, 1.0f);
         Bleed& b = p.bleed[static_cast<size_t> (k)];
-        b.gain = a * a / (2.0f * r * nearLf) * (m.polar + (1.0f - m.polar) * cosArrival) / polar;
+        b.gain = a * a / (2.0f * r * nearLf) * heard;
         b.lowpassHz = kPistonCorner * kSpeedOfSound / (kTwoPi * a * std::max (rho / r, 0.05f));
-        b.delaySec =
-            std::max (kMinBleedDelaySec, (r - z) / kSpeedOfSound - kBesselDelay / b.lowpassHz);
+        b.delaySec = (r - z) / kSpeedOfSound; // the extra path; the filters' delays come off below
+    }
+
+    // An anechoic sum of coherent pistons can cancel the miked cone completely wherever the
+    // neighbours together match it in level and oppose it in phase: notches of 40-60 dB at some
+    // poses. A real close mic never hears that, because it also hears the room's diffuse field,
+    // which is incoherent with the cab and fills each notch to its own level. The close-mic model
+    // is anechoic, so it bounds the coherent sum instead: above the low end the neighbours together
+    // stay below 1 - sqrt (diffuse / direct) of the miked cone, the residual the room would leave.
+    // Below, where even the farthest cone is within an eighth of a period of the miked one and
+    // cannot oppose it, a low shelf gives their full sum back (the low end of a backed-off cab).
+    float total = 0.0f, longest = 0.0f;
+    for (int k = 0; k < p.numBleed; ++k)
+    {
+        total += std::abs (p.bleed[static_cast<size_t> (k)].gain);
+        longest = std::max (longest, p.bleed[static_cast<size_t> (k)].delaySec);
+    }
+    const float limit = 1.0f - std::sqrt (16.0f * kPi * z * z / (kRoomQ * kRoomSabins));
+    const float hold = total > limit ? limit / total : 1.0f;
+    p.bleedShelfHz = std::clamp (0.125f / std::max (longest, 1.0e-5f), 40.0f, 1000.0f);
+    p.bleedShelfDb = -gainToDb (hold);
+    const SectionDelay shelf =
+        SectionDelay::lowShelf (p.bleedShelfHz, kBleedShelfQ, p.bleedShelfDb);
+    for (int k = 0; k < p.numBleed; ++k)
+    {
+        Bleed& b = p.bleed[static_cast<size_t> (k)];
+        b.gain *= hold;
+        // The neighbour must lag the miked cone by its extra path. Both paths run through filters
+        // with their own group delay: the beaming low-pass and the shelf here, the near stages
+        // there. They are matched at the beaming corner, where this neighbour's comb forms.
+        float delay =
+            b.delaySec -
+            SectionDelay::lowpass (b.lowpassHz / kBesselCorner, kBleedLpQ).at (b.lowpassHz) -
+            shelf.at (b.lowpassHz);
+        for (const auto& section : near)
+            delay += section.at (b.lowpassHz);
+        b.delaySec = std::max (kMinBleedDelaySec, delay);
     }
     return p;
 }
@@ -386,7 +491,7 @@ void designPositionStages (const CabModel& cab, float position, double fs, Stage
     const float p = std::clamp (position, 0.0f, 1.0f);
     // Centre: dust-cap presence and no extra roll-off. Edge: the outer cone radiates less treble,
     // so the roll-off corner glides down exponentially and the low-mids fill in a little.
-    const double top = std::min (18000.0, 0.45 * fs);
+    const double top = std::min (static_cast<double> (kEdgeTopHz), 0.45 * fs);
     const double corner = top * std::pow (cab.edgeLpHz / top, static_cast<double> (p));
     out[0].c = design::peaking (fs, cab.presenceHz, cab.presenceQ, cab.presenceDb * (1.0f - p));
     out[1].c = design::lowpass (fs, corner, cab.edgeLpQ);
@@ -420,6 +525,11 @@ BiquadCoeffs designBleedFilter (const Bleed& b, double fs) noexcept
 {
     return design::lowpass (
         fs, std::min (static_cast<double> (b.lowpassHz / kBesselCorner), 0.45 * fs), kBleedLpQ);
+}
+
+BiquadCoeffs designBleedShelf (const Placement& p, double fs) noexcept
+{
+    return design::lowShelf (fs, p.bleedShelfHz, kBleedShelfQ, p.bleedShelfDb);
 }
 
 std::complex<double> voiceResponse (int cabIndex, int type, const MicPose& pose, double fs,
@@ -456,13 +566,15 @@ std::complex<double> voiceResponse (int cabIndex, int type, const MicPose& pose,
     designPositionStages (cab, pose.position(), fs, near);
     designProximityStage (m, pl, fs, near + kPositionStages);
     designAirStage (pl, fs, near + kPositionStages + 1);
-    std::complex<double> heard = product (near, kNearStages);
+    std::complex<double> heard = product (near, kNearStages), others = 0.0;
     for (int k = 0; k < pl.numBleed; ++k)
     {
         const Bleed& b = pl.bleed[static_cast<size_t> (k)];
-        heard += static_cast<double> (b.gain) * stageResponse (designBleedFilter (b, fs), z1) *
-                 std::polar (1.0, -w * static_cast<double> (b.delaySec) * fs);
+        others += static_cast<double> (b.gain) * stageResponse (designBleedFilter (b, fs), z1) *
+                  std::polar (1.0, -w * static_cast<double> (b.delaySec) * fs);
     }
+    if (pl.numBleed > 0)
+        heard += others * stageResponse (designBleedShelf (pl, fs), z1);
     Stage* capsule = near + kNearStages;
     int count = designMicStages (m, fs, capsule);
     designOffAxisStages (m, pl, fs, capsule + count);

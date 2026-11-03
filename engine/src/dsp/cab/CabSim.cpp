@@ -30,6 +30,7 @@ constexpr double kPlacementSmoothingSeconds = 0.03; // one-pole time constant
 constexpr double kMaxPlacementDelaySeconds = 0.004;
 constexpr double kMaxBleedSeconds = 0.0025; // the far speaker of a 4x12 is ~1.7 ms further
 constexpr float kOffAxisRest = 1.0e-7f;     // relative state below which the off-axis stages stop
+constexpr float kOffAxisFloor = 1.0e-12f;   // and absolute (-240 dB), for when the input is silent
 constexpr double kMaxReflectionSeconds = 0.003;
 constexpr float kSnapTolerance = 1.0e-4f;
 constexpr float kRoomPanWidth = 0.5f; // room sends follow the mic pan, narrower
@@ -153,6 +154,7 @@ struct CabSim::Impl
         DelayLine bleedLine;
         int numBleed = 0;
         std::array<cab::Stage, cab::kMaxNeighbours> bleedLp {};
+        cab::Stage bleedShelf; // gives the neighbours' low end back (see cab::placement)
         std::array<float, cab::kMaxNeighbours> bleedDelay {}, bleedGain {};
         std::array<float, cab::kMaxNeighbours> nextBleedDelay {}, nextBleedGain {};
 
@@ -487,6 +489,9 @@ struct CabSim::Impl
             lp.ramp = false;
             lp.c = cab::designBleedFilter (pl.bleed[static_cast<size_t> (k)], fs);
         }
+        v.bleedShelf.reset();
+        v.bleedShelf.ramp = false;
+        v.bleedShelf.c = cab::designBleedShelf (pl, fs);
 
         v.air.reset();
         v.bounceState = 0.0f;
@@ -587,76 +592,108 @@ struct CabSim::Impl
                 rampGroup (v.stages.data() + v.offAxisIndex, fresh.data(), cab::kOffAxisStages);
                 v.offAxisLive = true;
             }
+            // The neighbours' filters glide too: stepping them once per block instead leaves
+            // three times the residue under automation.
             if (moved || pulled)
                 for (int k = 0; k < v.numBleed; ++k)
                     v.bleedLp[static_cast<size_t> (k)].rampTo (
                         cab::designBleedFilter (pl.bleed[static_cast<size_t> (k)], fs));
+            if (v.numBleed > 0)
+                v.bleedShelf.rampTo (cab::designBleedShelf (pl, fs));
             setPlacementTargets (v, pl);
         }
     }
 
     /// The other speakers, added to the miked cone's sound before the capsule. Delays and gains
-    /// are interpolated across the block like the time of flight.
-    void addBleed (Voice& v, float* out, int n) noexcept
+    /// are interpolated across the block like the time of flight; K neighbours run in one pass so
+    /// their filter recursions overlap, gliding (Ramp) or not.
+    template <int K, bool Ramp>
+    void runBleed (Voice& v, float* out, int n) noexcept
     {
         const float inv = 1.0f / static_cast<float> (n);
-        std::array<float, cab::kMaxNeighbours> dDelay {}, dGain {};
-        bool ramping = false;
-        for (size_t k = 0; k < static_cast<size_t> (v.numBleed); ++k)
+        std::array<cab::Stage*, K + 1> st {};
+        std::array<BiquadCoeffs, K + 1> c {}, d {};
+        std::array<float, K + 1> s1 {}, s2 {};
+        std::array<float, K> delay {}, dDelay {}, gain {}, dGain {};
+        for (size_t k = 0; k <= static_cast<size_t> (K); ++k)
         {
-            dDelay[k] = (v.nextBleedDelay[k] - v.bleedDelay[k]) * inv;
-            dGain[k] = (v.nextBleedGain[k] - v.bleedGain[k]) * inv;
-            ramping = ramping || v.bleedLp[k].ramp;
-        }
-        // The whole block is already in the line: sample i sits n - 1 - i samples back.
-        const auto tap = [&] (size_t k, int i) {
-            return v.bleedLine.readCubic (v.bleedDelay[k] + dDelay[k] * static_cast<float> (i + 1) +
-                                          static_cast<float> (n - 1 - i));
-        };
-        const auto gainAt = [&] (size_t k, int i) {
-            return v.bleedGain[k] + dGain[k] * static_cast<float> (i + 1);
-        };
-        if (v.numBleed == cab::kMaxNeighbours && !ramping)
-        {
-            // The 4x12's three cones in one pass, so their filter recursions overlap.
-            cab::Stage* lp = v.bleedLp.data();
-            const BiquadCoeffs c0 = lp[0].c, c1 = lp[1].c, c2 = lp[2].c;
-            float a1 = lp[0].s1, a2 = lp[0].s2, b1 = lp[1].s1, b2 = lp[1].s2;
-            float e1 = lp[2].s1, e2 = lp[2].s2;
-            for (int i = 0; i < n; ++i)
+            st[k] = k < static_cast<size_t> (K) ? &v.bleedLp[k] : &v.bleedShelf;
+            c[k] = st[k]->c;
+            s1[k] = st[k]->s1;
+            s2[k] = st[k]->s2;
+            if constexpr (Ramp)
             {
-                const float x0 = tap (0, i), x1 = tap (1, i), x2 = tap (2, i);
-                const float y0 = c0.b0 * x0 + a1;
-                a1 = c0.b1 * x0 - c0.a1 * y0 + a2;
-                a2 = c0.b2 * x0 - c0.a2 * y0;
-                const float y1 = c1.b0 * x1 + b1;
-                b1 = c1.b1 * x1 - c1.a1 * y1 + b2;
-                b2 = c1.b2 * x1 - c1.a2 * y1;
-                const float y2 = c2.b0 * x2 + e1;
-                e1 = c2.b1 * x2 - c2.a1 * y2 + e2;
-                e2 = c2.b2 * x2 - c2.a2 * y2;
-                out[i] += gainAt (0, i) * y0 + gainAt (1, i) * y1 + gainAt (2, i) * y2;
+                const BiquadCoeffs& t = st[k]->ramp ? st[k]->target : st[k]->c;
+                d[k] = { (t.b0 - c[k].b0) * inv, (t.b1 - c[k].b1) * inv, (t.b2 - c[k].b2) * inv,
+                         (t.a1 - c[k].a1) * inv, (t.a2 - c[k].a2) * inv };
             }
-            lp[0].s1 = a1;
-            lp[0].s2 = a2;
-            lp[1].s1 = b1;
-            lp[1].s2 = b2;
-            lp[2].s1 = e1;
-            lp[2].s2 = e2;
-        }
-        else
-        {
-            for (size_t k = 0; k < static_cast<size_t> (v.numBleed); ++k)
+            if (k < static_cast<size_t> (K))
             {
-                for (int i = 0; i < n; ++i)
-                    bleedBuf[static_cast<size_t> (i)] = tap (k, i);
-                cab::runStages (&v.bleedLp[k], 1, bleedBuf.data(), n);
-                for (int i = 0; i < n; ++i)
-                    out[i] += gainAt (k, i) * bleedBuf[static_cast<size_t> (i)];
+                delay[k] = v.bleedDelay[k];
+                dDelay[k] = (v.nextBleedDelay[k] - v.bleedDelay[k]) * inv;
+                gain[k] = v.bleedGain[k];
+                dGain[k] = (v.nextBleedGain[k] - v.bleedGain[k]) * inv;
+            }
+        }
+        const auto section = [&] (size_t k, float x) {
+            if constexpr (Ramp)
+            {
+                c[k].b0 += d[k].b0;
+                c[k].b1 += d[k].b1;
+                c[k].b2 += d[k].b2;
+                c[k].a1 += d[k].a1;
+                c[k].a2 += d[k].a2;
+            }
+            const float y = c[k].b0 * x + s1[k];
+            s1[k] = c[k].b1 * x - c[k].a1 * y + s2[k];
+            s2[k] = c[k].b2 * x - c[k].a2 * y;
+            return y;
+        };
+        for (int i = 0; i < n; ++i)
+        {
+            // The whole block is already in the line: sample i sits n - 1 - i samples back.
+            const auto step = static_cast<float> (i + 1);
+            const auto back = static_cast<float> (n - 1 - i);
+            float sum = 0.0f;
+            for (size_t k = 0; k < static_cast<size_t> (K); ++k)
+                sum += (gain[k] + dGain[k] * step) *
+                       section (k, v.bleedLine.readCubic (delay[k] + dDelay[k] * step + back));
+            out[i] += section (static_cast<size_t> (K), sum);
+        }
+        for (size_t k = 0; k <= static_cast<size_t> (K); ++k)
+        {
+            st[k]->s1 = flushToZero (s1[k]);
+            st[k]->s2 = flushToZero (s2[k]);
+            if constexpr (Ramp)
+            {
+                if (st[k]->ramp)
+                {
+                    st[k]->c = st[k]->target;
+                    st[k]->ramp = false;
+                }
             }
         }
         v.bleedDelay = v.nextBleedDelay;
         v.bleedGain = v.nextBleedGain;
+    }
+
+    void addBleed (Voice& v, float* out, int n) noexcept
+    {
+        bool ramping = v.bleedShelf.ramp;
+        for (int k = 0; k < v.numBleed; ++k)
+            ramping = ramping || v.bleedLp[static_cast<size_t> (k)].ramp;
+        switch (v.numBleed)
+        {
+        case 1:
+            ramping ? runBleed<1, true> (v, out, n) : runBleed<1, false> (v, out, n);
+            break;
+        case 2:
+            ramping ? runBleed<2, true> (v, out, n) : runBleed<2, false> (v, out, n);
+            break;
+        default:
+            ramping ? runBleed<3, true> (v, out, n) : runBleed<3, false> (v, out, n);
+            break;
+        }
     }
 
     /// Off-axis stages: identity on axis, so they run only while the capsule is (or was just)
@@ -673,7 +710,7 @@ struct CabSim::Impl
             peakOut = std::max (peakOut, std::abs (out[i]));
         for (int i = 0; i < cab::kOffAxisStages; ++i)
             state = std::max ({ state, std::abs (st[i].s1), std::abs (st[i].s2) });
-        if (state <= kOffAxisRest * peakOut)
+        if (state <= std::max (kOffAxisFloor, kOffAxisRest * peakOut))
         {
             v.offAxisLive = false;
             for (int i = 0; i < cab::kOffAxisStages; ++i)
@@ -915,7 +952,7 @@ struct CabSim::Impl
     float bounceCoeff = 0.0f;
 
     std::array<float, kChunk> inBuf {}, micBuf {}, roomFeed {}, fadeBuf {}, fadeRoom {};
-    std::array<float, kChunk> accL {}, accR {}, roomInL {}, roomInR {}, bleedBuf {};
+    std::array<float, kChunk> accL {}, accR {}, roomInL {}, roomInR {};
 };
 
 CabSim::CabSim() : impl_ (new Impl()) {}

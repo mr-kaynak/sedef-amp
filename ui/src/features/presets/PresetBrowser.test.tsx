@@ -103,7 +103,7 @@ describe('PresetBrowser', () => {
     const before = await editNacre();
     render(<Shell />);
     await openBrowser();
-    // Nacre, then Riptide, Sargasso, Silk Road.
+    // Nacre, then Riptide, Sea Lantern, Silk Road.
     for (let i = 0; i < 3; i++) fireEvent.keyDown(search(), { key: 'ArrowDown' });
     fireEvent.keyDown(search(), { key: 'Enter' });
     await settle();

@@ -27,7 +27,7 @@ All notable changes to this project are documented here. The format follows
   `conchPosition`, `conchResonance`, `conchSensitivity`, `beaconEnabled`, `beaconSpeed`,
   `beaconDepth`, `beaconMode`, `gyreEnabled`, `gyreSpeed`, `gyreDepth`, `gyreFeedback`,
   `gyreStages`, `jettyEnabled`, `jettySpeed`, `jettyDepth`, `jettyDelay`, `jettyFeedback`.
-- **Sargasso** factory preset: Lagoon pushed by Coral into the Beacon vibe, with a plate.
+- **Sea Lantern** factory preset: Lagoon pushed by Coral into the Beacon vibe, with a plate.
 - The Pedals board scrolls sideways when the pedals don't fit; the mouse wheel scrolls it and
   keyboard focus brings the focused pedal into view.
 

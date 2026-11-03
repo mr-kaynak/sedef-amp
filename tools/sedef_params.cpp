@@ -2,7 +2,10 @@
 //
 // Dumps the parameter schema as JSON. The UI's browser mock consumes this file:
 //   sedef-params > ui/src/generated/parameters.json
+// and, with --pedals, the pedal registry (board/PedalList.inc) for the UI's pedalboard:
+//   sedef-params --pedals > ui/src/generated/pedals.json
 
+#include "sedef/board/Board.h"
 #include "sedef/params/Parameters.h"
 
 #include <cstdio>
@@ -47,8 +50,32 @@ std::string number (float v)
 }
 } // namespace
 
-int main()
+std::string pedals()
 {
+    std::string json = "{\n  \"version\": 1,\n  \"pedals\": [\n";
+    for (std::size_t i = 0; i < sedef::kNumPedals; ++i)
+    {
+        const auto& p = sedef::kPedals[i];
+        json += "    {\"id\": " + quote (p.id) + ", \"name\": " + quote (p.name) +
+                ", \"category\": " + quote (sedef::categoryName (p.category)) +
+                ", \"rank\": " + std::to_string (p.rank) +
+                ", \"enable\": " + quote (sedef::spec (p.enable).id) + "}";
+        json += i + 1 < sedef::kNumPedals ? ",\n" : "\n";
+    }
+    json += "  ],\n  \"legacy\": [";
+    const auto legacy = sedef::Board::legacy();
+    for (std::size_t i = 0; i < legacy.size(); ++i)
+        json += (i > 0 ? ", " : "") + quote (sedef::pedalInfo (legacy[i]).id);
+    return json + "]\n}\n";
+}
+
+int main (int argc, char** argv)
+{
+    if (argc > 1 && std::string_view (argv[1]) == "--pedals")
+    {
+        std::fputs (pedals().c_str(), stdout);
+        return 0;
+    }
     std::string json = "{\n  \"version\": 1,\n  \"parameters\": [\n";
     for (std::size_t i = 0; i < sedef::kNumParams; ++i)
     {

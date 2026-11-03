@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "pedals": [
+    {"id": "gate", "name": "Gate", "category": "Dynamics", "rank": 10, "enable": "gateEnabled"},
+    {"id": "tide", "name": "Tide", "category": "Dynamics", "rank": 30, "enable": "tideEnabled"},
+    {"id": "pearl", "name": "Pearl", "category": "Drive", "rank": 50, "enable": "pearlEnabled"},
+    {"id": "coral", "name": "Coral", "category": "Drive", "rank": 60, "enable": "coralEnabled"},
+    {"id": "ripple", "name": "Ripple", "category": "Modulation", "rank": 80, "enable": "rippleEnabled"}
+  ],
+  "legacy": ["gate", "tide", "pearl", "coral", "ripple"]
+}

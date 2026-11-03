@@ -16,6 +16,11 @@ if(SEDEF_BUILD_TESTS)
         COMMAND ${CMAKE_COMMAND} -DTOOL=$<TARGET_FILE:sedef-params>
                 -DEXPECTED=${PROJECT_SOURCE_DIR}/ui/src/generated/parameters.json
                 -P ${CMAKE_CURRENT_SOURCE_DIR}/CheckSchema.cmake)
+    # And its copy of the pedal registry.
+    add_test(NAME ui-pedals-in-sync
+        COMMAND ${CMAKE_COMMAND} -DTOOL=$<TARGET_FILE:sedef-params> -DARGS=--pedals
+                -DEXPECTED=${PROJECT_SOURCE_DIR}/ui/src/generated/pedals.json
+                -P ${CMAKE_CURRENT_SOURCE_DIR}/CheckSchema.cmake)
 endif()
 
 if(SEDEF_BUILD_TESTS)

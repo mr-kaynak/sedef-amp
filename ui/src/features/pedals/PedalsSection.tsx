@@ -6,6 +6,7 @@ import { Segmented } from '../../controls/Segmented';
 import { Toggle } from '../../controls/Toggle';
 import { useParamValue } from '../../params/useParam';
 import { telemetry, useLiveFrame, useLiveSelector } from '../../state/live';
+import { BreakerPedal, SargassoPedal, RemoraPedal } from './DrivePedals';
 import { Pedal, type PedalFinish } from './Pedal';
 import styles from './PedalsSection.module.css';
 
@@ -97,7 +98,13 @@ export function PedalsSection() {
         </div>
       </div>
 
-      <div className={styles.board}>
+      {/* Focus can land on a control half-hidden at the scroll edge, which the browser leaves
+          where it is: bring the whole control (and the scroll padding) into view. */}
+      <div
+        className={styles.board}
+        onFocus={(e) => e.target.scrollIntoView({ block: 'nearest', inline: 'nearest' })}
+      >
+        <RemoraPedal />
         <Pedal
           name="Tide"
           kind="Compressor"
@@ -110,6 +117,7 @@ export function PedalsSection() {
           <Knob param="tideLevel" label="Level" />
           <Knob param="tideBlend" label="Blend" />
         </Pedal>
+        <SargassoPedal />
         <Pedal name="Pearl" kind="Overdrive" enableParam="pearlEnabled" finish={FINISH.pearl}>
           <Knob param="pearlGain" label="Gain" />
           <Knob param="pearlTone" label="Tone" />
@@ -137,6 +145,7 @@ export function PedalsSection() {
           <Knob param="rippleSpeed" label="Speed" />
           <Knob param="rippleDepth" label="Depth" />
         </Pedal>
+        <BreakerPedal />
       </div>
     </div>
   );

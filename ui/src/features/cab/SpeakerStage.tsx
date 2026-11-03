@@ -23,6 +23,18 @@ const FINE_DRAG = 0.25;
 /** Arrow-key steps in cone radii, and in distance (0..1). */
 const KEY_STEP = 0.05;
 const KEY_FINE_STEP = 0.01;
+const PLACEMENT_KEYS = new Set([
+  'ArrowLeft',
+  'ArrowRight',
+  'ArrowUp',
+  'ArrowDown',
+  'PageUp',
+  'PageDown',
+  'Home',
+  'End',
+  'Delete',
+  'Backspace',
+]);
 /** The wheel moves distance like a knob: 2 % of the range per 100 px notch, a fifth with shift. */
 const WHEEL_PER_PX = 0.02 / 100;
 const WHEEL_FINE = 0.2;
@@ -205,8 +217,9 @@ export function SpeakerStage({ cab, cabLabel }: { cab: number; cabLabel: string 
     [endDrag, endWheel],
   );
 
-  // The wheel changes the distance of the mic under the pointer, or of the selected one over the
-  // cone. Non-passive, so nothing scrolls underneath.
+  // The wheel changes the distance of the mic under the pointer, or over the cone of the selected
+  // one (the other one if the selected mic plays an IR, as a click on the cone does). Non-passive,
+  // so nothing scrolls underneath. A drag owns its mic: the wheel waits for it.
   useEffect(() => {
     const svg = svgRef.current;
     if (!svg) return;
@@ -215,9 +228,14 @@ export function SpeakerStage({ cab, cabLabel }: { cab: number; cabLabel: string 
       if (!target) return;
       const px = wheelPixels(e);
       if (px === 0) return;
-      const mic = (target.getAttribute('data-mic') as MicId | null) ?? live.current.selected;
-      if (mic === 'A' ? live.current.irA : live.current.irB) return;
+      const isIr = (m: MicId) => (m === 'A' ? live.current.irA : live.current.irB);
+      const selected = live.current.selected;
+      const other: MicId = selected === 'A' ? 'B' : 'A';
+      const mic =
+        (target.getAttribute('data-mic') as MicId | null) ?? (isIr(selected) ? other : selected);
+      if (isIr(mic)) return;
       e.preventDefault();
+      if (drag.current) return;
       if (wheel.current && wheel.current.mic !== mic) endWheel();
       if (!wheel.current) {
         wheel.current = { mic };
@@ -254,7 +272,10 @@ export function SpeakerStage({ cab, cabLabel }: { cab: number; cabLabel: string 
       y: from.y,
       distance: m.distance.value,
     };
+    // The drag takes over from a wheel turn still open: begin first, so a shared parameter's host
+    // gesture runs on without a gap (gestures are counted per parameter).
     paramIds.forEach(beginGesture);
+    endWheel();
     svg?.setPointerCapture?.(e.pointerId);
     setSelected(m.mic);
     setDragging(m.mic);
@@ -316,6 +337,11 @@ export function SpeakerStage({ cab, cabLabel }: { cab: number; cabLabel: string 
   };
 
   const onKeyDown = (m: MicState) => (e: KeyboardEvent<SVGGElement>) => {
+    if (!PLACEMENT_KEYS.has(e.key)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    // A drag owns its mic until it ends.
+    if (drag.current) return;
     const id = ids(m.mic);
     const step = e.shiftKey ? KEY_FINE_STEP : KEY_STEP;
     const nudge = (sx: number, sy: number) =>
@@ -354,11 +380,7 @@ export function SpeakerStage({ cab, cabLabel }: { cab: number; cabLabel: string 
       case 'Backspace':
         resetPlacement(m);
         break;
-      default:
-        return;
     }
-    e.preventDefault();
-    e.stopPropagation();
   };
 
   // The selected (or dragged) mic draws on top.
@@ -468,7 +490,7 @@ export function SpeakerStage({ cab, cabLabel }: { cab: number; cabLabel: string 
                 if (!m.ir) setSelected(id);
               }}
               onDoubleClick={() => {
-                if (!m.ir) resetPlacement(m);
+                if (!m.ir && !drag.current) resetPlacement(m);
               }}
             >
               {turned && (

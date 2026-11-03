@@ -161,6 +161,35 @@ describe('SpeakerStage', () => {
     ]);
   });
 
+  it('hands a wheel turn over to a drag of the same mic as one host gesture', () => {
+    vi.useFakeTimers();
+    const call = vi.spyOn(h.mock, 'call');
+    render(<SpeakerStage cab={2} cabLabel="4x12" />);
+    fireEvent.wheel(marker('A'), { deltaY: -100 });
+    expect(getValue('micADistance')).toBeCloseTo(0.02, 5);
+    // Within the wheel's idle time an Alt-drag takes the mic over; the wheel's timer running out
+    // mid-drag must not end the host gesture under it (Touch and Latch automation would let go).
+    const at = grab('A', 5, { altKey: true });
+    act(() => vi.advanceTimersByTime(500));
+    fireEvent.pointerMove(svg(), { clientX: at.x, clientY: at.y - 70, pointerId: 5 });
+    expect(gestures(call)).toEqual(['beginGesture micADistance']);
+    // While the drag owns the mic, the wheel and the keys leave it alone.
+    fireEvent.wheel(marker('A'), { deltaY: -100 });
+    fireEvent.keyDown(marker('A'), { key: 'PageUp' });
+    expect(getValue('micADistance')).toBeCloseTo(0.52, 5);
+    fireEvent.pointerUp(svg(), { pointerId: 5 });
+    act(() => vi.advanceTimersByTime(500));
+    expect(gestures(call)).toEqual(['beginGesture micADistance', 'endGesture micADistance']);
+  });
+
+  it('scrolls the other mic over the cone when the selected one plays an IR', () => {
+    render(<SpeakerStage cab={2} cabLabel="4x12" />);
+    set('micACab3Type', 10);
+    fireEvent.wheel(pad(), { deltaY: -100 });
+    expect(getValue('micBDistance')).toBeCloseTo(0.02, 5);
+    expect(getValue('micADistance')).toBe(0);
+  });
+
   it('clicking the cone brings the selected mic there', () => {
     render(<SpeakerStage cab={1} cabLabel="2x12" />);
     fireEvent.focus(marker('B'));

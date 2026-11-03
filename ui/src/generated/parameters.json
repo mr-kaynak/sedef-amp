@@ -149,6 +149,19 @@
     {"id": "micAAzimuth", "name": "Mic A Azimuth", "group": "Mic A", "kind": "float", "min": -180, "max": 180, "default": 60, "skew": 1, "unit": "deg", "automatable": true, "choices": []},
     {"id": "micAOffAxis", "name": "Mic A Off-Axis", "group": "Mic A", "kind": "float", "min": 0, "max": 60, "default": 0, "skew": 1, "unit": "deg", "automatable": true, "choices": []},
     {"id": "micBAzimuth", "name": "Mic B Azimuth", "group": "Mic B", "kind": "float", "min": -180, "max": 180, "default": 120, "skew": 1, "unit": "deg", "automatable": true, "choices": []},
-    {"id": "micBOffAxis", "name": "Mic B Off-Axis", "group": "Mic B", "kind": "float", "min": 0, "max": 60, "default": 0, "skew": 1, "unit": "deg", "automatable": true, "choices": []}
+    {"id": "micBOffAxis", "name": "Mic B Off-Axis", "group": "Mic B", "kind": "float", "min": 0, "max": 60, "default": 0, "skew": 1, "unit": "deg", "automatable": true, "choices": []},
+    {"id": "remoraEnabled", "name": "Remora", "group": "Remora", "kind": "bool", "min": 0, "max": 1, "default": 0, "skew": 1, "unit": "", "automatable": true, "choices": []},
+    {"id": "remoraFuzz", "name": "Remora Fuzz", "group": "Remora", "kind": "float", "min": 0, "max": 1, "default": 0.75, "skew": 1, "unit": "knob", "automatable": true, "choices": []},
+    {"id": "remoraVolume", "name": "Remora Volume", "group": "Remora", "kind": "float", "min": 0, "max": 1, "default": 0.5, "skew": 1, "unit": "knob", "automatable": true, "choices": []},
+    {"id": "remoraBias", "name": "Remora Bias", "group": "Remora", "kind": "float", "min": 0, "max": 1, "default": 0.5, "skew": 1, "unit": "knob", "automatable": true, "choices": []},
+    {"id": "remoraGuitarVolume", "name": "Remora Guitar Volume", "group": "Remora", "kind": "float", "min": 0, "max": 1, "default": 1, "skew": 1, "unit": "knob", "automatable": true, "choices": []},
+    {"id": "remoraTransistor", "name": "Remora Transistor", "group": "Remora", "kind": "choice", "min": 0, "max": 1, "default": 0, "skew": 1, "unit": "", "automatable": true, "choices": ["Germanium", "Silicon"]},
+    {"id": "gyreEnabled", "name": "Gyre", "group": "Gyre", "kind": "bool", "min": 0, "max": 1, "default": 0, "skew": 1, "unit": "", "automatable": true, "choices": []},
+    {"id": "gyreSustain", "name": "Gyre Sustain", "group": "Gyre", "kind": "float", "min": 0, "max": 1, "default": 0.6, "skew": 1, "unit": "knob", "automatable": true, "choices": []},
+    {"id": "gyreTone", "name": "Gyre Tone", "group": "Gyre", "kind": "float", "min": 0, "max": 1, "default": 0.5, "skew": 1, "unit": "knob", "automatable": true, "choices": []},
+    {"id": "gyreVolume", "name": "Gyre Volume", "group": "Gyre", "kind": "float", "min": 0, "max": 1, "default": 0.5, "skew": 1, "unit": "knob", "automatable": true, "choices": []},
+    {"id": "breakerEnabled", "name": "Breaker", "group": "Breaker", "kind": "bool", "min": 0, "max": 1, "default": 0, "skew": 1, "unit": "", "automatable": true, "choices": []},
+    {"id": "breakerBoost", "name": "Breaker Boost", "group": "Breaker", "kind": "float", "min": 0, "max": 1, "default": 0.5, "skew": 1, "unit": "knob", "automatable": true, "choices": []},
+    {"id": "breakerRange", "name": "Breaker Range", "group": "Breaker", "kind": "choice", "min": 0, "max": 1, "default": 0, "skew": 1, "unit": "", "automatable": true, "choices": ["Treble", "Full"]}
   ]
 }

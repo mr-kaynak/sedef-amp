@@ -154,7 +154,7 @@
     {"id": "conchMode", "name": "Conch Mode", "group": "Conch", "kind": "choice", "min": 0, "max": 1, "default": 0, "skew": 1, "unit": "", "automatable": true, "choices": ["Manual", "Auto"]},
     {"id": "conchPosition", "name": "Conch Position", "group": "Conch", "kind": "float", "min": 0, "max": 1, "default": 0.5, "skew": 1, "unit": "knob", "automatable": true, "choices": []},
     {"id": "conchResonance", "name": "Conch Resonance", "group": "Conch", "kind": "float", "min": 0, "max": 1, "default": 0.5, "skew": 1, "unit": "knob", "automatable": true, "choices": []},
-    {"id": "conchSensitivity", "name": "Conch Sensitivity", "group": "Conch", "kind": "float", "min": 0, "max": 1, "default": 0.5, "skew": 1, "unit": "knob", "automatable": true, "choices": []},
+    {"id": "conchSensitivity", "name": "Conch Auto Sensitivity", "group": "Conch", "kind": "float", "min": 0, "max": 1, "default": 0.5, "skew": 1, "unit": "knob", "automatable": true, "choices": []},
     {"id": "anemoneEnabled", "name": "Anemone", "group": "Anemone", "kind": "bool", "min": 0, "max": 1, "default": 0, "skew": 1, "unit": "", "automatable": true, "choices": []},
     {"id": "anemoneSensitivity", "name": "Anemone Sensitivity", "group": "Anemone", "kind": "float", "min": 0, "max": 1, "default": 0.5, "skew": 1, "unit": "knob", "automatable": true, "choices": []},
     {"id": "anemoneRange", "name": "Anemone Range", "group": "Anemone", "kind": "float", "min": 0, "max": 1, "default": 0.6, "skew": 1, "unit": "knob", "automatable": true, "choices": []},

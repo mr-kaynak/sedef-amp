@@ -160,7 +160,7 @@ SEDEF_PARAM(conchEnabled, "Conch", "Conch", Bool, 0.0f, 1.0f, 0.0f, 1.0f, "", ""
 SEDEF_PARAM(conchMode, "Conch Mode", "Conch", Choice, 0.0f, 1.0f, 0.0f, 1.0f, "", "Manual|Auto", true)
 SEDEF_PARAM(conchPosition, "Conch Position", "Conch", Float, 0.0f, 1.0f, 0.5f, 1.0f, "knob", "", true)
 SEDEF_PARAM(conchResonance, "Conch Resonance", "Conch", Float, 0.0f, 1.0f, 0.5f, 1.0f, "knob", "", true)
-SEDEF_PARAM(conchSensitivity, "Conch Sensitivity", "Conch", Float, 0.0f, 1.0f, 0.5f, 1.0f, "knob", "", true)
+SEDEF_PARAM(conchSensitivity, "Conch Auto Sensitivity", "Conch", Float, 0.0f, 1.0f, 0.5f, 1.0f, "knob", "", true)
 SEDEF_PARAM(anemoneEnabled, "Anemone", "Anemone", Bool, 0.0f, 1.0f, 0.0f, 1.0f, "", "", true)
 SEDEF_PARAM(anemoneSensitivity, "Anemone Sensitivity", "Anemone", Float, 0.0f, 1.0f, 0.5f, 1.0f, "knob", "", true)
 SEDEF_PARAM(anemoneRange, "Anemone Range", "Anemone", Float, 0.0f, 1.0f, 0.6f, 1.0f, "knob", "", true)

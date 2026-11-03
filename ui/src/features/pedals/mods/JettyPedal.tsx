@@ -1,0 +1,35 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+import { useRef } from 'react';
+import { Knob } from '../../../controls/Knob';
+import { Pedal } from '../Pedal';
+import { MODS_FINISH } from './finishes';
+import { lampBrightness, triangle } from './lamps';
+import { LfoLed } from './LfoLed';
+
+/** Jetty: a bucket-brigade-style flanger. The lamp follows the sweep. */
+export function JettyPedal() {
+  const phase = useRef(0);
+  return (
+    <Pedal
+      name="Jetty"
+      kind="Flanger"
+      enableParam="jettyEnabled"
+      finish={MODS_FINISH.jetty}
+      led={
+        <LfoLed
+          enableParam="jettyEnabled"
+          speedParam="jettySpeed"
+          brightness={(dt, speed) => {
+            phase.current = (phase.current + speed * dt) % 1;
+            return lampBrightness(triangle(phase.current));
+          }}
+        />
+      }
+    >
+      <Knob param="jettySpeed" label="Speed" />
+      <Knob param="jettyDepth" label="Depth" />
+      <Knob param="jettyDelay" label="Delay" />
+      <Knob param="jettyFeedback" label="Feedback" />
+    </Pedal>
+  );
+}

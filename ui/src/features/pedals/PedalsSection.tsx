@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { useRef } from 'react';
+import type { WheelEvent } from 'react';
 import { Knob } from '../../controls/Knob';
 import { Led } from '../../controls/Led';
 import { Segmented } from '../../controls/Segmented';
 import { Toggle } from '../../controls/Toggle';
 import { useParamValue } from '../../params/useParam';
 import { telemetry, useLiveFrame, useLiveSelector } from '../../state/live';
+import { AnemonePedal, BeaconPedal, ConchPedal, GyrePedal, JettyPedal } from './mods';
 import { Pedal, type PedalFinish } from './Pedal';
 import styles from './PedalsSection.module.css';
 
@@ -81,6 +83,15 @@ function GateLamp() {
   );
 }
 
+/**
+ * The board is wider than the page once it holds more than four pedals: a vertical wheel over its
+ * background scrolls it sideways. Knobs keep their own wheel (they cancel the event first).
+ */
+function scrollBoard(e: WheelEvent<HTMLDivElement>) {
+  if (e.defaultPrevented || Math.abs(e.deltaX) >= Math.abs(e.deltaY)) return;
+  e.currentTarget.scrollLeft += e.deltaY;
+}
+
 export function PedalsSection() {
   return (
     <div className={styles.section}>
@@ -97,7 +108,7 @@ export function PedalsSection() {
         </div>
       </div>
 
-      <div className={styles.board}>
+      <div className={styles.board} onWheel={scrollBoard}>
         <Pedal
           name="Tide"
           kind="Compressor"
@@ -137,6 +148,12 @@ export function PedalsSection() {
           <Knob param="rippleSpeed" label="Speed" />
           <Knob param="rippleDepth" label="Depth" />
         </Pedal>
+        {/* mods lane: until the pedalboard orders them, they follow the original four. */}
+        <AnemonePedal />
+        <ConchPedal />
+        <BeaconPedal />
+        <GyrePedal />
+        <JettyPedal />
       </div>
     </div>
   );

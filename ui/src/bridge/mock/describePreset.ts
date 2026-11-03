@@ -34,9 +34,14 @@ export function describePreset(
     if (on(id)) blocks.push(block);
   };
   add('gateEnabled', 'gate');
+  add('anemoneEnabled', 'anemone');
+  add('conchEnabled', 'conch');
   add('tideEnabled', 'tide');
   add('pearlEnabled', 'pearl');
   add('coralEnabled', 'coral');
+  add('beaconEnabled', 'beacon');
+  add('gyreEnabled', 'gyre');
+  add('jettyEnabled', 'jetty');
   add('rippleEnabled', 'ripple');
   if (eqShapes) add(`${bank}Enabled`, 'eq');
   add('doublerEnabled', 'doubler');

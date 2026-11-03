@@ -59,10 +59,26 @@
 .board {
   flex: 1;
   display: flex;
-  justify-content: center;
+  /* Centred while the pedals fit; once they don't, they start at the edge and scroll. */
+  justify-content: flex-start;
+  justify-content: safe center;
   align-items: flex-start;
   gap: 30px;
   padding-top: 2px;
+  /* Room for the enclosures' drop shadows, which the scroller would otherwise clip. */
+  padding-bottom: 18px;
+  margin-bottom: -18px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scroll-padding-inline: 24px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--bone-4) transparent;
+}
+
+/* The enclosures keep their size; the board scrolls instead. */
+.board > * {
+  flex: none;
 }
 
 .span2 {

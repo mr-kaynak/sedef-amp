@@ -46,7 +46,20 @@ function CabStatus() {
 
 const STATUS: Record<Section, () => ReactNode> = {
   pedals: () => (
-    <Leds ids={['gateEnabled', 'tideEnabled', 'pearlEnabled', 'coralEnabled', 'rippleEnabled']} />
+    <Leds
+      ids={[
+        'gateEnabled',
+        'anemoneEnabled',
+        'conchEnabled',
+        'tideEnabled',
+        'pearlEnabled',
+        'coralEnabled',
+        'beaconEnabled',
+        'gyreEnabled',
+        'jettyEnabled',
+        'rippleEnabled',
+      ]}
+    />
   ),
   amp: () => <AmpStatus />,
   eq: () => <EqStatus />,

@@ -7,6 +7,7 @@
 //   sedef-render --check presets/factory/*.sedefpreset
 //   sedef-render --capture amp.nam --set captureCab=0 --out capture.wav
 //   sedef-render --set pearlEnabled=1 --set coralEnabled=1 --board coral,pearl --out swapped.wav
+//   sedef-render --board gate,pearl,ripple --switch 2.5=ripple,gate,pearl --out reorder.wav
 //
 // Without --in, a synthetic guitar DI (plucked-string chords and single notes) is used. The
 // pedalboard is --board, else the preset's "board", else the board a preset saved before the
@@ -316,8 +317,16 @@ struct RenderResult
     int latency = 0;
 };
 
+/// A board the render switches to at a given sample (--switch), as the plug-in would mid-play.
+struct BoardSwitchAt
+{
+    std::size_t sample = 0;
+    Board board;
+};
+
 RenderResult render (const std::vector<float>& input, double fs, const ParamSnapshot& params,
-                     const Board& board, int block = 256, const dsp::CaptureFile* capture = nullptr)
+                     const Board& board, int block = 256, const dsp::CaptureFile* capture = nullptr,
+                     std::vector<BoardSwitchAt> switches = {})
 {
     Engine engine;
     engine.setBoard (board);
@@ -336,13 +345,21 @@ RenderResult render (const std::vector<float>& input, double fs, const ParamSnap
     r.right.assign (input.size(), 0.0f);
     r.latency = engine.latencySamples();
     Transport transport;
-    for (std::size_t s = 0; s < input.size(); s += static_cast<std::size_t> (block))
+    std::sort (switches.begin(), switches.end(),
+               [] (const auto& a, const auto& b) { return a.sample < b.sample; });
+    auto pending = switches.begin();
+    for (std::size_t s = 0, n = 0; s < input.size(); s += n)
     {
-        const int n = static_cast<int> (
-            std::min<std::size_t> (static_cast<std::size_t> (block), input.size() - s));
+        while (pending != switches.end() && pending->sample <= s)
+            engine.setBoard ((pending++)->board);
+        // A block ends where the next switch is due, so it lands on its sample.
+        auto end = std::min (s + static_cast<std::size_t> (block), input.size());
+        if (pending != switches.end())
+            end = std::min (end, pending->sample);
+        n = end - s;
         const float* in[1] = { input.data() + s };
         float* out[2] = { r.left.data() + s, r.right.data() + s };
-        engine.process (in, out, n, params, transport);
+        engine.process (in, out, static_cast<int> (n), params, transport);
     }
     return r;
 }
@@ -368,7 +385,7 @@ int usage()
 {
     std::fputs ("usage: sedef-render [--preset FILE] [--in DI.wav] [--out OUT.wav] [--seconds S]\n"
                 "                    [--rate HZ] [--capture FILE.nam] [--set id=value]...\n"
-                "                    [--board id,id,...]\n"
+                "                    [--board id,id,...] [--switch SECONDS=id,id,...]...\n"
                 "       sedef-render --check PRESET...\n",
                 stderr);
     return 2;
@@ -416,6 +433,7 @@ int main (int argc, char** argv)
 
     std::string presetPath, inPath, outPath, capturePath;
     std::optional<std::string> boardList;
+    std::vector<std::pair<double, std::string>> switchLists;
     std::map<std::string, float> overrides;
     for (std::size_t i = 0; i < args.size(); ++i)
     {
@@ -436,6 +454,14 @@ int main (int argc, char** argv)
             capturePath = next();
         else if (args[i] == "--board")
             boardList = next();
+        else if (args[i] == "--switch")
+        {
+            const auto at = next();
+            const auto eq = at.find ('=');
+            if (eq == std::string::npos)
+                return usage();
+            switchLists.emplace_back (std::stod (at.substr (0, eq)), at.substr (eq + 1));
+        }
         else if (args[i] == "--set")
         {
             const auto kv = next();
@@ -506,8 +532,12 @@ int main (int argc, char** argv)
         board = readPresetBoard (presetPath);
     if (boardList)
         board = boardFromList (*boardList);
-    const auto r =
-        render (input, rate, snap, board.value_or (legacyBoard (snap)), 256, capture.get());
+    std::vector<BoardSwitchAt> switches;
+    for (const auto& [at, list] : switchLists)
+        switches.push_back ({ static_cast<std::size_t> (std::max (0.0, at) * rate),
+                              boardFromList (list) });
+    const auto r = render (input, rate, snap, board.value_or (legacyBoard (snap)), 256,
+                           capture.get(), std::move (switches));
     const auto s = measure (r.left, r.right, 0);
     std::printf ("{\"rmsDb\": %.2f, \"peakDb\": %.2f, \"finite\": %s, \"latency\": %d}\n",
                  static_cast<double> (s.rmsDb), static_cast<double> (s.peakDb),

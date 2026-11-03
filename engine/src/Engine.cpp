@@ -664,9 +664,12 @@ void Engine::process (const float* const* inputs, float* const* outputs, int num
         }
 
         d.eq.process (post, p.flag (bank.enabled), eqSettings);
-        // The Doubler times its double from the DI's pick attacks, which reach it after the chain.
-        d.doubler.module.setOnsetSource (chainIn, d.chains[0].latency());
-        d.doubler.process (post, p.flag (P::doublerEnabled) && !d.dual, doublerSettings);
+        // The Doubler times its double from the pick attacks after transpose (the gate's
+        // sidechain), which reach it the chain's latency later. With one output it stays off: in
+        // the mono fold the double would only comb-filter the part.
+        d.doubler.module.setOnsetSource (d.chains[0].sidechain.data(), d.chains[0].latency());
+        d.doubler.process (post, p.flag (P::doublerEnabled) && !d.dual && numOutputs == 2,
+                           doublerSettings);
         d.drift.setSettings (driftSettings);
         d.drift.process (post, transport);
         d.fathom.setSettings (fathomSettings);

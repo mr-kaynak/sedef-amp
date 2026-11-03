@@ -209,6 +209,80 @@ double zeroCrossingHz (const std::vector<float>& v, int start, int length, doubl
     }
     return (crossings - 1) * fs / (last - first);
 }
+
+/// Noise "picks" at the given sample positions: a 1 ms attack and an exponential tail with time
+/// constant `decay` (s), each with its own noise.
+std::vector<float> picksAt (double fs, size_t frames, const std::vector<size_t>& at, double decay)
+{
+    Random r (31);
+    std::vector<float> x (frames, 0.0f);
+    for (const size_t i0 : at)
+    {
+        const float amp = 0.3f * (0.7f + 0.3f * r.unipolar());
+        const auto end = std::min (frames, i0 + static_cast<size_t> (6.0 * decay * fs));
+        for (size_t i = i0; i < end; ++i)
+        {
+            const double t = static_cast<double> (i - i0) / fs;
+            const double env = std::min (1.0, t / 1e-3) * std::exp (-t / decay);
+            x[i] += amp * static_cast<float> (env) * r.bipolar();
+        }
+    }
+    return x;
+}
+
+/// How many times the attack starting at `on` in `x` comes out of `r`: peaks, at least 1 ms
+/// apart, of the normalised correlation of its first 4 ms with `r` at lags of 0..50 ms that
+/// reach 0.5. A note heard once gives 1; twice (part of it replayed by a re-timing) 2; dropped 0.
+int arrivals (const std::vector<float>& x, const std::vector<float>& r, size_t on, double fs)
+{
+    const auto win = static_cast<size_t> (0.004 * fs);
+    const auto maxLag = static_cast<size_t> (0.05 * fs);
+    const auto sep = static_cast<size_t> (0.001 * fs);
+    double xx = 0.0;
+    for (size_t i = on; i < on + win; ++i)
+        xx += static_cast<double> (x[i]) * x[i];
+    std::vector<double> c (maxLag, 0.0);
+    for (size_t lag = 0; lag < maxLag; ++lag)
+    {
+        double xr = 0.0, rr = 0.0;
+        for (size_t i = on; i < on + win; ++i)
+        {
+            const double v = r[i + lag];
+            xr += static_cast<double> (x[i]) * v;
+            rr += v * v;
+        }
+        c[lag] = xr / std::sqrt (xx * rr + 1e-30);
+    }
+    int count = 0;
+    size_t last = 0;
+    for (size_t lag = 0; lag < maxLag; ++lag)
+    {
+        if (c[lag] < 0.5)
+            continue;
+        const size_t from = lag >= sep ? lag - sep : 0, to = std::min (maxLag, lag + sep + 1);
+        if (std::any_of (c.begin() + static_cast<long> (from), c.begin() + static_cast<long> (to),
+                         [&] (double v) { return v > c[lag]; }))
+            continue;
+        if (count == 0 || lag - last > sep)
+            ++count;
+        last = lag;
+    }
+    return count;
+}
+
+/// Runs `d` over `x` arriving `lead` samples after its onset source (the DI ahead of the chain)
+/// and returns the right side; at width 1 that is the double alone.
+std::vector<float> doubleOf (Doubler& d, const std::vector<float>& x, int lead)
+{
+    Buffer b (2, static_cast<int> (x.size()));
+    for (size_t i = 0; i < x.size(); ++i)
+    {
+        const auto j = static_cast<long> (i) - lead;
+        b[0][i] = b[1][i] = j >= 0 ? x[static_cast<size_t> (j)] : 0.0f;
+    }
+    run (d, b, 64, &x, lead);
+    return b[1];
+}
 } // namespace
 
 TEST_CASE ("Doubler output is finite for random settings and full-scale noise", "[timefx][doubler]")
@@ -389,7 +463,7 @@ TEST_CASE ("Doubler: each note arrives once, at its own offset", "[timefx][doubl
         d.setSettings ({ c.spread, 1.0f });
         run (d, b, 64, c.lead > 0 ? &x : nullptr, c.lead);
 
-        int clean = 0, measured = 0;
+        int clean = 0, measured = 0, once = 0;
         double worstLeak = 0.0;
         for (size_t k = 0; k + 1 < onsets.size(); ++k)
         {
@@ -406,12 +480,14 @@ TEST_CASE ("Doubler: each note arrives once, at its own offset", "[timefx][doubl
             const double leak = before / (note + 1e-30);
             worstLeak = std::max (worstLeak, leak);
             clean += leak < 1.0e-6 ? 1 : 0;
+            once += arrivals (b[0], b[1], on, kFs) == 1 ? 1 : 0;
             ++measured;
         }
         INFO ("spread " << c.spread << " lead " << c.lead << " notes " << measured << " retimed "
                         << d.retimedNotes() << " worst leak "
-                        << 10.0 * std::log10 (worstLeak + 1e-30) << " dB");
+                        << 10.0 * std::log10 (worstLeak + 1e-30) << " dB, heard once " << once);
         CHECK (clean == measured);
+        CHECK (once == measured);
         CHECK (d.retimedNotes() >= measured / 2);
     }
 }
@@ -429,7 +505,10 @@ TEST_CASE ("Doubler times notes from the onset source", "[timefx][doubler]")
         d->prepare ({ kFs, 512, 2 });
         d->setSettings ({ 8.0f, 0.5f });
     }
-    Buffer copy = b;
+    // A Buffer copy would keep pointing at b's channels; build the second one afresh.
+    Buffer copy (2, b.frames());
+    std::copy (b[0].begin(), b[0].end(), copy[0].begin());
+    std::copy (b[1].begin(), b[1].end(), copy[1].begin());
     run (a, b, 64);
     run (withSource, copy, 64, &source, 0);
     CHECK (a.retimedNotes() <= 1); // the tone's own start
@@ -596,7 +675,7 @@ TEST_CASE ("Doubler switched on mid-note does not step", "[timefx][doubler]")
         fader.prepare (kFs);
         fader.snap (false);
         Buffer b (2, static_cast<int> (kFs * 2.0));
-        fillSine (b[0], 220.0, kFs, 0.5f);
+        fillSine (b[0], 220.0, kFs, 0.5f, 1.0); // at 1 s the tone is at 84 % of its peak
         b[1] = b[0];
         Buffer dry (2, 64);
         forEachBlock (b.view(), 64, [&] (AudioView v, int start) {
@@ -769,6 +848,243 @@ TEST_CASE ("In the engine, the Doubler leaves the played side's timing alone", "
     auto on = render (true);
     CHECK (on[0] == off[0]);
     CHECK (on[1] != off[1]);
+}
+
+TEST_CASE ("Doubler: fast notes are each heard once at any lead", "[timefx][doubler]")
+{
+    // A re-timing replays (offset grows) or skips (offset shrinks) the stretch of audio between
+    // the two read positions, so it must wait until the previous attack has passed both. Dense
+    // short notes 80..100 ms apart, with the onset source up to ~46 ms ahead (a transposed or
+    // otherwise delayed chain), and grace notes inside the 70 ms the detector ignores.
+    struct Case
+    {
+        int lead;
+        bool grace;
+    };
+    for (const auto c : { Case { 0, false }, Case { 1500, false }, Case { 2200, false },
+                          Case { 0, true }, Case { 300, true } })
+    {
+        std::vector<size_t> at;
+        Random r (12);
+        for (double t = 0.2; t < 7.5;)
+        {
+            at.push_back (static_cast<size_t> (t * kFs));
+            if (c.grace)
+            {
+                // A note, a grace note 40..50 ms later (unseen by the detector), the next one
+                // 72..80 ms after the first.
+                at.push_back (static_cast<size_t> ((t + 0.04 + 0.01 * r.unipolar()) * kFs));
+                at.push_back (static_cast<size_t> ((t + 0.072 + 0.008 * r.unipolar()) * kFs));
+                t += 0.24 + 0.08 * r.unipolar();
+            }
+            else
+                t += 0.08 + 0.02 * r.unipolar();
+        }
+        const auto x = picksAt (kFs, static_cast<size_t> (8.0 * kFs), at, 0.012);
+        for (float spread : { 14.0f, 20.0f })
+        {
+            Doubler d;
+            d.prepare ({ kFs, 512, 2 });
+            d.setSettings ({ spread, 1.0f });
+            const auto dbl = doubleOf (d, x, c.lead);
+            std::vector<float> in (x.size(), 0.0f);
+            std::copy (x.begin(), x.end() - c.lead, in.begin() + c.lead);
+            int twice = 0, dropped = 0;
+            for (const size_t on : at)
+            {
+                const int n = arrivals (in, dbl, on + static_cast<size_t> (c.lead), kFs);
+                twice += n > 1 ? 1 : 0;
+                dropped += n == 0 ? 1 : 0;
+            }
+            INFO ("lead " << c.lead << " grace " << c.grace << " spread " << spread << " notes "
+                          << at.size() << " retimed " << d.retimedNotes() << " heard twice "
+                          << twice << " dropped " << dropped);
+            CHECK (twice == 0);
+            CHECK (dropped == 0);
+            CHECK (d.retimedNotes() > static_cast<int> (at.size()) / (c.grace ? 4 : 2));
+        }
+    }
+}
+
+TEST_CASE ("Doubler re-times only into audio it has", "[timefx][doubler]")
+{
+    // Switched on under a held tone, at any phase, with attacks soon after: a re-timing must not
+    // move the take to an offset the restarted delay line has not filled yet (it would read the
+    // silence from before the reset, then step to the tone).
+    struct Case
+    {
+        int startOffset; // samples past a zero crossing of the 220 Hz tone
+        float spread;
+        double click; // first onset-source attack after switching on (s)
+    };
+    // After a reset the first note draws 1.65 x spread; at spread 18 or 20 a pick just after the
+    // take has warmed up (spread + 10 ms) would move it past the audio written so far.
+    for (const auto c :
+         { Case { 0, 3.0f, 0.016 }, Case { 0, 8.0f, 0.02 }, Case { 0, 18.0f, 0.0285 },
+           Case { 0, 20.0f, 0.031 }, Case { 55, 3.0f, 0.016 }, Case { 55, 3.0f, 0.2 },
+           Case { 30, 10.0f, 0.03 }, Case { 55, 20.0f, 0.031 } })
+    {
+        const int start = 48000 + c.startOffset;
+        Doubler d;
+        d.prepare ({ kFs, 512, 2 });
+        d.setSettings ({ c.spread, 1.0f });
+        Buffer b (2, static_cast<int> (kFs * 2.0));
+        fillSine (b[0], 220.0, kFs, 0.5f);
+        b[1] = b[0];
+        std::vector<float> source (b[0].size(), 0.0f);
+        Random r (3);
+        for (double t = static_cast<double> (start) / kFs + c.click; t < 1.9; t += 0.15)
+            for (size_t i = static_cast<size_t> (t * kFs);
+                 i < static_cast<size_t> ((t + 0.004) * kFs); ++i)
+                source[i] = 0.4f * r.bipolar();
+        const auto from = static_cast<size_t> (start);
+        const AudioView tail = b.view().subView (start, b.frames() - start);
+        // Switched on the way StereoSlot does it: reset, then faded in over 10 ms.
+        BypassFader fader;
+        fader.prepare (kFs);
+        fader.snap (false);
+        fader.setEnabled (true);
+        d.reset();
+        d.setSettings ({ c.spread, 1.0f });
+        Buffer dry (2, 64);
+        forEachBlock (tail, 64, [&] (AudioView v, int pos) {
+            const AudioView dryView = dry.view().subView (0, v.numFrames());
+            dryView.copyFrom (v);
+            d.setOnsetSource (source.data() + from + static_cast<size_t> (pos), 0);
+            d.process (v);
+            if (!fader.isFullyActive())
+                fader.mix (dryView, v);
+        });
+        // Over the first 120 ms after switching on, where a step would sit.
+        const std::vector<float> early (b[1].begin(),
+                                        b[1].begin() + static_cast<long> (from + 5760));
+        INFO ("early " << hfShareDb (early, from) << " dB, max 2nd diff "
+                       << maxSecondDifference (b[1], from));
+        INFO ("start +" << c.startOffset << " spread " << c.spread << " click " << c.click
+                        << " retimed " << d.retimedNotes() << " energy above 3 kHz "
+                        << hfShareDb (b[1], from) << " dB");
+        CHECK (hfShareDb (b[1], from) < -80.0);
+        CHECK (hfShareDb (early, from) < -70.0);
+        CHECK (maxSecondDifference (b[1], from) < 2.0e-3f);
+        CHECK (d.retimedNotes() > 3);
+    }
+}
+
+TEST_CASE ("Doubler works from its defaults and keeps the onset source across a reset",
+           "[timefx][doubler]")
+{
+    {
+        // No setSettings(): the default settings apply, a full double 6 ms behind.
+        Doubler d;
+        d.prepare ({ kFs, 512, 2 });
+        Buffer b = monoNoise (static_cast<int> (kFs * 1.0));
+        const auto dry = b[1];
+        run (d, b, 64);
+        CHECK (b[0] == dry);
+        CHECK (correlation (b[0], b[1], 12000, 36000, static_cast<long> (0.006 * kFs)) > 0.5);
+    }
+    {
+        // The engine sets the source, then its slot resets the module as it comes out of bypass,
+        // then processes: the source still applies to that block. A held tone, already sounding,
+        // with clicks in the source only.
+        Doubler d;
+        d.prepare ({ kFs, 24000, 2 });
+        d.setSettings ({ 8.0f, 0.5f });
+        Buffer b (2, 48000);
+        fillSine (b[0], 220.0, kFs, 0.3f);
+        b[1] = b[0];
+        d.process (b.view().subView (0, 24000));
+        std::vector<float> source (24000, 0.0f);
+        Random r (2);
+        for (size_t at : { 4800u, 12000u, 19200u })
+            for (size_t i = at; i < at + 192; ++i)
+                source[i] = 0.4f * r.bipolar();
+        d.setOnsetSource (source.data(), 0);
+        d.reset();
+        d.setSettings ({ 8.0f, 0.5f });
+        d.process (b.view().subView (24000, 24000));
+        CHECK (d.retimedNotes() >= 2);
+    }
+}
+
+TEST_CASE ("Doubler at variation 0 settles every note's level and tone", "[timefx][doubler]")
+{
+    // A loose take (variation 1), then Variation turned to 0: from the next notes on the double
+    // is the plain one again, +1 dB at the spread's offset, even when the take already sits
+    // within a hair of that offset and so does not need to move.
+    Buffer tone (2, static_cast<int> (kFs * 6.0));
+    fillSine (tone[0], 440.0, kFs, 0.3f);
+    std::vector<size_t> clicks;
+    const auto source = pickClicks (kFs, tone.frames(), &clicks);
+    int stuck = 0, runs = 0;
+    double worst = 0.0;
+    // At spread 3 a turn to 0 between 3.30 and 3.53 s catches the take within 0.25 ms of 3 ms.
+    struct Sweep
+    {
+        float spread;
+        double from, to, step;
+    };
+    for (const auto sweep : { Sweep { 3.0f, 3.0, 3.6, 0.05 }, Sweep { 6.0f, 1.0, 4.5, 0.25 },
+                              Sweep { 10.0f, 1.0, 4.5, 0.25 } })
+        for (double cutSeconds = sweep.from; cutSeconds < sweep.to; cutSeconds += sweep.step)
+        {
+            const float spread = sweep.spread;
+            Doubler d;
+            d.prepare ({ kFs, 512, 2 });
+            d.setSettings ({ spread, 1.0f });
+            Buffer b (2, tone.frames());
+            std::copy (tone[0].begin(), tone[0].end(), b[0].begin());
+            std::copy (tone[0].begin(), tone[0].end(), b[1].begin());
+            const auto cut = static_cast<int> (cutSeconds * kFs);
+            forEachBlock (b.view(), 64, [&] (AudioView v, int start) {
+                if (start >= cut)
+                    d.setSettings ({ spread, 0.0f });
+                d.setOnsetSource (source.data() + start, 0);
+                d.process (v);
+            });
+            double runWorst = 0.0;
+            for (size_t k = 0; k + 1 < clicks.size(); ++k)
+            {
+                const auto from = clicks[k] + static_cast<size_t> (0.015 * kFs);
+                const auto length = static_cast<int> (clicks[k + 1] - from);
+                if (static_cast<int> (from) < cut + static_cast<int> (kFs) || length < 2400)
+                    continue;
+                const double db =
+                    20.0 * std::log10 (rms (b[1].data() + from, length) / (0.3 / std::sqrt (2.0)));
+                runWorst = std::max (runWorst, std::abs (db - 1.0));
+            }
+            worst = std::max (worst, runWorst);
+            stuck += runWorst > 0.2 ? 1 : 0;
+            ++runs;
+        }
+    INFO ("runs " << runs << " with a note off the plain double " << stuck << ", worst " << worst
+                  << " dB");
+    CHECK (stuck == 0);
+}
+
+TEST_CASE ("In the engine, the Doubler stays out of a mono output", "[timefx][doubler]")
+{
+    // With one output the engine folds the post chain to mono, where the double would only
+    // comb-filter the part; the switch then has no effect.
+    std::vector<size_t> onsets;
+    const auto x = noteBursts (kFs, 2.0, onsets);
+    const auto render = [&] (bool doubler) {
+        Engine engine;
+        engine.prepare (kFs, 256, 1, 1);
+        auto p = ParamSnapshot::defaults();
+        p[ParamId::doublerEnabled] = doubler ? 1.0f : 0.0f;
+        std::vector<float> out (x.size(), 0.0f);
+        Transport transport;
+        for (size_t s = 0; s < out.size(); s += 256)
+        {
+            const int n = static_cast<int> (std::min<size_t> (256, out.size() - s));
+            const float* in[1] = { x.data() + s };
+            float* o[1] = { out.data() + s };
+            engine.process (in, o, n, p, transport);
+        }
+        return out;
+    };
+    CHECK (render (true) == render (false));
 }
 
 TEST_CASE ("Doubler benchmark", "[.bench][timefx-bench]")

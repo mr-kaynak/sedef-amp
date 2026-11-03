@@ -59,6 +59,10 @@ constexpr double kMarginSeconds = 0.5e-3;
 constexpr double kMaxFadeSeconds = 6.0e-3;
 constexpr double kMinFadeSeconds = 1.5e-3;
 constexpr double kMinMoveSeconds = 0.25e-3;
+// A re-timing replays (offset grows) or skips (offset shrinks) the audio between the two read
+// positions, so it waits until the attack before the note has passed both by this much.
+constexpr double kAttackGuardSeconds = 5.0e-3;
+constexpr std::int64_t kLongAgo = -(std::int64_t { 1 } << 40);
 
 constexpr double kWarmSeconds = 0.01;
 constexpr double kGlideSeconds = 0.12;
@@ -99,6 +103,11 @@ void Doubler::prepare (const ProcessSpec& spec)
     maxFade_ = static_cast<float> (kMaxFadeSeconds * fs);
     minFade_ = static_cast<float> (kMinFadeSeconds * fs);
     minMove_ = static_cast<float> (kMinMoveSeconds * fs);
+    holdoffLength_ = static_cast<int> (kSlowSeconds * fs);
+    // An onset seen further ahead than this waits until this long before its note arrives.
+    lookahead_ = static_cast<int> (std::ceil (maxFade_ + marginSamples_));
+    attackGuard_ = static_cast<float> (kAttackGuardSeconds * fs);
+    filledLimit_ = static_cast<int> (std::ceil (maxRead_)) + 8;
     toneCoeff_ = static_cast<float> (1.0 - std::exp (-kTwoPiD * kToneSplitHz / fs));
     slopeCoeff_ = static_cast<float> (1.0 - std::exp (-kControlBlock / (kSlopeSeconds * fs)));
     // A slope smoothed from +s to -s still travels about s * tau * (1 - ln 2) before it turns.
@@ -113,6 +122,8 @@ void Doubler::prepare (const ProcessSpec& spec)
     panFar_.reset (fs, kSmoothSeconds);
     mix_.reset (fs, kSmoothSeconds);
     targetSpread_ = static_cast<double> (settings_.spreadMs) * 1.0e-3 * fs;
+    source_ = nullptr;
+    lead_ = 0.0f;
     reset();
 }
 
@@ -129,6 +140,11 @@ void Doubler::reset() noexcept
     spread1_ = spread2_ = targetSpread_;
     fast_ = slow_ = 0.0f;
     sinceRise_ = refractory_ = 0;
+    holdoff_ = holdoffLength_;
+    above_ = false;
+    clock_ = 0;
+    lastAttackRise_ = kLongAgo;
+    pendingCount_ = 0;
     rng_.seed (kSeed);
     phrase_ = 0.0f;
     retimed_ = 0;
@@ -140,11 +156,31 @@ void Doubler::reset() noexcept
     wander_.setRate (kWanderHz);
     wanderMod_ = wanderStep_ = 0.0f;
     tickCountdown_ = 0;
-    source_ = nullptr;
-    lead_ = 0.0f;
+    // The onset source is kept: the engine sets it just before the slot that resets this module.
     filled_ = 0;
     warm_ = 0.0f;
+    applyPan (true);
     snapNext_ = true;
+}
+
+void Doubler::applyPan (bool snap) noexcept
+{
+    // Constant-power pan: the original sits at -width, the double at +width. At width 1 these are
+    // exactly 1 and 0, so the left side stays bit-identical to the input.
+    const float theta = (1.0f - settings_.width) * 0.25f * kPi;
+    const float near = std::cos (theta), far = std::sin (theta);
+    if (snap)
+    {
+        panNear_.setCurrentAndTarget (near);
+        panFar_.setCurrentAndTarget (far);
+        mix_.setCurrentAndTarget (settings_.mix);
+    }
+    else
+    {
+        panNear_.setTarget (near);
+        panFar_.setTarget (far);
+        mix_.setTarget (settings_.mix);
+    }
 }
 
 void Doubler::setSettings (const Settings& s) noexcept
@@ -155,22 +191,11 @@ void Doubler::setSettings (const Settings& s) noexcept
     settings_.width = std::clamp (finiteOr (s.width, 1.0f), 0.0f, 1.0f);
     settings_.mix = std::clamp (finiteOr (s.mix, 1.0f), 0.0f, 1.0f);
     targetSpread_ = static_cast<double> (settings_.spreadMs) * 1.0e-3 * sampleRate_;
-
-    // Constant-power pan: the original sits at -width, the double at +width. At width 1 these are
-    // exactly 1 and 0, so the left side stays bit-identical to the input.
-    const float theta = (1.0f - settings_.width) * 0.25f * kPi;
-    const float near = std::cos (theta), far = std::sin (theta);
+    // Until audio runs after a reset, settings jump; after that they glide.
     if (snapNext_)
-    {
         spread1_ = spread2_ = targetSpread_;
-        panNear_.setCurrentAndTarget (near);
-        panFar_.setCurrentAndTarget (far);
-        mix_.setCurrentAndTarget (settings_.mix);
-        snapNext_ = false;
-    }
-    panNear_.setTarget (near);
-    panFar_.setTarget (far);
-    mix_.setTarget (settings_.mix);
+    applyPan (snapNext_);
+    snapNext_ = false;
 }
 
 float Doubler::gaussian() noexcept
@@ -185,9 +210,24 @@ float Doubler::voiceDelay (const Voice& v) const noexcept
                        maxRead_);
 }
 
-void Doubler::onset() noexcept
+void Doubler::detectOnset() noexcept
 {
     refractory_ = refractoryLength_;
+    const std::int64_t rise = clock_ - sinceRise_;
+    const std::int64_t previous = lastAttackRise_;
+    lastAttackRise_ = rise;
+    if (pendingCount_ == static_cast<int> (pending_.size()))
+        return; // more onsets in flight than any real lead holds: this note keeps the take
+    // Seen `lead` samples ahead of its arrival: act shortly before it arrives, so the stretch a
+    // re-timing replays or skips lies just before this note, not further back.
+    const auto lead = static_cast<std::int64_t> (lead_);
+    const std::int64_t wait = std::max<std::int64_t> (0, lead - lookahead_);
+    pending_[static_cast<size_t> (pendingCount_++)] = { clock_ + wait, rise + lead,
+                                                        previous + lead };
+}
+
+void Doubler::retime (const PendingOnset& onset) noexcept
+{
     if (fadePos_ < fadeLength_)
         return; // the previous note is still crossfading
 
@@ -202,29 +242,48 @@ void Doubler::onset() noexcept
     const auto spread = static_cast<float> (spread2_);
     const float offset =
         std::clamp (spread * std::exp2 (variation * kTimingOctaves * z), minOffset_, maxOffset_);
-    const Voice& current = voices_[static_cast<size_t> (active_)];
-    if (std::abs (offset - (spread * current.factor + current.drift)) < minMove_)
-        return; // nothing worth a crossfade (variation near 0)
+    Voice& current = voices_[static_cast<size_t> (active_)];
+    const float now = voiceDelay (current);
+    const float incoming = offset + wanderMod_;
 
-    // Both read positions must still be in the audio from before the note when the fade ends.
-    const float before = std::min (voiceDelay (current), offset + wanderMod_);
-    const float room = before + lead_ - static_cast<float> (sinceRise_) - marginSamples_;
+    // The change must be over before the note reaches either read position...
+    const float room =
+        std::min (now, incoming) + static_cast<float> (onset.arrival - clock_) - marginSamples_;
     if (room < minFade_)
         return; // detected too late to move this note cleanly; the next one will
+    // ...must not start before the attack before it has passed both...
+    if (static_cast<float> (clock_ - onset.previousArrival) <
+        std::max (now, incoming) + attackGuard_)
+        return; // a fast note just before: replaying or skipping it would be heard
+    // ...and can only move the take to where the delay line holds what was played.
+    if (static_cast<float> (filled_) <= incoming + 4.0f)
+        return;
+
+    const int length = std::max (1, static_cast<int> (std::min (room, maxFade_)));
+    rampLeft_ = length;
+    hfTarget_ = dbToGain (toneDb);
+    levelTarget_ = dbToGain (levelDb);
+    hfStep_ = (hfTarget_ - hfGain_) / static_cast<float> (length);
+    levelStep_ = (levelTarget_ - level_) / static_cast<float> (length);
+    const float slope = 1.0f - std::exp2 (detuneCents / 1200.0f);
+    const float driftLimit = std::clamp (kDriftLimitRatio * offset, minDriftLimit_, maxDriftLimit_);
+
+    if (std::abs (offset - (spread * current.factor + current.drift)) < minMove_)
+    {
+        // Already about there (variation near 0): no crossfade, but the note still gets its own
+        // level, tone and detune.
+        current.slopeTarget = slope;
+        current.driftLimit = driftLimit;
+        return;
+    }
 
     Voice& next = voices_[static_cast<size_t> (active_ ^ 1)];
     next.factor = offset / spread;
     next.drift = 0.0f;
-    next.slope = next.slopeTarget = 1.0f - std::exp2 (detuneCents / 1200.0f);
-    next.driftLimit = std::clamp (kDriftLimitRatio * offset, minDriftLimit_, maxDriftLimit_);
-
-    fadeLength_ = std::max (1, static_cast<int> (std::min (room, maxFade_)));
+    next.slope = next.slopeTarget = slope;
+    next.driftLimit = driftLimit;
+    fadeLength_ = length;
     fadePos_ = 0;
-    rampLeft_ = fadeLength_;
-    hfTarget_ = dbToGain (toneDb);
-    levelTarget_ = dbToGain (levelDb);
-    hfStep_ = (hfTarget_ - hfGain_) / static_cast<float> (fadeLength_);
-    levelStep_ = (levelTarget_ - level_) / static_cast<float> (fadeLength_);
     ++retimed_;
 }
 
@@ -268,12 +327,33 @@ void Doubler::processSamples (float* left, float* right, const float* source, in
         slow_ += slowCoeff_ * (power - slow_);
         sinceRise_ =
             fast_ <= kRiseRatio * slow_ + kPowerFloor ? 0 : std::min (sinceRise_ + 1, 1 << 20);
-        if (refractory_ > 0)
+        const bool above = fast_ > kOnsetRatio * slow_ + kPowerFloor;
+        if (holdoff_ > 0)
+        {
+            // Just after a reset the detector has not heard what was already sounding: the slow
+            // envelope catches up with it instead of that counting as an onset.
+            --holdoff_;
+            slow_ = std::max (slow_, fast_);
+        }
+        else if (refractory_ > 0)
+        {
             --refractory_;
-        else if (fast_ > kOnsetRatio * slow_ + kPowerFloor)
-            onset();
+            if (above && !above_)
+                lastAttackRise_ = clock_ - sinceRise_; // not an onset, but still an attack
+        }
+        else if (above)
+            detectOnset();
+        above_ = above;
+        while (pendingCount_ > 0 && pending_[0].due <= clock_)
+        {
+            const PendingOnset due = pending_[0];
+            std::copy (pending_.begin() + 1, pending_.begin() + pendingCount_, pending_.begin());
+            --pendingCount_;
+            retime (due);
+        }
 
         line_.push (r);
+        filled_ = std::min (filled_ + 1, filledLimit_);
         wanderMod_ += wanderStep_;
         for (auto& v : voices_)
             v.drift += v.slope;
@@ -294,11 +374,11 @@ void Doubler::processSamples (float* left, float* right, const float* source, in
         }
         if (warm_ < 1.0f)
         {
-            const Voice& v = voices_[static_cast<size_t> (active_)];
-            if (static_cast<float> (filled_) > voiceDelay (v) + 4.0f)
+            float needed = voiceDelay (voices_[static_cast<size_t> (active_)]);
+            if (fadePos_ < fadeLength_)
+                needed = std::max (needed, voiceDelay (voices_[static_cast<size_t> (active_ ^ 1)]));
+            if (static_cast<float> (filled_) > needed + 4.0f)
                 warm_ = std::min (1.0f, warm_ + warmStep_);
-            else
-                ++filled_;
             take = r + warm_ * (take - r);
         }
         if (rampLeft_ > 0)
@@ -322,6 +402,7 @@ void Doubler::processSamples (float* left, float* right, const float* source, in
         const float near = panNear_.next(), far = panFar_.next(), mix = mix_.next();
         left[i] = l + mix * (near * l + far * dbl - l);
         right[i] = r + mix * (far * l + near * dbl - r);
+        ++clock_;
     }
 }
 
@@ -353,6 +434,7 @@ void Doubler::process (const AudioView& io) noexcept
         tickCountdown_ -= length;
     }
     lead_ = 0.0f;
+    snapNext_ = false;
     fast_ = flushToZero (fast_);
     slow_ = flushToZero (slow_);
     toneLp_ = flushToZero (toneLp_);

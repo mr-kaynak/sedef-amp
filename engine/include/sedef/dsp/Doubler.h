@@ -9,6 +9,7 @@
 #include "sedef/core/Smoothed.h"
 
 #include <array>
+#include <cstdint>
 
 namespace sedef::dsp
 {
@@ -33,8 +34,10 @@ public:
     void setSettings (const Settings& s) noexcept;
     /// Optional, per call: the instrument signal that reaches this module's input `leadSamples`
     /// later (the DI ahead of amp and cab). Pick attacks are clearer there than in a compressed,
-    /// distorted signal, and they show up sooner. Applies to the next process() only and must hold
-    /// as many frames; without it, onsets are detected on the input itself.
+    /// distorted signal, and they show up sooner. Applies to the next process() only (a reset()
+    /// in between keeps it) and must hold as many frames; without it, onsets are detected on the
+    /// input itself. Any lead works: an onset seen further ahead waits until shortly before its
+    /// note arrives.
     void setOnsetSource (const float* source, int leadSamples) noexcept;
     /// Stereo in place (2 channels). A mono stream passes untouched.
     void process (const AudioView& io) noexcept;
@@ -55,9 +58,18 @@ private:
         float driftLimit = 0.0f;
     };
 
+    // An onset waiting to re-time the take: when to act, and when (in input samples) its attack
+    // and the attack before it reach this module.
+    struct PendingOnset
+    {
+        std::int64_t due = 0, arrival = 0, previousArrival = 0;
+    };
+
     void controlTick() noexcept;
     void processSamples (float* left, float* right, const float* source, int length) noexcept;
-    void onset() noexcept;
+    void detectOnset() noexcept;
+    void retime (const PendingOnset& onset) noexcept;
+    void applyPan (bool snap) noexcept;
     float gaussian() noexcept;
     float voiceDelay (const Voice& v) const noexcept;
 
@@ -81,7 +93,19 @@ private:
     Biquad detectorHp_;
     float fastCoeff_ = 0.0f, slowCoeff_ = 0.0f, fast_ = 0.0f, slow_ = 0.0f;
     int sinceRise_ = 0, refractory_ = 0, refractoryLength_ = 0;
+    int holdoff_ = 0,
+        holdoffLength_ = 0; ///< after a reset the envelopes settle before onsets count
+    bool above_ = false;
     float marginSamples_ = 0.0f, maxFade_ = 0.0f, minFade_ = 0.0f, minMove_ = 0.0f;
+
+    // Every attack is timed, including those the detector ignores, so a re-timing can wait for
+    // the previous one to have passed both read positions (else it would be heard twice or not
+    // at all). Times count samples since reset().
+    std::int64_t clock_ = 0, lastAttackRise_ = 0;
+    int lookahead_ = 0;
+    float attackGuard_ = 0.0f;
+    std::array<PendingOnset, 4> pending_ {};
+    int pendingCount_ = 0;
 
     // Per-note draws: a slowly wandering "phrase" component plus independent note jitter.
     Random rng_;
@@ -105,8 +129,9 @@ private:
     int tickCountdown_ = 0;
 
     // After a reset the delay line holds silence. Until it has filled past the take's offset the
-    // take is the undelayed input, then it fades over, so switching on mid-note cannot step.
-    int filled_ = 0;
+    // take is the undelayed input, then it fades over, so switching on mid-note cannot step; a
+    // re-timing never moves the take past what has been written.
+    int filled_ = 0, filledLimit_ = 0;
     float warm_ = 0.0f, warmStep_ = 0.0f;
 
     // Width (constant-power pan of the two takes) and the dry/wet mix.

@@ -65,7 +65,9 @@ export function PedalBoard() {
     const target = wanted && !wanted.disabled ? wanted : next.id && handles.current.get(next.id);
     if (target) {
       target.focus({ preventScroll: true });
-      slot?.scrollIntoView?.({ block: 'nearest', behavior: next.reveal ? 'smooth' : 'auto' });
+      // A pedal just added or picked glides into view, unless motion is unwelcome.
+      const glide = next.reveal && !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+      slot?.scrollIntoView?.({ block: 'nearest', behavior: glide ? 'smooth' : 'auto' });
     } else (toolbarAdd.current ?? emptyAdd.current)?.focus();
   });
 

@@ -1,12 +1,13 @@
 /* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* The title stays put; the categories scroll beneath it when they don't fit. */
 .picker {
   top: calc(100% + 6px);
   right: 24px;
+  display: flex;
+  flex-direction: column;
   width: 560px;
   max-height: 520px;
-  padding: 16px 12px 12px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
+  padding: 16px 12px 0;
 }
 
 .centred {
@@ -21,7 +22,20 @@
   font-weight: 600;
 }
 
-/* Categories flow down two columns, each kept whole. */
+/* A row past the bottom edge fades out there, so a longer list shows that it scrolls; the
+   padding keeps the last row clear of the fade when everything fits. */
+.scroll {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-bottom: 12px;
+  mask-image: linear-gradient(180deg, #000 calc(100% - 24px), transparent);
+  scrollbar-width: thin;
+  scrollbar-color: var(--ink-4) transparent;
+}
+
+/* Categories flow down two columns, each kept whole (in a box of its own height, or the
+   columns would spill sideways). */
 .groups {
   columns: 2;
   column-gap: 12px;

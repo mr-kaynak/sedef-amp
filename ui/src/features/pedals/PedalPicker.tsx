@@ -49,51 +49,53 @@ export function PedalPicker({
       <h2 id={titleId} className={styles.title}>
         Add a pedal
       </h2>
-      <div className={styles.groups}>
-        {groups.map(({ category, pedals }) => (
-          <section key={category} className={styles.group} aria-label={category}>
-            <h3 className={styles.category}>{category}</h3>
-            <ul className={styles.list}>
-              {pedals.map((p) => {
-                const entry = PEDAL_CATALOG[p.id]!;
-                const onBoard = board.includes(p.id);
-                const describedBy = `${titleId}-${p.id}`;
-                return (
-                  <li key={p.id}>
-                    <button
-                      type="button"
-                      className={styles.row}
-                      data-on-board={onBoard || undefined}
-                      aria-label={
-                        onBoard
-                          ? `${p.name}, ${entry.kind.toLowerCase()}, on the board. Show it`
-                          : `Add ${p.name}, ${entry.kind.toLowerCase()}`
-                      }
-                      aria-describedby={describedBy}
-                      onClick={() => (onBoard ? onShow(p.id) : onAdd(p.id))}
-                    >
-                      <span className={styles.name}>{p.name}</span>
-                      <span className={styles.kind}>{entry.kind}</span>
-                      <span id={describedBy} className={styles.text}>
-                        {entry.description}
-                      </span>
-                      <span className={styles.state} aria-hidden="true">
-                        {onBoard ? (
-                          'On the board'
-                        ) : (
-                          <>
-                            <Icon name="plus" size={12} />
-                            Add
-                          </>
-                        )}
-                      </span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
-        ))}
+      <div className={styles.scroll}>
+        <div className={styles.groups}>
+          {groups.map(({ category, pedals }) => (
+            <section key={category} className={styles.group} aria-label={category}>
+              <h3 className={styles.category}>{category}</h3>
+              <ul className={styles.list}>
+                {pedals.map((p) => {
+                  const entry = PEDAL_CATALOG[p.id]!;
+                  const onBoard = board.includes(p.id);
+                  const describedBy = `${titleId}-${p.id}`;
+                  return (
+                    <li key={p.id}>
+                      <button
+                        type="button"
+                        className={styles.row}
+                        data-on-board={onBoard || undefined}
+                        aria-label={
+                          onBoard
+                            ? `${p.name}, ${entry.kind.toLowerCase()}, on the board. Show it`
+                            : `Add ${p.name}, ${entry.kind.toLowerCase()}`
+                        }
+                        aria-describedby={describedBy}
+                        onClick={() => (onBoard ? onShow(p.id) : onAdd(p.id))}
+                      >
+                        <span className={styles.name}>{p.name}</span>
+                        <span className={styles.kind}>{entry.kind}</span>
+                        <span id={describedBy} className={styles.text}>
+                          {entry.description}
+                        </span>
+                        <span className={styles.state} aria-hidden="true">
+                          {onBoard ? (
+                            'On the board'
+                          ) : (
+                            <>
+                              <Icon name="plus" size={12} />
+                              Add
+                            </>
+                          )}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ))}
+        </div>
       </div>
     </Popover>
   );

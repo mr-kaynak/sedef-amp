@@ -194,8 +194,9 @@
   fill: var(--nacre-rose);
 }
 
+/* The same dimming as the mic's marker on the cone. */
 .mapMic[data-off] {
-  opacity: 0.4;
+  opacity: 0.35;
 }
 
 .caption {

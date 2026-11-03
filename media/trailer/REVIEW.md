@@ -15,8 +15,8 @@ Delivery render: `renders/sedef-trailer.mp4` (gitignored); repo copy: `docs/medi
 - **The mic drag uses only real pixels.** The five `cab-mic-*` captures swap underneath as Mic A
   passes the midpoint between states, so the Position knob reads 1.0 → 9.0. The marker moves
   continuously over a strip of the same cone cut from captures 1 and 5 (each is clean where the
-  other has its marker), and the marker itself is cut from captures 1 and 3. At the end of the drag
-  the real capture 5 takes over.
+  other has its marker). Since 0.3.0 the marker itself is `cab-mic-a`, the real marker shot alone
+  on a transparent ground. At the end of the drag the real capture 5 takes over.
 - **End card on the fretboard.** The camera settles at 2× on the 12th-fret space, now 1176 px
   wide. The star mark (`assets/logo.svg`) is routed and set into it where the double dot was, and
   the wordmark (`assets/wordmark.svg`) wipes in beside it in the brand lockup's proportions (star
@@ -25,8 +25,8 @@ Delivery render: `renders/sedef-trailer.mp4` (gitignored); repo copy: `docs/medi
 - **No word is ever cut by the frame edge on a held framing.** Every word and line of every UI
   state was measured in the built UI (Playwright, the same states as `pnpm captures`). Each held
   camera framing was then chosen so that every line is either wholly in frame or wholly out of it,
-  as is each grouped block (Gate/Transpose panels, the status bar, the intonation step row, the
-  tip box, the string list).
+  as is each grouped block (the Gate panel, the pedals, the mic strips, the status bar, the
+  intonation step row, the tip box, the string list).
 - Not built: B "The sour octave" (needs the viewer to hear beating, lost on a phone speaker) and
   C "Type on the groove" (beat cuts leave no time for the mics and the saddle advice).
 
@@ -153,6 +153,62 @@ Delivery render: `renders/sedef-trailer.mp4` (gitignored); repo copy: `docs/medi
   the buttons stay in frame; the string list's bare cent values are left out.
 - Skipped · t=7.0–7.8 s · Pearl's knob is still soft. `captures.mjs` has no scale flag (it is
   fixed at 3×), and zooming out at the knob would have cut the Transpose panel's text.
+
+## 0.3.0 re-render
+
+Same story, voice, music, clip placements and word timings; only the picture changed. The shots
+were retaken from the 0.3.0 UI (`pnpm build && pnpm captures`), and every framing, click target
+and nacre disc was measured again from the built UI's DOM, in the states the captures shoot. Each
+held framing was checked against the boxes of every word, line and painted element (old → new,
+as `{x, y, z}` in design px):
+
+- **What the new UI moved, or what the 0.2.0 render already cut:**
+  - 7.6 s · Pearl's Gain cap is at (417, 308.2) and 26 px: K `{417, 310, 4}` → `{417, 308.2, 4}`,
+    disc 170 → 166.4 px.
+  - 8.5–10 s · Ripple was cut at the right edge and Gate's bottom edge showed at the top: P
+    `{467, 486, 1.35}` → `{460, 483, 1.453}`, Tide, Pearl and Coral whole.
+  - 11.7–12.2 s · the new Doubler switch was cut at the top and the Pedals underline at the left:
+    R `{600, 387, 1.04}` → `{600, 399, 1.02}`, from just below the header.
+  - 12.6–16 s · the amp head ran off the bottom: A `{600, 337.5, 1}` → `{600, 345.1, 0.978}`,
+    shared with the cab's first framing. The Abyss click moves to the swatch of the four-card row:
+    (834, 168) → (642, 172).
+  - 16.6–19.6 s · the old speaker framing cut the speaker and both mic strips: S
+    `{606, 400, 1.73}` → `{732.5, 422, 1.32}`, the whole speaker, the speakers' map, both mics and
+    the caption.
+  - 21.6–22.6 s · "Note 1/4" was cut at the left and the Doubler switch at the top: D2
+    `{844, 250, 1.8}` → `{866.03, 278.7, 2.02}`, the readout and the right-hand knobs.
+  - 23.3 s · the new Doubler panel and Drift's head buttons were cut: FA `{413, 509, 1.5}` →
+    `{402, 541.8, 1.55}`, Fathom whole.
+  - 24.3 s · Low cut was cut at the right and the plate graph at the left: DK `{417, 599, 2.97}` →
+    `{476, 597.2, 3.75}`, Mix to Low cut whole; disc 126.4 → 156 px, now left of centre.
+  - 31–33.5 s · "Input" showed as "ut": H `{925, 153.41, 2.2}` → `{903.95, 159.75, 2.113}`, Input
+    knob to Settings; the Output cap is at (801.3, 25), 18.72 px (disc 68 → 63.3 px).
+  - 35–37.4 s · 1–2 px of the workbench steps and Close showed at the top: I0 `{700, 422, 1.25}` →
+    `{704, 444, 1.25}`.
+  - 38–39.2 s · the string list sat 1.5 px from the left edge: I2 x 414 → 404.5, y 398 → 392.2.
+  - 39.8 s · the saddle plate was cut at the bottom: I3 `{896, 342, 1.99}` → `{935.3, 385.6, 2.35}`,
+    the whole diagram.
+  - 40.6 s · "Tail →" sat 5 px from the right edge: I4 x 973 → 980.
+  - 41.9–43.4 s · the summary rows are now two lines tall, so the old framing cut the buttons: I5
+    `{494, 350, 2.065}` → `{503, 329, 2.15}`, the headline and the table, buttons out; the
+    smallest text is 38 px.
+- **The mic drag.** The mics now have an azimuth, and Mic A's default of 60° would make the drag a
+  diagonal towards 2 o'clock; at 90° it would brush Mic B's ring at Position 5. The captures set
+  `micAAzimuth:-90` (9 o'clock), so `markerPoint` puts the five positions on one horizontal line,
+  from (475.2, 394.9) on the dust cap to (340.8, 394.9) by the edge: a 134.4 px sweep to the left.
+  The strip is x 316–408 from capture 1 and 408–499 from capture 5, y 371.5–418.5. The ring is
+  unfilled, so the old marker cut from captures 1 and 3 would have carried the dust cap across the
+  cone; the marker is now `cab-mic-a`.
+- **Kept on purpose:** the 6.4× close-up on Pearl's cap at 7.6 s still crosses the neighbouring
+  knobs (a 0.25 s pass-through, centred on the cap), the 4.8× push-in on "1.42 mm" crosses the plate
+  and the strings, the saddle diagram's strings run off the right edge at 38.5 s and 42 s (their
+  labels are whole), and Drift's panel is wider than its framings. Drift's readout framing has 16 px
+  to the right edge: no zoom fits it between the tab row and Fathom with more.
+- **Checks.** `npm run check`: 0 errors, 0 warnings, the same four `text_occluded` infos.
+  `snapshot --review` (beats, eight seams, phone width), stills at every SPEC QA time, through
+  the drag every 0.1–0.2 s, and at every click. Decoded frames from the render match the
+  snapshots (SSIM 0.988–0.999). Render 21.0 MB in 57.5 s; repo copy 12.2 MB, SSIM 0.995;
+  −15.8 LUFS, −1.4 dBTP, LRA 4.2 LU. The audio stream is bit-identical to the 0.2.0 copy's.
 
 ## Weakest shots, and what I would change with more time
 

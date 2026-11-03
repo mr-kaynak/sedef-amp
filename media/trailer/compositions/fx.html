@@ -36,13 +36,14 @@
       width: 1200px;
       height: 760px;
     }
-    /* Nacre over Fathom's decay knob cap; it grows past the frame into the pale formats world. */
+    /* Nacre over Fathom's decay knob cap (156 px at DK); it grows past the frame into the pale
+       formats world. */
     #fx-disc {
       position: absolute;
-      left: 1020.4px;
-      top: 476.8px;
-      width: 126.4px;
-      height: 126.4px;
+      left: 684px;
+      top: 462px;
+      width: 156px;
+      height: 156px;
       border-radius: 50%;
       overflow: hidden;
       opacity: 0;
@@ -71,10 +72,10 @@
     const B = 1.6;
     const F = (p) => ({ x: 960 - p.x * B * p.z, y: 540 - p.y * B * p.z, scale: B * p.z });
     const D1 = { x: 340, y: 250, z: 1.8 }; // Drift: reels, heads, sync
-    const D2 = { x: 844, y: 250, z: 1.8 }; // Drift: "Repeats every 500 ms"
-    const FA = { x: 413, y: 509, z: 1.5 }; // Fathom
-    const PL = { x: 258, y: 580, z: 2.6 }; // Fathom: the plate's decay curve, Mix and Decay
-    const DK = { x: 417, y: 599, z: 2.97 }; // the Decay knob cap (443, 599), 126 px across, right of centre
+    const D2 = { x: 866.03, y: 278.7, z: 2.02 }; // Drift: "Repeats every 500 ms" and the right-hand knobs
+    const FA = { x: 402, y: 541.8, z: 1.55 }; // Fathom whole, under Drift's knob row, clear of Doubler
+    const PL = { x: 254.1, y: 577.8, z: 2.63 }; // Fathom: the plate's decay curve, Mix and Decay
+    const DK = { x: 476, y: 597.2, z: 3.75 }; // Mix to Low cut, the Decay cap (443, 597.2) 156 px across
     const tl = gsap.timeline({ paused: true });
     const move = (p, t, d = 0.6) => {
       tl.to("#fx-cam", { ...F(p), duration: d, ease: "power2.inOut" }, t);
@@ -84,7 +85,7 @@
 
     // The second half of the whip from the cab (cab.html plays the first) lands on Drift for
     // "Tape echo" (20.05 s); the cab page leaves 2000 px ahead of it.
-    const S = { x: 606, y: 400, z: 1.73 }; // cab.html's last framing
+    const S = { x: 732.5, y: 422, z: 1.32 }; // cab.html's last framing
     tl.fromTo("#fx-cam", { ...F(D1), x: F(D1).x + 1000 }, { ...F(D1), duration: 0.2, ease: "power3.out" }, 0);
     tl.fromTo("#fx-prev", { ...F(S), x: F(S).x - 1000 }, { ...F(S), x: F(S).x - 2000, duration: 0.2, ease: "power3.out" }, 0);
     tl.fromTo("#fx-lens", { filter: "blur(14px)" }, { filter: "blur(0px)", duration: 0.2, ease: "power2.out" }, 0);

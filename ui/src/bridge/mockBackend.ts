@@ -5,6 +5,7 @@ import type { Backend, NativeArgs, NativeName, NativeResult, SimulatedIntent } f
 import { Emitter } from './emitter';
 import {
   PROTOCOL_VERSION,
+  type BoardState,
   type CaptureInfo,
   type CaptureState,
   type EventName,
@@ -35,6 +36,12 @@ import { PitchSimulator } from './mock/pitchSim';
 import { createRandom } from './mock/random';
 import { TelemetrySimulator } from './mock/telemetrySim';
 import { UpdateSimulator, type UpdateScenario } from './mock/updateSim';
+import {
+  LEGACY_BOARD,
+  legacyBoardFor,
+  sameBoard,
+  sanitiseBoard,
+} from '../features/pedals/registry';
 
 export interface MockOptions {
   /** Run telemetry/pitch timers (browser). Tests leave this off and call tick* themselves. */
@@ -57,6 +64,8 @@ export interface MockOptions {
   overrides?: ParamValues;
   /** What the update checker finds (docs/updates.md). Defaults to "current": nothing newer. */
   update?: UpdateScenario;
+  /** The pedalboard at startup, as part of the initial preset (no dirty dot). */
+  board?: string[];
   /**
    * Delays each native call's answer and each preset broadcast by a random 0..maxMs (seeded).
    * Calls still run in the order they were made, as in the plugin, but their answers can arrive
@@ -78,6 +87,8 @@ const MAX_RECENT = 12;
 interface Snapshot {
   values: ParamValues;
   loaded: ParamValues;
+  board: string[];
+  loadedBoard: string[];
   currentId: string | null;
   currentName: string;
   dirty: boolean;
@@ -105,7 +116,12 @@ export class MockBackend implements Backend {
   private presets: MockPreset[] = [...FACTORY_PRESETS, ...USER_PRESETS].map((p) => ({
     info: { ...p.info },
     values: { ...p.values },
+    ...(p.board ? { board: [...p.board] } : {}),
   }));
+  /** The pedalboard, and the one the loaded preset had (it counts towards "dirty"). */
+  private board: string[] = [...LEGACY_BOARD];
+  private loadedBoard: string[] = [...LEGACY_BOARD];
+  private boardRevision = 0;
   private presetState: PresetState = {
     items: [],
     currentId: null,
@@ -164,6 +180,10 @@ export class MockBackend implements Backend {
       const v = snapValue(spec, value);
       this.values[id] = v;
       if (!isGlobalParam(id)) this.loaded[id] = v;
+    }
+    if (options.board) {
+      this.board = sanitiseBoard(options.board);
+      this.loadedBoard = [...this.board];
     }
     this.refreshPresetItems();
     this.updates = new UpdateSimulator({
@@ -275,6 +295,7 @@ export class MockBackend implements Backend {
         presets: this.snapshotPresets(),
         ir: this.snapshotIr(),
         capture: this.captures.snapshot(),
+        board: this.boardState(),
       };
     },
 
@@ -319,12 +340,17 @@ export class MockBackend implements Backend {
         favorite: existing?.info.favorite ?? false,
         description: clean ? clean.description : (existing?.info.description ?? ''),
       };
-      const saved: MockPreset = { info: presetInfo(base, values), values };
+      const saved: MockPreset = {
+        info: presetInfo(base, values, this.board),
+        values,
+        board: [...this.board],
+      };
       this.presets = existing
         ? this.presets.map((p) => (p === existing ? saved : p))
         : [...this.presets, saved];
       // The saved state is the new reference for "dirty".
       this.loaded = { ...this.values };
+      this.loadedBoard = [...this.board];
       this.presetState = { ...this.presetState, currentId: saved.info.id, currentName: trimmed };
       this.markRecent(saved.info.id);
       return this.publishPresets();
@@ -406,6 +432,7 @@ export class MockBackend implements Backend {
       this.applyPresetValues({});
       this.presetState = { ...this.presetState, currentId: null, currentName: 'Init' };
       this.emit('sedef:params', { values: { ...this.values } });
+      this.setBoardFromPreset([...LEGACY_BOARD]);
       return this.publishPresets();
     },
     sedef_presets_snapshot: (slot) => {
@@ -461,6 +488,17 @@ export class MockBackend implements Backend {
       this.setValue('ampSource', 0);
       this.emit('sedef:params', { values: { ampSource: 0 } });
       return this.publishCapture();
+    },
+
+    sedef_board_set: (pedals) => {
+      this.board = sanitiseBoard(pedals);
+      // The board counts towards "dirty".
+      const dirty = this.isDirty();
+      if (dirty !== this.presetState.dirty) {
+        this.presetState = { ...this.presetState, dirty };
+        this.publishPresets();
+      }
+      return this.boardState();
     },
 
     sedef_tuner_setActive: (active) => {
@@ -521,13 +559,29 @@ export class MockBackend implements Backend {
     }
   }
 
-  /** Mirrors PresetManager::isDirty: any preset parameter away from the loaded reference. */
+  /** Mirrors PresetManager::isDirty: any preset parameter or the board away from the loaded ones. */
   private isDirty(): boolean {
-    return this.schema.some(
-      (spec) =>
-        !isGlobalParam(spec.id) &&
-        !sameValue(this.value(spec.id), this.loaded[spec.id] ?? spec.default, spec.min, spec.max),
+    return (
+      !sameBoard(this.board, this.loadedBoard) ||
+      this.schema.some(
+        (spec) =>
+          !isGlobalParam(spec.id) &&
+          !sameValue(this.value(spec.id), this.loaded[spec.id] ?? spec.default, spec.min, spec.max),
+      )
     );
+  }
+
+  /** The board state the plugin hands out (each one with a higher revision). */
+  boardState(): BoardState {
+    return { pedals: [...this.board], revision: ++this.boardRevision };
+  }
+
+  /** A preset (or Init, or a snapshot) brought its board: the reference for "dirty" too. */
+  private setBoardFromPreset(board: string[], loaded: string[] = board): void {
+    const changed = !sameBoard(board, this.board);
+    this.board = [...board];
+    this.loadedBoard = [...loaded];
+    if (changed) this.emit('sedef:board', this.boardState());
   }
 
   /** Loads preset values: stored ones snapped to range, missing ones default; globals untouched. */
@@ -547,6 +601,13 @@ export class MockBackend implements Backend {
     this.applyPresetValues(preset.values);
     this.presetState = { ...this.presetState, currentId: id, currentName: preset.info.name };
     if (notify) this.emit('sedef:params', { values: { ...this.values } });
+    // A preset saved before the board gets the one its parameters played (Board::legacyFor).
+    const board = preset.board ?? legacyBoardFor((enable) => this.value(enable) >= 0.5);
+    if (notify) this.setBoardFromPreset(board);
+    else {
+      this.board = [...board];
+      this.loadedBoard = [...board];
+    }
   }
 
   private markRecent(id: string): void {
@@ -560,6 +621,8 @@ export class MockBackend implements Backend {
     return {
       values: this.presetValues(),
       loaded: { ...this.loaded },
+      board: [...this.board],
+      loadedBoard: [...this.loadedBoard],
       currentId: this.presetState.currentId,
       currentName: this.presetState.currentName,
       dirty: this.isDirty(),
@@ -574,6 +637,7 @@ export class MockBackend implements Backend {
       this.values[id] = value;
     }
     this.loaded = { ...snapshot.loaded };
+    this.setBoardFromPreset(snapshot.board, snapshot.loadedBoard);
     // A preset deleted since the snapshot leaves its sound behind, no longer a preset.
     const exists = this.presets.some((p) => p.info.id === snapshot.currentId);
     this.presetState = {

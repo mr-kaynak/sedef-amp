@@ -4,14 +4,17 @@
 import type { ParamSpec, PresetBlock, PresetInfo } from '../protocol';
 import { snapValue } from '../../params/normalise';
 import { AMP_NAMES } from '../../params/schema';
+import { legacyBoardFor, pedalMeta } from '../../features/pedals/registry';
 
 type Described = Pick<PresetInfo, 'amp' | 'cab' | 'blocks'>;
 
 const EQ_BANDS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
+/** `pedals`: the preset's board; without one, the board it gets (legacyBoardFor). */
 export function describePreset(
   stored: Record<string, number>,
   specs: Record<string, ParamSpec>,
+  pedals?: readonly string[],
 ): Described {
   const value = (id: string) => {
     const spec = specs[id];
@@ -29,15 +32,15 @@ export function describePreset(
     value(`${bank}HighCut`) < 19990 ||
     EQ_BANDS.some((b) => Math.abs(value(`${bank}Band${b}`)) > 0.05);
 
-  const blocks: PresetBlock[] = [];
+  // The pedals on its board that it switches on, in the board's order, then the post blocks.
+  const board = pedals ?? legacyBoardFor(on);
+  const blocks: PresetBlock[] = board.filter((id) => {
+    const meta = pedalMeta(id);
+    return meta !== undefined && on(meta.enable);
+  });
   const add = (id: string, block: PresetBlock) => {
     if (on(id)) blocks.push(block);
   };
-  add('gateEnabled', 'gate');
-  add('tideEnabled', 'tide');
-  add('pearlEnabled', 'pearl');
-  add('coralEnabled', 'coral');
-  add('rippleEnabled', 'ripple');
   if (eqShapes) add(`${bank}Enabled`, 'eq');
   add('doublerEnabled', 'doubler');
   add('driftEnabled', 'drift');

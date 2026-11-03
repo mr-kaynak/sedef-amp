@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // The preset browser's model, as pure functions: which presets a library view holds, the
 // categories and tags it offers, search, sorting, and the signal-chain summary of a row.
-import type { PresetBlock, PresetInfo } from '../../bridge/protocol';
+import type { PostBlock, PresetBlock, PresetInfo } from '../../bridge/protocol';
+import { isPedalId, pedalName } from '../pedals/registry';
 import { AMP_NAMES, bundledSchema } from '../../params/schema';
 
 export type Library = 'all' | 'favorites' | 'recent' | 'factory' | 'user';
@@ -102,24 +103,22 @@ export function tagFacets(items: readonly PresetInfo[]): Facet[] {
 
 // Signal chain ------------------------------------------------------------------------------------
 
-export const BLOCK_LABELS: Record<PresetBlock, string> = {
-  gate: 'Gate',
-  tide: 'Tide',
-  pearl: 'Pearl',
-  coral: 'Coral',
-  ripple: 'Ripple',
+const POST_LABELS: Record<PostBlock, string> = {
   eq: 'EQ',
   doubler: 'Doubler',
   drift: 'Drift',
   fathom: 'Fathom',
 };
 
+/** A block's name: a pedal's from the registry, else the post block's. */
+export function blockLabel(b: PresetBlock): string {
+  return isPedalId(b) ? pedalName(b) : (POST_LABELS[b as PostBlock] ?? b);
+}
+
 /** Cab names in cabModel order ("1x12 Open Back"…), and their short form ("1x12"). */
 export const CAB_NAMES: readonly string[] = bundledSchema.find((s) => s.id === 'cabModel')
   ?.choices ?? ['1x12', '2x12', '4x12'];
 export const CAB_LABELS: readonly string[] = CAB_NAMES.map((c) => c.split(' ')[0] ?? c);
-
-const PRE_AMP: readonly PresetBlock[] = ['tide', 'pearl', 'coral', 'ripple'];
 
 export interface ChainPart {
   kind: 'block' | 'amp';
@@ -133,13 +132,14 @@ export function ampName(p: Pick<PresetInfo, 'amp'>): string {
 }
 
 /**
- * The switched-on chain in signal order, pedals then amp and cab then post effects. The gate is
- * left out: it is on in almost every preset and says nothing about the sound.
+ * The switched-on chain in signal order: the pedals in their board's order, then amp and cab,
+ * then post effects. The gate is left out: it is on in almost every preset and says nothing about
+ * the sound.
  */
 export function chainParts(p: Pick<PresetInfo, 'amp' | 'cab' | 'blocks'>): ChainPart[] {
-  const block = (b: PresetBlock): ChainPart => ({ kind: 'block', label: BLOCK_LABELS[b] });
-  const pre = p.blocks.filter((b) => PRE_AMP.includes(b));
-  const post = p.blocks.filter((b) => b !== 'gate' && !PRE_AMP.includes(b));
+  const block = (b: PresetBlock): ChainPart => ({ kind: 'block', label: blockLabel(b) });
+  const pre = p.blocks.filter((b) => isPedalId(b) && b !== 'gate');
+  const post = p.blocks.filter((b) => !isPedalId(b));
   return [
     ...pre.map(block),
     { kind: 'amp', label: ampName(p), detail: CAB_LABELS[p.cab] ?? '' },
@@ -182,7 +182,7 @@ function haystack(p: PresetInfo): string {
     ...p.tags,
     ampName(p),
     CAB_LABELS[p.cab] ?? '',
-    ...p.blocks.map((b) => BLOCK_LABELS[b]),
+    ...p.blocks.map(blockLabel),
   ]
     .join(' ')
     .toLowerCase();

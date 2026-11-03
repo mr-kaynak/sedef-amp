@@ -37,9 +37,14 @@ export type ParamValues = Record<string, number>;
 // ---------------------------------------------------------------------------------------------
 // Presets
 
-/** Blocks a preset can switch on besides the amp and cab, in signal order. */
-export type PresetBlock =
-  'gate' | 'tide' | 'pearl' | 'coral' | 'ripple' | 'eq' | 'doubler' | 'drift' | 'fathom';
+/** The blocks after the amp and cab, in signal order. */
+export type PostBlock = 'eq' | 'doubler' | 'drift' | 'fathom';
+
+/**
+ * A block a preset switches on besides the amp and cab: a pedal id from the pedal registry
+ * (src/generated/pedals.json), or a post block.
+ */
+export type PresetBlock = string;
 
 export interface PresetInfo {
   /** Stable id: "factory:<slug>" or "user:<relative path>" */
@@ -58,8 +63,9 @@ export interface PresetInfo {
   /** The cab it plays through: the amp's own while ampCabLink is on, otherwise cabModel. */
   cab: number;
   /**
-   * Switched-on blocks besides the amp and cab, in signal order. The EQ counts only when the
-   * amp's bank is on and not flat.
+   * Switched-on blocks besides the amp and cab, in signal order: the pedals on its board that it
+   * switches on, in the board's order, then the post blocks. The EQ counts only when the amp's
+   * bank is on and not flat.
    */
   blocks: PresetBlock[];
 }
@@ -105,6 +111,18 @@ export interface PresetDetails {
  * restore invalidates them.
  */
 export type SnapshotSlot = 'browse' | 'undo';
+
+// ---------------------------------------------------------------------------------------------
+// The pedalboard (docs/architecture.md, "The pedalboard"). Not a parameter: it is saved with the
+// session and presets and carried by snapshots and A/B. Pedals off the board keep their
+// parameters but don't play.
+
+export interface BoardState {
+  /** Pedal ids in signal order, input first. */
+  pedals: string[];
+  /** Counts up with every board state the plugin sends; drop one older than the one you have. */
+  revision?: number;
+}
 
 // ---------------------------------------------------------------------------------------------
 // Custom impulse responses (one slot per mic x cab)
@@ -251,6 +269,8 @@ export interface HelloResponse {
   ir: IrState;
   /** Absent from plug-ins built before captures. */
   capture?: CaptureState;
+  /** Absent from plug-ins built before the pedalboard (their pedals play in a fixed order). */
+  board?: BoardState;
 }
 
 /** UI-owned state persisted inside the plugin state. The plugin treats it as opaque JSON. */
@@ -318,6 +338,12 @@ export interface NativeFunctions {
   sedef_capture_loadRecent(path: string): CaptureState;
   /** Unloads the capture and goes back to the amp models. */
   sedef_capture_clear(): CaptureState;
+
+  /**
+   * Replaces the pedalboard: pedal ids in signal order. Unknown ids and repeats are dropped. The
+   * engine takes it at the next block, through bypass fades or a short duck.
+   */
+  sedef_board_set(pedals: string[]): BoardState;
 
   /** Starts/stops pitch analysis (tuner and intonation). Events flow only while active. */
   sedef_tuner_setActive(active: boolean): void;
@@ -412,6 +438,8 @@ export interface Events {
   'sedef:ir': IrState;
   /** Capture loads, clears, restores and recent-list changes. */
   'sedef:capture': CaptureState;
+  /** The board changed elsewhere: a preset load, A/B, a snapshot or a host restore. */
+  'sedef:board': BoardState;
   /** Update checks and downloads (state changes and download progress, at most ~10 Hz). */
   'sedef:update': UpdateState;
 }

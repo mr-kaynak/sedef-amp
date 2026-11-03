@@ -7,6 +7,7 @@ import { bundledSchema, defaultValues } from '../params/schema';
 import { resetSenderState } from '../params/sender';
 import { NO_CAPTURE, useAppStore } from '../state/appStore';
 import { setBackend } from '../state/backendRef';
+import { resetBoardStore } from '../state/boardStore';
 import { pitch, telemetry } from '../state/live';
 import { EMPTY_PRESET_STATE, usePresetStore } from '../state/presetStore';
 import { useToastStore } from '../state/toastStore';
@@ -23,6 +24,7 @@ export function resetStores(): void {
   usePresetStore.setState({ state: EMPTY_PRESET_STATE });
   resetBrowserSession();
   useToastStore.setState({ toast: null });
+  resetBoardStore();
   useUiStore.setState({
     section: 'amp',
     overlay: null,

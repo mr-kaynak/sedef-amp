@@ -20,7 +20,6 @@ pnpm typecheck    # tsc, strict
 pnpm format       # Prettier
 pnpm screenshots  # renders docs/images/*.png from dist/ (needs a build first)
 pnpm captures     # trailer stills (3x) + brand assets into ../media/trailer/assets
-                  # (--out <dir> elsewhere, --scale 0.75 or 1 for the plugin's window sizes)
 ```
 
 `pnpm screenshots` drives headless Chromium through Playwright and fails on any console error or
@@ -195,7 +194,7 @@ browser the canvas fits the window. Everything is vector or text, so it stays cr
 | Header     | logo, preset bar (prev/next, category chip, name with dirty dot, A/B with copy, Save), input/output gain with peak meters, clip latches and the Doubler switch, Tuner, Intonation, Metronome (standalone only), Settings         |
 | Presets    | browser over the rig ([details](ui/presets.md)): rail, list with tag chips and search, detail pane with the chain by stage; click or arrows audition, Enter keeps, Esc goes back exactly; `[` `]` `P` `A` `B`                    |
 | Tabs       | Pedals · Amp · EQ · Cab · FX, keys 1–5 and arrow keys; each tab shows what is switched on inside it                                                                                                                              |
-| Pedals     | Gate (threshold, open/closed lamp); seven enclosures in signal order (Trench, Tide, Urchin, Pearl, Kelp, Coral, Ripple) with LEDs and footswitches; Tide gain reduction, Ripple rate lamp; playing hints on Trench and Urchin, read with their footswitch |
+| Pedals     | Gate (threshold, open/closed lamp); Trench/Tide/Urchin/Pearl/Kelp/Coral/Ripple enclosures in signal order with LEDs and footswitches (the row scrolls sideways when they don't fit); Tide gain reduction, Ripple rate lamp; playing hints on Trench and Urchin, read with their footswitch |
 | Amp        | Lagoon/Reef/Abyss faceplates; Reef voice lever; Abyss bright/shift levers; amp/cab link; Capture: load or drop a .nam file, gear/author/model, trims, through-cab, interface level, recent, missing file                         |
 | EQ         | the current amp's bank: 9 faders on a log axis under a live response curve, low/high cut, on/off, flatten                                                                                                                        |
 | Cab        | cab picker; Mic A/B markers anywhere over the cone (drag or click to place, wheel or Alt-drag for distance, keys), off-axis stem, other speakers' map; type, position, distance, off-axis, level, pan, phase, room, custom IR    |
@@ -251,10 +250,8 @@ something is alive.
   same nacre inlays the logo (an eight-pointed star, as in sedef inlay work), the in-tune note,
   active selections, the Abyss badge and the Pearl enclosure. Nothing else glows.
 - **Hardware language**: pedals are painted enclosures with screws, chrome-bezel LEDs and hex-nut
-  footswitches. Seven slim ones (152 × 440 px) share the board in one row, in signal order, each
-  in its own paint: Trench navy, Tide slate, Urchin plum, Pearl nacre, Kelp olive, Coral red,
-  Ripple indigo, with every legend at 4.5:1 or better. Amps are heads with grille cloth and an
-  engraved plate (Lagoon is pale sea-glass, Reef is oxblood, Abyss is ink with a nacre badge).
+  footswitches; amps are heads with grille cloth and an engraved plate (Lagoon is pale sea-glass,
+  Reef is oxblood, Abyss is ink with a nacre badge).
 - **Accessibility**: every control is reachable by keyboard with a visible focus ring; knobs and
   faders are ARIA sliders with real values and readable `aria-valuetext`; arrows, Page Up/Down,
   Home/End, Delete (reset), shift for fine control. Radio groups have one tab stop and arrow,

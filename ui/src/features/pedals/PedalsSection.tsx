@@ -6,18 +6,13 @@ import { Segmented } from '../../controls/Segmented';
 import { Toggle } from '../../controls/Toggle';
 import { useParamValue } from '../../params/useParam';
 import { telemetry, useLiveFrame, useLiveSelector } from '../../state/live';
+import { KelpPedal } from './KelpPedal';
 import { Pedal, type PedalFinish } from './Pedal';
 import styles from './PedalsSection.module.css';
+import { TrenchPedal } from './TrenchPedal';
+import { UrchinPedal } from './UrchinPedal';
 
-type PedalName = 'trench' | 'tide' | 'urchin' | 'pearl' | 'kelp' | 'coral' | 'ripple';
-
-const FINISH: Record<PedalName, PedalFinish> = {
-  // The deepest water: navy, lifted enough to stand off the page's lacquer.
-  trench: {
-    paint: ['#2a3a5e', '#18233d'],
-    legend: '#e6ebf6',
-    legendDim: 'rgb(230 235 246 / 0.82)',
-  },
+const FINISH: Record<'tide' | 'pearl' | 'coral' | 'ripple', PedalFinish> = {
   tide: { paint: ['#46677a', '#2c4757'], legend: '#eef0ea', legendDim: 'rgb(238 240 234 / 0.86)' },
   pearl: {
     paint: ['#efeadf', '#d8d1c2'],
@@ -34,14 +29,6 @@ const FINISH: Record<PedalName, PedalFinish> = {
     legend: '#ece9f8',
     legendDim: 'rgb(236 233 248 / 0.75)',
   },
-  // A sea urchin's plum.
-  urchin: {
-    paint: ['#6e3460', '#4b2041'],
-    legend: '#f8e8f1',
-    legendDim: 'rgb(248 232 241 / 0.88)',
-  },
-  // Kelp's olive brown-green (4.8:1 for the dim legend at the lighter top).
-  kelp: { paint: ['#56653a', '#3a4626'], legend: '#f1f0df', legendDim: 'rgb(241 240 223 / 0.9)' },
 };
 
 /** Gain-reduction ladder for the compressor, drawn from telemetry without re-rendering. */
@@ -114,18 +101,7 @@ export function PedalsSection() {
       </div>
 
       <div className={styles.board}>
-        <Pedal
-          name="Trench"
-          kind="Octave down"
-          enableParam="trenchEnabled"
-          finish={FINISH.trench}
-          hint="One note at a time"
-        >
-          <Knob param="trenchSub1" label="Sub −1" />
-          <Knob param="trenchSub2" label="Sub −2" />
-          <Knob param="trenchDirect" label="Direct" />
-          <Knob param="trenchTone" label="Tone" />
-        </Pedal>
+        <TrenchPedal />
         <Pedal
           name="Tide"
           kind="Compressor"
@@ -138,29 +114,14 @@ export function PedalsSection() {
           <Knob param="tideLevel" label="Level" />
           <Knob param="tideBlend" label="Blend" />
         </Pedal>
-        <Pedal
-          name="Urchin"
-          kind="Octave-up fuzz"
-          enableParam="urchinEnabled"
-          finish={FINISH.urchin}
-          hint="Neck pickup, above the 12th fret"
-        >
-          <Knob param="urchinFuzz" label="Fuzz" />
-          <Knob param="urchinOctave" label="Octave" />
-          <Knob param="urchinTone" label="Tone" />
-          <Knob param="urchinLevel" label="Level" />
-        </Pedal>
+        <UrchinPedal />
         <Pedal name="Pearl" kind="Overdrive" enableParam="pearlEnabled" finish={FINISH.pearl}>
           <Knob param="pearlGain" label="Gain" />
           <Knob param="pearlTone" label="Tone" />
           <Knob param="pearlLevel" label="Level" />
           <Knob param="pearlMid" label="Mid boost" />
         </Pedal>
-        <Pedal name="Kelp" kind="Mid overdrive" enableParam="kelpEnabled" finish={FINISH.kelp}>
-          <Knob param="kelpDrive" label="Drive" />
-          <Knob param="kelpTone" label="Tone" />
-          <Knob param="kelpLevel" label="Level" className={styles.span2} />
-        </Pedal>
+        <KelpPedal />
         <Pedal name="Coral" kind="Distortion" enableParam="coralEnabled" finish={FINISH.coral}>
           <Knob param="coralGain" label="Gain" />
           <Knob param="coralCut" label="Cut" />

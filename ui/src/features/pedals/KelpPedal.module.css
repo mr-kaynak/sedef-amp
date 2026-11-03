@@ -1,0 +1,5 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Three knobs: Drive and Tone side by side, Level centred under them. */
+.level {
+  grid-column: span 2;
+}

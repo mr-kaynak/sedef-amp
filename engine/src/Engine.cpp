@@ -69,6 +69,8 @@ dsp::CabSim::MicSettings micSettings (const ParamSnapshot& p, int mic, int cab)
     m.invertPolarity = p.flag (base (P::micAPhase, P::micBPhase));
     m.roomEnabled = p.flag (base (P::roomAEnabled, P::roomBEnabled));
     m.roomLevelDb = p[base (P::roomALevel, P::roomBLevel)];
+    m.azimuthDeg = p[base (P::micAAzimuth, P::micBAzimuth)];
+    m.offAxisDeg = p[base (P::micAOffAxis, P::micBOffAxis)];
     return m;
 }
 

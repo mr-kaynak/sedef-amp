@@ -28,8 +28,14 @@ constexpr double kGainRampSeconds = 0.02;
 constexpr double kSwitchRampSeconds = 0.03;
 constexpr double kPlacementSmoothingSeconds = 0.03; // one-pole time constant
 constexpr double kMaxPlacementDelaySeconds = 0.004;
+constexpr double kMaxBleedSeconds = 0.0025; // the far speaker of a 4x12 is ~1.7 ms further
+constexpr float kOffAxisRest = 1.0e-7f;     // relative state below which the off-axis stages stop
+constexpr float kOffAxisFloor = 1.0e-12f;   // and absolute (-240 dB), for when the input is silent
 constexpr double kMaxReflectionSeconds = 0.003;
+// A glide ends with a snap this close to the target (0.01 mm across the cone, 0.03 mm back, 0.006
+// degrees off axis, 0.01 degrees round); ten times coarser doubles the residue under automation.
 constexpr float kSnapTolerance = 1.0e-4f;
+constexpr float kAzimuthSnapDeg = 0.01f;
 constexpr float kRoomPanWidth = 0.5f; // room sends follow the mic pan, narrower
 constexpr int kNumSlots = CabSim::kNumMics * CabSim::kNumCabs;
 
@@ -125,11 +131,14 @@ struct CabSim::Impl
         VoiceConfig config;
         bool live = false;
 
-        // Procedural chain: [reflection] -> body | room tap | position -> mic -> distance -> air.
+        // Procedural chain: [reflection] -> body | room tap | bleed tap -> near stages (position,
+        // proximity, air) + the other speakers -> capsule stages (mic, off axis) -> time of
+        // flight + floor bounce. A custom IR voice uses stages[0, kOffAxisStages) for its
+        // off-axis filter.
         std::array<cab::Stage, cab::kMaxStages> stages {};
         int numBody = 0;
-        int numStages = 0;
-        int distanceIndex = 0;
+        int capsuleIndex = 0;
+        int offAxisIndex = 0;
         float norm = 1.0f;
         float roomNorm = 1.0f;
 
@@ -144,6 +153,16 @@ struct CabSim::Impl
         float nextArrival = 0.0f, nextBounce = 1.0f, nextBounceGain = 0.0f, nextLevel = 1.0f;
         float bounceState = 0.0f;
 
+        // The other speakers: delayed, low-passed copies of the body output.
+        DelayLine bleedLine;
+        int numBleed = 0;
+        std::array<cab::Stage, cab::kMaxNeighbours> bleedLp {};
+        cab::Stage bleedShelf; // gives the neighbours' low end back (see cab::placement)
+        std::array<float, cab::kMaxNeighbours> bleedDelay {}, bleedGain {};
+        std::array<float, cab::kMaxNeighbours> nextBleedDelay {}, nextBleedGain {};
+
+        bool offAxisLive = false; // the off-axis stages run (identity and skipped on axis)
+
         cab::PartitionedConvolver convolver;
     };
 
@@ -155,8 +174,11 @@ struct CabSim::Impl
         float fade = 0.0f;   // starts below 0: the pre-roll
         bool idle = true;
 
-        ExpSmoothed position, distance;
-        float appliedPosition = 0.5f, appliedDistance = 0.0f;
+        // The pose glides in polar coordinates, so a move round the cone keeps its radius;
+        // azimuth in degrees, unwrapped (it takes the short way and may leave -180..180).
+        ExpSmoothed position, azimuth, distance, offAxis; // offAxis: angle / 60
+        cab::MicPose applied;                      // what the voices' filters are designed for
+        float appliedPosition = 0.0f;              // the position it was built from
         LinearSmoothed gainL, gainR, roomL, roomR; // level x pan
         SwitchRamp micSwitch;                      // 0 off, +1 on, -1 on and inverted
         SwitchRamp roomSwitch;
@@ -198,6 +220,8 @@ struct CabSim::Impl
 
         const int reflectionMax = static_cast<int> (std::ceil (kMaxReflectionSeconds * fs)) + 4;
         const int airMax = static_cast<int> (std::ceil (kMaxPlacementDelaySeconds * fs)) + 4;
+        // Bleed taps are read up to one control block back from the newest sample.
+        const int bleedMax = static_cast<int> (std::ceil (kMaxBleedSeconds * fs)) + kChunk + 2;
         for (auto& mic : mics)
         {
             for (auto& v : mic.voices)
@@ -205,9 +229,10 @@ struct CabSim::Impl
                 v.convolver.prepare (fft, partition, tailCapacity);
                 v.reflection.prepare (reflectionMax);
                 v.air.prepare (airMax);
+                v.bleedLine.prepare (bleedMax);
             }
-            mic.position.reset (fs, kPlacementSmoothingSeconds);
-            mic.distance.reset (fs, kPlacementSmoothingSeconds);
+            for (auto* g : { &mic.position, &mic.azimuth, &mic.distance, &mic.offAxis })
+                g->reset (fs, kPlacementSmoothingSeconds);
             for (auto* g : { &mic.gainL, &mic.gainR, &mic.roomL, &mic.roomR })
                 g->reset (fs, kGainRampSeconds);
             mic.micSwitch.reset (fs, kSwitchRampSeconds);
@@ -256,8 +281,8 @@ struct CabSim::Impl
         for (int m = 0; m < kNumMics; ++m)
         {
             Mic& mic = mics[static_cast<size_t> (m)];
-            mic.position.setCurrentAndTarget (mic.position.target());
-            mic.distance.setCurrentAndTarget (mic.distance.target());
+            for (auto* g : { &mic.position, &mic.azimuth, &mic.distance, &mic.offAxis })
+                g->setCurrentAndTarget (g->target());
             for (auto* g : { &mic.gainL, &mic.gainR, &mic.roomL, &mic.roomR })
                 g->setCurrentAndTarget (g->target());
             mic.micSwitch.snap();
@@ -275,8 +300,16 @@ struct CabSim::Impl
         {
             const MicSettings& s = settings.mics[static_cast<size_t> (m)];
             Mic& mic = mics[static_cast<size_t> (m)];
+            const float defaultAzimuth = Settings {}.mics[static_cast<size_t> (m)].azimuthDeg;
+            const float azimuth =
+                std::isfinite (s.azimuthDeg) ? std::fmod (s.azimuthDeg, 360.0f) : defaultAzimuth;
+            // The short way round from where the glide is now (179 -> -179 is two degrees).
+            const float from = mic.azimuth.current();
             mic.position.setTarget (sanitise (s.position, 0.0f, 1.0f, 0.5f));
+            mic.azimuth.setTarget (from + std::remainder (azimuth - from, 360.0f));
             mic.distance.setTarget (sanitise (s.distance, 0.0f, 1.0f, 0.0f));
+            mic.offAxis.setTarget (sanitise (s.offAxisDeg, 0.0f, cab::kMaxOffAxisDeg, 0.0f) /
+                                   cab::kMaxOffAxisDeg);
 
             const float level = dbToGain (sanitise (s.levelDb, -100.0f, 24.0f, 0.0f));
             const PanGains pan = constantPowerPan (s.pan);
@@ -380,33 +413,68 @@ struct CabSim::Impl
         v.nextBounce = static_cast<float> (pl.bounceSec * fs);
         v.nextBounceGain = pl.bounceGain;
         v.nextLevel = pl.levelGain;
+        for (int k = 0; k < v.numBleed; ++k)
+        {
+            const cab::Bleed& b = pl.bleed[static_cast<size_t> (k)];
+            v.nextBleedDelay[static_cast<size_t> (k)] = static_cast<float> (b.delaySec * fs);
+            v.nextBleedGain[static_cast<size_t> (k)] = b.gain;
+        }
     }
+
+    /// A custom IR keeps its own position and distance; turning the capsule still changes what
+    /// it hears, so the generic dynamic capsule's off-axis model follows the IR.
+    void designIrOffAxis (Voice& v, float angle, bool glide) const noexcept
+    {
+        const cab::MicModel& capsule = cab::micModel (cab::kIrCapsuleType);
+        cab::Placement pl;
+        const float amount = cab::offAxisAmount (angle);
+        pl.presenceCutDb = -capsule.presenceDb * amount;
+        pl.offAxisShelfDb = capsule.offAxisDb * amount;
+        std::array<cab::Stage, cab::kOffAxisStages> fresh {};
+        cab::designOffAxisStages (capsule, pl, fs, fresh.data());
+        for (int i = 0; i < cab::kOffAxisStages; ++i)
+        {
+            if (glide)
+                v.stages[static_cast<size_t> (i)].rampTo (fresh[static_cast<size_t> (i)].c);
+            else
+                v.stages[static_cast<size_t> (i)].c = fresh[static_cast<size_t> (i)].c;
+        }
+        v.nextLevel = cab::polarGain (capsule, angle);
+    }
+
+    static int proximityIndex (const Voice& v) noexcept { return v.numBody + cab::kPositionStages; }
 
     void startVoice (const Mic& mic, Voice& v, const VoiceConfig& cfg) noexcept
     {
         v.config = cfg;
         v.live = true;
-        if (cfg.kernel != nullptr)
-        {
-            v.convolver.reset();
-            return;
-        }
-
-        const cab::CabModel& cabModel = cab::cabModel (cfg.cab);
-        const cab::MicModel& micModel = cab::micModel (cfg.type);
-        v.numBody = cab::designBodyStages (cabModel, fs, v.stages.data());
-        cab::designPositionStages (cabModel, mic.appliedPosition, fs, v.stages.data() + v.numBody);
-        int count = v.numBody + cab::kPositionStages;
-        count += cab::designMicStages (micModel, fs, v.stages.data() + count);
-        v.distanceIndex = count;
-        const cab::Placement pl = cab::placement (cabModel, micModel, mic.appliedDistance);
-        cab::designDistanceStages (micModel, pl, fs, v.stages.data() + count);
-        v.numStages = count + cab::kDistanceStages;
+        const cab::MicPose& pose = mic.applied;
         for (auto& st : v.stages)
         {
             st.reset();
             st.ramp = false;
         }
+        if (cfg.kernel != nullptr)
+        {
+            v.convolver.reset();
+            designIrOffAxis (v, pose.offAxisDeg, false);
+            v.level = v.nextLevel;
+            v.offAxisLive = pose.offAxisDeg > 0.0f;
+            return;
+        }
+
+        const cab::CabModel& cabModel = cab::cabModel (cfg.cab);
+        const cab::MicModel& micModel = cab::micModel (cfg.type);
+        const cab::Placement pl = cab::placement (cabModel, micModel, pose);
+        v.numBody = cab::designBodyStages (cabModel, fs, v.stages.data());
+        cab::designPositionStages (cabModel, mic.appliedPosition, fs, v.stages.data() + v.numBody);
+        cab::designProximityStage (micModel, pl, fs, v.stages.data() + proximityIndex (v));
+        cab::designAirStage (pl, fs, v.stages.data() + proximityIndex (v) + 1);
+        v.capsuleIndex = v.numBody + cab::kNearStages;
+        v.offAxisIndex =
+            v.capsuleIndex + cab::designMicStages (micModel, fs, v.stages.data() + v.capsuleIndex);
+        cab::designOffAxisStages (micModel, pl, fs, v.stages.data() + v.offAxisIndex);
+        v.offAxisLive = pose.offAxisDeg > 0.0f;
 
         v.norm = calibration.voice[static_cast<size_t> (cfg.cab)][static_cast<size_t> (cfg.type)];
         v.roomNorm = calibration.body[static_cast<size_t> (cfg.cab)];
@@ -418,6 +486,19 @@ struct CabSim::Impl
         v.reflectionCoeff = cab::onePoleCoeff (cabModel.reflectionLpHz, fs);
         v.reflectionState = 0.0f;
 
+        v.numBleed = pl.numBleed;
+        v.bleedLine.reset();
+        for (int k = 0; k < v.numBleed; ++k)
+        {
+            auto& lp = v.bleedLp[static_cast<size_t> (k)];
+            lp.reset();
+            lp.ramp = false;
+            lp.c = cab::designBleedFilter (pl.bleed[static_cast<size_t> (k)], fs);
+        }
+        v.bleedShelf.reset();
+        v.bleedShelf.ramp = false;
+        v.bleedShelf.c = cab::designBleedShelf (pl, fs);
+
         v.air.reset();
         v.bounceState = 0.0f;
         setPlacementTargets (v, pl);
@@ -425,6 +506,8 @@ struct CabSim::Impl
         v.bounce = v.nextBounce;
         v.bounceGain = v.nextBounceGain;
         v.level = v.nextLevel;
+        v.bleedDelay = v.nextBleedDelay;
+        v.bleedGain = v.nextBleedGain;
     }
 
     /// Brings an idle mic back: no crossfade, the voice starts clean on the current target. While
@@ -433,12 +516,14 @@ struct CabSim::Impl
     void wake (int m) noexcept
     {
         Mic& mic = mics[static_cast<size_t> (m)];
-        mic.position.setCurrentAndTarget (mic.position.target());
-        mic.distance.setCurrentAndTarget (mic.distance.target());
+        for (auto* g : { &mic.position, &mic.azimuth, &mic.distance, &mic.offAxis })
+            g->setCurrentAndTarget (g->target());
         for (auto* g : { &mic.gainL, &mic.gainR, &mic.roomL, &mic.roomR })
             g->setCurrentAndTarget (g->target());
         mic.appliedPosition = mic.position.current();
-        mic.appliedDistance = mic.distance.current();
+        mic.applied =
+            cab::MicPose::polar (mic.appliedPosition, mic.azimuth.current(), mic.distance.current(),
+                                 mic.offAxis.current() * cab::kMaxOffAxisDeg);
         release (mic.voices[0]);
         release (mic.voices[1]);
         mic.active = 0;
@@ -448,63 +533,234 @@ struct CabSim::Impl
         startVoice (mic, mic.voices[0], targetConfig (m));
     }
 
-    /// Position and distance glide (one-pole); filters follow once per control block.
+    /// The pose glides (one-pole, in polar coordinates: a move round the cone keeps its radius,
+    /// and the azimuth takes the short way); filters follow once per control block.
     void updatePlacement (Mic& mic, int n) noexcept
     {
-        const auto glide = [n] (ExpSmoothed& s) {
+        const auto glide = [n] (ExpSmoothed& s, float tolerance) {
             float v = s.skip (n);
-            if (std::abs (v - s.target()) < kSnapTolerance)
+            if (std::abs (v - s.target()) < tolerance)
             {
                 s.setCurrentAndTarget (s.target());
                 v = s.target();
             }
             return v;
         };
-
-        static_assert (cab::kPositionStages >= cab::kDistanceStages, "`fresh` serves both groups");
-        std::array<cab::Stage, cab::kPositionStages> fresh {};
-        const float p = glide (mic.position);
-        if (p != mic.appliedPosition)
+        const float position = glide (mic.position, kSnapTolerance);
+        float azimuth = glide (mic.azimuth, kAzimuthSnapDeg);
+        if (std::abs (azimuth) > 180.0f)
         {
-            mic.appliedPosition = p;
-            for (auto& v : mic.voices)
-            {
-                if (!v.live || v.config.kernel != nullptr)
-                    continue;
-                cab::designPositionStages (cab::cabModel (v.config.cab), p, fs, fresh.data());
-                for (int i = 0; i < cab::kPositionStages; ++i)
-                    v.stages[static_cast<size_t> (v.numBody + i)].rampTo (
-                        fresh[static_cast<size_t> (i)].c);
-            }
+            // Keep the unwrapped angle near the -180..180 range (an endless orbit stays exact).
+            const float turns = 360.0f * std::round (azimuth / 360.0f);
+            const float target = mic.azimuth.target() - turns;
+            azimuth -= turns;
+            mic.azimuth.setCurrentAndTarget (azimuth);
+            mic.azimuth.setTarget (target);
         }
+        const cab::MicPose pose =
+            cab::MicPose::polar (position, azimuth, glide (mic.distance, kSnapTolerance),
+                                 glide (mic.offAxis, kSnapTolerance) * cab::kMaxOffAxisDeg);
+        if (pose == mic.applied && position == mic.appliedPosition)
+            return;
+        const cab::MicPose old = mic.applied;
+        const bool across = position != mic.appliedPosition;
+        mic.applied = pose;
+        mic.appliedPosition = position;
+        const bool moved = across || pose.x != old.x || pose.y != old.y;
+        const bool pulled = pose.distance != old.distance;
+        const bool turned = pose.offAxisDeg != old.offAxisDeg;
 
-        const float d = glide (mic.distance);
-        if (d != mic.appliedDistance)
+        const auto rampGroup = [] (cab::Stage* to, const cab::Stage* from, int count) {
+            for (int i = 0; i < count; ++i)
+                to[i].rampTo (from[i].c);
+        };
+        std::array<cab::Stage, cab::kPositionStages> fresh {};
+        for (auto& v : mic.voices)
         {
-            mic.appliedDistance = d;
-            for (auto& v : mic.voices)
+            if (!v.live)
+                continue;
+            if (v.config.kernel != nullptr)
             {
-                if (!v.live || v.config.kernel != nullptr)
-                    continue;
-                const cab::MicModel& micModel = cab::micModel (v.config.type);
-                const cab::Placement pl =
-                    cab::placement (cab::cabModel (v.config.cab), micModel, d);
-                cab::designDistanceStages (micModel, pl, fs, fresh.data());
-                for (int i = 0; i < cab::kDistanceStages; ++i)
-                    v.stages[static_cast<size_t> (v.distanceIndex + i)].rampTo (
-                        fresh[static_cast<size_t> (i)].c);
-                setPlacementTargets (v, pl);
+                if (turned)
+                {
+                    designIrOffAxis (v, pose.offAxisDeg, true);
+                    v.offAxisLive = true;
+                }
+                continue;
             }
+            const cab::CabModel& cabModel = cab::cabModel (v.config.cab);
+            const cab::MicModel& micModel = cab::micModel (v.config.type);
+            const cab::Placement pl = cab::placement (cabModel, micModel, pose);
+            if (across)
+            {
+                cab::designPositionStages (cabModel, position, fs, fresh.data());
+                rampGroup (v.stages.data() + v.numBody, fresh.data(), cab::kPositionStages);
+            }
+            if (pulled || turned)
+            {
+                cab::designProximityStage (micModel, pl, fs, fresh.data());
+                rampGroup (v.stages.data() + proximityIndex (v), fresh.data(), 1);
+            }
+            if (pulled)
+            {
+                cab::designAirStage (pl, fs, fresh.data());
+                rampGroup (v.stages.data() + proximityIndex (v) + 1, fresh.data(), 1);
+            }
+            if (turned)
+            {
+                cab::designOffAxisStages (micModel, pl, fs, fresh.data());
+                rampGroup (v.stages.data() + v.offAxisIndex, fresh.data(), cab::kOffAxisStages);
+                v.offAxisLive = true;
+            }
+            // The neighbours' filters glide too: stepping them once per block instead leaves
+            // three times the residue under automation.
+            if (moved || pulled)
+                for (int k = 0; k < v.numBleed; ++k)
+                    v.bleedLp[static_cast<size_t> (k)].rampTo (
+                        cab::designBleedFilter (pl.bleed[static_cast<size_t> (k)], fs));
+            if (v.numBleed > 0)
+                v.bleedShelf.rampTo (cab::designBleedShelf (pl, fs));
+            setPlacementTargets (v, pl);
         }
     }
 
-    void processVoice (Voice& v, const float* in, float* out, float* roomOut, int n) noexcept
+    /// The other speakers, added to the miked cone's sound before the capsule. Delays and gains
+    /// are interpolated across the block like the time of flight; K neighbours run in one pass so
+    /// their filter recursions overlap, gliding (Ramp) or not.
+    template <int K, bool Ramp>
+    void runBleed (Voice& v, float* out, int n) noexcept
+    {
+        const float inv = 1.0f / static_cast<float> (n);
+        std::array<cab::Stage*, K + 1> st {};
+        std::array<BiquadCoeffs, K + 1> c {}, d {};
+        std::array<float, K + 1> s1 {}, s2 {};
+        std::array<float, K> delay {}, dDelay {}, gain {}, dGain {};
+        for (size_t k = 0; k <= static_cast<size_t> (K); ++k)
+        {
+            st[k] = k < static_cast<size_t> (K) ? &v.bleedLp[k] : &v.bleedShelf;
+            c[k] = st[k]->c;
+            s1[k] = st[k]->s1;
+            s2[k] = st[k]->s2;
+            if constexpr (Ramp)
+            {
+                const BiquadCoeffs& t = st[k]->ramp ? st[k]->target : st[k]->c;
+                d[k] = { (t.b0 - c[k].b0) * inv, (t.b1 - c[k].b1) * inv, (t.b2 - c[k].b2) * inv,
+                         (t.a1 - c[k].a1) * inv, (t.a2 - c[k].a2) * inv };
+            }
+            if (k < static_cast<size_t> (K))
+            {
+                delay[k] = v.bleedDelay[k];
+                dDelay[k] = (v.nextBleedDelay[k] - v.bleedDelay[k]) * inv;
+                gain[k] = v.bleedGain[k];
+                dGain[k] = (v.nextBleedGain[k] - v.bleedGain[k]) * inv;
+            }
+        }
+        const auto section = [&] (size_t k, float x) {
+            if constexpr (Ramp)
+            {
+                c[k].b0 += d[k].b0;
+                c[k].b1 += d[k].b1;
+                c[k].b2 += d[k].b2;
+                c[k].a1 += d[k].a1;
+                c[k].a2 += d[k].a2;
+            }
+            const float y = c[k].b0 * x + s1[k];
+            s1[k] = c[k].b1 * x - c[k].a1 * y + s2[k];
+            s2[k] = c[k].b2 * x - c[k].a2 * y;
+            return y;
+        };
+        for (int i = 0; i < n; ++i)
+        {
+            // The whole block is already in the line: sample i sits n - 1 - i samples back.
+            const auto step = static_cast<float> (i + 1);
+            const auto back = static_cast<float> (n - 1 - i);
+            float sum = 0.0f;
+            for (size_t k = 0; k < static_cast<size_t> (K); ++k)
+                sum += (gain[k] + dGain[k] * step) *
+                       section (k, v.bleedLine.readCubic (delay[k] + dDelay[k] * step + back));
+            out[i] += section (static_cast<size_t> (K), sum);
+        }
+        for (size_t k = 0; k <= static_cast<size_t> (K); ++k)
+        {
+            st[k]->s1 = flushToZero (s1[k]);
+            st[k]->s2 = flushToZero (s2[k]);
+            if constexpr (Ramp)
+            {
+                if (st[k]->ramp)
+                {
+                    st[k]->c = st[k]->target;
+                    st[k]->ramp = false;
+                }
+            }
+        }
+        v.bleedDelay = v.nextBleedDelay;
+        v.bleedGain = v.nextBleedGain;
+    }
+
+    void addBleed (Voice& v, float* out, int n) noexcept
+    {
+        bool ramping = v.bleedShelf.ramp;
+        for (int k = 0; k < v.numBleed; ++k)
+            ramping = ramping || v.bleedLp[static_cast<size_t> (k)].ramp;
+        switch (v.numBleed)
+        {
+        case 1:
+            ramping ? runBleed<1, true> (v, out, n) : runBleed<1, false> (v, out, n);
+            break;
+        case 2:
+            ramping ? runBleed<2, true> (v, out, n) : runBleed<2, false> (v, out, n);
+            break;
+        default:
+            ramping ? runBleed<3, true> (v, out, n) : runBleed<3, false> (v, out, n);
+            break;
+        }
+    }
+
+    /// Off-axis stages: identity on axis, so they run only while the capsule is (or was just)
+    /// turned, and stop once back on axis with their memory negligible.
+    void runOffAxis (Voice& v, cab::Stage* st, float* out, int n, bool onAxis) noexcept
+    {
+        if (!v.offAxisLive)
+            return;
+        cab::runStages (st, cab::kOffAxisStages, out, n);
+        if (!onAxis)
+            return;
+        float peakOut = 0.0f, state = 0.0f;
+        for (int i = 0; i < n; ++i)
+            peakOut = std::max (peakOut, std::abs (out[i]));
+        for (int i = 0; i < cab::kOffAxisStages; ++i)
+            state = std::max ({ state, std::abs (st[i].s1), std::abs (st[i].s2) });
+        if (state <= std::max (kOffAxisFloor, kOffAxisRest * peakOut))
+        {
+            v.offAxisLive = false;
+            for (int i = 0; i < cab::kOffAxisStages; ++i)
+                st[i].reset();
+        }
+    }
+
+    /// Custom IR: the off-axis filter and the polar gain.
+    void processIrOffAxis (Voice& v, float* out, int n, float angle) noexcept
+    {
+        if (!v.offAxisLive)
+            return;
+        const float inv = 1.0f / static_cast<float> (n);
+        const float dLevel = (v.nextLevel - v.level) * inv;
+        for (int i = 0; i < n; ++i)
+            out[i] *= v.level + dLevel * static_cast<float> (i + 1);
+        v.level = v.nextLevel;
+        runOffAxis (v, v.stages.data(), out, n, angle == 0.0f && v.level == 1.0f);
+    }
+
+    void processVoice (Voice& v, const float* in, float* out, float* roomOut, int n,
+                       float angle) noexcept
     {
         const auto bytes = sizeof (float) * static_cast<size_t> (n);
         if (v.config.kernel != nullptr)
         {
             v.convolver.process (*v.config.kernel, in, out, n);
+            // The room mic does not care where the close capsule points.
             std::memcpy (roomOut, out, bytes);
+            processIrOffAxis (v, out, n, angle);
             return;
         }
 
@@ -527,7 +783,14 @@ struct CabSim::Impl
         cab::runStages (v.stages.data(), v.numBody, out, n);
         for (int i = 0; i < n; ++i)
             roomOut[i] = out[i] * v.roomNorm;
-        cab::runStages (v.stages.data() + v.numBody, v.numStages - v.numBody, out, n);
+        if (v.numBleed > 0)
+            for (int i = 0; i < n; ++i)
+                v.bleedLine.push (out[i]);
+        cab::runStages (v.stages.data() + v.numBody, cab::kNearStages, out, n);
+        if (v.numBleed > 0)
+            addBleed (v, out, n);
+        cab::runStages (v.stages.data() + v.capsuleIndex, v.offAxisIndex - v.capsuleIndex, out, n);
+        runOffAxis (v, v.stages.data() + v.offAxisIndex, out, n, angle == 0.0f);
 
         // Time of flight and floor bounce, interpolated across the block while distance glides.
         const float inv = 1.0f / static_cast<float> (n);
@@ -591,11 +854,12 @@ struct CabSim::Impl
         updatePlacement (mic, n);
 
         Voice& incoming = mic.voices[static_cast<size_t> (mic.active)];
-        processVoice (incoming, inBuf.data(), micBuf.data(), roomFeed.data(), n);
+        const float angle = mic.applied.offAxisDeg;
+        processVoice (incoming, inBuf.data(), micBuf.data(), roomFeed.data(), n, angle);
         if (mic.fading)
         {
             Voice& outgoing = mic.voices[static_cast<size_t> (mic.active ^ 1)];
-            processVoice (outgoing, inBuf.data(), fadeBuf.data(), fadeRoom.data(), n);
+            processVoice (outgoing, inBuf.data(), fadeBuf.data(), fadeRoom.data(), n, angle);
             for (int i = 0; i < n; ++i)
             {
                 mic.fade = std::min (1.0f, mic.fade + fadeStep);

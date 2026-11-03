@@ -14,13 +14,16 @@ namespace sedef::test::cab
 using dsp::CabSim;
 
 /// Settings with only mic A audible (centre pan, no room).
-inline CabSim::Settings soloMicA (int cab, int type, float position = 0.5f, float distance = 0.0f)
+inline CabSim::Settings soloMicA (int cab, int type, float position = 0.5f, float distance = 0.0f,
+                                  float azimuthDeg = 60.0f, float offAxisDeg = 0.0f)
 {
     CabSim::Settings s;
     s.cab = cab;
     s.mics[0].type = type;
     s.mics[0].position = position;
     s.mics[0].distance = distance;
+    s.mics[0].azimuthDeg = azimuthDeg;
+    s.mics[0].offAxisDeg = offAxisDeg;
     s.mics[1].enabled = false;
     return s;
 }
@@ -106,6 +109,12 @@ inline double bandDb (const std::vector<float>& ir, double fs, double lo, double
         }
     }
     return 10.0 * std::log10 (std::max (sum / std::max (count, 1), 1e-30));
+}
+
+/// Energy in [lo, hi] Hz relative to the 800-1250 Hz band, dB.
+inline double relativeBandDb (const std::vector<float>& ir, double fs, double lo, double hi)
+{
+    return bandDb (ir, fs, lo, hi) - bandDb (ir, fs, 800.0, 1250.0);
 }
 
 } // namespace sedef::test::cab

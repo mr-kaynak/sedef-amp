@@ -145,6 +145,10 @@
     {"id": "captureInput", "name": "Capture Input", "group": "Capture", "kind": "float", "min": -24, "max": 24, "default": 0, "skew": 1, "unit": "dB", "automatable": true, "choices": []},
     {"id": "captureOutput", "name": "Capture Output", "group": "Capture", "kind": "float", "min": -24, "max": 24, "default": 0, "skew": 1, "unit": "dB", "automatable": true, "choices": []},
     {"id": "captureCab", "name": "Capture Through Cab", "group": "Capture", "kind": "bool", "min": 0, "max": 1, "default": 1, "skew": 1, "unit": "", "automatable": true, "choices": []},
-    {"id": "captureInterfaceLevel", "name": "Interface Level", "group": "Capture", "kind": "float", "min": -10, "max": 30, "default": 12, "skew": 1, "unit": "dBu", "automatable": false, "choices": []}
+    {"id": "captureInterfaceLevel", "name": "Interface Level", "group": "Capture", "kind": "float", "min": -10, "max": 30, "default": 12, "skew": 1, "unit": "dBu", "automatable": false, "choices": []},
+    {"id": "micAAzimuth", "name": "Mic A Azimuth", "group": "Mic A", "kind": "float", "min": -180, "max": 180, "default": 60, "skew": 1, "unit": "deg", "automatable": true, "choices": []},
+    {"id": "micAOffAxis", "name": "Mic A Off-Axis", "group": "Mic A", "kind": "float", "min": 0, "max": 60, "default": 0, "skew": 1, "unit": "deg", "automatable": true, "choices": []},
+    {"id": "micBAzimuth", "name": "Mic B Azimuth", "group": "Mic B", "kind": "float", "min": -180, "max": 180, "default": 120, "skew": 1, "unit": "deg", "automatable": true, "choices": []},
+    {"id": "micBOffAxis", "name": "Mic B Off-Axis", "group": "Mic B", "kind": "float", "min": 0, "max": 60, "default": 0, "skew": 1, "unit": "deg", "automatable": true, "choices": []}
   ]
 }

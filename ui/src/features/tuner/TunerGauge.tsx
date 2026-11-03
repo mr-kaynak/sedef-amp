@@ -2,8 +2,9 @@
 // Needle and strobe display. The engine's display fields are already calm (docs/dsp/tuner.md,
 // "Display"); readout.ts decides on every pitch event what the gauge says (note, in tune, the
 // numbers), and the needle and strobe follow in requestAnimationFrame through refs. React
-// re-renders only when the note, the state or the hold changes. Screen readers hear a settled
-// state ("E 2, in tune") once it has held for a moment, never more often than every 2 s.
+// re-renders only when the note, the state or the hold changes. Screen readers hear a state
+// ("E 2, in tune") once it has held for a moment, never more often than every 2 s, and again for
+// the next note once this one has ended.
 import { useEffect, useRef, useState } from 'react';
 import { noteOf, splitAccidental } from '../../lib/music';
 import { getValue } from '../../params/paramStore';
@@ -82,7 +83,15 @@ export function TunerGauge({
   const strobeRef = useRef<HTMLDivElement>(null);
   const announceRef = useRef<HTMLSpanElement>(null);
   const machine = useRef<TunerReadout | null>(null);
-  const motion = useRef({ spring: new NeedleSpring(), strobe: 0, opacity: 0.25, heldAt: 0 });
+  // Kept across a change of target or tolerance, so the needle's fade does not start over.
+  const motion = useRef({
+    spring: new NeedleSpring(),
+    strobe: 0,
+    opacity: 0.25,
+    heldAt: 0,
+    held: false,
+    seen: false,
+  });
   const [view, setView] = useState<View>({ note: null, tune: 'idle', held: false });
   const targetMidi = target.kind === 'target' ? target.midi : null;
 
@@ -96,9 +105,12 @@ export function TunerGauge({
     const handle = () => {
       const t = now();
       const input = readoutInput(pitch.latest(), gaugeTarget, getValue('tunerReference'));
-      const wasHeld = readout.current.held;
       const r = readout.update(input, t);
-      if (r.held && !wasHeld) motion.current.heldAt = t;
+      const m = motion.current;
+      // A note that ended before the gauge opened is old news: dimmed at once.
+      if (r.held && !m.held) m.heldAt = m.seen ? t : -Infinity;
+      m.held = r.held;
+      m.seen = true;
       if (centsRef.current) centsRef.current.textContent = r.centsText;
       if (hzRef.current) hzRef.current.textContent = r.hzText;
       setView((v) =>
@@ -114,6 +126,11 @@ export function TunerGauge({
       if (heard !== speech.heard) {
         speech.heard = heard;
         speech.heardAt = t;
+      }
+      if ((r.held || r.note === null) && speech.announced) {
+        // The note has ended: the next one is announced even if it reads the same.
+        speech.announced = '';
+        if (announceRef.current) announceRef.current.textContent = '';
       }
       if (
         heard &&

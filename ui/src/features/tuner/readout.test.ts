@@ -99,13 +99,90 @@ describe('TunerReadout', () => {
     const r = new TunerReadout(1);
     feed(r, 0, 1, () => reading(-6));
     const before = r.current;
-    feed(r, 1, 2, () => reading(-6.3, { held: true }));
+    // The engine holds the last value exactly.
+    feed(r, 1, 2, () => reading(-6, { held: true }));
     expect(r.current).toMatchObject({
       note: before.note,
       tune: 'flat',
       held: true,
       centsText: before.centsText,
     });
+  });
+
+  it('shows a held reading at once on a gauge opened after the note ended', () => {
+    // As precise as it was when the note ended (the engine keeps displaySettled while held).
+    expect(new TunerReadout(1).update(reading(-6.04, { held: true }), 0)).toMatchObject({
+      note: 40,
+      tune: 'flat',
+      held: true,
+      centsText: '−6.0¢',
+    });
+    expect(new TunerReadout(1).update(reading(0.4, { held: true }), 0)).toMatchObject({
+      tune: 'in-tune',
+      centsText: '+0.4¢',
+    });
+    // Never settled: whole cents, and the attack's rules for sharp or flat.
+    const rough = new TunerReadout(1);
+    expect(rough.update(reading(-15.2, { held: true, settled: false }), 0)).toMatchObject({
+      tune: 'flat',
+      centsText: '−15¢',
+    });
+    expect(new TunerReadout(1).update(reading(0.4, { held: true, settled: false }), 0).tune).toBe(
+      'listening',
+    );
+  });
+
+  it('follows a new reference while the note is held', () => {
+    const r = new TunerReadout(1);
+    feed(r, 0, 1, () => reading(0.2));
+    feed(r, 1, 0.5, () => reading(0.2, { held: true }));
+    expect(r.current).toMatchObject({ tune: 'in-tune', centsText: '+0.2¢' });
+    // A4 = 440 to 420 Hz: the engine names the held A2 A#2 19.6 cents flat.
+    expect(r.update(reading(-19.6, { note: 46, held: true }), 1.6)).toMatchObject({
+      note: 46,
+      tune: 'flat',
+      held: true,
+      centsText: '−19.6¢',
+    });
+  });
+
+  it('shows a note so short that it arrives held with its own numbers', () => {
+    const r = new TunerReadout(1);
+    feed(r, 0, 1, () => reading(-6));
+    expect(r.update(reading(3.2, { note: 45, held: true, settled: false }), 1)).toMatchObject({
+      note: 45,
+      tune: 'listening',
+      centsText: '+3¢',
+    });
+  });
+
+  it('lets the tenths follow a settled reading to its nearest tenth', () => {
+    // Settled while still converging from +0.14 to 0: the text must not stay at +0.1.
+    const r = new TunerReadout(1);
+    feed(r, 0, 2, (t) => reading(0.14 * Math.exp(-t / 0.05)));
+    expect(r.current.centsText).toBe('0.0¢');
+    // A settled reading (0.005 cent of scatter, as the engine's) sitting on a rounding boundary
+    // does not flip the text.
+    const random = createRandom(11);
+    let changes = 0;
+    let last = r.current.centsText;
+    for (let i = 0; i < 5 * HZ; i += 1) {
+      const text = r.update(reading(0.15 + 0.005 * gaussian(random)), 2 + i / HZ).centsText;
+      if (text !== last) changes += 1;
+      last = text;
+    }
+    expect(changes).toBeLessThanOrEqual(1);
+  });
+
+  it('drops a stale sharp or flat when the peg turns across before the note settles', () => {
+    const r = new TunerReadout(1);
+    expect(feed(r, 0, 0.4, () => reading(-15, { settled: false }))).toContain('flat');
+    // Turned past the zone to 3 cents sharp, still unsettled: not "tune up" any longer.
+    const states = feed(r, 0.4, 0.3, () => reading(3, { settled: false }));
+    expect(states[states.length - 1]).toBe('listening');
+    expect(states).not.toContain('sharp');
+    // Well past it, for a while: sharp.
+    expect(feed(r, 0.7, 0.4, () => reading(15, { settled: false }))).toContain('sharp');
   });
 
   it('goes idle when there is nothing to show', () => {

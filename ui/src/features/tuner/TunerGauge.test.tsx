@@ -59,13 +59,15 @@ describe('TunerGauge announcements', () => {
   const listen = (seconds: number, at: (t: number) => Parameters<typeof pitch.publish>[0]) => {
     const region = screen.getByRole('status');
     const said: string[] = [];
+    let previous = region.textContent ?? '';
     for (let i = 0; i < seconds * 60; i += 1) {
       act(() => {
         vi.advanceTimersByTime(1000 / 60);
         pitch.publish(at(i / 60));
       });
       const text = region.textContent ?? '';
-      if (text && text !== said[said.length - 1]) said.push(text);
+      if (text && text !== previous) said.push(text);
+      previous = text;
     }
     return said;
   };
@@ -86,6 +88,16 @@ describe('TunerGauge announcements', () => {
     expect(said).toEqual(['E 2, flat, tune up']);
   });
 
+  it('says the state of the next note even when it reads the same as the last', () => {
+    render(<TunerGauge />);
+    const said = listen(7, (t) => {
+      const e = pitchEvent(LOW_E, 5);
+      // Picked, dies at 1.5 s, held, picked again at 4 s: still 5 cents sharp.
+      return t < 1.5 || t > 4 ? e : { ...e, valid: false, displayHeld: true };
+    });
+    expect(said).toEqual(['E 2, sharp, tune down', 'E 2, sharp, tune down']);
+  });
+
   it('follows a peg turned through the zone with a few words, not a running commentary', () => {
     render(<TunerGauge />);
     // From 15 cents flat to pitch over two seconds, the reading moving (not settled) meanwhile.
@@ -94,5 +106,42 @@ describe('TunerGauge announcements', () => {
       return pitchEvent(LOW_E, cents, { stable: t < 1 || t > 3.3 });
     });
     expect(said).toEqual(['E 2, flat, tune up', 'E 2, in tune']);
+  });
+});
+
+describe('TunerGauge on a note that has already ended', () => {
+  beforeEach(() => resetStores());
+  afterEach(() => resetStores());
+
+  const heldE = (cents: number) => ({
+    ...pitchEvent(LOW_E, cents),
+    valid: false,
+    displayHeld: true,
+  });
+
+  it('shows the held reading at once, dimmed, when the tuner opens on it', async () => {
+    pitch.clear();
+    pitch.publish(heldE(-6));
+    const { container } = render(<TunerGauge />);
+    const gauge = container.firstElementChild as HTMLElement;
+    expect(gauge.dataset.state).toBe('flat');
+    expect(gauge.dataset.held).toBe('true');
+    expect(container.textContent).toContain('−6.0¢');
+    expect(container.textContent).toContain('Tune up');
+    // The needle eases towards the dimmed strength of an old reading, not to full strength.
+    await act(() => new Promise((done) => setTimeout(done, 300)));
+    const needle = container.querySelector('svg g') as SVGGElement;
+    expect(Number(needle.style.opacity)).toBeLessThan(0.6);
+  });
+
+  it('keeps the held state and numbers when the tolerance changes', () => {
+    pitch.clear();
+    const { container, rerender } = render(<TunerGauge target={target} />);
+    act(() => pitch.publish(pitchEvent(LOW_E, 3)));
+    act(() => pitch.publish(heldE(3)));
+    rerender(<TunerGauge target={target} inTuneCents={5} />);
+    const gauge = container.firstElementChild as HTMLElement;
+    expect(gauge.dataset.state).toBe('in-tune');
+    expect(container.textContent).toContain('+3.0¢');
   });
 });

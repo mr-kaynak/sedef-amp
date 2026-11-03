@@ -103,7 +103,15 @@ export class PitchSimulator {
   private stableCount = 0;
   private hopDebt = 0;
   /** The display: the note and pitch shown (cents from the target), and how it got there. */
-  private display = { shown: false, held: false, note: 0, cents: 0, sameNote: false, still: 0 };
+  private display = {
+    shown: false,
+    held: false,
+    settled: false,
+    note: 0,
+    cents: 0,
+    sameNote: false,
+    still: 0,
+  };
   private lastDeviation: number | null = null;
   private readonly random: () => number;
   private readonly errors: number[];
@@ -304,6 +312,11 @@ export class PitchSimulator {
       n >= STABLE_FILL * STABLE_SPAN_SECONDS * HOPS_PER_SECOND;
     const d = this.display;
     const displayHz = midiToHz(d.note, reference) * Math.pow(2, d.cents / 1200);
+    d.settled =
+      d.shown &&
+      !d.held &&
+      this.pluckT >= DISPLAY_SETTLE_SECONDS &&
+      d.still >= DISPLAY_SETTLE_SECONDS / 2;
 
     return {
       valid: true,
@@ -320,11 +333,6 @@ export class PitchSimulator {
       stableCount: this.stableCount,
       onsetId: this.onsetId,
       ...this.displayFields(displayHz, reference),
-      displaySettled:
-        d.shown &&
-        !d.held &&
-        this.pluckT >= DISPLAY_SETTLE_SECONDS &&
-        d.still >= DISPLAY_SETTLE_SECONDS / 2,
     };
   }
 
@@ -334,7 +342,8 @@ export class PitchSimulator {
     return {
       displayValid: d.shown,
       displayHeld: d.held,
-      displaySettled: false,
+      // A held reading is as precise as it was.
+      displaySettled: d.shown && d.settled,
       displayHz: d.shown ? hz : 0,
       displayNote: d.shown ? d.note : 0,
       displayCents: d.shown ? 100 * (midiFloat - d.note) : 0,

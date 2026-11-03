@@ -7,12 +7,13 @@
 //   LEAVE_SECONDS outside the zone plus a margin (hysteresis), sooner when the reading is far out.
 // - Until a note's first settled reading, only a reading well out of the zone, for a while, shows
 //   as sharp or flat; otherwise "listening". A plucked string reads sharp for its first 100-200 ms.
-// - Sharp or flat give way to listening once the needle is well inside the zone, until in tune is
-//   confirmed.
+// - Sharp or flat give way to listening once the needle is well inside the zone, or on the other
+//   side of it, until in tune is confirmed.
 // - The cents show tenths only once the reading is settled (and keep them through a re-pluck),
-//   change at most every TEXT_SECONDS, and only when the value has moved by more than a step and
-//   a half (tenths) or three quarters of one (whole cents).
-// - When the note ends, all of it holds.
+//   change at most every TEXT_SECONDS, and only when the value has moved three quarters of a step
+//   (0.075 or 0.75 cent: past the rounding boundary by a quarter of a step).
+// - When the note ends, all of it holds. A held reading that differs from what is shown (a new
+//   reference, a gauge opened on a held note, a note so short it arrives held) is shown at once.
 import type { PitchEvent } from '../../bridge/protocol';
 import { centsBetween, midiToHz } from '../../lib/music';
 import { formatCents } from '../intonation/math';
@@ -33,9 +34,11 @@ export const UNSETTLED_SECONDS = 0.15;
 /** The numbers change at most this often: four times a second can still be read. */
 export const TEXT_SECONDS = 0.25;
 /** ...and only when the value has moved by this many steps (0.1 or 1 cent). */
-const TEXT_STEP_MOVE = { precise: 1.5, whole: 0.75 };
+const TEXT_STEP_MOVE = 0.75;
 /** Tenths stay this long after the reading stops being settled, unless it moves. */
 export const PRECISION_HOLD_SECONDS = 0.5;
+/** A held reading that moves by more than this was re-referenced (the engine holds it still). */
+const HELD_CHANGE_CENTS = 0.01;
 
 /** Margin beyond the zone before in tune ends. */
 export function leaveMargin(inTuneCents: number): number {
@@ -123,16 +126,31 @@ export class TunerReadout {
       this.enterSince = this.leaveSince = this.offSince = null;
       this.textAt = -Infinity;
     }
+    // A held reading is the last one standing; it changes only when the reference does, or when
+    // there was nothing shown for it yet.
+    const restate =
+      input.held &&
+      (first ||
+        newNote ||
+        this.r.cents === null ||
+        Math.abs(input.cents - this.r.cents) > HELD_CHANGE_CENTS);
     if (!input.held) {
       if (input.settled) {
         this.settledOnce = true;
         this.lastSettledAt = now;
       }
       tune = this.decide(tune, input, now, first);
-    }
+    } else if (restate) tune = this.held(input);
 
     let { precise, centsText, hzText } = this.r;
-    if (!input.held) {
+    if (restate) {
+      precise = input.settled;
+      const step = precise ? 0.1 : 1;
+      this.shownCents = Math.round(input.cents / step) * step;
+      centsText = formatCents(this.shownCents, precise ? 1 : 0);
+      hzText = `${input.hz.toFixed(precise ? 2 : 1)} Hz`;
+      this.textAt = now;
+    } else if (!input.held) {
       // Tenths once settled, kept through a re-pluck (the engine holds the needle still while the
       // new pluck's long window fills); whole cents while the reading moves.
       const wantPrecise =
@@ -142,9 +160,7 @@ export class TunerReadout {
           Math.abs(input.cents - this.shownCents) < 1.5);
       const step = wantPrecise ? 0.1 : 1;
       const due = now - this.textAt >= TEXT_SECONDS;
-      const moved =
-        Math.abs(input.cents - this.shownCents) >=
-        (wantPrecise ? TEXT_STEP_MOVE.precise : TEXT_STEP_MOVE.whole) * step;
+      const moved = Math.abs(input.cents - this.shownCents) >= TEXT_STEP_MOVE * step;
       if (this.textAt === -Infinity || (due && (moved || wantPrecise !== precise))) {
         precise = wantPrecise;
         this.shownCents = Math.round(input.cents / step) * step;
@@ -164,6 +180,17 @@ export class TunerReadout {
       hzText,
     };
     return this.r;
+  }
+
+  /** A held reading shown without a history: the zone's rules, without their timers. */
+  private held(input: ReadoutInput): TuneState {
+    const zone = this.inTuneCents;
+    const off = Math.abs(input.cents);
+    this.enterSince = this.leaveSince = this.offSince = null;
+    if (off <= zone) return input.settled ? 'in-tune' : 'listening';
+    if (input.settled || off > zone + UNSETTLED_MARGIN_CENTS)
+      return input.cents > 0 ? 'sharp' : 'flat';
+    return 'listening';
   }
 
   private decide(tune: TuneState, input: ReadoutInput, now: number, first: boolean): TuneState {
@@ -193,6 +220,11 @@ export class TunerReadout {
 
     if (off > zone) {
       if (this.settledOnce) return side;
+      // Turned across the zone before it settled: the old side no longer applies.
+      if ((tune === 'sharp' || tune === 'flat') && tune !== side) {
+        tune = 'listening';
+        this.offSince = null;
+      }
       // The attack: only a reading well out of the zone, and for a while, is called sharp or flat.
       if (off <= zone + UNSETTLED_MARGIN_CENTS) this.offSince = null;
       else if (now - (this.offSince ??= now) >= UNSETTLED_SECONDS) return side;

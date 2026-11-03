@@ -190,7 +190,7 @@ The EQ bank always follows the amp.
 | Coral | Hard-clipping distortion with low-pass "cut" | 4× OS |
 | Ripple | Tremolo, chorus, vibrato | 0.69–7.19 Hz |
 | Lagoon | Clean amp, glassy and wide | two triode stages, FMV tone stack |
-| Reef | Crunch amp, three voicings | cascaded stages, Marshall-style stack |
+| Reef | Crunch amp, three voicings | cascaded stages, British-style tone stack |
 | Abyss | High-gain lead amp, bright and shift switches | four stages, shifted mid |
 | Capture | A Neural Amp Modeler (.nam) file in place of the amp | NeuralAmpModelerCore, rate conversion, levelled to the amps ([nam.md](dsp/nam.md)) |
 | Cab | Procedural speaker + cabinet + mic models, or user IR | two mics + room per cab |

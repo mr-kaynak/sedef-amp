@@ -259,12 +259,14 @@ if(SEDEF_BUILD_PLUGIN_TESTS)
 
     juce_add_console_app(sedef_capture_tests PRODUCT_NAME "sedef_capture_tests")
     target_sources(sedef_capture_tests PRIVATE
-        tests/CaptureLibraryTests.cpp src/CaptureLibrary.cpp src/CaptureLibrary.h)
+        tests/CaptureLibraryTests.cpp src/CaptureLibrary.cpp src/CaptureLibrary.h
+        tests/IrLibraryTests.cpp src/IrLibrary.cpp src/IrLibrary.h)
     target_include_directories(sedef_capture_tests PRIVATE src)
     target_compile_definitions(sedef_capture_tests PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0)
     target_link_libraries(sedef_capture_tests
         PRIVATE
             sedef::engine
+            juce::juce_audio_formats
             juce::juce_core
             juce::juce_cryptography
             juce::juce_data_structures

@@ -424,9 +424,12 @@ void SedefProcessor::setStateInformation (const void* data, int size)
     {
         const int m = slot.getProperty ("mic");
         const int c = slot.getProperty ("cab");
-        const juce::File f (slot.getProperty ("path").toString());
-        if (m >= 0 && m < IrLibrary::kMics && c >= 0 && c < IrLibrary::kCabs && f.existsAsFile())
-            wanted[static_cast<size_t> (m)][static_cast<size_t> (c)] = f;
+        // The path comes from a session someone else may have written: only an absolute path to
+        // a regular file is used (IrLibrary::checkFile), never a FIFO, device or relative path.
+        const auto path = slot.getProperty ("path").toString();
+        if (m >= 0 && m < IrLibrary::kMics && c >= 0 && c < IrLibrary::kCabs &&
+            IrLibrary::checkFile (path).isEmpty())
+            wanted[static_cast<size_t> (m)][static_cast<size_t> (c)] = juce::File (path);
     }
     for (int m = 0; m < IrLibrary::kMics; ++m)
         for (int c = 0; c < IrLibrary::kCabs; ++c)

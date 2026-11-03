@@ -69,6 +69,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **Custom IRs from sessions:** an IR path in a session or preset is only opened when it is an
+  absolute path to a regular file of at most 64 MB, so a session can no longer point the plug-in
+  at a pipe or device and hang it.
 - **Stereo input:** a guitar plugged into one input of a stereo track no longer reaches the amp
   6 dB down in "Sum to mono". The live side now passes at unity when the other carries nothing,
   and a mono source copied to both sides is averaged as before.

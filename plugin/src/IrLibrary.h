@@ -44,6 +44,13 @@ public:
     juce::var stateAsVar() const;
     juce::File fileFor (int mic, int cab) const;
 
+    /// Any thread; never blocks. Sessions and presets are other people's files, so an IR path
+    /// from one is only opened when it is absolute and names a regular file (symlinks followed)
+    /// of a sane size: a FIFO, a device or a huge file is refused. Returns an error message, or
+    /// an empty string when the file may be read.
+    static juce::String checkFile (const juce::String& path);
+    static constexpr std::int64_t kMaxFileBytes = 64 * 1024 * 1024;
+
 private:
     struct Slot
     {

@@ -4,13 +4,38 @@
 #include "sedef/dsp/cab/CabSim.h"
 #include "sedef/dsp/cab/ConvolutionKernel.h"
 
+#include <filesystem>
 #include <juce_events/juce_events.h>
+#include <system_error>
 
 namespace sedef::plugin
 {
 namespace
 {
 constexpr double kMaxSeconds = 1.0;
+}
+
+juce::String IrLibrary::checkFile (const juce::String& path)
+{
+    if (path.isEmpty() || !juce::File::isAbsolutePath (path))
+        return "The IR file was not found";
+#if JUCE_WINDOWS
+    const std::filesystem::path p (path.toWideCharPointer());
+#else
+    const std::filesystem::path p (path.toRawUTF8());
+#endif
+    std::error_code ec;
+    const auto status = std::filesystem::status (p, ec);
+    if (ec || !std::filesystem::exists (status))
+        return "The IR file was not found";
+    if (!std::filesystem::is_regular_file (status))
+        return "Unsupported audio file";
+    const auto size = std::filesystem::file_size (p, ec);
+    if (ec || size == 0)
+        return "The file contains no audio";
+    if (size > static_cast<std::uintmax_t> (kMaxFileBytes))
+        return "The IR file is too large (over 64 MB)";
+    return {};
 }
 
 IrLibrary::IrLibrary (Engine& engine, std::mutex& engineLock)
@@ -63,6 +88,8 @@ juce::String IrLibrary::loadIfCurrent (int mic, int cab, const juce::File& file,
 {
     if (mic < 0 || mic >= kMics || cab < 0 || cab >= kCabs)
         return "Invalid IR slot";
+    if (const auto error = checkFile (file.getFullPathName()); error.isNotEmpty())
+        return fail (mic, cab, generation, error);
 
     std::unique_ptr<juce::AudioFormatReader> reader (formats_.createReaderFor (file));
     if (reader == nullptr)

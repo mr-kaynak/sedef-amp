@@ -164,10 +164,11 @@ TEST_CASE ("Engine::process never allocates after prepare", "[engine]")
     Random r (7);
     auto p = randomSnapshot (r);
     // Turn everything on so every module runs.
-    for (auto id :
-         { ParamId::gateEnabled, ParamId::tideEnabled, ParamId::pearlEnabled, ParamId::coralEnabled,
-           ParamId::rippleEnabled, ParamId::doublerEnabled, ParamId::driftEnabled,
-           ParamId::fathomEnabled, ParamId::roomAEnabled, ParamId::roomBEnabled })
+    for (auto id : { ParamId::gateEnabled, ParamId::tideEnabled, ParamId::pearlEnabled,
+                     ParamId::coralEnabled, ParamId::rippleEnabled, ParamId::doublerEnabled,
+                     ParamId::driftEnabled, ParamId::fathomEnabled, ParamId::roomAEnabled,
+                     ParamId::roomBEnabled, ParamId::conchEnabled, ParamId::anemoneEnabled,
+                     ParamId::gyreEnabled, ParamId::jettyEnabled, ParamId::beaconEnabled })
         p[id] = 1.0f;
     p[ParamId::transpose] = -2.0f;
     rig.engine.setAnalysisEnabled (true);

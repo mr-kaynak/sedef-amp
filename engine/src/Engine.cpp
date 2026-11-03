@@ -7,11 +7,16 @@
 #include "sedef/core/InputFold.h"
 #include "sedef/core/Math.h"
 #include "sedef/core/Smoothed.h"
+#include "sedef/dsp/Anemone.h"
+#include "sedef/dsp/Beacon.h"
+#include "sedef/dsp/Conch.h"
 #include "sedef/dsp/Coral.h"
 #include "sedef/dsp/Doubler.h"
 #include "sedef/dsp/Drift.h"
 #include "sedef/dsp/Fathom.h"
 #include "sedef/dsp/GraphicEq.h"
+#include "sedef/dsp/Gyre.h"
+#include "sedef/dsp/Jetty.h"
 #include "sedef/dsp/Metronome.h"
 #include "sedef/dsp/NoiseGate.h"
 #include "sedef/dsp/Pearl.h"
@@ -48,6 +53,13 @@ struct ChainSettings
     dsp::AmpSection::Settings amp;
     dsp::CabSim::Settings cab;
     dsp::CaptureStage::Settings capture;
+    // mods lane: wah, envelope filter, phaser, flanger, vibe.
+    bool conchOn = false, anemoneOn = false, gyreOn = false, jettyOn = false, beaconOn = false;
+    dsp::Conch::Settings conch;
+    dsp::Anemone::Settings anemone;
+    dsp::Gyre::Settings gyre;
+    dsp::Jetty::Settings jetty;
+    dsp::Beacon::Settings beacon;
 };
 
 dsp::CabSim::MicSettings micSettings (const ParamSnapshot& p, int mic, int cab)
@@ -111,6 +123,20 @@ ChainSettings chainSettings (const ParamSnapshot& p)
 
     s.capture = { p.choice (P::ampSource) == 1, p[P::captureInput], p[P::captureOutput],
                   p[P::captureInterfaceLevel], p.flag (P::captureCab) };
+
+    // mods lane
+    s.conchOn = p.flag (P::conchEnabled);
+    s.conch = { p.choice (P::conchMode), p[P::conchPosition], p[P::conchQ],
+                p[P::conchSensitivity] };
+    s.anemoneOn = p.flag (P::anemoneEnabled);
+    s.anemone = { p[P::anemoneSensitivity], p[P::anemoneRange], p[P::anemoneResonance],
+                  p.choice (P::anemoneMode), p.choice (P::anemoneDirection) };
+    s.gyreOn = p.flag (P::gyreEnabled);
+    s.gyre = { p[P::gyreSpeed], p[P::gyreDepth], p[P::gyreFeedback], p.choice (P::gyreStages) };
+    s.jettyOn = p.flag (P::jettyEnabled);
+    s.jetty = { p[P::jettyRate], p[P::jettyDepth], p[P::jettyManual], p[P::jettyRegen] / 100.0f };
+    s.beaconOn = p.flag (P::beaconEnabled);
+    s.beacon = { p[P::beaconSpeed], p[P::beaconIntensity], p.choice (P::beaconMode) };
     return s;
 }
 
@@ -293,6 +319,12 @@ struct Chain
     Slot<dsp::Pearl> pearl;
     Slot<dsp::Coral> coral;
     Slot<dsp::Ripple> ripple;
+    // mods lane. Latency-free, linear modules; order in process().
+    Slot<dsp::Anemone> anemone;
+    Slot<dsp::Conch> conch;
+    Slot<dsp::Beacon> beacon;
+    Slot<dsp::Gyre> gyre;
+    Slot<dsp::Jetty> jetty;
     dsp::AmpSection amp;
     dsp::CabSim cab;
     dsp::CaptureStage capture; // the amp or a .nam capture, and the cab or not
@@ -312,6 +344,11 @@ struct Chain
         pearl.prepare (mono);
         coral.prepare (mono);
         ripple.prepare (mono);
+        anemone.prepare (mono); // mods lane
+        conch.prepare (mono);
+        beacon.prepare (mono);
+        gyre.prepare (mono);
+        jetty.prepare (mono);
         amp.prepare (mono);
         capture.prepare (mono, amp.latencySamples());
         cab.prepare ({ sampleRate, maxBlock, 2 });
@@ -323,7 +360,6 @@ struct Chain
     {
         return pearl.latency + coral.latency + capture.latencySamples() + cab.latencySamples();
     }
-
     void reset() noexcept
     {
         snapGain = true;
@@ -332,6 +368,11 @@ struct Chain
         pearl.reset();
         coral.reset();
         ripple.reset();
+        anemone.reset(); // mods lane
+        conch.reset();
+        beacon.reset();
+        gyre.reset();
+        jetty.reset();
         amp.reset();
         capture.reset();
         cab.reset();
@@ -367,9 +408,17 @@ struct Chain
         const auto run = [] (auto& m, const AudioView& v) {
             m.process (v);
         };
+        // mods lane: the envelope filter and the wah go before the compressor and the drives
+        // (they read and shape the picking dynamics); the vibe, phaser and flanger after the
+        // drives (they move the drives' harmonics), before Ripple. docs/dsp/conch.md et al.
+        anemone.process (x, n, s.anemoneOn, s.anemone, run);
+        conch.process (x, n, s.conchOn, s.conch, run);
         tideRan = tide.process (x, n, s.tideOn, s.tide, run);
         pearl.process (x, n, s.pearlOn, s.pearl, run);
         coral.process (x, n, s.coralOn, s.coral, run);
+        beacon.process (x, n, s.beaconOn, s.beacon, run); // mods lane
+        gyre.process (x, n, s.gyreOn, s.gyre, run);
+        jetty.process (x, n, s.jettyOn, s.jetty, run);
         ripple.process (x, n, s.rippleOn, s.ripple, run);
 
         capture.setSettings (s.capture);

@@ -14,7 +14,6 @@
 #include "sedef/dsp/Metronome.h"
 #include "sedef/dsp/NoiseGate.h"
 #include "sedef/dsp/Pearl.h"
-#include "sedef/dsp/PitchShifter.h"
 #include "sedef/dsp/Ripple.h"
 #include "sedef/dsp/Tide.h"
 #include "sedef/dsp/amp/AmpSection.h"
@@ -36,7 +35,6 @@ using P = ParamId;
 
 struct ChainSettings
 {
-    int semitones = 0;
     float inputGain = 1.0f;
     bool gateOn = true;
     dsp::NoiseGate::Settings gate;
@@ -74,7 +72,8 @@ dsp::CabSim::MicSettings micSettings (const ParamSnapshot& p, int mic, int cab)
 ChainSettings chainSettings (const ParamSnapshot& p)
 {
     ChainSettings s;
-    s.semitones = static_cast<int> (std::lround (p[P::transpose]));
+    // P::transpose is kept for old sessions and ignored: transpose was removed in 0.3.0
+    // (docs/dsp/transpose.md, "Decision").
     s.inputGain = dbToGain (p[P::inputGain]);
     s.gateOn = p.flag (P::gateEnabled);
     s.gate.thresholdDb = p[P::gateThreshold];
@@ -276,11 +275,10 @@ struct StereoSlot
     }
 };
 
-/// One instrument chain: transpose -> input gain -> gate -> pedals -> amp -> cab. Mono in,
+/// One instrument chain: input gain -> gate -> pedals -> amp -> cab. Mono in,
 /// stereo out.
 struct Chain
 {
-    dsp::PitchShifter transpose;
     LinearSmoothed inputGain;
     Slot<dsp::NoiseGate> gate;
     Slot<dsp::Tide> tide;
@@ -299,7 +297,6 @@ struct Chain
     void prepare (double sampleRate, int maxBlock)
     {
         const ProcessSpec mono { sampleRate, maxBlock, 1 };
-        transpose.prepare (mono);
         inputGain.reset (sampleRate, 0.02);
         gate.prepare (mono);
         tide.prepare (mono);
@@ -320,7 +317,6 @@ struct Chain
     void reset() noexcept
     {
         snapGain = true;
-        transpose.reset();
         gate.reset();
         tide.reset();
         pearl.reset();
@@ -336,10 +332,7 @@ struct Chain
         float* x = buffer.data();
         std::copy_n (in, n, x);
 
-        transpose.setSettings ({ s.semitones });
-        transpose.process (AudioView (x, n));
-        // The gate listens to the instrument before input gain (so it follows the DI level), but
-        // after transpose, so its timing matches the shifted signal it gates.
+        // The gate listens to the instrument before input gain, so it follows the DI level.
         std::copy_n (x, n, sidechain.data());
 
         if (snapGain)

@@ -44,6 +44,13 @@ All notable changes to this project are documented here. The format follows
   only when steady, a hint under them says "Tune up", "Tune down" or "In tune", and screen readers
   hear each state once ([docs/dsp/tuner.md](docs/dsp/tuner.md#3-display)).
 
+### Removed
+
+- **Transpose.** It could not shift chords cleanly or keep a steady latency, and no design we
+  measured could do both within a playable latency ([docs/dsp/transpose.md](docs/dsp/transpose.md)).
+  The parameter stays so sessions still load; sessions that used it now play at the original
+  pitch.
+
 ## [0.2.0] - 2026-11-01
 
 A preset browser you can audition from, an intonation workbench that works with a real guitar,

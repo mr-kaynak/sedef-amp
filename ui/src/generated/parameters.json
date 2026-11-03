@@ -3,7 +3,7 @@
   "parameters": [
     {"id": "inputGain", "name": "Input Gain", "group": "Global", "kind": "float", "min": -24, "max": 24, "default": 0, "skew": 1, "unit": "dB", "automatable": true, "choices": []},
     {"id": "outputGain", "name": "Output Gain", "group": "Global", "kind": "float", "min": -24, "max": 24, "default": 0, "skew": 1, "unit": "dB", "automatable": true, "choices": []},
-    {"id": "transpose", "name": "Transpose", "group": "Global", "kind": "int", "min": -12, "max": 12, "default": 0, "skew": 1, "unit": "st", "automatable": true, "choices": []},
+    {"id": "transpose", "name": "Transpose (Unused)", "group": "Global", "kind": "int", "min": -12, "max": 12, "default": 0, "skew": 1, "unit": "st", "automatable": false, "choices": []},
     {"id": "stereoMode", "name": "Stereo Mode", "group": "Global", "kind": "choice", "min": 0, "max": 1, "default": 0, "skew": 1, "unit": "", "automatable": false, "choices": ["Summed", "Dual"]},
     {"id": "gateEnabled", "name": "Gate", "group": "Gate", "kind": "bool", "min": 0, "max": 1, "default": 1, "skew": 1, "unit": "", "automatable": true, "choices": []},
     {"id": "gateThreshold", "name": "Gate Threshold", "group": "Gate", "kind": "float", "min": -96, "max": 0, "default": -72, "skew": 1, "unit": "dB", "automatable": true, "choices": []},

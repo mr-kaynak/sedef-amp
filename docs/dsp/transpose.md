@@ -3,6 +3,10 @@
 Source: `engine/src/dsp/PitchShifter.cpp`. Interface: `engine/include/sedef/dsp/PitchShifter.h`.
 Tests: `engine/tests/reverb/PitchShifterTests.cpp`.
 
+> **Removed from the signal chain in 0.3.0.** The `transpose` parameter is kept, so sessions
+> still load, and it is ignored. This page keeps the evaluation behind that decision. §2–§8
+> describe the 0.2.0 shifter, whose code stays for one release.
+
 ## 1. What it models
 
 Transpose shifts the guitar by −12 to +12 semitones before anything else in the chain. It has

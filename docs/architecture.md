@@ -10,7 +10,7 @@ VST3 / AU / CLAP plugin and as a standalone application. It ships a complete
 rig in one window:
 
 ```
-Input ─► Tuner tap ─► Transpose ─► Input Gain ─► Gate ─► Tide (comp)
+Input ─► Tuner tap ─► Input Gain ─► Gate ─► Tide (comp)
       ─► Pearl (overdrive) ─► Coral (distortion) ─► Ripple (modulation)
       ─► Amp (Lagoon | Reef | Abyss) ─► Cab (2 mics + room)
       ─► 9-band EQ (one bank per amp) ─► Doubler ─► Drift (tape echo)
@@ -161,7 +161,7 @@ own instead, so their tails ring out ("spillover") after being switched off.
 
 `Engine` builds the chain from two reusable halves:
 
-- `Channel`: Transpose → Input Gain → Gate → Tide → Pearl → Coral → Ripple →
+- `Channel`: Input Gain → Gate → Tide → Pearl → Coral → Ripple →
   Amp → Cab. Mono in, mono or stereo out.
 - `PostChain`: EQ → Doubler → Drift → Fathom → Metronome → Output Gain. Stereo.
 
@@ -196,7 +196,6 @@ The EQ bank always follows the amp.
 | Drift | Multi-head tape echo, wow/flutter, tape drive | host/tap/free sync |
 | Fathom | Plate (Dattorro topology) and hall (FDN) | 1–60 s decay |
 | Doubler | Mono → stereo double tracking | second take re-timed per note, 3–20 ms spread; onsets from the DI |
-| Transpose | ±12 semitone polyphonic shifter | WSOLA-style splicing |
 
 Each module has a page in [`docs/dsp/`](dsp/) describing its model, the public
 references it is based on, and its test coverage.

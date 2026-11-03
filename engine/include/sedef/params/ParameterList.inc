@@ -9,7 +9,7 @@
 
 SEDEF_PARAM(inputGain, "Input Gain", "Global", Float, -24.0f, 24.0f, 0.0f, 1.0f, "dB", "", true)
 SEDEF_PARAM(outputGain, "Output Gain", "Global", Float, -24.0f, 24.0f, 0.0f, 1.0f, "dB", "", true)
-SEDEF_PARAM(transpose, "Transpose", "Global", Int, -12.0f, 12.0f, 0.0f, 1.0f, "st", "", true)
+SEDEF_PARAM(transpose, "Transpose (Unused)", "Global", Int, -12.0f, 12.0f, 0.0f, 1.0f, "st", "", false)
 SEDEF_PARAM(stereoMode, "Stereo Mode", "Global", Choice, 0.0f, 1.0f, 0.0f, 1.0f, "", "Summed|Dual", false)
 SEDEF_PARAM(gateEnabled, "Gate", "Gate", Bool, 0.0f, 1.0f, 1.0f, 1.0f, "", "", true)
 SEDEF_PARAM(gateThreshold, "Gate Threshold", "Gate", Float, -96.0f, 0.0f, -72.0f, 1.0f, "dB", "", true)

@@ -510,3 +510,19 @@ TEST_CASE ("Custom IRs installed before a two-input prepare reach both chains", 
     CHECK (test::peak (left) > 0.01f);
     CHECK (left == right); // both chains convolve with the IR
 }
+
+TEST_CASE ("The transpose parameter is ignored", "[engine]")
+{
+    // Transpose was removed in 0.3.0 (docs/dsp/transpose.md); old sessions may still set it.
+    const auto render = [] (float semitones) {
+        Rig rig (48000.0, 64, 1, 2);
+        test::fillNoise (rig.in[0], 0.2f, 5);
+        auto p = ParamSnapshot::defaults();
+        p[ParamId::transpose] = semitones;
+        rig.run (p, 1 << 15);
+        return rig.out.data;
+    };
+    const auto dry = render (0.0f);
+    CHECK (render (-5.0f) == dry);
+    CHECK (render (12.0f) == dry);
+}

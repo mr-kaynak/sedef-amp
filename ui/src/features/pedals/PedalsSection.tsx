@@ -86,15 +86,6 @@ export function PedalsSection() {
             <Knob param="gateThreshold" size="sm" label="Threshold" />
           </div>
         </div>
-        <div className={styles.block}>
-          <div className={styles.blockHead}>
-            <h2 className={styles.blockTitle}>Transpose</h2>
-            <span className={styles.hint}>Shifts pitch before the rig</span>
-          </div>
-          <div className={styles.blockBody}>
-            <Knob param="transpose" size="sm" label="Semitones" />
-          </div>
-        </div>
       </div>
 
       <div className={styles.board}>

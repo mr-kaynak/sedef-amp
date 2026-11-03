@@ -15,7 +15,7 @@ function ReferenceControl() {
   return (
     <div className={styles.reference}>
       <span className={styles.label}>Reference A4</span>
-      <div className={styles.stepper}>
+      <div className={`${buttons.stepper} ${styles.stepper}`}>
         <button
           type="button"
           aria-label="Lower reference by 1 Hz"
@@ -37,7 +37,7 @@ function ReferenceControl() {
       {Math.round(ref) !== 440 && (
         <button
           type="button"
-          className={styles.resetRef}
+          className={`${buttons.link} ${styles.resetRef}`}
           onClick={() => setParam('tunerReference', 440)}
         >
           Back to 440 Hz

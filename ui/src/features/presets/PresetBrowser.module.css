@@ -302,14 +302,7 @@
 }
 
 .clear {
-  border: none;
-  background: transparent;
-  color: var(--nacre-aqua);
   font-size: var(--t-11);
-}
-
-.clear:hover {
-  text-decoration: underline;
 }
 
 /* Footer -------------------------------------------------------------------------------------- */

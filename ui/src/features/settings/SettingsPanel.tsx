@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
+import buttons from '../../controls/Button.module.css';
 import { Segmented } from '../../controls/Segmented';
+import segmented from '../../controls/Segmented.module.css';
 import { useRadioGroup } from '../../controls/useRadioGroup';
 import { useAppStore } from '../../state/appStore';
 import { invoke } from '../../state/backendRef';
@@ -29,13 +31,13 @@ export function SettingsPanel() {
       <section className={styles.section}>
         <h3 className={styles.heading}>Window size</h3>
         <div
-          className={styles.scales}
+          className={`${segmented.segmented} ${styles.scales}`}
           role="radiogroup"
           aria-label="Window size"
           onKeyDown={scales.onKeyDown}
         >
           {SCALES.map((s, i) => (
-            <button key={s} type="button" className={styles.scale} {...scales.radio(i)}>
+            <button key={s} type="button" className={segmented.option} {...scales.radio(i)}>
               {Math.round(s * 100)}%
             </button>
           ))}
@@ -66,7 +68,7 @@ export function SettingsPanel() {
             Free software under the GNU AGPL, version 3 or later.{' '}
             <button
               type="button"
-              className={styles.link}
+              className={buttons.link}
               onClick={() => void invoke('sedef_openUrl', LICENSE_URL)}
             >
               Read the licence

@@ -176,20 +176,10 @@
   font-size: var(--t-12);
 }
 
+/* The shared text link (controls/Button.module.css), with room to hit. */
 .textButton {
   padding: 4px 0;
-  border: none;
-  background: none;
-  color: var(--nacre-aqua);
   font-size: var(--t-12);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-@media (hover: hover) {
-  .textButton:hover {
-    color: var(--bone);
-  }
 }
 
 /* Status, errors, recent ----------------------------------------------------------------------- */

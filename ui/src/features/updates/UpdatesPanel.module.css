@@ -193,13 +193,6 @@
   line-height: 1.45;
 }
 
-.link {
-  color: var(--nacre-aqua);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  border-radius: 2px;
-}
-
 .error {
   margin: 0;
   padding: 9px 12px;

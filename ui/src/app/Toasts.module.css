@@ -37,22 +37,22 @@
   margin-right: 8px;
 }
 
+/* The shared ghost button, tinted aqua: the one action a toast offers. */
 .action {
-  display: inline-flex;
-  align-items: center;
   gap: 8px;
   height: 28px;
   padding: 0 10px;
-  border: 1px solid var(--on-line);
-  border-radius: var(--r-ctl);
+  border-color: var(--on-line);
   background: var(--on-fill);
   color: var(--nacre-aqua);
-  font-size: var(--t-12);
   font-weight: 600;
 }
 
-.action:hover {
-  background: rgb(205 238 238 / 0.14);
+@media (hover: hover) {
+  .action:not(:disabled):hover {
+    background: rgb(205 238 238 / 0.14);
+    color: var(--nacre-aqua);
+  }
 }
 
 .kbd {
@@ -62,17 +62,9 @@
   font-weight: 500;
 }
 
+/* The shared ghost icon button at 28px, so the toast's 12px radius stays 6 + 6 inset. */
 .close {
-  display: grid;
-  place-items: center;
   width: 28px;
   height: 28px;
-  border: none;
-  border-radius: var(--r-ctl);
-  background: transparent;
   color: var(--bone-3);
-}
-
-.close:hover {
-  color: var(--bone);
 }

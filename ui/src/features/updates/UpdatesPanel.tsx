@@ -82,7 +82,7 @@ function Release({ state }: { state: SupportedUpdateState }) {
         Sedef Amp is up to date.{' '}
         <a
           href={latest.url}
-          className={styles.link}
+          className={buttons.link}
           onClick={(e) => {
             e.preventDefault();
             void updateActions.openPage(latest.url);

@@ -77,3 +77,72 @@
   padding: 0 9px;
   font-size: var(--t-11);
 }
+
+/* After .small, which would otherwise widen a small icon button with its padding. */
+.small.icon {
+  width: 24px;
+  padding: 0;
+}
+
+/* Tap tempo: a solid button the player hits in time. Each panel sets only its size. */
+.tap {
+  composes: solid;
+  padding: 0;
+  font-weight: 600;
+}
+
+.tap:not(:disabled):active {
+  background: var(--ink-4);
+}
+
+/* Inline text actions ("Back to 440 Hz", "Read the licence"): aqua, underlined, bone on hover.
+   The size comes from the surrounding text. */
+.link {
+  padding: 0;
+  border: none;
+  border-radius: 2px;
+  background: none;
+  color: var(--nacre-aqua);
+  font-size: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: color var(--dur-1) var(--ease-out);
+}
+
+@media (hover: hover) {
+  .link:hover {
+    color: var(--bone);
+  }
+}
+
+/* − value + steppers: a dark well holding two quiet buttons. Each panel sets the sizes. */
+.stepper {
+  display: flex;
+  align-items: center;
+  border-radius: var(--r-ctl);
+  background: var(--ink-0);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+}
+
+.stepper button {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--bone-2);
+  transition: color var(--dur-1) var(--ease-out);
+}
+
+@media (hover: hover) {
+  .stepper button:not(:disabled):hover {
+    color: var(--bone);
+  }
+}
+
+.stepper button:disabled {
+  opacity: var(--disabled-opacity);
+  cursor: default;
+}
+
+.stepper output {
+  text-align: center;
+}

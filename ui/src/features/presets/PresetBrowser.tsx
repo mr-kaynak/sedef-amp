@@ -360,7 +360,11 @@ function BrowserPanel() {
               {visible.length === 1 ? '1 preset' : `${visible.length} presets`}
             </span>
             {filtered && visible.length > 0 && (
-              <button type="button" className={styles.clear} onClick={clearFilters}>
+              <button
+                type="button"
+                className={`${buttons.link} ${styles.clear}`}
+                onClick={clearFilters}
+              >
                 Clear filters
               </button>
             )}

@@ -51,18 +51,10 @@
   font-size: var(--t-12);
 }
 
+/* Sizes only: the look is the shared tap button (controls/Button.module.css). */
 .tap {
   width: 52px;
   height: 44px;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--r-ctl);
-  background: var(--ink-3);
-  color: var(--bone);
-  font-weight: 600;
-}
-
-.tap:active {
-  background: var(--ink-4);
 }
 
 .grid {

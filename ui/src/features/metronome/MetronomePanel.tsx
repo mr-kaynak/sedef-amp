@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
+import buttons from '../../controls/Button.module.css';
 import { ChoiceSelect } from '../../controls/ChoiceSelect';
 import { Icon } from '../../controls/Icon';
 import { Knob } from '../../controls/Knob';
@@ -54,7 +55,11 @@ export function MetronomePanel() {
           <span className={styles.unit}>bpm</span>
         </div>
         <Knob param="tempo" size="sm" label="Tempo" hideValue />
-        <button type="button" className={styles.tap} onClick={() => void tapTempo()}>
+        <button
+          type="button"
+          className={`${buttons.tap} ${styles.tap}`}
+          onClick={() => void tapTempo()}
+        >
           Tap
         </button>
       </div>

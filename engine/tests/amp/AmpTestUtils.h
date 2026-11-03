@@ -186,17 +186,23 @@ inline std::vector<double> envelopeDb (const std::vector<float>& v, double fs, d
     return env;
 }
 
-/// Sustain: seconds from the envelope's peak (20 ms RMS windows) until it first falls `dropDb`
-/// below that peak.
+/// Sustain: seconds the envelope (20 ms RMS windows) stays within `dropDb` of its peak, from the
+/// first window that gets there (the pick) to the last. Measuring from the pick rather than from
+/// the peak matters for a saturated note, whose envelope is flat to a fraction of a dB, so its
+/// highest window can come a second or two after the pick.
 inline double sustainSeconds (const std::vector<float>& v, double fs, double dropDb = 6.0)
 {
     constexpr double hopMs = 5.0;
     const auto env = envelopeDb (v, fs, 20.0, hopMs);
-    const auto peakIt = std::max_element (env.begin(), env.end());
-    auto it = peakIt;
-    while (it != env.end() && *it >= *peakIt - dropDb)
-        ++it;
-    return static_cast<double> (it - peakIt) * hopMs * 1e-3;
+    const double peakDb = *std::max_element (env.begin(), env.end());
+    size_t first = env.size(), last = 0;
+    for (size_t i = 0; i < env.size(); ++i)
+        if (env[i] >= peakDb - dropDb)
+        {
+            first = std::min (first, i);
+            last = i;
+        }
+    return first < env.size() ? static_cast<double> (last + 1 - first) * hopMs * 1e-3 : 0.0;
 }
 
 /// First level at which `values` reaches `threshold` going up through `levels` (linear

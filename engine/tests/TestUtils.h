@@ -6,21 +6,37 @@
 #include "sedef/core/Random.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <utility>
 #include <vector>
 
 namespace sedef::test
 {
 
 /// Owns planar audio and hands out AudioViews.
+///
+/// `ptrs` always points at this buffer's own channels: it is re-read from `data` on every access,
+/// so assigning a new vector to a channel (`b[0] = makeSignal()`) or copying the buffer
+/// (`Buffer copy = b;`) can never leave a view pointing at freed or foreign memory.
 struct Buffer
 {
     Buffer (int channels, int frames) : data (static_cast<size_t> (channels))
     {
         for (auto& ch : data)
             ch.assign (static_cast<size_t> (frames), 0.0f);
-        for (int c = 0; c < channels; ++c)
-            ptrs[static_cast<size_t> (c)] = data[static_cast<size_t> (c)].data();
+    }
+    Buffer (const Buffer& other) : data (other.data) {}
+    Buffer (Buffer&& other) noexcept : data (std::move (other.data)) {}
+    Buffer& operator= (const Buffer& other)
+    {
+        data = other.data;
+        return *this;
+    }
+    Buffer& operator= (Buffer&& other) noexcept
+    {
+        data = std::move (other.data);
+        return *this;
     }
 
     AudioView view() { return AudioView (ptrs.data(), channels(), frames()); }
@@ -28,8 +44,32 @@ struct Buffer
     int frames() const { return static_cast<int> (data[0].size()); }
     std::vector<float>& operator[] (int c) { return data[static_cast<size_t> (c)]; }
 
+    /// Channel pointers of the buffer that owns it, refreshed on every access.
+    class Pointers
+    {
+    public:
+        explicit Pointers (Buffer& owner) : owner_ (&owner) {}
+        Pointers (const Pointers&) = delete;
+        Pointers& operator= (const Pointers&) = delete;
+
+        float* operator[] (size_t c) { return refresh()[c]; }
+        float** data() { return refresh().data(); }
+
+    private:
+        std::array<float*, kMaxChannels>& refresh()
+        {
+            cache_.fill (nullptr);
+            for (size_t c = 0; c < owner_->data.size() && c < cache_.size(); ++c)
+                cache_[c] = owner_->data[c].data();
+            return cache_;
+        }
+
+        Buffer* owner_;
+        std::array<float*, kMaxChannels> cache_ {};
+    };
+
     std::vector<std::vector<float>> data;
-    std::array<float*, kMaxChannels> ptrs {};
+    Pointers ptrs { *this };
 };
 
 inline void fillSine (std::vector<float>& v, double hz, double fs, float amp = 1.0f,

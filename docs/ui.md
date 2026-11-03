@@ -276,7 +276,15 @@ something is alive.
   and a disabled button never lights up. A pressed button scales to 0.96 over 150 ms
   (`controls/Button.module.css`, `.press` for custom buttons, `.static` to opt out). Rows, rail
   items, cards and segments don't scale. A nacre fill fades in on a layer
-  (`controls/NacreFill.module.css`), because a gradient cannot transition.
+  (`controls/NacreFill.module.css`), because a gradient cannot transition. Under forced colors
+  (Windows High Contrast) shadows and gradients disappear, so every edge that is only a shadow
+  ring also has a transparent border or outline, and selected states use `border-color` with a
+  `Highlight` fallback.
+- **Icons**: one stroke set on a 16-unit grid (`controls/Icon.tsx`). The `stroke` prop is the
+  rendered line in CSS px at any size: 1.5px by default, 2px (`ICON_STROKE_LABEL`) beside the
+  540–600 weight button labels. Check a dense glyph at its render size before giving it 2px (the
+  keyboard stays at 1.5px). Icons are `currentColor`. An infrequent swap (copy to copied, play to
+  stop) cross-fades through `controls/IconSwap.tsx`.
 
 ## Known gaps
 

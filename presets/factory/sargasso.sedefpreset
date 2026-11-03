@@ -1,0 +1,32 @@
+{
+  "format": "sedef-preset",
+  "version": 1,
+  "name": "Sargasso",
+  "folder": "Lead",
+  "author": "Sedef",
+  "tags": [
+    "distortion",
+    "vibe",
+    "plate",
+    "blues"
+  ],
+  "description": "Raw distortion into a slow, throbbing photocell vibe, for singing blues leads.",
+  "parameters": {
+    "ampModel": 0,
+    "lagoonVolume": 0.5,
+    "lagoonBass": 0.45,
+    "lagoonCut": 0.45,
+    "lagoonMaster": 0.5,
+    "lagoonOutput": 0.2375,
+    "coralEnabled": 1,
+    "coralGain": 0.45,
+    "coralCut": 0.55,
+    "beaconEnabled": 1,
+    "beaconSpeed": 1.4,
+    "beaconDepth": 0.8,
+    "fathomEnabled": 1,
+    "fathomMode": 0,
+    "fathomMix": 0.16,
+    "fathomDecay": 1.8
+  }
+}

@@ -34,6 +34,7 @@ chromium-headless-shell`.
 | `?overlay=tuner\|intonation`        | open the tuner or the intonation workbench                                                                          |
 | `?preset=soft-focus`                | start from a factory preset (slug; default `nacre`)                                                                 |
 | `?set=pearlEnabled:1,pearlGain:0.4` | parameter values applied as part of that preset (no dirty dot)                                                      |
+| `?board=gate,pearl,ripple`          | the pedalboard, as part of that preset (empty: no pedals)                                                           |
 | `?freeze`                           | no simulation: static meters, pitch only from the demo hook                                                         |
 | `?demo`                             | expose `window.__sedefDemo` (`pitch`, `silence`, `intonation`, `set`) for scripted frames                           |
 | `?grain=0`                          | hide the lacquer grain (much smaller PNGs)                                                                          |
@@ -68,7 +69,10 @@ ui/src/
     header/             brand, preset bar with A/B compare, gain + level meters
     presets/            preset browser: library model, list, Save as/Rename, session (audition,
                         Esc, Undo); see ui/presets.md
-    pedals/ amp/ eq/ cab/ fx/
+    pedals/             the pedalboard: registry.ts (the engine's pedal table, generated), catalog.ts
+                        (each pedal's panel and picker line), panels/, PedalBoard, PedalPicker,
+                        useBoardDrag; the board itself lives in state/boardStore.ts
+    amp/ eq/ cab/ fx/
     tuner/              needle + strobe gauge, overlay
     intonation/         math.ts, store, controller, wizard steps, saddle diagram
     metronome/ settings/
@@ -100,7 +104,7 @@ and warns when the global is missing, which must never happen in a browser.
 Startup is one round trip: `sedef_hello(PROTOCOL_VERSION)` returns the schema, values, presets,
 IR slots, the capture, saved UI state and session facts. A protocol mismatch shows a banner but
 keeps going. After that the UI listens to `sedef:params`, `sedef:telemetry`, `sedef:pitch`,
-`sedef:presets`, `sedef:ir` and `sedef:capture`.
+`sedef:presets`, `sedef:ir`, `sedef:capture` and `sedef:board`.
 
 ### Parameter flow
 
@@ -194,7 +198,7 @@ browser the canvas fits the window. Everything is vector or text, so it stays cr
 | Header     | logo, preset bar (prev/next, category chip, name with dirty dot, A/B with copy, Save), input/output gain with peak meters, clip latches and the Doubler switch, Tuner, Intonation, Metronome (standalone only), Settings         |
 | Presets    | browser over the rig ([details](ui/presets.md)): rail, list with tag chips and search, detail pane with the chain by stage; click or arrows audition, Enter keeps, Esc goes back exactly; `[` `]` `P` `A` `B`                    |
 | Tabs       | Pedals · Amp · EQ · Cab · FX, keys 1–5 and arrow keys; each tab shows what is switched on inside it                                                                                                                              |
-| Pedals     | Gate (threshold, open/closed lamp), Tide/Pearl/Coral/Ripple enclosures with LEDs and footswitches, Tide gain reduction, Ripple rate lamp                                                                              |
+| Pedals     | the pedalboard ([below](#pedalboard)): pedals in signal order, left to right and row by row; drag, arrow keys or move buttons to reorder; Remove with Undo; Add pedal picker by category. Gate (threshold, open/closed lamp), Tide gain reduction, Ripple rate lamp |
 | Amp        | Lagoon/Reef/Abyss faceplates; Reef voice lever; Abyss bright/shift levers; amp/cab link; Capture: load or drop a .nam file, gear/author/model, trims, through-cab, interface level, recent, missing file                         |
 | EQ         | the current amp's bank: 9 faders on a log axis under a live response curve, low/high cut, on/off, flatten                                                                                                                        |
 | Cab        | cab picker; Mic A/B markers anywhere over the cone (drag or click to place, wheel or Alt-drag for distance, keys), off-axis stem, other speakers' map; type, position, distance, off-axis, level, pan, phase, room, custom IR    |
@@ -203,6 +207,40 @@ browser the canvas fits the window. Everything is vector or text, so it stays cr
 | Intonation | instrument → measure each string (tune open, capture 12th fret, result with saddle diagram) → summary with copy as text                                                                                                          |
 | Metronome  | play/stop, tempo knob + tap, signature, sound, volume, step grid (off/normal/accent/soft), live beat                                                                                                                             |
 | Updates    | header pill when a newer release is out; panel with versions, last check, Check now, the automatic-check switch, release notes, Download & install with progress and Cancel, Skip this version, Later ([updates.md](updates.md)) |
+
+### Pedalboard
+
+![The pedalboard with Add pedal's picker open](images/pedal-picker.png)
+
+The board is the list of pedal ids in signal order (`state/boardStore.ts`), mirrored from the
+plug-in: `hello.board`, `sedef_board_set(pedals)` (answers with the board it kept) and
+`sedef:board` for changes made elsewhere (presets, A/B, preset Undo, host restores). Edits
+apply at once; only the answer to the latest edit is taken, and a board older than the one held
+(by `revision`) is ignored. A plug-in without the board leaves `supported` false: the page then
+shows 0.3.0's pedals in their fixed order without the editing controls.
+
+- **Layout**: pedals wrap into rows inside a scroller; the next row peeks under the fold. Each
+  pedal has a strip above it: the handle, then Move left, Move right and Remove.
+- **Drag**: press the handle and move 4 px. The pedal follows the pointer (canvas pixels, so the
+  Stage's scale doesn't matter), the others stay put, and a nacre bar marks the gap it would land
+  in. Near the scroller's top or bottom edge the board scrolls. Escape or a cancelled pointer
+  puts it back.
+- **Keyboard**: on the handle, arrow keys move the pedal one place, Home and End to either end;
+  the move buttons do the same. Focus stays on the control used (the handle when that button
+  switches off at an end). A polite live region says where it went: "Pearl moved to 4 of 5,
+  after Coral."
+- **Remove** takes the pedal off at once and shows "Removed Pearl · Undo"; Undo puts it back
+  where it was. The notice goes when a preset or A/B brings another board. Focus moves to the
+  next pedal's handle, or to Add pedal when the board is empty.
+- **Add pedal** opens a picker grouped by category, each pedal with its kind and one line about
+  it. A new pedal goes to its default position (its rank in the registry) and is announced;
+  a pedal on the board already is marked "On the board", and picking it shows it there.
+- **Registry**: `features/pedals/registry.ts` reads `generated/pedals.json`, which
+  `sedef-params --pedals` dumps from the engine's `PedalList.inc`, and mirrors `sedef::Board`'s
+  rules (add at rank, move, the legacy board for presets saved without one). Adding a pedal:
+  [architecture.md](architecture.md#adding-a-pedal).
+- **Mock**: the mock backend keeps a board per preset, snapshot and A/B side, counts it towards
+  the dirty dot like the plug-in, and takes `?board=`.
 
 ### EQ curve
 

@@ -9,7 +9,7 @@
 //   sedef-render --set pearlEnabled=1 --set coralEnabled=1 --board coral,pearl --out swapped.wav
 //
 // Without --in, a synthetic guitar DI (plucked-string chords and single notes) is used. The
-// pedalboard is the preset's "board", else --board, else the board a preset saved before the
+// pedalboard is --board, else the preset's "board", else the board a preset saved before the
 // board gets: the legacy board plus any other pedal the parameters switch on.
 
 #include "sedef/Engine.h"

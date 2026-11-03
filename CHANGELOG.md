@@ -6,6 +6,25 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Pedalboard:** the Pedals page is a board. Add pedals from a picker grouped by category, take
+  them off (with Undo), and drag them into any order by their handle, or move them with the
+  arrow keys or the move buttons. The board is saved with the session and with presets, and
+  A/B, preset Undo and the browser's audition carry it. Pedals off the board cost no CPU, and
+  the plug-in's latency stays the same whatever is on it. A reorder is a short duck (about
+  12 ms) rather than a click; adding and removing use each pedal's bypass fade
+  ([docs/architecture.md](docs/architecture.md#the-pedalboard)).
+- The Gate is a board pedal, first by default; it still listens to the guitar wherever it sits.
+- `sedef-render --board gate,tide,…` renders through a given board; without it, a preset's own
+  board.
+
+### Changed
+
+- Sessions and presets saved before the board open with 0.3.0's order (Gate, Tide, Pearl, Coral,
+  Ripple) and sound exactly as they did.
+- The Pedals tab shows a lamp for each pedal on the board, in its order.
+
 ## [0.3.0] - 2026-11-03
 
 More gain, mics you can place anywhere over the speaker, Neural Amp Modeler captures, a doubler

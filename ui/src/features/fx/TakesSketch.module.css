@@ -43,7 +43,8 @@
 
 .line {
   fill: none;
-  stroke-width: 1.4;
+  /* The reverb's envelope weight (DecayGraph.module.css), so the two sketches match. */
+  stroke-width: 1.6;
   stroke-linejoin: round;
   stroke-linecap: round;
 }

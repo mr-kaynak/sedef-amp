@@ -374,12 +374,19 @@ public:
         step (InstallStep::Permission);
         const auto pid =
             config_.waitPid != 0 ? config_.waitPid : static_cast<juce::uint32> (currentProcessId());
-        const auto launch = launchElevated (
-            request.file, windowsSetupParameters (pid, request.relaunch), request.window, false);
+        auto parameters = windowsSetupParameters (pid, request.relaunch);
+        if (config_.extraSetupParameters.isNotEmpty())
+            parameters << " " << config_.extraSetupParameters;
+        const auto launch =
+            launchElevated (request.file, parameters, request.window, config_.keepProcess);
         switch (launch.status)
         {
         case Elevated::Status::Ok:
-            return outcome (InstallResult::Outcome::Scheduled);
+        {
+            auto r = outcome (InstallResult::Outcome::Scheduled);
+            r.process = launch.process;
+            return r;
+        }
         case Elevated::Status::Declined:
             return outcome (InstallResult::Outcome::Declined);
         case Elevated::Status::Unavailable:

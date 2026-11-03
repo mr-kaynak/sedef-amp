@@ -55,6 +55,8 @@ struct InstallResult
     Outcome outcome = Outcome::Failed;
     Error error = Error::None; // when Failed
     juce::String detail;
+    void* process =
+        nullptr; // Windows, Scheduled, with InstallerConfig::keepProcess: Setup's HANDLE
 };
 
 using StepCallback = std::function<void (InstallStep)>;
@@ -99,9 +101,11 @@ struct InstallerConfig
     juce::File running;     // the bundle or binary this process runs from
     juce::File home;        // Linux: the user's home folder
     juce::File commonFiles; // Windows: C:\Program Files\Common Files
-    std::optional<LinuxScope> scope; // Linux: overrides the scope `running` implies (the CLI)
-    Elevate elevate;                 // empty: systemElevate()
-    juce::uint32 waitPid = 0;        // Windows: the process Setup waits for (0: this one)
+    std::optional<LinuxScope> scope;   // Linux: overrides the scope `running` implies (the CLI)
+    Elevate elevate;                   // empty: systemElevate()
+    juce::uint32 waitPid = 0;          // Windows: the process Setup waits for (0: this one)
+    bool keepProcess = false;          // Windows: hand back Setup's process (the CLI waits for it)
+    juce::String extraSetupParameters; // Windows: e.g. /LOG="..." (the CLI)
 };
 
 /// This process's configuration: the real cache, root, location and way to ask.

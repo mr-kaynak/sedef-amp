@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 #pragma once
 
-// Helpers shared by the Remora, Gyre and Breaker tests: the full sample-rate and block-size matrix
-// the pedals must handle, and a few measurements.
+// Helpers shared by the Remora, Sargasso and Breaker tests: the full sample-rate and block-size
+// matrix the pedals must handle, and a few measurements.
 
 #include "PedalTestUtils.h"
 

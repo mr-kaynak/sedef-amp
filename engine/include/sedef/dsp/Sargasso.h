@@ -12,12 +12,12 @@
 namespace sedef::dsp
 {
 
-/// "Gyre" fuzz: the classic four-stage sustain fuzz. An input stage, two cascaded clipping
+/// "Sargasso" fuzz: the classic four-stage sustain fuzz. An input stage, two cascaded clipping
 /// transistor stages (diodes in their feedback), the passive tone network (a low-pass and a
 /// high-pass blended by one pot, scooping the mids at noon) and a recovery stage. Sustain sets the
 /// gain into the clippers, so a decaying note stays clipped, and loud, for longer. See
-/// docs/dsp/gyre.md.
-class Gyre
+/// docs/dsp/sargasso.md.
+class Sargasso
 {
 public:
     struct Settings

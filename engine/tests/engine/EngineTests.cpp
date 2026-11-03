@@ -592,7 +592,7 @@ TEST_CASE ("Engine::process never allocates while captures play, switch and swap
 }
 
 // -------------------------------------------------------------------------------------------------
-// Fuzzes and booster: Remora, Gyre, Breaker.
+// Fuzzes and booster: Remora, Sargasso, Breaker.
 
 TEST_CASE ("Engine::process never allocates with the fuzzes and booster on", "[engine][drives]")
 {
@@ -600,7 +600,7 @@ TEST_CASE ("Engine::process never allocates with the fuzzes and booster on", "[e
     test::fillNoise (rig.in[0], 0.3f, 3);
     Random r (11);
     auto p = randomSnapshot (r);
-    for (auto id : { ParamId::remoraEnabled, ParamId::gyreEnabled, ParamId::breakerEnabled })
+    for (auto id : { ParamId::remoraEnabled, ParamId::sargassoEnabled, ParamId::breakerEnabled })
         p[id] = 1.0f;
     rig.run (p, 4096);
 
@@ -614,7 +614,7 @@ TEST_CASE ("Engine::process never allocates with the fuzzes and booster on", "[e
             p[ParamId::breakerRange] = static_cast<float> (round / 2 % 2);
             p[ParamId::remoraBias] = round % 2 == 0 ? 0.1f : 0.9f;
             p[ParamId::breakerBoost] = round % 2 == 0 ? 1.0f : 0.2f;
-            p[ParamId::gyreTone] = round % 2 == 0 ? 0.0f : 1.0f;
+            p[ParamId::sargassoTone] = round % 2 == 0 ? 0.0f : 1.0f;
             rig.run (p, 8192, 4096 + round * 8192);
         }
     }
@@ -637,12 +637,12 @@ TEST_CASE ("Switching the fuzzes on does not change the chain's latency", "[engi
         p[ParamId::lagoonMaster] = 0.2f;
         p[ParamId::remoraFuzz] = 0.0f;
         p[ParamId::remoraGuitarVolume] = 0.3f; // rolled back: the input network is nearly flat
-        p[ParamId::gyreSustain] = 0.0f;
+        p[ParamId::sargassoSustain] = 0.0f;
         p[enable] = on ? 1.0f : 0.0f;
         rig.run (p, 8192);
         return rig.out[0];
     };
-    for (auto enable : { ParamId::remoraEnabled, ParamId::gyreEnabled })
+    for (auto enable : { ParamId::remoraEnabled, ParamId::sargassoEnabled })
     {
         const auto off = render (enable, false);
         const auto on = render (enable, true);
@@ -673,7 +673,8 @@ TEST_CASE ("Switching the fuzzes and booster on and off is click-free", "[engine
     // thump from the restart, no comb from a misaligned dry path. Reference: the steady "off" and
     // "on" renders, crossfaded ideally. A guitar-like tone (147 Hz and seven harmonics).
     constexpr int kSwitch = 24000, kFade = 480;
-    for (auto enable : { ParamId::remoraEnabled, ParamId::gyreEnabled, ParamId::breakerEnabled })
+    for (auto enable :
+         { ParamId::remoraEnabled, ParamId::sargassoEnabled, ParamId::breakerEnabled })
     {
         const auto render = [enable] (int mode) { // 0 off, 1 on, 2 switched on at kSwitch
             Rig rig (48000.0, 64, 1, 2);

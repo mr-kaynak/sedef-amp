@@ -13,12 +13,12 @@
 #include "sedef/dsp/Drift.h"
 #include "sedef/dsp/Fathom.h"
 #include "sedef/dsp/GraphicEq.h"
-#include "sedef/dsp/Gyre.h"
 #include "sedef/dsp/Metronome.h"
 #include "sedef/dsp/NoiseGate.h"
 #include "sedef/dsp/Pearl.h"
 #include "sedef/dsp/Remora.h"
 #include "sedef/dsp/Ripple.h"
+#include "sedef/dsp/Sargasso.h"
 #include "sedef/dsp/Tide.h"
 #include "sedef/dsp/amp/AmpSection.h"
 #include "sedef/dsp/cab/CabSim.h"
@@ -51,10 +51,10 @@ struct ChainSettings
     dsp::AmpSection::Settings amp;
     dsp::CabSim::Settings cab;
     dsp::CaptureStage::Settings capture;
-    // Fuzzes and booster: Remora, Gyre, Breaker
-    bool remoraOn = false, gyreOn = false, breakerOn = false;
+    // Fuzzes and booster: Remora, Sargasso, Breaker
+    bool remoraOn = false, sargassoOn = false, breakerOn = false;
     dsp::Remora::Settings remora;
-    dsp::Gyre::Settings gyre;
+    dsp::Sargasso::Settings sargasso;
     dsp::Breaker::Settings breaker;
 };
 
@@ -120,12 +120,12 @@ ChainSettings chainSettings (const ParamSnapshot& p)
     s.capture = { p.choice (P::ampSource) == 1, p[P::captureInput], p[P::captureOutput],
                   p[P::captureInterfaceLevel], p.flag (P::captureCab) };
 
-    // Fuzzes and booster: Remora, Gyre, Breaker
+    // Fuzzes and booster: Remora, Sargasso, Breaker
     s.remoraOn = p.flag (P::remoraEnabled);
     s.remora = { p[P::remoraFuzz], p[P::remoraVolume], p[P::remoraBias], p[P::remoraGuitarVolume],
                  p.choice (P::remoraTransistor) };
-    s.gyreOn = p.flag (P::gyreEnabled);
-    s.gyre = { p[P::gyreSustain], p[P::gyreTone], p[P::gyreVolume] };
+    s.sargassoOn = p.flag (P::sargassoEnabled);
+    s.sargasso = { p[P::sargassoSustain], p[P::sargassoTone], p[P::sargassoVolume] };
     s.breakerOn = p.flag (P::breakerEnabled);
     s.breaker = { p[P::breakerBoost], p.choice (P::breakerRange) };
     return s;
@@ -313,9 +313,9 @@ struct Chain
     dsp::AmpSection amp;
     dsp::CabSim cab;
     dsp::CaptureStage capture; // the amp or a .nam capture, and the cab or not
-    // Fuzzes and booster: Remora, Gyre, Breaker (their places in the chain: process())
+    // Fuzzes and booster: Remora, Sargasso, Breaker (their places in the chain: process())
     Slot<dsp::Remora> remora;
-    Slot<dsp::Gyre> gyre;
+    Slot<dsp::Sargasso> sargasso;
     Slot<dsp::Breaker> breaker;
 
     std::vector<float> buffer;
@@ -334,7 +334,7 @@ struct Chain
         coral.prepare (mono);
         ripple.prepare (mono);
         remora.prepare (mono);
-        gyre.prepare (mono);
+        sargasso.prepare (mono);
         breaker.prepare (mono);
         amp.prepare (mono);
         capture.prepare (mono, amp.latencySamples());
@@ -346,7 +346,7 @@ struct Chain
     int latency() const noexcept
     {
         return pearl.latency + coral.latency + capture.latencySamples() + cab.latencySamples() +
-               remora.latency + gyre.latency + breaker.latency;
+               remora.latency + sargasso.latency + breaker.latency;
     }
 
     void reset() noexcept
@@ -358,7 +358,7 @@ struct Chain
         coral.reset();
         ripple.reset();
         remora.reset();
-        gyre.reset();
+        sargasso.reset();
         breaker.reset();
         amp.reset();
         capture.reset();
@@ -395,11 +395,11 @@ struct Chain
         const auto run = [] (auto& m, const AudioView& v) {
             m.process (v);
         };
-        // Remora first, straight after the guitar (its clean-up wants nothing in front); Gyre
+        // Remora first, straight after the guitar (its clean-up wants nothing in front); Sargasso
         // after the compressor and before the overdrives; Breaker last, straight into the amp.
         remora.process (x, n, s.remoraOn, s.remora, run);
         tideRan = tide.process (x, n, s.tideOn, s.tide, run);
-        gyre.process (x, n, s.gyreOn, s.gyre, run);
+        sargasso.process (x, n, s.sargassoOn, s.sargasso, run);
         pearl.process (x, n, s.pearlOn, s.pearl, run);
         coral.process (x, n, s.coralOn, s.coral, run);
         ripple.process (x, n, s.rippleOn, s.ripple, run);

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-#include "sedef/dsp/Gyre.h"
+#include "sedef/dsp/Sargasso.h"
 
 #include "sedef/core/Math.h"
 #include "sedef/dsp/detail/Bilinear.h"
@@ -65,14 +65,14 @@ inline double clipIntegral (double r) noexcept
 }
 
 /// Output trim (dB), fitted so that at volume 0.5 the reference tone comes out within +-0.2 dB of
-/// its input level at every sustain setting, tone at noon (see docs/dsp/gyre.md).
+/// its input level at every sustain setting, tone at noon (see docs/dsp/sargasso.md).
 float trimDb (float sustain) noexcept
 {
     return -(14.05f - 1.66f * std::exp (-sustain / 0.25f));
 }
 } // namespace
 
-Gyre::ToneNetwork Gyre::toneNetwork (float tone) noexcept
+Sargasso::ToneNetwork Sargasso::toneNetwork (float tone) noexcept
 {
     // Nodal analysis. The source drives the low-pass branch (series R1, shunt C1, node L) and the
     // high-pass branch (series C2, shunt R2, node H); the pot runs from L to H, and its wiper W
@@ -98,7 +98,7 @@ Gyre::ToneNetwork Gyre::toneNetwork (float tone) noexcept
     return net;
 }
 
-void Gyre::prepare (const ProcessSpec& spec)
+void Sargasso::prepare (const ProcessSpec& spec)
 {
     sampleRate_ = spec.sampleRate;
     numChannels_ = std::clamp (spec.numChannels, 1, kMaxChannels);
@@ -121,7 +121,7 @@ void Gyre::prepare (const ProcessSpec& spec)
     reset();
 }
 
-void Gyre::reset() noexcept
+void Sargasso::reset() noexcept
 {
     oversampler_.reset();
     for (auto* group : { &clipA_, &clipB_ })
@@ -132,19 +132,19 @@ void Gyre::reset() noexcept
     primed_ = false;
 }
 
-void Gyre::setSettings (const Settings& s) noexcept
+void Sargasso::setSettings (const Settings& s) noexcept
 {
     settings_ = s;
     applySettings (!primed_);
     primed_ = true;
 }
 
-int Gyre::latencySamples() const noexcept
+int Sargasso::latencySamples() const noexcept
 {
     return oversampler_.latencySamples();
 }
 
-void Gyre::applySettings (bool snap) noexcept
+void Sargasso::applySettings (bool snap) noexcept
 {
     const float sustain = std::clamp (settings_.sustain, 0.0f, 1.0f);
     const float tone = std::clamp (settings_.tone, 0.0f, 1.0f);
@@ -169,13 +169,13 @@ void Gyre::applySettings (bool snap) noexcept
     }
 }
 
-void Gyre::updateTone (float tone) noexcept
+void Sargasso::updateTone (float tone) noexcept
 {
     const auto net = toneNetwork (tone);
     toneNet_.setCoeffs (detail::bilinear (net.numerator, net.denominator, sampleRate_, 1000.0));
 }
 
-void Gyre::process (const AudioView& io) noexcept
+void Sargasso::process (const AudioView& io) noexcept
 {
     // The oversampler holds maxBlockSize frames; split anything larger.
     if (maxBlockSize_ <= 0)
@@ -184,7 +184,7 @@ void Gyre::process (const AudioView& io) noexcept
         processBlock (io.subView (start, std::min (maxBlockSize_, io.numFrames() - start)));
 }
 
-void Gyre::processBlock (const AudioView& io) noexcept
+void Sargasso::processBlock (const AudioView& io) noexcept
 {
     const int n = io.numFrames();
     const int channels = std::min (io.numChannels(), numChannels_);

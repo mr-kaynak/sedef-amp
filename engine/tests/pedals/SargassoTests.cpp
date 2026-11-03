@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 #include "DriveTestUtils.h"
 #include "sedef/core/Oversampler.h"
-#include "sedef/dsp/Gyre.h"
+#include "sedef/dsp/Sargasso.h"
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
@@ -9,13 +9,13 @@
 
 using namespace sedef;
 using Catch::Approx;
-using dsp::Gyre;
+using dsp::Sargasso;
 
 namespace
 {
 constexpr double kFs = 48000.0;
 
-void run (Gyre& g, AudioView v)
+void run (Sargasso& g, AudioView v)
 {
     g.process (v);
 }
@@ -23,7 +23,7 @@ void run (Gyre& g, AudioView v)
 /// |N(j w) / D(j w)| of the analogue tone network, in dB.
 double networkDb (float tone, double hz)
 {
-    const auto net = Gyre::toneNetwork (tone);
+    const auto net = Sargasso::toneNetwork (tone);
     const std::complex<double> s (0.0, kTwoPiD * hz);
     const auto poly = [&s] (const std::array<double, 3>& c) {
         return c[0] + c[1] * s + c[2] * s * s;
@@ -32,12 +32,12 @@ double networkDb (float tone, double hz)
 }
 
 /// The same network solved directly as a circuit (complex nodal equations, no algebra shared with
-/// Gyre::toneNetwork): low-pass branch R1/C1 to node L, high-pass branch C2/R2 to node H, pot
+/// Sargasso::toneNetwork): low-pass branch R1/C1 to node L, high-pass branch C2/R2 to node H, pot
 /// between them, wiper into the load.
 double circuitDb (float tone, double hz)
 {
     using C = std::complex<double>;
-    using N = Gyre::ToneNetwork;
+    using N = Sargasso::ToneNetwork;
     const C s (0.0, kTwoPiD * hz);
     const double t = std::clamp (static_cast<double> (tone), 1.0e-4, 1.0 - 1.0e-4);
     const C y1 = 1.0 / N::kLowPassR, yc1 = s * N::kLowPassC, yc2 = s * N::kHighPassC;
@@ -69,7 +69,7 @@ double circuitDb (float tone, double hz)
 /// Small-signal response of the whole pedal (sustain 0, tiny input: the clippers are linear).
 double pedalDb (float tone, double hz)
 {
-    Gyre g;
+    Sargasso g;
     g.prepare ({ kFs, 512, 1 });
     g.setSettings ({ 0.0f, tone, 0.5f });
     return test::measureGainDb (
@@ -79,7 +79,7 @@ double pedalDb (float tone, double hz)
 
 std::vector<float> decayThrough (float sustain)
 {
-    Gyre g;
+    Sargasso g;
     g.prepare ({ kFs, 512, 1 });
     g.setSettings ({ sustain, 0.5f, 0.5f });
     test::Buffer b (1, static_cast<int> (5.0 * kFs));
@@ -89,25 +89,27 @@ std::vector<float> decayThrough (float sustain)
 }
 } // namespace
 
-TEST_CASE ("Gyre output stays finite at every rate, block size and setting", "[pedals][gyre]")
+TEST_CASE ("Sargasso output stays finite at every rate, block size and setting",
+           "[pedals][sargasso]")
 {
-    test::checkFiniteEverywhere<Gyre> (
-        [] (Random& r) { return Gyre::Settings { r.unipolar(), r.unipolar(), r.unipolar() }; });
+    test::checkFiniteEverywhere<Sargasso> (
+        [] (Random& r) { return Sargasso::Settings { r.unipolar(), r.unipolar(), r.unipolar() }; });
 }
 
-TEST_CASE ("Gyre passes silence as silence", "[pedals][gyre]")
+TEST_CASE ("Sargasso passes silence as silence", "[pedals][sargasso]")
 {
-    CHECK (test::silenceOutputPeak<Gyre> (Gyre::Settings {}, run) == 0.0f);
-    CHECK (test::silenceOutputPeak<Gyre> (Gyre::Settings { 1.0f, 1.0f, 1.0f }, run) == 0.0f);
+    CHECK (test::silenceOutputPeak<Sargasso> (Sargasso::Settings {}, run) == 0.0f);
+    CHECK (test::silenceOutputPeak<Sargasso> (Sargasso::Settings { 1.0f, 1.0f, 1.0f }, run) ==
+           0.0f);
 }
 
-TEST_CASE ("Gyre does not depend on how the host slices the audio", "[pedals][gyre]")
+TEST_CASE ("Sargasso does not depend on how the host slices the audio", "[pedals][sargasso]")
 {
     for (double fs : test::kDriveRates)
-        CHECK (test::blockSizeDeviation<Gyre> ({ 0.7f, 0.4f, 0.5f }, fs) < 1.0e-5);
+        CHECK (test::blockSizeDeviation<Sargasso> ({ 0.7f, 0.4f, 0.5f }, fs) < 1.0e-5);
 }
 
-TEST_CASE ("Gyre's tone network is the passive low-pass/high-pass blend", "[pedals][gyre]")
+TEST_CASE ("Sargasso's tone network is the passive low-pass/high-pass blend", "[pedals][sargasso]")
 {
     // The transfer function agrees with the circuit solved directly.
     for (float tone : { 0.0f, 0.2f, 0.5f, 0.8f, 1.0f })
@@ -136,7 +138,7 @@ TEST_CASE ("Gyre's tone network is the passive low-pass/high-pass blend", "[peda
     CHECK (networkDb (1.0f, 8000.0) > -1.0);
 }
 
-TEST_CASE ("Gyre's digital tone control matches the analogue network", "[pedals][gyre]")
+TEST_CASE ("Sargasso's digital tone control matches the analogue network", "[pedals][sargasso]")
 {
     // Turning the tone knob changes the pedal's small-signal response by exactly what the network
     // changes; everything else in the chain cancels in the difference. The bilinear transform's
@@ -150,7 +152,7 @@ TEST_CASE ("Gyre's digital tone control matches the analogue network", "[pedals]
         }
 }
 
-TEST_CASE ("Gyre's sustain holds a decaying note longer", "[pedals][gyre]")
+TEST_CASE ("Sargasso's sustain holds a decaying note longer", "[pedals][sargasso]")
 {
     // A plucked note (0.4 s decay): the clippers hold it at full level until the input falls below
     // their threshold, which more sustain pushes further down. Measured to 20 dB below the peak.
@@ -167,11 +169,11 @@ TEST_CASE ("Gyre's sustain holds a decaying note longer", "[pedals][gyre]")
     CHECK (test::decaySeconds (decayThrough (0.0f), kFs, 20.0) > 1.2);
 }
 
-TEST_CASE ("Gyre's clipping is nearly symmetric: odd harmonics", "[pedals][gyre]")
+TEST_CASE ("Sargasso's clipping is nearly symmetric: odd harmonics", "[pedals][sargasso]")
 {
     for (float sustain : { 0.2f, 0.6f, 1.0f })
     {
-        Gyre g;
+        Sargasso g;
         g.prepare ({ kFs, 512, 1 });
         g.setSettings ({ sustain, 0.5f, 0.5f });
         test::Buffer b (1, 65536);
@@ -183,11 +185,11 @@ TEST_CASE ("Gyre's clipping is nearly symmetric: odd harmonics", "[pedals][gyre]
     }
 }
 
-TEST_CASE ("Gyre volume 0.5 is level-matched across the sustain range", "[pedals][gyre]")
+TEST_CASE ("Sargasso volume 0.5 is level-matched across the sustain range", "[pedals][sargasso]")
 {
     for (float sustain : { 0.0f, 0.25f, 0.5f, 0.75f, 1.0f })
     {
-        Gyre g;
+        Sargasso g;
         g.prepare ({ kFs, 512, 1 });
         g.setSettings ({ sustain, 0.5f, 0.5f });
         test::Buffer b (1, 48000);
@@ -198,12 +200,12 @@ TEST_CASE ("Gyre volume 0.5 is level-matched across the sustain range", "[pedals
     }
 }
 
-TEST_CASE ("Gyre keeps aliasing low on high notes at full sustain", "[pedals][gyre]")
+TEST_CASE ("Sargasso keeps aliasing low on high notes at full sustain", "[pedals][sargasso]")
 {
     for (double fs : { 44100.0, 48000.0 })
         for (double f0 : { 1318.5, 2637.0 })
         {
-            Gyre m;
+            Sargasso m;
             m.prepare ({ fs, 512, 1 });
             m.setSettings ({ 1.0f, 0.5f, 0.5f });
             test::Buffer b (1, 49152);
@@ -213,29 +215,29 @@ TEST_CASE ("Gyre keeps aliasing low on high notes at full sustain", "[pedals][gy
         }
 }
 
-TEST_CASE ("Gyre reports the oversampler's latency", "[pedals][gyre]")
+TEST_CASE ("Sargasso reports the oversampler's latency", "[pedals][sargasso]")
 {
     for (double fs : test::kDriveRates)
     {
         Oversampler os;
         os.prepare (512, 1, Oversampler::factorLog2For (fs));
-        Gyre g;
+        Sargasso g;
         g.prepare ({ fs, 512, 1 });
         CHECK (g.latencySamples() == os.latencySamples());
     }
 }
 
-TEST_CASE ("Gyre automation is click-free", "[pedals][gyre]")
+TEST_CASE ("Sargasso automation is click-free", "[pedals][sargasso]")
 {
     int which = 0;
     const auto check = [&which] (auto settingsAt) {
-        const auto r = test::measureSweep<Gyre> (settingsAt, run);
+        const auto r = test::measureSweep<Sargasso> (settingsAt, run);
         INFO ("sweep " << which++);
         CHECK (r.finite);
         CHECK (r.sweep <= 1.5f * r.reference);
     };
-    check ([] (float t) { return Gyre::Settings { t, 0.5f, 0.5f }; });
-    check ([] (float t) { return Gyre::Settings { 0.5f, t, 0.5f }; });
-    check ([] (float t) { return Gyre::Settings { 0.5f, 0.5f, t }; });
-    check ([] (float t) { return Gyre::Settings { t, 1.0f - t, t }; });
+    check ([] (float t) { return Sargasso::Settings { t, 0.5f, 0.5f }; });
+    check ([] (float t) { return Sargasso::Settings { 0.5f, t, 0.5f }; });
+    check ([] (float t) { return Sargasso::Settings { 0.5f, 0.5f, t }; });
+    check ([] (float t) { return Sargasso::Settings { t, 1.0f - t, t }; });
 }

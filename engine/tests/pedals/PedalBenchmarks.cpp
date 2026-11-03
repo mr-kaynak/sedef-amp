@@ -3,11 +3,11 @@
 #include "sedef/core/Denormals.h"
 #include "sedef/dsp/Breaker.h"
 #include "sedef/dsp/Coral.h"
-#include "sedef/dsp/Gyre.h"
 #include "sedef/dsp/NoiseGate.h"
 #include "sedef/dsp/Pearl.h"
 #include "sedef/dsp/Remora.h"
 #include "sedef/dsp/Ripple.h"
+#include "sedef/dsp/Sargasso.h"
 #include "sedef/dsp/Tide.h"
 
 #include <catch2/catch_test_macros.hpp>
@@ -54,6 +54,6 @@ TEST_CASE ("Pedal CPU cost", "[.bench]")
             bench<dsp::Remora> ({ 0.8f, 0.5f, 0.5f, 1.0f, dsp::Remora::Germanium }));
     report ("Remora silicon",
             bench<dsp::Remora> ({ 0.8f, 0.5f, 0.5f, 1.0f, dsp::Remora::Silicon }));
-    report ("Gyre", bench<dsp::Gyre> ({ 0.8f, 0.5f, 0.5f }));
+    report ("Sargasso", bench<dsp::Sargasso> ({ 0.8f, 0.5f, 0.5f }));
     report ("Breaker", bench<dsp::Breaker> ({ 0.8f, dsp::Breaker::Treble }));
 }

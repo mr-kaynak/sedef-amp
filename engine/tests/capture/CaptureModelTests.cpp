@@ -425,3 +425,28 @@ TEST_CASE ("A WaveNet conditioned by its own model plays at its measured level",
     CAPTURE (f->measuredDbfs(), f->normalisationDb());
     CHECK (level == Catch::Approx (dsp::CaptureFile::kTargetDbfs).margin (0.1));
 }
+
+TEST_CASE ("A capture with a resting offset plays it from the first sample", "[capture]")
+{
+    // y = 0.5 x + 0.1: at rest it sits at 0.1 (times its level). A fresh instance must already be
+    // there, latency included, or the stage's first block after a prepare starts with a step.
+    for (const double modelRate : { 48000.0, 44100.0 })
+    {
+        const auto f = nt::parseOrFail (nt::file (
+            "Linear", { { "receptive_field", 1 }, { "bias", true } }, { 0.5f, 0.1f }, modelRate));
+        const int latency = dsp::CaptureStage::latencyFor (48000.0, 37);
+        auto m = f->instantiate ({ 48000.0, 64, latency });
+        REQUIRE (m != nullptr);
+        std::vector<float> in (64, 0.0f), out (64);
+        m->process (in.data(), out.data(), 64);
+        CAPTURE (modelRate, latency);
+        for (const float y : out)
+            CHECK (y == Catch::Approx (0.1f * m->outputGain()).margin (2.0e-3 * m->outputGain()));
+    }
+    // An LSTM settles on silence at least as long as the core prewarms it (half a second).
+    const auto lstm = nt::parseOrFail (
+        nt::file ("LSTM", nt::lstmConfig (1, 4),
+                  nt::randomWeights (static_cast<std::size_t> (nt::lstmWeights (1, 4)), 3, 0.4f)));
+    CHECK (lstm->instantiate ({ 48000.0, 64, 37 })->settleSamples() >= 24000);
+    CHECK (lstm->instantiate ({ 96000.0, 64, 72 })->settleSamples() >= 48000);
+}

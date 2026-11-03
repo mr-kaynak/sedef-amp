@@ -300,6 +300,14 @@ std::unique_ptr<CaptureModel> CaptureFile::instantiate (const CaptureSpec& spec,
         m.settleSamples = static_cast<int> (std::ceil (static_cast<double> (info.receptiveField) *
                                                        hostPerModel)) +
                           spec.latencySamples + 64;
+        // The model rests where Reset() left it; silence through the rate conversion puts that
+        // resting output (a capture may sit at an offset) into its history too, so the first
+        // block starts there instead of stepping up to it after the latency.
+        const auto block = static_cast<std::size_t> (std::max (1, spec.maxBlockSize));
+        std::vector<float> silence (block, 0.0f), scratch (block);
+        for (int left = 2 * spec.latencySamples; left > 0; left -= static_cast<int> (block))
+            model->process (silence.data(), scratch.data(),
+                            std::min (left, static_cast<int> (block)));
         return model;
     }
     catch (const std::exception& e)

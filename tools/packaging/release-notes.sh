@@ -27,7 +27,11 @@ awk -v v="$version" '
     $0 ~ "^## \\[" v "\\]" { on = 1; next }
     on && (/^## \[/ || /^\[[^]]+\]: /) { exit }
     on { print }
-' "$root/CHANGELOG.md" >"$changelog"
+' "$root/CHANGELOG.md" |
+    # A release page resolves a relative link against /releases/, so the changelog's links into
+    # the repo (docs/dsp/nam.md, docs/dsp/amps.md#...) point at the files as of this tag instead.
+    sed -E "s#\]\(([^)#:/][^):]*)\)#](https://github.com/mr-kaynak/sedef-amp/blob/$tag/\1)#g" \
+        >"$changelog"
 if ! grep -q '[^[:space:]]' "$changelog"; then
     echo "warning: CHANGELOG.md has no section for $version" >&2
     echo "See [CHANGELOG.md](https://github.com/mr-kaynak/sedef-amp/blob/$tag/CHANGELOG.md)." \

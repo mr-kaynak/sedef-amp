@@ -57,7 +57,8 @@ version (`## [0.3.0-rc1]`) or fall back to a link to the CHANGELOG.
 
 The release notes are [.github/release-notes.md](../.github/release-notes.md) with the download
 table, the CHANGELOG section and the first-launch advice filled in by
-`tools/packaging/release-notes.sh`.
+`tools/packaging/release-notes.sh`. The CHANGELOG's relative links (`docs/dsp/nam.md`) would
+resolve against the release page, so the script points them at the files as of the tag.
 
 ## Dry run
 

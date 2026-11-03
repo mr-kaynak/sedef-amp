@@ -38,11 +38,13 @@
   stroke: rgb(0 0 0 / 0.5);
 }
 
-/* Clicking the cone brings the selected mic there. */
+/* Clicking the cone brings the selected mic there. The cone and the markers are drag surfaces:
+ * they draw their own grab state, so no tap flash, and they don't scale when pressed. */
 .pad {
   fill: transparent;
   cursor: crosshair;
   touch-action: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .pad[data-dragging] {
@@ -53,6 +55,7 @@
   cursor: grab;
   outline: none;
   touch-action: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .marker[data-dragging] {

@@ -534,8 +534,8 @@ int main (int argc, char** argv)
         board = boardFromList (*boardList);
     std::vector<BoardSwitchAt> switches;
     for (const auto& [at, list] : switchLists)
-        switches.push_back ({ static_cast<std::size_t> (std::max (0.0, at) * rate),
-                              boardFromList (list) });
+        switches.push_back (
+            { static_cast<std::size_t> (std::max (0.0, at) * rate), boardFromList (list) });
     const auto r = render (input, rate, snap, board.value_or (legacyBoard (snap)), 256,
                            capture.get(), std::move (switches));
     const auto s = measure (r.left, r.right, 0);

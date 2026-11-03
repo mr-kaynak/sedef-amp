@@ -18,8 +18,9 @@ All notable changes to this project are documented here. The format follows
   does, and depends on the mic: large diaphragms lose more treble than small ones, a ribbon keeps
   its low end. The marker shows the angle. Custom IRs get it too.
 - **The other speakers:** on the 2x12 and 4x12 a mic now also hears the cab's other cones. Backed
-  off, it picks up their low end and the comb filtering of a real multi-speaker cab, and moving it
-  towards or away from them changes the sound; close up they stay in the background. A small map
+  off, it picks up their low end and the comb filtering of a real multi-speaker cab (its notches no
+  deeper than a room would leave them), and moving it towards or away from them changes the
+  sound; close up they stay in the background. A small map
   on the cab page shows the mics against the cab's speakers. The floor reflection follows how high
   the mic sits on the cone.
 

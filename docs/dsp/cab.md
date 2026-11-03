@@ -48,7 +48,7 @@ that fades and a treble shelf that grows, both given at 60°.
             ┌──────────────────────────── mic A voice (×2 while crossfading) ────────────────────────────┐
 mono in ─┬─► [cab reflection] ► cab body (≤10 SOS) ─┬─► near: position (3), proximity, air ─► (+) ─► mic (≤4) ► off axis (2)
          │                                          │                                         ▲          │
-         │                                          ├─► other speakers: delay ► Bessel LP ► gain ┘ (×1 / ×3)
+         │                                          ├─► other speakers: delay ► Bessel LP ► gain ► Σ ► low shelf ┘ (×1 / ×3)
          │                                          │                                                    ▼
          │                                          └─ room send ◄─ room level/switch      time of flight + floor bounce
          │                                                     │                                    │
@@ -120,21 +120,47 @@ the capsule at horizontal offset `ρk` and distance `Rk = √(ρk² + z²)`:
 - **beaming**: the neighbour is seen `φk = asin (ρk / Rk)` off its own axis, and a piston's
   directivity `2 J1(x) / x` with `x = k a sin φ` is 3 dB down at `x = 1.62`, so a low-pass with
   that corner (740 Hz seen from the grille, 1–1.5 kHz from further back). `2 J1(x)/x` is real, so
-  the filter is a second-order Bessel (Q = 1/√3, maximally flat group delay) whose delay,
-  `0.217 / f−3dB`, is taken off the path delay;
-- **arrival**: `(Rk − z) / c` after the miked cone's sound (minus the filter's delay, at least
-  25 µs);
+  the filter is a second-order Bessel (Q = 1/√3, maximally flat group delay);
 - **polar pattern**: the capsule weighs the arrival direction with `A + (1 − A) cos ψk`, relative
-  to its weighting of the miked cone. On the grille the neighbours arrive from about 85°, so a
-  figure-of-eight barely hears them and an omni hears them most. The capsule axis leans towards
-  the dust cap by `α` (directly over the dust cap, inside 3 cm, the lean fades out, since "towards
-  the dust cap" has no direction there).
+  to its weighting of the miked cone, `A + (1 − A) cos α`. On the grille the neighbours arrive
+  from about 85°, so a figure-of-eight barely hears them and an omni hears them most. The capsule
+  axis leans towards the dust cap by `α` (directly over the dust cap, inside 3 cm, the lean fades
+  out, since "towards the dust cap" has no direction there). The ratio is held within ±1: the
+  direct sound is weighed along the cone's axis, the least favourable direction it comes from,
+  while the miked cone reaches the capsule from its whole surface, into which the capsule leans.
+  Unheld, a ribbon at the cone edge turned 60° weighed the next cone 1.96 times the miked one, so
+  one speaker 0.4 m away outweighed the one under the capsule;
+- **arrival**: `(Rk − z) / c` after the miked cone's sound, at least 25 µs. Both paths run through
+  minimum-phase filters with their own group delay (here the Bessel low-pass and the shelf below;
+  there the position, proximity and air stages, up to 88 µs for the edge low-pass), so the bleed
+  delay is set to make the arrival right at each neighbour's beaming corner, where its comb with
+  the miked cone forms. The delays come from the sections' analog prototypes, which the bilinear
+  designs follow within a few µs there. Taking off the Bessel delay at DC alone, as at first, let
+  the bleed arrive up to 128 µs early in the comb region.
 
-| 4x12, Dyn Classic, position 0.5 at 2 o'clock | gains (right, upper, diagonal cone) | delays after the filter's | corners |
-|---|---|---|---|
-| on the grille | −16.9, −17.4, −20.2 dB | 0.45, 0.50, 0.81 ms | 740 Hz |
-| distance 0.5 | −6.5, −6.9, −9.7 dB | 0.19, 0.22, 0.48 ms | 810–890 Hz |
-| distance 1 | −2.9, −3.2, −5.0 dB | 0.10, 0.12, 0.31 ms | 980–1180 Hz |
+**The room's floor under the combs.** An anechoic sum of identical coherent pistons cancels the
+miked cone completely wherever the neighbours together match it in level and oppose it in phase:
+over a grid of 4x12 poses, 7% of the turned ones notched below −20 dB, the deepest −60 dB. Driver
+tolerances do not prevent that where the combs are: with a spread σ in acoustic-centre depth,
+the coherent part of a neighbour falls as `exp (−(k σ)² / 2)` (Ruze's tolerance law), and for
+σ = 5 mm that keeps 99% of it at 1.5 kHz; cone break-up differs from unit to unit only above
+that. What keeps a real close mic out of such notches is the room, whose diffuse field is
+incoherent with the cab and fills each notch to its own level. By Hopkins–Stryker that field sits
+`16π r² / (Q A)` below the direct sound at distance r, with `A = 0.161 V / T` sabins: for a
+typical recording room (100 m³, 0.5 s) and a cab radiating with Q = 4, 13 dB down at 35 cm and
+36 dB down on the grille. The close mic is anechoic, so it bounds the coherent sum to the
+residual the room would leave instead: above the low end the neighbours together are held under
+`1 − √(diffuse / direct)` of the miked cone (0.78 at 35 cm, 0.98 on the grille). Below an eighth
+of a period of the farthest neighbour, where none of them can oppose the miked cone, a low shelf
+(Q 0.71) on their sum gives the full sum back: a backed-off 4x12 keeps its low end. No single
+neighbour outweighs the miked cone anywhere, and on the test grid the deepest notch is −8.4 dB on
+the 4x12 and −6.2 dB on the 2x12, never below the room's floor.
+
+| 4x12, Dyn Classic, position 0.5 at 2 o'clock | low-end gains (right, upper, diagonal cone) | held above | delays | corners |
+|---|---|---|---|---|
+| on the grille | −16.9, −17.4, −20.2 dB | (not held) | 0.49, 0.54, 0.85 ms | 740 Hz |
+| distance 0.5 | −6.5, −6.9, −9.7 dB | −3.1 dB, shelf at 168 Hz | 0.26, 0.29, 0.55 ms | 810–890 Hz |
+| distance 1 | −2.9, −3.2, −5.0 dB | −8.0 dB, shelf at 235 Hz | 0.18, 0.21, 0.41 ms | 980–1180 Hz |
 
 So moving a mic over a 2x12 or 4x12 changes the other speakers' contribution and arrival times,
 little on the grille and a lot further back. Their low end adds up in phase while their treble
@@ -176,11 +202,11 @@ the analytic model):
 
 | | towards the other cones (1:30) vs away (7:30) | 1x12, top vs bottom of the cone |
 |---|---|---|
-| on the grille | up to 2.9 dB (4x12), 1.1 dB (2x12) | < 0.2 dB |
-| distance 1 | up to 16.6 dB (4x12, the comb moves), 6.2 dB (2x12) | 2.2 dB (the floor bounce moves) |
+| on the grille | up to 3.1 dB (4x12), 1.1 dB (2x12) | < 0.2 dB |
+| distance 1 | up to 7.6 dB (4x12, the comb moves), 7.1 dB (2x12) | 2.2 dB (the floor bounce moves) |
 
-An omni backed off to distance 1 gains 10.2 dB of low end (40–150 Hz against 1.5–4 kHz) on the
-4x12, 5.1 dB on the 2x12 and none on the 1x12. A cardioid's proximity loss is mostly made up by the
+An omni backed off to distance 1 gains 6.5 dB of low end (40–150 Hz against 1.5–4 kHz) on the
+4x12, 3.9 dB on the 2x12 and none on the 1x12. A cardioid's proximity loss is mostly made up by the
 cab sum, which is the "bigger" sound of a backed-off 4x12, with the cones' comb at 1–2 kHz.
 
 ### 3b. Compatibility with v0.2.0
@@ -193,11 +219,12 @@ height for the floor bounce. Largest third-octave difference against the v0.2.0 
 | | distance 0 | 0.25 | 0.5 | 1 |
 |---|---|---|---|---|
 | 1x12, Dyn Classic / Ribbon Smooth / Cond Precision | ≤ 0.03 dB | ≤ 0.15 dB | 0.23 dB | ≤ 0.53 dB |
-| 2x12, Dyn Classic (mic A default) | 0.9 dB | 1.5 dB | 2.6 dB | 4.1 dB |
-| 2x12, Ribbon Smooth (mic B default) | 0.2 dB | 0.9 dB | 2.0 dB | 3.9 dB |
-| 4x12, Dyn Classic | 2.2 dB | 4.3 dB | 6.2 dB | 8.7 dB |
-| 4x12, Ribbon Smooth | 0.3 dB | 1.7 dB | 3.9 dB | 7.5 dB |
-| 4x12, Cond Precision | 4.2 dB | 7.0 dB | 8.4 dB | 9.7 dB |
+| 2x12, Dyn Classic (mic A default) | 0.9 dB | 1.7 dB | 2.5 dB | 4.5 dB |
+| 2x12, Ribbon Smooth (mic B default) | 0.2 dB | 0.9 dB | 2.2 dB | 3.9 dB |
+| 2x12, Cond Precision | 1.6 dB | 2.6 dB | 3.6 dB | 4.9 dB |
+| 4x12, Dyn Classic | 2.3 dB | 4.7 dB | 5.1 dB | 8.2 dB |
+| 4x12, Ribbon Smooth | 0.3 dB | 1.8 dB | 3.8 dB | 7.0 dB |
+| 4x12, Cond Precision | 4.0 dB | 5.6 dB | 7.0 dB | 9.2 dB |
 
 On the grille the 4x12's Dyn Classic gains up to 1.5 dB below 250 Hz and loses 2.2 dB around
 630 Hz (the three other cones, whose paths are 0.75–1.1 ms longer). The factory presets keep their level within
@@ -210,17 +237,25 @@ On the grille the 4x12's Dyn Classic gains up to 1.5 dB below 250 Hz and loses 2
   pre-roll so its filters settle, then the 30 ms smoothstep crossfade runs. A change that arrives
   during a fade waits for it to finish. The amp/cab link in the engine switches cab and mic types
   together, which is a single crossfade.
-- **The pose** glides with a 30 ms one-pole, in Cartesian coordinates (x, y, distance, and the
-  angle over its 60° range): a move across the cone goes straight across, and crossing the
-  ±180° azimuth wrap moves the mic 2°, not round the cone. The affected sections (presence, edge
-  low-pass, warmth, proximity, air, off axis, the other speakers' low-passes) are redesigned once
-  per control block only when their inputs moved, and their coefficients are **interpolated per
-  sample** across the block; delays and gains (time of flight, bounce, bleed taps, level and polar
-  gain) are interpolated per sample too. A plain 32-sample coefficient staircase measured −65 dB
+- **The pose** glides with a 30 ms one-pole, in polar coordinates (position, azimuth, distance,
+  and the angle over its 60° range): a move round the cone keeps its radius, so a jump from −60°
+  to +120° at the edge goes round the rim instead of through the dust cap (whose presence peak
+  flashed up 9.4 dB on the way when x and y glided), and the azimuth takes the short way: crossing
+  the ±180° wrap moves the mic 2°, not round the cone. The glide snaps to its target within
+  10⁻⁴ of a range (0.01° of azimuth); ten times coarser doubled the residue under automation. The
+  affected sections (presence, edge low-pass, warmth, proximity, air, off axis, the other
+  speakers' low-passes and the shelf on their sum) are redesigned once per control block only
+  when their inputs moved, and their coefficients are **interpolated per sample** across the
+  block; delays and gains (time of flight, bounce, bleed taps, level and polar gain) are
+  interpolated per sample too. Stepping just the other speakers' filters once per block instead
+  tripled the residue under automation. A plain 32-sample coefficient staircase measured −65 dB
   of zipper noise above 2.5 kHz on a 110 Hz tone; interpolation brings it below −100 dB.
 - **Off-axis stages** are identity on axis, so they only run while a mic is (or was just) turned.
-  Back on axis, they stop once their state is below 10⁻⁷ of the block's peak; a custom IR at 0°
-  is then exactly the convolution again.
+  Back on axis, they stop once their state is below 10⁻⁷ of the block's peak, or below 10⁻¹²
+  outright when the input is silent; a custom IR at 0° is then exactly the convolution again.
+- **Silence.** Every filter state is flushed to zero at the end of a block once below 10⁻¹⁵, so a
+  decaying tail never runs through subnormal values. `Engine::process` sets flush-to-zero anyway;
+  `CabSim` no longer relies on it.
 - **First settings snap.** The first `setSettings()` after `prepare()`/`reset()` starts voices
   and smoothers in their final state, like every module; later calls glide. If audio was
   processed before that first call (on the defaults), it glides too rather than cutting.
@@ -324,24 +359,31 @@ A room-mic pair a couple of metres away in a small (~4 × 5 m) room, shared by b
 ## 8. Performance
 
 Apple M2, 48 kHz, 64-sample blocks (`sedef_engine_tests "[.bench]"`, 4x12 with Dyn Classic and
-Ribbon Smooth at distance 0.4). Ranges span a quiet machine and one shared with parallel builds:
+Ribbon Smooth at distance 0.4). Ranges span a quiet machine and one shared with parallel builds
+(on a machine as loaded as the last A/B below, every row reads about 1.7 times higher):
 
 | Configuration | ns/sample | % of one core |
 |---|---|---|
 | 2 procedural mics + rooms | 103–110 | 0.5 |
 | 2 procedural mics, no room | ~88 | 0.42 |
-| same, automating the whole pose (around, across, back, turning) | 142–145 | 0.7 |
+| same, automating the whole pose (around, across, back, turning) | 142–145 before the fused glides, 7% less now (see below) | 0.7 |
 | one 1 s custom IR | 110–150 | 0.55–0.7 |
 | two 1 s custom IRs + rooms | 235–320 | 1.1–1.55 |
 | custom IR + procedural + rooms, 1-sample host blocks | 270–325 | 1.3–1.6 |
 
 Budgets: procedural < 2%, one 1 s IR < 3%. The other speakers of the 4x12 cost about 18 ns/sample
 for two mics: A/B against the v0.2.0 engine in the same session, 85 → 103 ns/sample static and
-97 → 142 automating. Their three taps run in one interleaved pass so the filter recursions
-overlap, and `cab::runStages` runs static biquad sections fused in groups of up to four (five
-split 3 + 2), which makes the chains about 30% faster than section-by-section loops (A/B under
-the same load: 165 → 115 ns/sample). `makeKernel` for a 1 s IR at 44.1 → 48 kHz takes 5–8 ms off
-the audio thread; `prepare()` takes 4–13 ms (it calibrates all 30 procedural voices).
+97 → 142 automating at first. Their three taps and the shelf on their sum run in one interleaved
+pass so the filter recursions overlap, gliding or not, and `cab::runStages` runs biquad sections
+fused in groups of up to four (five split 3 + 2), gliding ones included, which makes the chains
+about 30% faster than section-by-section loops (A/B under the same load: 165 → 115 ns/sample).
+Gliding sections used to run one per pass; fusing them too brought the automating case down by
+7% (A/B on a loaded machine, v0.2.0 / before / after: static 147 / 177 / 181 ns/sample,
+automating 167 / 244 / 228). The automating benchmark moves azimuth and angle as well as
+position and distance; moving only the latter two, as v0.2.0's could, costs 216. The rest of the
+difference is the other speakers' three fractional taps and their filter designs per control
+block. `makeKernel` for a 1 s IR at 44.1 → 48 kHz takes 5–8 ms off the audio thread;
+`prepare()` takes 4–13 ms (it calibrates all 30 procedural voices).
 
 ## 9. References
 
@@ -351,6 +393,13 @@ the audio thread; `prepare()` takes 4–13 ms (it calibrates all 30 procedural v
   closed box as a second-order high-pass with total Q (the 4x12's low end).
 - L. L. Beranek and T. J. Mellow, *Acoustics: Sound Fields and Transducers*, Academic Press, 2012:
   open-baffle dipole cancellation, cone break-up, pressure-gradient microphones and proximity effect.
+- H. Kuttruff, *Room Acoustics*, 5th ed., Spon Press, 2009, ch. 5, and W. T. Hopkins and E. P.
+  Stryker, "A proposed loudness-efficiency rating for loud-speakers and the determination of
+  system power requirements for enclosures", *Proc. IRE* 36(3), 1948: direct against diffuse
+  energy in a room, `Q / (4π r²)` against `4 / A` (the floor under the combs).
+- J. Ruze, "Antenna tolerance theory — a review", *Proc. IEEE* 54(4), 1966: the coherent gain of
+  an aperture with random path errors, `exp (−(k σ)²)` in power, used to size what driver
+  tolerances do to the bleed.
 - J. Eargle, *The Microphone Book*, 2nd ed., Focal Press, 2004: polar-pattern families
   (`A + (1 − A) cos θ`), proximity effect as a property of the pressure-gradient component, and
   off-axis response: diaphragm size against high-frequency directivity.
@@ -392,7 +441,11 @@ product data are used (ADR-0006).
 | plausible responses (all three rates) | 4x12 ≥ 12 dB down at 10 kHz vs 1 kHz for every mic type at the brightest position (≥ 25 dB for Dyn Classic); resonance peak in 88–110 / 78–100 / 72–95 Hz and a real peak; open back has ≥ 6 dB less 40–70 Hz than closed; 4–8 kHz energy strictly falls from centre to edge (3 cabs × 3 mics); on the 1x12, distance removes > 3 dB of < 150 Hz proximity for the dynamic, more for the ribbon, less for the omni, is monotonic, and drops the mid level by 1–9 dB; backing an omni off brings in more lows on the 2x12 than the 1x12 and more again on the 4x12 (≥ 2 dB each, monotonic), and the cab sum makes up ≥ 3 dB of a cardioid's proximity loss; voicings order (off-axis and ribbons darker, Dyn Bright brighter) |
 | real time = model (`[placement]`, 44.1/48/96 kHz) | 12 random poses over all cabs (position, azimuth, distance, angle): the rendered impulse response matches `voiceResponse` × calibration within 0.1 dB from 60 Hz to 4 kHz |
 | round speaker | 1x12 on the grille: azimuth changes the response by < 0.15 dB |
-| placement over the baffle | 4x12 edge, towards vs away from the other cones: 1–5 dB apart on the grille, > 6 dB and > 2× that at distance 1; the 2x12 too, more at distance; each neighbour gets earlier and louder as the mic moves towards it, and louder with distance (> 0.5 at distance 1); a figure-of-eight hears < 20% of what an omni hears of them on the grille |
+| placement over the baffle | 4x12 edge, towards vs away from the other cones: 1–5 dB apart on the grille, > 6 dB and > 2× that at distance 1; the 2x12 too, more at distance; each neighbour gets earlier and louder (in the low end) as the mic moves towards it, and louder with distance (> 0.5 at distance 1); a figure-of-eight hears < 20% of what an omni hears of them on the grille |
+| bleed bounds | 2x12 and 4x12, six capsule families, 0/30/60°, 5 distances × 5 positions × 24 azimuths: no neighbour reaches the miked cone (< 1), nor all of them together above the low end (< 1); in the low end they add up (4x12: 2.0–2.5); the comb with the miked cone (150 Hz–3 kHz, 1/36 octave) never notches deeper than −25 dB nor more than 1 dB below the room's floor at that distance |
+| bleed arrival | 2x12 and 4x12 at 44.1 and 48 kHz, three capsules, 5 distances × 3 positions × 12 azimuths: bleed delay plus the bleed filters' group delay, minus the near stages', is the extra path `(R − z) / c` within 20 µs at each neighbour's corner (measured < 10 µs) |
+| glide round the cone | 1x12 at the edge, azimuth −60° → +120°: 4–6 kHz in 5 ms windows through the glide stays within 1 dB of the mic standing still |
+| silence | 1x12 and 4x12, Dyn Classic, Ribbon Smooth and a custom IR, turned while playing and back on axis once silent, 48 and 192 kHz, no flush-to-zero: no subnormal output sample, and exactly zero after 1.5 s |
 | floor bounce | top vs bottom of the 1x12 cone: the bounce arrives > 0.5 ms later from the top; > 1 dB apart at distance 1, < 0.2 dB on the grille |
 | off axis | 4–8 kHz falls strictly with the angle (0–60°) for all ten types; Dyn Classic loses > 6 dB; Cond Large > Cond Small + 2 dB; near-omni least; mids drop by the polar gain (cardioid −2.5, figure-of-eight −6 dB at 60°); a cardioid loses > 1 dB of proximity at 60°, a figure-of-eight none; Dyn Classic at 45° matches the Off-Axis voicing's shape within 0.5 dB (measured 0.3) and plays > 1 dB quieter |
 | custom IR placement | position, azimuth and distance leave an IR bit-identical; an impulse IR on axis plays the input exactly; turned 45° it follows the dynamic capsule's off-axis model within 0.02 dB; back on axis it is exactly the input again once the glide ends |
@@ -403,7 +456,7 @@ product data are used (ADR-0006).
 | first settings | engine order (setSettings + process per block) after prepare, and after reset following other audio, is bit-identical to settings applied before reset (poses with azimuth and angle included); a later level change glides (no jump, −20 dB reached after the ramp); settings arriving after audio on the defaults keep the old voice through the pre-roll |
 | idle wake | azimuth, distance, angle, level, pan and room level changed while a mic is idle: output after waking is bit-identical to having had them all along; hard left is silent on the right from the first sample |
 | room | RT (T20) between 0.25 and 0.6 s; nothing in the first 2 ms; tail rings after switch-off, decays, then the output is exactly zero |
-| click-free automation | 6 s of a 110 Hz tone while every control moves (position, distance, azimuth round the cone across the ±180° wrap, off-axis angle, level, pan, room level sweeps; cab, both mic types incl. custom IR, polarity, enables, rooms switching). Energy above 2.5 kHz (8th-order high-pass) stays < −80 dB re output RMS (measured ≈ −98 dB) |
+| click-free automation | 6 s of a 110 Hz tone while every control moves (position, distance, azimuth round the cone across the ±180° wrap, off-axis angle, level, pan, room level sweeps; cab, both mic types incl. custom IR, polarity, enables, rooms switching). Energy above 2.5 kHz (8th-order high-pass) stays < −80 dB re output RMS (measured ≈ −97 dB) |
 | convolution vs direct | random 3000-tap IR, 44.1/48/96 kHz, blocks {1}, {333}, mixed: max error < 1e-5 re peak; also end-to-end through `CabSim` with random block sizes incl. 1 and 333 |
 | zero latency | impulse IR: output equals input at every block size; delayed impulses at P−1, P, P+1, 3P+7 delay exactly |
 | resampling | 1 kHz tone burst 44.1→48, 48→44.1, 96→48 kHz: frequency within 1 Hz, response at 1 kHz within 0.05 dB, length scaled |
@@ -421,10 +474,15 @@ the numbers in section 8.
   placement. The off-axis angle applies a generic dynamic capsule's model, which is a guess about
   what the IR was recorded with.
 - Only the mic type is per cab (as in the parameter schema); the pose is per mic.
-- The other speakers are ideal, identical, coherent pistons. Real cones differ a little and break
-  up differently above ~1 kHz, so real combs are shallower than the model's deepest notches
-  (−10 dB and more at distance 1 on the 4x12).
-- The capsule always leans towards the dust cap; leaning away, or sideways, is not modelled.
+- The other speakers are ideal, identical, coherent pistons, and the close mic hears no room. The
+  floor that bounds their combs stands for one typical room (100 m³, 0.5 s); a dead booth would
+  allow deeper notches at distance, a live room shallower ones. Above the low end the bound also
+  holds the bleed itself down, so a backed-off 4x12 gains 6.5 dB of low end with an omni where
+  unbounded pistons gave 10.
+- The capsule always leans towards the dust cap; leaning away, or sideways, is not modelled. The
+  direct sound is weighed along the cone's axis at every distance; backed off, the miked cone is
+  seen more towards the dust cap, so a turned mic at distance is a little quieter in the model
+  than it would be.
 - The position terms do not change with distance (section 3 explains why that is close), and the
   open backs' rear wave does not depend on where the mic is.
 - The mic stays over the miked speaker (position ≤ 1); a mic between the speakers or in front of

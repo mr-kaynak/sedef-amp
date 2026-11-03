@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -390,6 +391,45 @@ TEST_CASE ("TunerDisplay does not take another string's pull on the reading for 
     CHECK (moves == 0);
     CHECK (std::abs (1200.0 * std::log2 (d.output().hz / hz)) < 0.2);
     CHECK (d.output().settled);
+}
+
+TEST_CASE ("TunerDisplay reads the same at any sample rate and host block size",
+           "[analysis][display]")
+{
+    // The display runs per analysis hop, so a sample-by-sample host and one handing over 4096
+    // samples at a time see the same needle; only the age of the reading the editor gets differs
+    // (up to one block).
+    const double fs = GENERATE (44100.0, 96000.0, 192000.0);
+    const int block = GENERATE (1, 4096);
+    CAPTURE (fs, block);
+    {
+        const auto s = scenario ("e2-hum");
+        const auto polls = test::pollHostBlocks (s, fs, block);
+        const auto m = measure (displayGauge (polls, s), polls, s);
+        CAPTURE (m.jitter, m.jitterPeak, m.rms);
+        CHECK (m.jitter < 0.05);
+        CHECK (m.jitterPeak < 0.1);
+        CHECK (m.rms < 0.1);
+        CHECK (m.noteFlips == 0);
+        CHECK (m.dropouts == 0);
+    }
+    {
+        const auto s = scenario ("g3-step");
+        const auto polls = test::pollHostBlocks (s, fs, block);
+        const auto m = measure (displayGauge (polls, s), polls, s);
+        CAPTURE (m.settle, m.overshoot);
+        CHECK (m.settle >= 0.0);
+        CHECK (m.settle < 0.18 + block / fs);
+        CHECK (m.overshoot < 0.1);
+    }
+    {
+        const auto s = scenario ("d3-dies");
+        const auto polls = test::pollHostBlocks (s, fs, block);
+        const auto m = measure (displayGauge (polls, s), polls, s);
+        CHECK (m.holdMove < 0.05);
+        CHECK (polls.back().r.displayHeld);
+        CHECK (polls.back().r.displayNote == 50);
+    }
 }
 
 TEST_CASE ("Tuner display report", "[.report][tuner-report]")

@@ -330,8 +330,10 @@ attack glide of +9 cents decaying with tau = 50 ms, a pick-noise burst and a
   another string); a peg turn followed with under 3 cents of lag and on pitch within 150 ms of
   its end; a 20-cent step within 1 cent in 180 ms; no overshoot; a re-pluck never swings sharp;
   a dying note held; one note change for a hammer-on; a reading pulled 8 cents by another string
-  is not taken for a move. The UI replays the same streams (`fixtures/streams.json`, regenerate
-  with `SEDEF_TUNER_FIXTURES=<file>` and `[tuner-fixtures]`).
+  is not taken for a move. The steady, step and hold bars also hold at 44.1, 96 and 192 kHz with
+  a host pushing 1 or 4096 samples at a time (the step's settle time grows by at most one
+  block). The UI replays the same streams (`fixtures/streams.json`, regenerate with
+  `SEDEF_TUNER_FIXTURES=<file>` and `[tuner-fixtures]`).
 - The intonation workbench end to end (`PitchIntonationTests.cpp`, tag `[intonation]`): open
   strings and 12th-fret octaves with glide, +-1 cent of random wobble (`Wobble` in
   `PitchTestSignals.h`), flat drift, decay, noise and hum, read at 60 Hz and captured with the

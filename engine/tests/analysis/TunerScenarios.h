@@ -197,4 +197,26 @@ inline std::vector<TunerPoll> pollTracker (const TunerScenario& s, double fs = k
     return out;
 }
 
+/// Like pollTracker, but the host hands over whole blocks of `block` samples and each tick sees
+/// only the blocks that have ended by then: with 4096 samples at 44.1 kHz the reading the editor
+/// gets is up to 93 ms old.
+inline std::vector<TunerPoll> pollHostBlocks (const TunerScenario& s, double fs, int block)
+{
+    const auto sig = s.render (fs);
+    analysis::PitchTracker tracker;
+    tracker.prepare (fs);
+    std::vector<TunerPoll> out;
+    const auto n = static_cast<size_t> (block);
+    size_t pos = 0;
+    const double length = static_cast<double> (sig.size()) / fs;
+    for (double t = kTunerPoll; t < length; t += kTunerPoll)
+    {
+        const auto end = std::min (sig.size(), static_cast<size_t> (t * fs));
+        for (; pos + n <= end; pos += n)
+            tracker.push (sig.data() + pos, block);
+        out.push_back ({ t - s.pickAt, tracker.latest() });
+    }
+    return out;
+}
+
 } // namespace sedef::test

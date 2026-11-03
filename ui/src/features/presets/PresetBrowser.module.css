@@ -38,12 +38,10 @@
   min-width: 18px;
   height: 18px;
   padding: 0 3px;
-  border: 1px solid transparent;
+  border: 1px solid var(--line-strong);
   border-radius: 4px;
   background: rgb(237 230 214 / 0.06);
-  box-shadow:
-    inset 0 0 0 1px var(--line-strong),
-    inset 0 -1px 0 rgb(0 0 0 / 0.35);
+  box-shadow: inset 0 -1px 0 rgb(0 0 0 / 0.35);
   color: var(--bone-2);
   font-family: var(--font-ui);
   font-size: var(--t-10);
@@ -356,10 +354,9 @@
   gap: 6px;
   height: 32px;
   padding: 0 3px 0 11px;
-  border: 1px solid transparent;
+  border: 1px solid var(--line);
   border-radius: var(--r-panel);
   background: rgb(237 230 214 / 0.03);
-  box-shadow: inset 0 0 0 1px var(--line);
   color: var(--bone-3);
   font-size: var(--t-12);
 }
@@ -393,6 +390,7 @@
 }
 
 .back[data-armed] kbd {
+  border-color: transparent;
   color: var(--ink-1);
   background: var(--nacre-line);
   box-shadow: var(--shadow-nacre-sel);

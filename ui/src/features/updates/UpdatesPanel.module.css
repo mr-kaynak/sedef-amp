@@ -210,10 +210,9 @@
   overscroll-behavior: contain;
   scrollbar-width: thin;
   scrollbar-color: var(--ink-4) transparent;
-  border: 1px solid transparent;
+  border: 1px solid var(--line);
   border-radius: var(--r-ctl);
   background: rgb(6 17 25 / 0.4);
-  box-shadow: inset 0 0 0 1px var(--line);
 }
 
 .status {
@@ -232,10 +231,9 @@
 .error {
   margin: 0;
   padding: 8px 11px;
-  border: 1px solid transparent;
+  border: 1px solid rgb(233 199 125 / 0.35);
   border-radius: var(--r-ctl);
   background: rgb(233 199 125 / 0.08);
-  box-shadow: inset 0 0 0 1px rgb(233 199 125 / 0.35);
   color: var(--amber);
   line-height: 1.45;
 }

@@ -6,6 +6,8 @@ import type { KeyboardEvent, ReactNode } from 'react';
 import { Led } from '../controls/Led';
 import { useParamSpec, useParamValue } from '../params/useParam';
 import { AMP_NAMES, effectiveCab } from '../params/schema';
+import { pedalMeta } from '../features/pedals/registry';
+import { useBoardStore } from '../state/boardStore';
 import { SECTION_LABELS, SECTIONS, uiActions, useUiStore, type Section } from '../state/uiStore';
 import styles from './SectionTabs.module.css';
 
@@ -34,6 +36,24 @@ function EqStatus() {
   return <Leds ids={[`eq${amp}Enabled`]} />;
 }
 
+/** A lamp per pedal on the board, in its order; past eight, a count of the rest. */
+const MAX_PEDAL_LEDS = 8;
+
+function PedalsStatus() {
+  const pedals = useBoardStore((s) => s.pedals);
+  const enables = pedals
+    .slice(0, MAX_PEDAL_LEDS)
+    .map((id) => pedalMeta(id)?.enable)
+    .filter((id): id is string => id !== undefined);
+  const more = pedals.length - MAX_PEDAL_LEDS;
+  return (
+    <>
+      <Leds ids={enables} />
+      {more > 0 && <span className={styles.meta}>+{more}</span>}
+    </>
+  );
+}
+
 function CabStatus() {
   const cab = effectiveCab(
     Math.round(useParamValue('ampModel')),
@@ -45,9 +65,7 @@ function CabStatus() {
 }
 
 const STATUS: Record<Section, () => ReactNode> = {
-  pedals: () => (
-    <Leds ids={['gateEnabled', 'tideEnabled', 'pearlEnabled', 'coralEnabled', 'rippleEnabled']} />
-  ),
+  pedals: () => <PedalsStatus />,
   amp: () => <AmpStatus />,
   eq: () => <EqStatus />,
   cab: () => <CabStatus />,

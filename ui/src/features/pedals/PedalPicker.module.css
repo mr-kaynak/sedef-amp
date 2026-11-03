@@ -1,0 +1,117 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+.picker {
+  top: calc(100% + 6px);
+  right: 24px;
+  width: 560px;
+  max-height: 520px;
+  padding: 16px 12px 12px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.centred {
+  right: auto;
+  left: 50%;
+  translate: -50% 0;
+}
+
+.title {
+  margin: 0 8px 12px;
+  font-size: var(--t-14);
+  font-weight: 600;
+}
+
+/* Categories flow down two columns, each kept whole. */
+.groups {
+  columns: 2;
+  column-gap: 12px;
+}
+
+.group {
+  break-inside: avoid;
+  padding-bottom: 12px;
+}
+
+.category {
+  margin: 0 8px 4px;
+  color: var(--bone-3);
+  font-size: var(--t-11);
+  font-weight: 500;
+  font-stretch: var(--legend-stretch);
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'name state'
+    'kind state'
+    'text text';
+  column-gap: 8px;
+  width: 100%;
+  padding: 8px;
+  border: 1px solid transparent;
+  border-radius: var(--r-ctl);
+  background: transparent;
+  color: var(--bone);
+  text-align: start;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--dur-1) var(--ease-out);
+}
+
+@media (hover: hover) {
+  .row:hover {
+    background: rgb(237 230 214 / 0.06);
+  }
+}
+
+.name {
+  grid-area: name;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: var(--t-18);
+  font-weight: 500;
+  line-height: 1.1;
+}
+
+.kind {
+  grid-area: kind;
+  color: var(--bone-2);
+  font-size: var(--t-11);
+  font-stretch: var(--legend-stretch);
+}
+
+.text {
+  grid-area: text;
+  margin-top: 4px;
+  color: var(--bone-3);
+  font-size: var(--t-11);
+  line-height: 1.35;
+}
+
+.state {
+  grid-area: state;
+  align-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 11px;
+  color: var(--bone-2);
+  font-size: var(--t-11);
+  white-space: nowrap;
+}
+
+.row[data-on-board] .state {
+  border-color: var(--on-line);
+  background: var(--on-fill);
+  color: var(--bone);
+}

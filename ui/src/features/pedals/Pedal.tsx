@@ -24,10 +24,21 @@ export interface PedalProps {
   /** Optional status element between the name and the footswitch (meters, rate lamps). */
   status?: ReactNode;
   led?: ReactNode;
+  /** A narrower enclosure for a pedal with one column of controls. */
+  variant?: 'narrow';
 }
 
 /** A stompbox enclosure: knobs on top, the name, an LED, and the footswitch. */
-export function Pedal({ name, kind, enableParam, finish, children, status, led }: PedalProps) {
+export function Pedal({
+  name,
+  kind,
+  enableParam,
+  finish,
+  children,
+  status,
+  led,
+  variant,
+}: PedalProps) {
   const on = useParamValue(enableParam) >= 0.5;
   const style = {
     '--paint-top': finish.paint[0],
@@ -40,7 +51,7 @@ export function Pedal({ name, kind, enableParam, finish, children, status, led }
 
   return (
     <section
-      className={styles.pedal}
+      className={[styles.pedal, variant && styles[variant]].filter(Boolean).join(' ')}
       style={style}
       aria-label={`${name} ${kind}`}
       data-on={on || undefined}

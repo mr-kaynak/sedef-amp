@@ -46,21 +46,24 @@ inline std::vector<double> responseDb (const std::vector<float>& h, const std::v
     return out;
 }
 
-/// Impulse response of a module with fixed settings (snapped, so it is LTI from sample 0 when
-/// the settings do not modulate).
+/// Impulse response of a module with fixed settings (snapped, so it is LTI when the settings do
+/// not modulate). The impulse comes after 8192 samples of silence: a delay line fades its output
+/// in once it has filled after a reset.
 template <typename Module>
 std::vector<float> impulseResponse (const typename Module::Settings& s, double fs, int length,
                                     float amp = 1.0f)
 {
+    constexpr int kPreRoll = 8192;
     Module m;
     m.prepare ({ fs, 512, 1 });
     m.setSettings (s);
-    Buffer b (1, length);
-    b[0][0] = amp;
+    Buffer b (1, kPreRoll + length);
+    b[0][kPreRoll] = amp;
     processInBlocks (b, 512, [&] (AudioView v) { m.process (v); });
-    for (auto& x : b[0])
+    std::vector<float> h (b[0].begin() + kPreRoll, b[0].end());
+    for (auto& x : h)
         x /= amp;
-    return b[0];
+    return h;
 }
 
 struct Extremum

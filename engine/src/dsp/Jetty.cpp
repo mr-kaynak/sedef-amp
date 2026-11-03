@@ -33,6 +33,7 @@ constexpr double kRateSeconds = 0.05;
 constexpr double kManualSeconds = 0.06; // a delay glide; faster would bend the pitch audibly
 constexpr double kSmoothingSeconds = 0.03;
 constexpr double kMaxLineMs = 20.0;
+constexpr double kWetFadeSeconds = 0.005; // after a reset, see process()
 
 inline float limit (float v) noexcept
 {
@@ -65,6 +66,7 @@ void Jetty::prepare (const ProcessSpec& spec)
     depth_.reset (sampleRate_, kSmoothingSeconds);
     manual_.reset (sampleRate_, kManualSeconds);
     regen_.reset (sampleRate_, kSmoothingSeconds);
+    fadeInv_ = static_cast<float> (1.0 / (kWetFadeSeconds * sampleRate_));
     applySettings (true);
     reset();
 }
@@ -76,6 +78,7 @@ void Jetty::reset() noexcept
     bandLimit_.reset();
     regenHp_.reset();
     lfo_.setPhase (0.0f);
+    filled_ = 0;
     primed_ = false;
 }
 
@@ -131,6 +134,13 @@ void Jetty::process (const AudioView& io) noexcept
         const float delay =
             delayMs_ * samplesPerMs - 1.0f - 1.0f / (2.0f * kBandLimitQ * bandLimitG);
 
+        // A reset line is empty: the first signal reaches its output one delay later, and would
+        // arrive as a step. Fade the delayed path in over 5 ms from that moment instead.
+        const float wetGain = crossfadeCurve (
+            std::clamp ((static_cast<float> (filled_) - delay - 4.0f) * fadeInv_, 0.0f, 1.0f));
+        if (filled_ < (1 << 30))
+            ++filled_;
+
         const float g = regen_.next();
         const float trim = kMakeup * (1.0f - (g < 0.0f ? kNegativeRegenTrim : kRegenTrim) * g * g);
 
@@ -138,7 +148,7 @@ void Jetty::process (const AudioView& io) noexcept
         {
             float& x = io.channel (ch)[i];
             auto& line = line_[static_cast<size_t> (ch)];
-            const float wet = bandLimit_.process (ch, line.readCubic (delay)).low;
+            const float wet = wetGain * bandLimit_.process (ch, line.readCubic (delay)).low;
             const float loop = wet - regenHp_.lowpass (ch, wet);
             line.push (limit (x + g * loop));
             x = trim * 0.5f * (x + wet);

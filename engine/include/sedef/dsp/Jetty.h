@@ -63,6 +63,8 @@ private:
     TptOnePole regenHp_; // coupling capacitor in the regen path (its low-pass; HP = x - LP)
     ExpSmoothed rate_, depth_, manual_, regen_;
     float delayMs_ = 2.0f;
+    int filled_ = 0;       // samples written since reset (capped), see process()
+    float fadeInv_ = 0.0f; // 1 / wet fade-in length in samples
 };
 
 } // namespace sedef::dsp

@@ -303,8 +303,8 @@ TEST_CASE ("A keyed pedal hears the instrument lined up with its place on the bo
     std::vector<float> x (frames);
     // Bursts that open and close the gate.
     for (int i = 0; i < frames; ++i)
-        x[static_cast<size_t> (i)] =
-            ((i / 4800) % 2 == 0 ? 0.2f : 0.0005f) * std::sin (6.283f * 220.0f * i / 48000.0f);
+        x[static_cast<size_t> (i)] = ((i / 4800) % 2 == 0 ? 0.2f : 0.0005f) *
+                                     std::sin (6.283f * 220.0f * static_cast<float> (i) / 48000.0f);
 
     const auto play = [&] (const Board& order) {
         PedalRack rack;

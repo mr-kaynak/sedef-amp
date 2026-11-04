@@ -280,13 +280,17 @@ void AllpassHalfBand::up (int channel, const float* in, float* out, int n) noexc
 {
     // Interpolation by 2 H(z): the even outputs are branch 0 and the odd ones branch 1, both fed
     // the low-rate input (the 1/2 of H and the 2 of interpolation cancel).
+    // The state is worked on in local copies: the output can't alias them, so it stays in
+    // registers instead of being reloaded after every store.
     auto& c = state_[static_cast<size_t> (channel)];
+    Branch b0 = c.up[0], b1 = c.up[1];
     for (int m = 0; m < n; ++m)
     {
         const float x = in[m];
-        out[2 * m] = run (0, c.up[0], x);
-        out[2 * m + 1] = run (1, c.up[1], x);
+        out[2 * m] = run (0, b0, x);
+        out[2 * m + 1] = run (1, b1, x);
     }
+    c.up = { b0, b1 };
     flush (c);
 }
 
@@ -296,13 +300,17 @@ void AllpassHalfBand::down (int channel, const float* in, float* out, int n) noe
     // at the high rate and its group delay a whole number of high-rate samples apart from the
     // design's.
     auto& c = state_[static_cast<size_t> (channel)];
+    Branch b0 = c.down[0], b1 = c.down[1];
+    float odd1 = c.downOdd;
     for (int m = 0; m < n; ++m)
     {
-        const float even = run (0, c.down[0], in[2 * m]);
-        const float odd = run (1, c.down[1], c.downOdd);
-        c.downOdd = in[2 * m + 1];
+        const float even = run (0, b0, in[2 * m]);
+        const float odd = run (1, b1, odd1);
+        odd1 = in[2 * m + 1];
         out[m] = 0.5f * (even + odd);
     }
+    c.down = { b0, b1 };
+    c.downOdd = odd1;
     flush (c);
 }
 
@@ -480,6 +488,49 @@ void Oversampler::downsample (const AudioView& out) noexcept
             stages_[0].down (c, b0.data(), out.channel (c), lastFrames_);
         else
             iir_[0].down (c, b0.data(), out.channel (c), lastFrames_);
+    }
+}
+
+// -------------------------------------------------------------------------------------------------
+
+void AlignedDryPath::prepare (int maxBlockSize, int numChannels, int factorLog2,
+                              OversamplingMode mode)
+{
+    latency_ = Oversampler::latencyFor (factorLog2, mode);
+    roundTrip_ = mode == OversamplingMode::lowLatency && factorLog2 > 0;
+    if (roundTrip_)
+        os_.prepare (maxBlockSize, numChannels, factorLog2, mode);
+    for (auto& d : delay_)
+        d.prepare (std::max (latency_, 1));
+    reset();
+}
+
+void AlignedDryPath::reset() noexcept
+{
+    os_.reset();
+    for (auto& d : delay_)
+        d.reset();
+}
+
+void AlignedDryPath::process (const AudioView& io) noexcept
+{
+    if (roundTrip_)
+    {
+        os_.upsample (io);
+        os_.downsample (io);
+        return;
+    }
+    if (latency_ == 0)
+        return;
+    for (int c = 0; c < io.numChannels(); ++c)
+    {
+        auto& d = delay_[static_cast<size_t> (c)];
+        float* x = io.channel (c);
+        for (int i = 0; i < io.numFrames(); ++i)
+        {
+            d.push (x[i]);
+            x[i] = d.read (latency_);
+        }
     }
 }
 

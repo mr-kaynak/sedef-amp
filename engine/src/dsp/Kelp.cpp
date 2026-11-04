@@ -168,11 +168,12 @@ void Kelp::prepare (const ProcessSpec& spec)
     oversampler_.prepare (maxBlockSize_, numChannels_, Oversampler::factorLog2For (sampleRate_),
                           spec.oversampling);
     latency_ = oversampler_.latencySamples();
+    clean_.prepare (maxBlockSize_, numChannels_, Oversampler::factorLog2For (sampleRate_),
+                    spec.oversampling);
 
     for (int ch = 0; ch < kMaxChannels; ++ch)
     {
         const auto c = static_cast<size_t> (ch);
-        cleanDelay_[c].prepare (std::max (latency_, 1));
         drive_[c].assign (ch < numChannels_ ? static_cast<size_t> (maxBlockSize_) : 0, 0.0f);
         drivePtrs_[c] = drive_[c].data();
     }
@@ -196,8 +197,7 @@ void Kelp::prepare (const ProcessSpec& spec)
 void Kelp::reset() noexcept
 {
     oversampler_.reset();
-    for (auto& d : cleanDelay_)
-        d.reset();
+    clean_.reset();
     for (auto& d : diodes_)
     {
         d.reset();
@@ -276,7 +276,7 @@ void Kelp::processBlock (const AudioView& io) noexcept
     if (n == 0 || channels == 0)
         return;
 
-    // 1. Base rate: input coupling, then the clean term (delayed to line up with the clipper, left
+    // 1. Base rate: input coupling, then the clean term (aligned with the clipper below, left
     //    in io) and the feedback path's input, in n Vt units.
     for (int start = 0, block = 0; start < n; start += kControlBlock, ++block)
     {
@@ -293,8 +293,7 @@ void Kelp::processBlock (const AudioView& io) noexcept
             {
                 const auto c = static_cast<size_t> (ch);
                 const float x = inputHp_.processSample (ch, io.channel (ch)[i]);
-                cleanDelay_[c].push (x);
-                io.channel (ch)[i] = cleanDelay_[c].read (latency_);
+                io.channel (ch)[i] = x;
                 drive_[c][static_cast<size_t> (i)] =
                     feedbackLp_.processSample (ch, g * feedbackHp_.processSample (ch, x));
             }
@@ -302,6 +301,14 @@ void Kelp::processBlock (const AudioView& io) noexcept
     }
 
     // 2. Oversampled and anti-aliased: the voltage the diodes leave across the feedback path.
+    // The clean term, through the oversampler's round trip without the clipper.
+    {
+        std::array<float*, kMaxChannels> ptrs {};
+        for (int ch = 0; ch < channels; ++ch)
+            ptrs[static_cast<size_t> (ch)] = io.channel (ch);
+        clean_.process (AudioView (ptrs.data(), channels, n));
+    }
+
     const AudioView drive (drivePtrs_.data(), channels, n);
     const AudioView up = oversampler_.upsample (drive);
     const int log2Factor = oversampler_.factor() == 4 ? 2 : oversampler_.factor() == 2 ? 1 : 0;

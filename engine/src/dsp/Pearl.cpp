@@ -82,11 +82,12 @@ void Pearl::prepare (const ProcessSpec& spec)
     oversampler_.prepare (spec.maxBlockSize, numChannels_, Oversampler::factorLog2For (sampleRate_),
                           spec.oversampling);
     latency_ = oversampler_.latencySamples();
+    clean_.prepare (maxBlockSize_, numChannels_, Oversampler::factorLog2For (sampleRate_),
+                    spec.oversampling);
 
     for (int ch = 0; ch < kMaxChannels; ++ch)
     {
         const auto c = static_cast<size_t> (ch);
-        cleanDelay_[c].prepare (std::max (latency_, 1));
         drive_[c].assign (ch < numChannels_ ? static_cast<size_t> (spec.maxBlockSize) : 0, 0.0f);
         drivePtrs_[c] = drive_[c].data();
     }
@@ -111,8 +112,7 @@ void Pearl::reset() noexcept
     oversampler_.reset();
     for (auto& c : clipper_)
         c.reset();
-    for (auto& d : cleanDelay_)
-        d.reset();
+    clean_.reset();
     for (auto* f : { &inputHp_, &midBoost_, &driveHp_, &driveLp_, &dcBlock_, &toneLp_, &fizzLp_ })
         f->reset();
     primed_ = false;
@@ -195,8 +195,8 @@ void Pearl::processBlock (const AudioView& io) noexcept
     if (n == 0 || channels == 0)
         return;
 
-    // 1. Base rate: shared input filtering, then split into the (delayed) clean path, left in io,
-    //    and the band-limited, amplified clipping path.
+    // 1. Base rate: shared input filtering, then split into the clean path, left in io (aligned
+    //    with the clipper below), and the band-limited, amplified clipping path.
     for (int start = 0; start < n; start += kControlBlock)
     {
         const int end = std::min (n, start + kControlBlock);
@@ -213,8 +213,7 @@ void Pearl::processBlock (const AudioView& io) noexcept
                 const auto c = static_cast<size_t> (ch);
                 float x = inputHp_.processSample (ch, io.channel (ch)[i]);
                 x = midBoost_.processSample (ch, x);
-                cleanDelay_[c].push (x);
-                io.channel (ch)[i] = cleanDelay_[c].read (latency_);
+                io.channel (ch)[i] = x;
                 drive_[c][static_cast<size_t> (i)] =
                     driveLp_.processSample (ch, g * driveHp_.processSample (ch, x));
             }
@@ -222,6 +221,14 @@ void Pearl::processBlock (const AudioView& io) noexcept
     }
 
     // 2. Oversampled and anti-aliased: the diode limiter.
+    // The clean term, through the oversampler's round trip without the clipper.
+    {
+        std::array<float*, kMaxChannels> ptrs {};
+        for (int ch = 0; ch < channels; ++ch)
+            ptrs[static_cast<size_t> (ch)] = io.channel (ch);
+        clean_.process (AudioView (ptrs.data(), channels, n));
+    }
+
     const AudioView drive (drivePtrs_.data(), channels, n);
     const AudioView up = oversampler_.upsample (drive);
     for (int ch = 0; ch < channels; ++ch)

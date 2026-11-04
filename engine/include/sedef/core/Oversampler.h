@@ -2,6 +2,7 @@
 #pragma once
 
 #include "sedef/core/AudioView.h"
+#include "sedef/core/DelayLine.h"
 
 #include <array>
 #include <vector>
@@ -162,6 +163,26 @@ private:
     // buffers_[k][ch]: signal at rate 2^(k+1)
     std::array<std::array<std::vector<float>, kMaxChannels>, 2> buffers_;
     std::array<float*, kMaxChannels> viewPtrs_ {};
+};
+
+/// A dry path that lines up with an Oversampler's round trip at every frequency, for modules that
+/// sum a signal kept at the base rate with an oversampled one (Pearl's and Kelp's clean term).
+/// Linear phase: a delay of the latency, which the FIRs are. Minimum phase: the same up and down
+/// with nothing in between, whose rising group delay in the top octave no delay can match
+/// (docs/dsp/oversampling.md, "Parallel paths").
+class AlignedDryPath
+{
+public:
+    void prepare (int maxBlockSize, int numChannels, int factorLog2, OversamplingMode mode);
+    void reset() noexcept;
+    /// In place, at most maxBlockSize frames.
+    void process (const AudioView& io) noexcept;
+
+private:
+    bool roundTrip_ = false;
+    int latency_ = 0;
+    Oversampler os_;
+    std::array<DelayLine, kMaxChannels> delay_;
 };
 
 } // namespace sedef

@@ -319,6 +319,32 @@ TEST_CASE ("Minimum phase: channels are independent and silence decays to zero",
     CHECK (*std::min_element (left.end() - block, left.end()) == 0.0f);
 }
 
+TEST_CASE ("AlignedDryPath is the oversampler's round trip with nothing in between",
+           "[core][oversampling]")
+{
+    // Minimum phase: exactly the up/down pair; linear phase: exactly the FIRs' delay.
+    const int factorLog2 = GENERATE (0, 1, 2);
+    std::vector<float> in (4096);
+    test::fillNoise (in, 0.5f, 11);
+    for (const auto mode : { kLow, kLinear })
+    {
+        AlignedDryPath dry;
+        dry.prepare (64, 1, factorLog2, mode);
+        auto out = in;
+        for (size_t s = 0; s < out.size(); s += 64)
+        {
+            float* p = out.data() + s;
+            dry.process (AudioView (&p, 1, 64));
+        }
+        const int latency = Oversampler::latencyFor (factorLog2, mode);
+        if (mode == kLow && factorLog2 > 0)
+            CHECK (out == roundTrip (factorLog2, mode, in));
+        else
+            for (size_t i = static_cast<size_t> (latency); i < in.size(); ++i)
+                CHECK (out[i] == in[i - static_cast<size_t> (latency)]);
+    }
+}
+
 TEST_CASE ("Oversampler designs", "[.report][oversampling]")
 {
     // Prints the minimum-phase designs for docs/dsp/oversampling.md.

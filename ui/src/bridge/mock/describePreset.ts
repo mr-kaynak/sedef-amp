@@ -37,8 +37,10 @@ export function describePreset(
   add('trenchEnabled', 'trench');
   add('anemoneEnabled', 'anemone');
   add('conchEnabled', 'conch');
+  add('remoraEnabled', 'remora');
   add('tideEnabled', 'tide');
   add('urchinEnabled', 'urchin');
+  add('sargassoEnabled', 'sargasso');
   add('pearlEnabled', 'pearl');
   add('kelpEnabled', 'kelp');
   add('coralEnabled', 'coral');
@@ -46,6 +48,7 @@ export function describePreset(
   add('gyreEnabled', 'gyre');
   add('jettyEnabled', 'jetty');
   add('rippleEnabled', 'ripple');
+  add('breakerEnabled', 'breaker');
   if (eqShapes) add(`${bank}Enabled`, 'eq');
   add('doublerEnabled', 'doubler');
   add('driftEnabled', 'drift');

@@ -145,6 +145,16 @@ describe('preset library', () => {
         }),
       ),
     ).toBe('Trench → Tide → Urchin → Pearl → Kelp → Coral → Ripple → Abyss 4x12 → Fathom');
+    // The drives lane's fuzzes and booster are pedals in front of the amp too.
+    expect(
+      chainText(
+        preset({
+          amp: 0,
+          cab: 0,
+          blocks: ['gate', 'remora', 'sargasso', 'ripple', 'breaker', 'drift'],
+        }),
+      ),
+    ).toBe('Remora → Sargasso → Ripple → Breaker → Lagoon 1x12 → Drift');
   });
 
   it('groups the chain for the detail pane', () => {

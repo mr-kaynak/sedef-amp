@@ -81,8 +81,10 @@ describe('Trench, Urchin and Kelp panels', () => {
       'Trench Octave down',
       'Anemone Envelope filter',
       'Conch Wah',
+      'Remora Fuzz',
       'Tide Compressor',
       'Urchin Octave-up fuzz',
+      'Sargasso Sustain fuzz',
       'Pearl Overdrive',
       'Kelp Mid overdrive',
       'Coral Distortion',
@@ -90,6 +92,7 @@ describe('Trench, Urchin and Kelp panels', () => {
       'Gyre Phaser',
       'Jetty Flanger',
       'Ripple Modulation',
+      'Breaker Treble booster',
     ]);
   });
 });

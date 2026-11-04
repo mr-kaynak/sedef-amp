@@ -10,9 +10,9 @@ fall back as the note dies (the "ow"). Low-pass, band-pass or high-pass, sweepin
 
 ## Chain position
 
-**Early, before the drives** (after Trench, before Conch and Tide). An envelope filter reads the
-picking dynamics, so it wants the clean, dynamic guitar: after a drive or Tide the envelope is
-flattened, and the filter barely moves. Trench, the octave down, goes first because its tracking
+**Early, before the drives** (after Trench, before Conch, Remora and Tide). An envelope filter
+reads the picking dynamics, so it wants the clean, dynamic guitar: after a fuzz or Tide the
+envelope is flattened, and the filter barely moves. Trench, the octave down, goes first because its tracking
 needs the plain guitar; it keeps the picking dynamics, and an octave into an envelope filter is
 the classic synth-bass sound. Anemone comes before Conch because both sweep with the pick, and the
 envelope one needs the untouched dynamics more.

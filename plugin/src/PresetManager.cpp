@@ -225,8 +225,10 @@ void PresetManager::describe (Entry& e, const juce::var& parameters)
     add (ParamId::trenchEnabled, "trench");
     add (ParamId::anemoneEnabled, "anemone");
     add (ParamId::conchEnabled, "conch");
+    add (ParamId::remoraEnabled, "remora");
     add (ParamId::tideEnabled, "tide");
     add (ParamId::urchinEnabled, "urchin");
+    add (ParamId::sargassoEnabled, "sargasso");
     add (ParamId::pearlEnabled, "pearl");
     add (ParamId::kelpEnabled, "kelp");
     add (ParamId::coralEnabled, "coral");
@@ -234,6 +236,7 @@ void PresetManager::describe (Entry& e, const juce::var& parameters)
     add (ParamId::gyreEnabled, "gyre");
     add (ParamId::jettyEnabled, "jetty");
     add (ParamId::rippleEnabled, "ripple");
+    add (ParamId::breakerEnabled, "breaker");
     if (eqShapes)
         add (eq (0), "eq");
     add (ParamId::doublerEnabled, "doubler");

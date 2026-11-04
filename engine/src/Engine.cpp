@@ -9,6 +9,7 @@
 #include "sedef/core/Smoothed.h"
 #include "sedef/dsp/Anemone.h"
 #include "sedef/dsp/Beacon.h"
+#include "sedef/dsp/Breaker.h"
 #include "sedef/dsp/Conch.h"
 #include "sedef/dsp/Coral.h"
 #include "sedef/dsp/Doubler.h"
@@ -21,7 +22,9 @@
 #include "sedef/dsp/Metronome.h"
 #include "sedef/dsp/NoiseGate.h"
 #include "sedef/dsp/Pearl.h"
+#include "sedef/dsp/Remora.h"
 #include "sedef/dsp/Ripple.h"
+#include "sedef/dsp/Sargasso.h"
 #include "sedef/dsp/Tide.h"
 #include "sedef/dsp/Trench.h"
 #include "sedef/dsp/Urchin.h"
@@ -61,6 +64,11 @@ struct ChainSettings
     dsp::Trench::Settings trench;
     dsp::Urchin::Settings urchin;
     dsp::Kelp::Settings kelp;
+    // Drives lane: Remora, Sargasso and Breaker.
+    bool remoraOn = false, sargassoOn = false, breakerOn = false;
+    dsp::Remora::Settings remora;
+    dsp::Sargasso::Settings sargasso;
+    dsp::Breaker::Settings breaker;
     // mods lane: wah, envelope filter, phaser, flanger, vibe.
     bool conchOn = false, anemoneOn = false, gyreOn = false, jettyOn = false, beaconOn = false;
     dsp::Conch::Settings conch;
@@ -139,6 +147,14 @@ ChainSettings chainSettings (const ParamSnapshot& p)
     s.urchin = { p[P::urchinFuzz], p[P::urchinOctave], p[P::urchinTone], p[P::urchinLevel] };
     s.kelpOn = p.flag (P::kelpEnabled);
     s.kelp = { p[P::kelpDrive], p[P::kelpTone], p[P::kelpLevel] };
+    // Drives lane: Remora, Sargasso and Breaker.
+    s.remoraOn = p.flag (P::remoraEnabled);
+    s.remora = { p[P::remoraFuzz], p[P::remoraVolume], p[P::remoraBias], p[P::remoraGuitarVolume],
+                 p.choice (P::remoraTransistor) };
+    s.sargassoOn = p.flag (P::sargassoEnabled);
+    s.sargasso = { p[P::sargassoSustain], p[P::sargassoTone], p[P::sargassoVolume] };
+    s.breakerOn = p.flag (P::breakerEnabled);
+    s.breaker = { p[P::breakerBoost], p.choice (P::breakerRange) };
     // mods lane
     s.conchOn = p.flag (P::conchEnabled);
     s.conch = { p.choice (P::conchMode), p[P::conchPosition], p[P::conchResonance],
@@ -349,6 +365,10 @@ struct Chain
     Slot<dsp::Trench> trench;
     Slot<dsp::Urchin> urchin;
     Slot<dsp::Kelp> kelp;
+    // Drives lane: Remora, Sargasso and Breaker (their places in the chain: process()).
+    Slot<dsp::Remora> remora;
+    Slot<dsp::Sargasso> sargasso;
+    Slot<dsp::Breaker> breaker;
 
     std::vector<float> buffer;
     std::vector<float> sidechain;
@@ -368,6 +388,9 @@ struct Chain
         trench.prepare (mono);
         urchin.prepare (mono);
         kelp.prepare (mono);
+        remora.prepare (mono);
+        sargasso.prepare (mono);
+        breaker.prepare (mono);
         anemone.prepare (mono); // mods lane
         conch.prepare (mono);
         beacon.prepare (mono);
@@ -383,8 +406,9 @@ struct Chain
     int latency() const noexcept
     {
         return pearl.latency + coral.latency + capture.latencySamples() + cab.latencySamples() +
-               trench.latency + urchin.latency + kelp.latency + anemone.latency + conch.latency +
-               beacon.latency + gyre.latency + jetty.latency;
+               trench.latency + urchin.latency + kelp.latency + remora.latency + sargasso.latency +
+               breaker.latency + anemone.latency + conch.latency + beacon.latency + gyre.latency +
+               jetty.latency;
     }
     void reset() noexcept
     {
@@ -397,6 +421,9 @@ struct Chain
         trench.reset();
         urchin.reset();
         kelp.reset();
+        remora.reset();
+        sargasso.reset();
+        breaker.reset();
         anemone.reset(); // mods lane
         conch.reset();
         beacon.reset();
@@ -440,15 +467,22 @@ struct Chain
         // Pedals lane: Trench, Urchin and Kelp go where they sound best (the "Where it goes in the
         // chain" section of docs/dsp/trench.md, urchin.md and kelp.md). The order stays fixed
         // until the pedalboard makes it the player's.
+        // Drives lane: Remora, Sargasso and Breaker ("Chain position" in docs/dsp/remora.md,
+        // sargasso.md and breaker.md). Remora behind the octave divider, which needs the clean
+        // guitar more (and the mods lane's two filters, below); Sargasso after the octave-up fuzz,
+        // whose rectifier wants an unclipped note; Breaker last, straight into the amp.
         trench.process (x, n, s.trenchOn, s.trench, run); // pedals lane
-        // mods lane: the envelope filter and the wah go after the octaver, before the compressor
-        // and the drives (they read and shape the picking dynamics); the vibe, phaser and flanger
-        // after the drives (they move the drives' harmonics), before Ripple. docs/dsp/conch.md
-        // et al.
+        // mods lane: the envelope filter and the wah go after the octave divider, before Remora
+        // and the other drives: the filter reads picking dynamics a fuzz would flatten, a wah into
+        // a fuzz is the classic order, and nothing here buffers Remora's clean-up away (its Guitar
+        // volume models that). The vibe, phaser and flanger go after the drives (they move the
+        // drives' harmonics), before Ripple. docs/dsp/conch.md et al.
         anemone.process (x, n, s.anemoneOn, s.anemone, run);
         conch.process (x, n, s.conchOn, s.conch, run);
+        remora.process (x, n, s.remoraOn, s.remora, run); // drives lane
         tideRan = tide.process (x, n, s.tideOn, s.tide, run);
-        urchin.process (x, n, s.urchinOn, s.urchin, run); // pedals lane
+        urchin.process (x, n, s.urchinOn, s.urchin, run);       // pedals lane
+        sargasso.process (x, n, s.sargassoOn, s.sargasso, run); // drives lane
         pearl.process (x, n, s.pearlOn, s.pearl, run);
         kelp.process (x, n, s.kelpOn, s.kelp, run); // pedals lane
         coral.process (x, n, s.coralOn, s.coral, run);
@@ -456,6 +490,7 @@ struct Chain
         gyre.process (x, n, s.gyreOn, s.gyre, run);
         jetty.process (x, n, s.jettyOn, s.jetty, run);
         ripple.process (x, n, s.rippleOn, s.ripple, run);
+        breaker.process (x, n, s.breakerOn, s.breaker, run); // drives lane
 
         capture.setSettings (s.capture);
         capture.process (amp, s.amp, AudioView (x, n));

@@ -53,8 +53,10 @@ const STATUS: Record<Section, () => ReactNode> = {
         'trenchEnabled',
         'anemoneEnabled',
         'conchEnabled',
+        'remoraEnabled',
         'tideEnabled',
         'urchinEnabled',
+        'sargassoEnabled',
         'pearlEnabled',
         'kelpEnabled',
         'coralEnabled',
@@ -62,6 +64,7 @@ const STATUS: Record<Section, () => ReactNode> = {
         'gyreEnabled',
         'jettyEnabled',
         'rippleEnabled',
+        'breakerEnabled',
       ]}
     />
   ),

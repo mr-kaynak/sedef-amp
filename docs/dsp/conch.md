@@ -11,10 +11,12 @@ upwards (an auto-wah with the wah's own voice).
 
 ## Chain position
 
-**Before the drives** (after Trench and Anemone, before Tide). A wah in front of the drives is
-the classic order: the drive saturates the moving peak, which is what gives the cocked, vocal
-sound, and Tide after it evens out the level the peak adds. After a high-gain drive the wah would
-filter the distortion's fizz instead.
+**Before the drives** (after Trench and Anemone, before Remora and Tide). A wah in front of the
+drives is the classic order: the drive saturates the moving peak, which is what gives the cocked,
+vocal sound, and Tide after it evens out the level the peak adds. After a high-gain drive the wah
+would filter the distortion's fizz instead. On hardware a wah in front of a two-transistor fuzz
+spoils the fuzz's clean-up; here Remora's own Guitar volume does the cleaning up, whatever sits in
+front of it.
 
 ## Signal flow
 

@@ -107,8 +107,10 @@ export const BLOCK_LABELS: Record<PresetBlock, string> = {
   trench: 'Trench',
   anemone: 'Anemone',
   conch: 'Conch',
+  remora: 'Remora',
   tide: 'Tide',
   urchin: 'Urchin',
+  sargasso: 'Sargasso',
   pearl: 'Pearl',
   kelp: 'Kelp',
   coral: 'Coral',
@@ -116,6 +118,7 @@ export const BLOCK_LABELS: Record<PresetBlock, string> = {
   gyre: 'Gyre',
   jetty: 'Jetty',
   ripple: 'Ripple',
+  breaker: 'Breaker',
   eq: 'EQ',
   doubler: 'Doubler',
   drift: 'Drift',
@@ -131,8 +134,10 @@ const PRE_AMP: readonly PresetBlock[] = [
   'trench',
   'anemone',
   'conch',
+  'remora',
   'tide',
   'urchin',
+  'sargasso',
   'pearl',
   'kelp',
   'coral',
@@ -140,6 +145,7 @@ const PRE_AMP: readonly PresetBlock[] = [
   'gyre',
   'jetty',
   'ripple',
+  'breaker',
 ];
 
 export interface ChainPart {

@@ -165,7 +165,8 @@ void Kelp::prepare (const ProcessSpec& spec)
     numChannels_ = std::clamp (spec.numChannels, 1, kMaxChannels);
     maxBlockSize_ = std::max (spec.maxBlockSize, 1);
 
-    oversampler_.prepare (maxBlockSize_, numChannels_, Oversampler::factorLog2For (sampleRate_));
+    oversampler_.prepare (maxBlockSize_, numChannels_, Oversampler::factorLog2For (sampleRate_),
+                          spec.oversampling);
     latency_ = oversampler_.latencySamples();
 
     for (int ch = 0; ch < kMaxChannels; ++ch)

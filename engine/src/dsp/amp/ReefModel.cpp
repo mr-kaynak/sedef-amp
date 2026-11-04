@@ -95,9 +95,9 @@ Voicing voicingAt (float v) noexcept
 }
 } // namespace
 
-void ReefModel::prepare (double sampleRate)
+void ReefModel::prepare (double sampleRate, OversamplingMode mode)
 {
-    prepareBase (sampleRate);
+    prepareBase (sampleRate, mode);
     knobs_.prepare (sampleRate);
     knobs_.setRampSeconds (Voice, sampleRate, kSwitchRampSeconds);
 

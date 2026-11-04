@@ -35,11 +35,14 @@ All notable changes to this project are documented here. The format follows
   −25 dB to −94 dB). Captures convert their sample rate the same way, with no look-ahead
   ([docs/dsp/oversampling.md](docs/dsp/oversampling.md),
   [ADR-0009](docs/adr/0009-minimum-phase-oversampling.md)).
-- Sessions and presets saved before the board (0.4.0 and earlier) open with the fixed chain it
-  replaces (Gate, Trench, Remora, Tide, Urchin, Sargasso, Pearl, Kelp, Coral, Ripple, Breaker;
-  0.3.0 had Gate, Tide, Pearl, Coral and Ripple, in that order) and sound exactly as they did.
+- Sessions and user presets saved before the board (0.4.0 and earlier) open with the whole fixed
+  chain it replaces (Gate, Trench, Remora, Tide, Urchin, Sargasso, Pearl, Kelp, Coral, Ripple,
+  Breaker; 0.3.0 had Gate, Tide, Pearl, Coral and Ripple, in that order), so every pedal whose
+  settings they saved is in view, and they sound exactly as they did.
+- Every factory preset carries a board with just the pedals it uses, and sounds exactly as it did
+  (a test renders each one against the fixed chain). A new instance and Init open with the Gate
+  alone, the only pedal on by default; add the rest from the picker.
 - The Pedals tab shows a lamp for each pedal on the board, in its order.
-- Holdfast, Thermocline and Benthic carry boards with just the pedals they use.
 
 ## [0.4.0] - 2026-11-04
 

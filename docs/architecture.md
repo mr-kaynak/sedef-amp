@@ -230,11 +230,24 @@ it closes on the guitar, not on the hiss in front of it.
 **Saving.** The plug-in saves the board as a comma-separated id list (`board="gate,tide,…"`)
 in its state's `Extra` element and in each preset. Snapshots (preset Undo, the browser's
 audition) and A/B carry it too. A preset whose board differs from the loaded one counts as
-edited. A session or preset saved before the board has none and gets `Board::legacyFor`: the
-legacy board, plus any newer pedal its parameters switch on, at its default position. Every
-pedal of the fixed chain is on the legacy board, so such a session plays exactly the chain it
-had: every factory preset and a session with every pedal on render bit-identical to the fixed
-chain at 44.1, 48, 96 and 192 kHz.
+edited.
+
+- **Factory presets** each carry a board of only the pedals they switch on, in default order
+  (`Board::switchedOn`), so the board shows what the preset uses.
+- **A new instance and Init** have no file to carry a board: they open on the pedals the default
+  parameters switch on, the Gate alone.
+- **A session or user preset saved before the board** has none and gets `Board::legacyFor`: the
+  whole legacy board, plus any newer pedal its parameters switch on, at its default position.
+  Every pedal whose settings it saved is in view, whether it is on or off.
+
+Both kinds of board play exactly what the fixed chain played. A board in default order with the
+other pedals off sounds the same as the legacy board with those pedals switched off, because the
+rack keeps the latency of the pedals left off where the fixed chain had it (below). The
+`factory-preset-boards` ctest (`sedef-render --check-boards`) renders every factory preset on
+its board and on the legacy board, in both oversampling modes, and requires each board to be the
+pedals the preset switches on and the two renders to match sample for sample. Against main
+before the board, every factory preset and a session with every pedal on render bit-identical at
+44.1, 48, 96 and 192 kHz in both modes.
 
 **The engine.** Each `Channel` has a `PedalRack`. It holds every pedal's module, prepared up
 front, and processes them in its board's order. Pedals that aren't on the board are not
@@ -255,24 +268,34 @@ the start of a block. `BoardSwitch` takes every chain's rack to it without click
 
 **Latency** is constant whatever is on the board, so the host's delay compensation never
 changes mid-session. The rig reports the latency of every pedal together (the oversampled
-drives), and the rack pads whatever the board's pedals don't use with one compensating delay.
-It equals what the fixed chain reported, so sessions saved before the board keep their timing.
+drives). A pedal with latency that isn't on the board still leaves its delay in the signal, as a
+bypassed pedal would: in front of the first pedal on the board that comes after it in default
+order, or at the end. A board in default order therefore delays every pedal's input exactly as
+the fixed chain did with the other pedals off, which is what keeps the renders bit-identical. In
+any other order the delays still add up to the same total, so the latency equals what the fixed
+chain reported and sessions saved before the board keep their timing.
 
 Measured by `[.board-measure]` (`engine/tests/board/BoardMeasure.cpp`): the legacy board turned
 into Gate, Pearl, Tide, Coral, Ripple (Pearl moves in front of Tide, the six pedals that are off
-leave) while a sine or a guitar plays, at 44.1–192 kHz and blocks of 1–4096 frames. "Excess" is
-the largest sample-to-sample step beyond what the signal itself has, against its peak:
+leave) while a sine or a guitar plays, at 44.1–192 kHz, blocks of 1–4096 frames and in both
+oversampling modes. "Excess" is the largest sample-to-sample step beyond what the signal itself
+has, against its peak:
 
-| Where | Dip | Below −1 dB | Swell | Excess step |
-|---|---|---|---|---|
-| The board's output | −43 dB to silence | 8–18 ms | ≤ +3.9 dB | −56 to −101 dB |
-| The whole rig's output | −13 to −34 dB | 9–27 ms | ≤ +4.4 dB | −51 to −105 dB |
-| A hard swap without the duck (for scale) | −9 dB | | +8 dB | −8 dB |
+| Where | Mode | Dip | Below −1 dB | Swell | Excess step |
+|---|---|---|---|---|---|
+| The board's output | Low latency | −43 to −92 dB | 8–13 ms | ≤ +4.1 dB | −59 to −101 dB |
+| | Linear phase | −43 dB to silence | 8–17 ms | ≤ +4.2 dB | −55 to −101 dB |
+| The whole rig's output | Low latency | −9 to −28 dB | 9–21 ms | ≤ +4.7 dB | −53 to −105 dB |
+| | Linear phase | −13 to −35 dB | 9–26 ms | ≤ +4.4 dB | −49 to −105 dB |
+| A hard swap without the duck (for scale) | Low latency | −3 dB | | 0 dB | −15 dB |
 
-The tests bound them: a dip of at most two fades plus the latency (and 2 ms), an excess step
-under −50 dB, and through the rig a slope at most 1.2× (guitar) or 1.6× (sine) the signal's
-own. CPU at 48 kHz, in ns per sample: all eleven pedals on the board and on, 1815; Tide alone,
-24; nothing on the board, 1.9; all eleven on the board but switched off, 10.6.
+The duck waits for the rack's latency, so in Low latency, where that is a few samples, it is
+shorter, and the amp, cab and effects after the board fill more of it: the rig dips less. The
+tests bound them: a dip of at most two fades plus the latency (and 2 ms), an excess step under
+−50 dB at the board's output, and through the rig a slope at most 1.2× (guitar) or 1.6× (sine)
+the signal's own (measured: up to 1.14× and 1.49×). CPU at 48 kHz, in ns per sample: every pedal
+on the board and on, about 1010; Tide alone, 19; nothing on the board, 6 (the delays of the
+pedals left off); every pedal on the board but switched off, 6.
 
 **Later: a live mode.** A preset load sets the parameters and the board from the message
 thread in one call; the audio thread can pick them up a block apart, which the duck and the
@@ -327,8 +350,8 @@ pedal's page ("Where it goes in the chain"); the player can change it on the boa
   flat.
 
 Each oversampled pedal (Remora, Urchin, Sargasso, Pearl, Kelp, Coral, Breaker) adds its
-oversampler's latency to the chain whether it is on or off, on the board or not (the rack pads for
-the ones that aren't), so switching or moving pedals never changes the latency reported to the
+oversampler's latency to the chain whether it is on or off, on the board or not (the rack keeps
+the delay of the ones that aren't), so switching or moving pedals never changes the latency reported to the
 host. With the default minimum-phase oversampling that is 5 samples per
 stage at 44.1/48 kHz: 41 samples (0.85 ms) for the whole rig at 48 kHz, including the amp and the
 capture stage. Settings > Latency > Linear phase brings back 0.4.0's linear-phase filters,

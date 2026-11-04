@@ -241,10 +241,12 @@ shows 0.3.0's pedals in their fixed order without the editing controls.
   a pedal on the board already is marked "On the board", and picking it shows it there.
 - **Registry**: `features/pedals/registry.ts` reads `generated/pedals.json`, which
   `sedef-params --pedals` dumps from the engine's `PedalList.inc`, and mirrors `sedef::Board`'s
-  rules (add at rank, move, the legacy board for presets saved without one). Adding a pedal:
-  [architecture.md](architecture.md#adding-a-pedal).
+  rules (add at rank, move, the legacy board for presets saved without one, only the pedals
+  switched on for Init). Adding a pedal: [architecture.md](architecture.md#adding-a-pedal).
 - **Mock**: the mock backend keeps a board per preset, snapshot and A/B side, counts it towards
-  the dirty dot like the plug-in, and takes `?board=`.
+  the dirty dot like the plug-in, and takes `?board=`. Factory presets bring the boards in their
+  files; Init is the Gate alone, and the mock's user preset, which has no board, gets the legacy
+  board.
 
 ### EQ curve
 

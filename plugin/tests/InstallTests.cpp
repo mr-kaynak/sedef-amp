@@ -556,7 +556,9 @@ TEST_CASE ("A checked archive unpacks, and a bad one writes nothing", "[update][
     const auto out = s.dir.getChildFile ("out");
     REQUIRE (out.createDirectory());
     juce::String error, top;
-    REQUIRE (extractTarGz (archive, out, error, &top));
+    const bool extracted = extractTarGz (archive, out, error, &top);
+    CAPTURE (error);
+    REQUIRE (extracted);
     CHECK (top == kTop);
     const auto script = out.getChildFile (kTop).getChildFile ("install.sh");
     CHECK (script.loadFileAsString() == "#!/bin/sh\necho installed\n");

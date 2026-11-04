@@ -732,8 +732,12 @@ bool extractTarGz (const juce::File& archive, const juce::File& destination, juc
             if (out.getStatus().failed())
                 return "cannot write " + path;
         }
+#if !JUCE_WINDOWS
+        // Windows files have no execute bit (JUCE reports failure there), and the archive is
+        // only installed on Linux; elsewhere it is unpacked for the tests.
         if ((e.mode & 0111) != 0 && !target.setExecutePermission (true))
             return "cannot make " + path + " executable";
+#endif
         return {};
     });
     if (error.isEmpty() && index != listing.entries.size())

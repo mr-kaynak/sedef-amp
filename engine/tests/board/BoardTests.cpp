@@ -64,6 +64,37 @@ TEST_CASE ("The legacy board is the fixed chain the board replaced", "[board]")
         CHECK (*all.indexOf (legacy[i]) < *all.indexOf (legacy[i + 1]));
 }
 
+TEST_CASE ("A focused board holds only the pedals switched on, in default order", "[board]")
+{
+    // Init's board: the default parameters switch on the Gate alone.
+    const auto defaults = ParamSnapshot::defaults();
+    CHECK (Board::switchedOn ([&] (ParamId id) { return defaults.flag (id); }) ==
+           boardOf ({ PedalId::gate }));
+    CHECK (Board::switchedOn ([] (ParamId) { return false; }).empty());
+    CHECK (Board::switchedOn ([] (ParamId) { return true; }) == Board::everyPedal());
+
+    // Any subset keeps default order, so it plays what the legacy board plays with the same
+    // pedals on ("A board in default order plays the fixed chain with the others switched off").
+    Random r (11);
+    for (int round = 0; round < 64; ++round)
+    {
+        std::array<bool, kNumPedals> on {};
+        for (auto& o : on)
+            o = r.unipolar() < 0.5f;
+        const auto isOn = [&on] (ParamId id) {
+            for (std::size_t i = 0; i < kNumPedals; ++i)
+                if (kPedals[i].enable == id)
+                    return on[i];
+            return false;
+        };
+        const auto board = Board::switchedOn (isOn);
+        for (std::size_t i = 0; i < kNumPedals; ++i)
+            CHECK (board.contains (static_cast<PedalId> (i)) == isOn (kPedals[i].enable));
+        for (std::size_t i = 0; i + 1 < board.size(); ++i)
+            CHECK (pedalInfo (board[i]).rank < pedalInfo (board[i + 1]).rank);
+    }
+}
+
 TEST_CASE ("Board edits keep every pedal once and in place", "[board]")
 {
     Board b;

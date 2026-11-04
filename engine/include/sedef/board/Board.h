@@ -93,6 +93,20 @@ public:
         return board;
     }
 
+    /// Only the pedals switched on (`isOn (enableParam)`), each at its default position: the
+    /// board of a preset with nothing else on it, such as Init's (the Gate alone) or a factory
+    /// preset's. Plays the same as the legacy board would (PedalRack keeps the delays of the
+    /// pedals left off), with only what is used on the board.
+    template <typename IsOn>
+    static Board switchedOn (IsOn&& isOn)
+    {
+        Board board;
+        for (std::size_t i = 0; i < kNumPedals; ++i)
+            if (isOn (kPedals[i].enable))
+                board.add (static_cast<PedalId> (i));
+        return board;
+    }
+
     constexpr std::size_t size() const noexcept { return size_; }
     constexpr bool empty() const noexcept { return size_ == 0; }
     constexpr PedalId operator[] (std::size_t i) const noexcept { return pedals_[i]; }

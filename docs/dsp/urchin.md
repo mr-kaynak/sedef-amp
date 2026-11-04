@@ -58,7 +58,7 @@ in ─► HP 40 Hz ─► transformer: HP 90 Hz, LP 3.5 kHz (Q 0.6) ─► × 4 
 | `tone` | Second-order low-pass (Q 0.6), 1.2 kHz × 7.5^tone: 1.2 kHz → 3.3 kHz at noon → 9 kHz. |
 | `level` | 40 dB × (level − 0.5) (±20 dB) plus a trim, `trimDb(f) = −(1.243 + 17.867 f − 20.255 f² + 7.816 f³)`, fitted over Octave 0, 0.5 and 1 so that the reference tone comes out within 1.5 dB of its input level at level 0.5. |
 
-`latencySamples()` returns the oversampler's latency (37 samples at 44.1/48 kHz).
+`latencySamples()` returns the oversampler's latency (5 samples at 44.1/48 kHz, 3 at 88.2/96 kHz, 0 above; 37 and 31 in Linear phase, [oversampling.md](oversampling.md)).
 
 ## Measurements (48 kHz)
 

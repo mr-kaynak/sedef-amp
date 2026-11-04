@@ -20,12 +20,14 @@ namespace sedef::test
 /// An engine with a mono input and stereo output, processed in host blocks of `block` frames.
 struct BoardRig
 {
-    BoardRig (double fs, int blockSize, int frames, int ins = 1, int outs = 2)
+    BoardRig (double fs, int blockSize, int frames, int ins = 1, int outs = 2,
+              OversamplingMode mode = OversamplingMode::lowLatency)
         : rate (fs),
           block (blockSize),
           in (ins, frames),
           out (outs, frames)
     {
+        engine.setOversampling (mode);
         engine.prepare (fs, blockSize, ins, outs);
     }
 

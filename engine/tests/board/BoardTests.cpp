@@ -546,9 +546,10 @@ TEST_CASE ("A change of mind on the way down comes back up without a rewire", "[
 TEST_CASE ("The latency never changes with the board", "[board]")
 {
     // With every pedal switched off, any board is the same pure delay: an impulse comes out at
-    // the same sample, at the same height, through the whole engine.
+    // the same sample, at the same height, through the whole engine, in either oversampling mode.
     const double fs = GENERATE (44100.0, 48000.0, 96000.0, 192000.0);
-    CAPTURE (fs);
+    const auto mode = GENERATE (OversamplingMode::lowLatency, OversamplingMode::linearPhase);
+    CAPTURE (fs, static_cast<int> (mode));
     const auto boards = { Board::legacy(), Board {}, Board::everyPedal(),
                           boardOf ({ PedalId::ripple, PedalId::coral }),
                           boardOf ({ PedalId::pearl, PedalId::tide, PedalId::gate }) };
@@ -556,7 +557,7 @@ TEST_CASE ("The latency never changes with the board", "[board]")
     int latency = -1;
     for (const auto& board : boards)
     {
-        BoardRig rig (fs, 128, 8192);
+        BoardRig rig (fs, 128, 8192, 1, 2, mode);
         rig.engine.setBoard (board);
         rig.engine.reset();
         if (latency < 0)
@@ -569,6 +570,57 @@ TEST_CASE ("The latency never changes with the board", "[board]")
         else
             CHECK (rig.out[0] == first);
     }
+}
+
+TEST_CASE ("Reordering while playing keeps the latency in either oversampling mode", "[board]")
+{
+    const double fs = GENERATE (44100.0, 48000.0, 96000.0, 192000.0);
+    CAPTURE (fs);
+    int rackLatency[2] = {};
+    for (const auto mode : { OversamplingMode::lowLatency, OversamplingMode::linearPhase })
+    {
+        CAPTURE (static_cast<int> (mode));
+        // What the board pads to: every pedal's latency in this mode, from the modules.
+        PedalRack rack;
+        rack.prepare ({ fs, 128, 1, mode });
+        int sum = 0;
+        for (std::size_t i = 0; i < kNumPedals; ++i)
+            sum += rack.latencyOf (static_cast<PedalId> (i));
+        CHECK (rack.latencySamples() == sum);
+        CHECK (rack.latencyOf (Board::legacy()) == sum);
+        rackLatency[mode == OversamplingMode::linearPhase] = sum;
+
+        BoardRig rig (fs, 128, static_cast<int> (fs), 1, 2, mode);
+        fillGuitarTone (rig.in[0], fs, 0.3f);
+        auto p = cleanRig();
+        for (std::size_t i = 0; i < kNumPedals; ++i)
+            p[kPedals[i].enable] = 1.0f;
+        const int latency = rig.engine.latencySamples();
+        // Boards with and without the pedals that have latency, in new orders, each landing
+        // while the last change may still be under way.
+        const Board boards[] = {
+            boardOf ({ PedalId::ripple, PedalId::coral, PedalId::gate }),
+            Board::everyPedal(),
+            boardOf ({ PedalId::kelp, PedalId::trench, PedalId::tide }),
+            Board {},
+            boardOf ({ PedalId::breaker, PedalId::urchin, PedalId::pearl, PedalId::remora }),
+            Board::legacy(),
+        };
+        int next = 0;
+        rig.run (p, 0, static_cast<int> (fs), [&] (int s) {
+            if (s % 4096 == 0 && next < static_cast<int> (std::size (boards)))
+                rig.engine.setBoard (boards[next++]);
+            CHECK (rig.engine.latencySamples() == latency);
+        });
+        CHECK (next == static_cast<int> (std::size (boards)));
+        CHECK (rig.engine.latencySamples() == latency);
+        CHECK (test::allFinite (rig.out[0]));
+    }
+    // The mode reached the pedals: linear phase holds the longer filters (where the pedals
+    // oversample at all; at 176.4 kHz and up they don't).
+    CHECK (rackLatency[1] >= rackLatency[0]);
+    if (rackLatency[1] > 0)
+        CHECK (rackLatency[1] > rackLatency[0]);
 }
 
 TEST_CASE ("Pedals off the board are not processed", "[board]")

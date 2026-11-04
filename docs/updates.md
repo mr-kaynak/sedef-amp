@@ -195,7 +195,10 @@ from a different release.
   installed; on Linux, every file of the VST3, CLAP and standalone app against the archive's, by
   SHA-256, and the VST3's `moduleinfo.json`. A mismatch is reported.
 - On Windows, `/WAITPIDTIME` carries the creation time of the process to wait for: if its id has
-  been reused by another process by the time Setup starts, Setup doesn't wait for that one. The
+  been reused by another process by the time Setup starts, Setup doesn't wait for that one. Sedef
+  never starts Setup without it: if it can't read when the host started, it installs nothing and
+  offers Install manually. The setup file stays held only once a Setup has started (or while the
+  permission prompt is still open); after No or a failure it is let go. The
   wait has no limit, as the panel says (*It installs when you close your DAW.*).
 
 **What it does not protect against.**

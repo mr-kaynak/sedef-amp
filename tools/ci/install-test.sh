@@ -250,7 +250,7 @@ MINGW* | MSYS* | CYGWIN*)
     stop "$pid"
     wait "$setup_pid" && echo "ok: Setup finished once the dummy was gone" || fail "Setup failed"
 
-    say "4. A process created at another time than /WAITPIDTIME says is not waited for"
+    say "4. A process created at another time than /WAITPIDTIME says, or without it, is not waited for"
     pid="$(dummy 120)"
     dummies+=("$pid")
     started=$SECONDS
@@ -261,9 +261,17 @@ MINGW* | MSYS* | CYGWIN*)
     [[ "$(alive "$pid")" == yes ]] && echo "ok: Setup did not wait for it" || fail "the dummy is gone"
     grep -aq "was created at another time" "$work/reused.log" && echo "ok: the log says why" ||
         fail "the setup log does not say why it did not wait"
+    # Nor one given without its creation time (the updater never does that).
+    MSYS2_ARG_CONV_EXCL='*' "$(cygpath -w "$work/alone/Setup.exe")" "${setup_args[@]}" \
+        '/COMPONENTS=vst3,clap' "/WAITPID=$pid" "/LOG=$(cygpath -w "$work/untimed.log")" ||
+        fail "Setup failed"
+    [[ "$(alive "$pid")" == yes ]] && echo "ok: Setup did not wait without /WAITPIDTIME" ||
+        fail "the dummy is gone"
+    grep -aq "No /WAITPIDTIME for process $pid" "$work/untimed.log" && echo "ok: the log says why" ||
+        fail "the setup log does not say why it did not wait"
     stop "$pid"
     if ((failures > 0)); then
-        for log in new alone reused; do
+        for log in new alone reused untimed; do
             echo "--- $log.log"
             tail -n 40 "$work/$log.log" || true
         done

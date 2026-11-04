@@ -18,6 +18,7 @@ export const GLOBAL_PARAM_IDS: ReadonlySet<string> = new Set([
   'presetPrevious',
   'presetNext',
   'captureInterfaceLevel',
+  'oversampling',
 ]);
 
 export function isGlobalParam(id: string): boolean {

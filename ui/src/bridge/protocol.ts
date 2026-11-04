@@ -427,7 +427,7 @@ export interface Events {
   'sedef:params': { values: ParamValues };
   /**
    * The sample rate or the latency changed (the host prepared again, or the oversampling
-   * setting). Absent from plug-ins built before 0.5.0: they only report these in the hello.
+   * setting). Absent from plug-ins up to 0.4.0: they only report these in the hello.
    */
   'sedef:session': SessionEvent;
   /** 30 Hz while the editor is open. */

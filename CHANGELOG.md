@@ -6,6 +6,25 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **Latency is down from 6.2 ms to 0.85 ms at 48 kHz** (298 to 41 samples; 296 to 40 at
+  44.1 kHz, 295 to 32 at 96 kHz). Every pedal and the amp now oversample through minimum-phase
+  filters, about 5 samples each instead of 37, quick enough to play through live. The latency
+  the host compensates still never changes when you switch a pedal or the amp. The tone is the same: responses and harmonics match the previous filters to
+  0.05 dB, and the new filters reject aliasing harder (what they let fold back into the top of
+  the band at 44.1 kHz is down from −25 dB to −94 dB). Captures convert their sample rate the
+  same way, with no look-ahead ([docs/dsp/oversampling.md](docs/dsp/oversampling.md),
+  [ADR-0009](docs/adr/0009-minimum-phase-oversampling.md)).
+
+### Added
+
+- **Settings > Latency:** Low latency, the default, or **Linear phase**, the 0.4.0 filters, which
+  keep every frequency in time for mixing and re-amping and add about 5 ms at 48 kHz. Switching
+  restarts the audio for a moment and tells the host the new latency; the status bar and About
+  follow it. Sessions saved with 0.4.0 open in Low latency.
+- New parameter: `oversampling` (global, not automatable, not saved in presets).
+
 ## [0.4.0] - 2026-11-04
 
 Abyss is tight instead of fuzzy, and six new pedals: a mid-hump overdrive, an octave-up fuzz, an

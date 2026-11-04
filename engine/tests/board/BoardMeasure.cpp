@@ -25,11 +25,13 @@ ParamSnapshot tideAndPearl()
     return p;
 }
 
-void print (const char* what, bool guitar, double fs, int block, const Transient& t)
+void print (const char* what, OversamplingMode mode, bool guitar, double fs, int block,
+            const Transient& t)
 {
-    std::printf ("%-14s %-6s %6.0f Hz block %4d: dip %6.1f dB, %4.1f ms below -1 dB, swell "
+    std::printf ("%-14s %-6s %-6s %6.0f Hz block %4d: dip %6.1f dB, %4.1f ms below -1 dB, swell "
                  "%+.1f dB, slope x%.2f (excess %.0f dB)\n",
-                 what, guitar ? "guitar" : "sine", fs, block, static_cast<double> (t.dipDb),
+                 what, mode == OversamplingMode::linearPhase ? "linear" : "low",
+                 guitar ? "guitar" : "sine", fs, block, static_cast<double> (t.dipDb),
                  static_cast<double> (t.dipMs), static_cast<double> (t.swellDb),
                  static_cast<double> (t.slopeRatio), static_cast<double> (t.excessDb));
 }
@@ -38,36 +40,43 @@ void print (const char* what, bool guitar, double fs, int block, const Transient
 TEST_CASE ("Board reorder transient (measurement)", "[.board-measure]")
 {
     const auto p = tideAndPearl();
-    for (const double fs : { 44100.0, 48000.0, 96000.0, 192000.0 })
-        for (const int block : { 1, 64, 512, 4096 })
-            for (const bool guitar : { false, true })
-            {
-                const auto x = testSignal (guitar, fs, static_cast<int> (1.6 * fs));
-                const int at = (static_cast<int> (fs) / block) * block;
-                print ("board reorder", guitar, fs, block,
-                       compareTransient (renderBoard (fs, block, x, p, kBoardA, &kBoardB, at),
-                                         renderBoard (fs, block, x, p, kBoardA),
-                                         renderBoard (fs, block, x, p, kBoardB), fs, at));
-                print ("rig reorder", guitar, fs, block,
-                       compareTransient (renderEngine (fs, block, x, p, kBoardA, &kBoardB, at),
-                                         renderEngine (fs, block, x, p, kBoardA),
-                                         renderEngine (fs, block, x, p, kBoardB), fs, at));
-            }
+    for (const auto mode : { OversamplingMode::lowLatency, OversamplingMode::linearPhase })
+        for (const double fs : { 44100.0, 48000.0, 96000.0, 192000.0 })
+            for (const int block : { 1, 64, 512, 4096 })
+                for (const bool guitar : { false, true })
+                {
+                    const auto x = testSignal (guitar, fs, static_cast<int> (1.6 * fs));
+                    const int at = (static_cast<int> (fs) / block) * block;
+                    const auto board = [&] (const Board& from, const Board* to) {
+                        return renderBoard (fs, block, x, p, from, to, at, {}, mode);
+                    };
+                    const auto rig = [&] (const Board& from, const Board* to) {
+                        return renderEngine (fs, block, x, p, from, to, at, mode);
+                    };
+                    print ("board reorder", mode, guitar, fs, block,
+                           compareTransient (board (kBoardA, &kBoardB), board (kBoardA, nullptr),
+                                             board (kBoardB, nullptr), fs, at));
+                    print ("rig reorder", mode, guitar, fs, block,
+                           compareTransient (rig (kBoardA, &kBoardB), rig (kBoardA, nullptr),
+                                             rig (kBoardB, nullptr), fs, at));
+                }
 
     // Pearl (latency) leaves while switched off: the duck alone, nothing else changes.
-    for (const double fs : { 48000.0, 96000.0 })
-        for (const bool guitar : { false, true })
-        {
-            const auto p2 = cleanRig ({ ParamId::tideEnabled });
-            auto without = kBoardA;
-            without.remove (PedalId::pearl);
-            const auto x = testSignal (guitar, fs, static_cast<int> (1.6 * fs));
-            const int at = (static_cast<int> (fs) / 64) * 64;
-            const auto a = renderBoard (fs, 64, x, p2, kBoardA);
-            print ("duck only", guitar, fs, 64,
-                   compareTransient (renderBoard (fs, 64, x, p2, kBoardA, &without, at), a, a, fs,
-                                     at));
-        }
+    for (const auto mode : { OversamplingMode::lowLatency, OversamplingMode::linearPhase })
+        for (const double fs : { 48000.0, 96000.0 })
+            for (const bool guitar : { false, true })
+            {
+                const auto p2 = cleanRig ({ ParamId::tideEnabled });
+                auto without = kBoardA;
+                without.remove (PedalId::pearl);
+                const auto x = testSignal (guitar, fs, static_cast<int> (1.6 * fs));
+                const int at = (static_cast<int> (fs) / 64) * 64;
+                const auto a = renderBoard (fs, 64, x, p2, kBoardA, nullptr, 0, {}, mode);
+                print (
+                    "duck only", mode, guitar, fs, 64,
+                    compareTransient (renderBoard (fs, 64, x, p2, kBoardA, &without, at, {}, mode),
+                                      a, a, fs, at));
+            }
 
     // Control: the same swap with no duck (the rack rewired mid-signal) shows what the measures
     // catch.
@@ -90,7 +99,7 @@ TEST_CASE ("Board reorder transient (measurement)", "[.board-measure]")
         }
         return y;
     };
-    print ("hard swap", false, fs, 64,
+    print ("hard swap", OversamplingMode::lowLatency, false, fs, 64,
            compareTransient (rackRender (kBoardA, &kBoardB, 48000),
                              rackRender (kBoardA, nullptr, 0), rackRender (kBoardB, nullptr, 0), fs,
                              48000));

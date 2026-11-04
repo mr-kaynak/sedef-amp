@@ -79,9 +79,11 @@ inline Board boardOf (std::initializer_list<PedalId> ids)
 /// The board alone, as a chain plays it: duck, rack, duck, in chunks the switch allows.
 struct BoardHarness
 {
-    BoardHarness (double fs, int maxBlockSize, const Board& start) : maxBlock (maxBlockSize)
+    BoardHarness (double fs, int maxBlockSize, const Board& start,
+                  OversamplingMode mode = OversamplingMode::lowLatency)
+        : maxBlock (maxBlockSize)
     {
-        rack.prepare ({ fs, maxBlock, 1 });
+        rack.prepare ({ fs, maxBlock, 1, mode });
         board.prepare (fs, maxBlock, rack.latencySamples());
         rack.reset();
         board.reset (start, racks);
@@ -184,9 +186,10 @@ inline std::vector<float> testSignal (bool guitar, double fs, int frames)
 inline std::vector<float> renderBoard (double fs, int block, const std::vector<float>& x,
                                        const ParamSnapshot& p, const Board& from,
                                        const Board* to = nullptr, int at = 0,
-                                       const std::function<void (BoardHarness&, int)>& watch = {})
+                                       const std::function<void (BoardHarness&, int)>& watch = {},
+                                       OversamplingMode mode = OversamplingMode::lowLatency)
 {
-    BoardHarness h (fs, std::min (block, 512), from);
+    BoardHarness h (fs, std::min (block, 512), from, mode);
     auto y = x;
     h.run (y.data(), x.data(), static_cast<int> (x.size()), block, p, [&] (int s) {
         if (to != nullptr && s == at)
@@ -200,9 +203,10 @@ inline std::vector<float> renderBoard (double fs, int block, const std::vector<f
 /// The same through the whole engine (amp, cab and post effects after the board).
 inline std::vector<float> renderEngine (double fs, int block, const std::vector<float>& x,
                                         const ParamSnapshot& p, const Board& from,
-                                        const Board* to = nullptr, int at = 0)
+                                        const Board* to = nullptr, int at = 0,
+                                        OversamplingMode mode = OversamplingMode::lowLatency)
 {
-    BoardRig rig (fs, block, static_cast<int> (x.size()));
+    BoardRig rig (fs, block, static_cast<int> (x.size()), 1, 2, mode);
     rig.in[0] = x;
     rig.engine.setBoard (from);
     rig.engine.reset();

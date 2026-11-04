@@ -484,25 +484,30 @@ ParamSnapshot tideAndPearl()
 
 TEST_CASE ("A new order ducks briefly and without a click", "[board]")
 {
+    // The duck waits for the rack's latency, which the oversampling mode sets.
+    const auto mode = GENERATE (OversamplingMode::lowLatency, OversamplingMode::linearPhase);
     const double fs = GENERATE (44100.0, 48000.0, 96000.0, 192000.0);
     const int block = GENERATE (1, 64, 4096);
     const bool guitar = GENERATE (false, true);
-    CAPTURE (fs, block, guitar);
+    CAPTURE (static_cast<int> (mode), fs, block, guitar);
 
     const auto p = tideAndPearl();
     const auto x = testSignal (guitar, fs, static_cast<int> (1.4 * fs));
     const int at = (static_cast<int> (0.8 * fs) / block) * block;
     int rewiredAt = -1;
-    const auto y =
-        renderBoard (fs, block, x, p, Board::legacy(), &kSwapped, at, [&] (BoardHarness& h, int s) {
+    const auto y = renderBoard (
+        fs, block, x, p, Board::legacy(), &kSwapped, at,
+        [&] (BoardHarness& h, int s) {
             if (rewiredAt < 0 && h.rack.order() == kSwapped)
                 rewiredAt = s;
-        });
-    const auto t = compareTransient (y, renderBoard (fs, block, x, p, Board::legacy()),
-                                     renderBoard (fs, block, x, p, kSwapped), fs, at);
+        },
+        mode);
+    const auto t =
+        compareTransient (y, renderBoard (fs, block, x, p, Board::legacy(), nullptr, 0, {}, mode),
+                          renderBoard (fs, block, x, p, kSwapped, nullptr, 0, {}, mode), fs, at);
 
     PedalRack rack;
-    rack.prepare ({ fs, 64, 1 });
+    rack.prepare ({ fs, 64, 1, mode });
     const double lagMs = 1000.0 * rack.latencySamples() / fs;
     const double fadeMs = 1000.0 * BoardSwitch::kDuckSeconds;
     Duck duck;
@@ -526,15 +531,17 @@ TEST_CASE ("A new order ducks briefly and without a click", "[board]")
 
 TEST_CASE ("Through the whole rig a new order stays click-free", "[board]")
 {
+    const auto mode = GENERATE (OversamplingMode::lowLatency, OversamplingMode::linearPhase);
     const double fs = GENERATE (48000.0, 96000.0);
     const bool guitar = GENERATE (false, true);
-    CAPTURE (fs, guitar);
+    CAPTURE (static_cast<int> (mode), fs, guitar);
     const auto p = tideAndPearl();
     const auto x = testSignal (guitar, fs, static_cast<int> (1.4 * fs));
     const int at = (static_cast<int> (0.8 * fs) / 64) * 64;
-    const auto t = compareTransient (renderEngine (fs, 64, x, p, Board::legacy(), &kSwapped, at),
-                                     renderEngine (fs, 64, x, p, Board::legacy()),
-                                     renderEngine (fs, 64, x, p, kSwapped), fs, at);
+    const auto t =
+        compareTransient (renderEngine (fs, 64, x, p, Board::legacy(), &kSwapped, at, mode),
+                          renderEngine (fs, 64, x, p, Board::legacy(), nullptr, 0, mode),
+                          renderEngine (fs, 64, x, p, kSwapped, nullptr, 0, mode), fs, at);
     // The repo's click bound for automation sweeps (PedalTestUtils.h).
     CHECK (t.slopeRatio <= (guitar ? 1.2f : 1.6f));
 }

@@ -14,7 +14,7 @@
 ; limit, as the updater says ("It installs when you close your DAW"). With /WAITPID, Setup also
 ; holds its own file open so nothing can change it until Setup has finished: the updater holds it
 ; until it exits, and Setup takes over before then. /RELAUNCH opens the standalone app again
-; afterwards. Setups from before 0.3.1 ignore /WAITPID, /WAITPIDTIME and /RELAUNCH.
+; afterwards. Setups up to 0.4.0 ignore /WAITPID, /WAITPIDTIME and /RELAUNCH.
 
 #ifndef AppVersion
   #error Define AppVersion, e.g. iscc /DAppVersion=0.2.0

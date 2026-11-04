@@ -57,6 +57,17 @@ export function SettingsPanel() {
           full level. Two channels runs a full rig per side.
         </p>
       </section>
+      <section className={styles.section}>
+        <h3 className={styles.heading}>Latency</h3>
+        <Segmented
+          param="oversampling"
+          labels={['Low latency', 'Linear phase']}
+          ariaLabel="Latency"
+        />
+        <p className={styles.note}>
+          Linear phase keeps every frequency in time for mixing and adds about 5 ms at 48 kHz.
+        </p>
+      </section>
       <UpdatesSettings className={styles.section} />
       <section className={`${styles.section} ${styles.about}`}>
         <NacreStar size={36} />

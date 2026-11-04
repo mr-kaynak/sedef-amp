@@ -10,8 +10,8 @@ versions are on the [releases page](https://github.com/mr-kaynak/sedef-amp/relea
 | Linux x86_64 | [Sedef-Amp-Linux-x86_64.tar.gz](https://github.com/mr-kaynak/sedef-amp/releases/latest/download/Sedef-Amp-Linux-x86_64.tar.gz) | VST3, CLAP and the standalone app with an install script |
 
 After installing, rescan plugins in your DAW. Sedef shows up as **Sedef Amp** by **Sedef**.
-From 0.3.1 on you won't need this page to update: **Update now** in Sedef's Updates panel installs
-the next version through the same installer ([updates.md](updates.md)).
+From the first release after 0.4.0 on you won't need this page to update: **Update now** in
+Sedef's Updates panel installs the next version through the same installer ([updates.md](updates.md)).
 Presets and settings live outside the install folders and survive updates and uninstalls:
 `~/Library/Application Support/Sedef` on macOS, `%APPDATA%\Sedef` on Windows and `~/.config/Sedef`
 on Linux.

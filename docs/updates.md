@@ -9,9 +9,9 @@ there.
 
 ![The Updates panel](images/updates.png)
 
-This works from 0.3.1 on. Copies of 0.2.0 and 0.3.0 still download the installer into Downloads
-and open it, as described under [Install manually](#install-manually), for their next update; once
-0.3.1 or later is installed, every later update installs this way.
+This works from the first release after 0.4.0 on. Copies of 0.2.0, 0.3.0 and 0.4.0 still download
+the installer into Downloads and open it, as described under [Install manually](#install-manually),
+for their next update; once a newer release is installed, every later update installs this way.
 
 ## What happens
 
@@ -34,11 +34,11 @@ and open it, as described under [Install manually](#install-manually), for their
 
    | OS | File | What Sedef does | What you see |
    | --- | --- | --- | --- |
-   | macOS | `Sedef-Amp-macOS.dmg` | runs one fixed install script as root, which copies the disk image into a folder of its own, checks the copy's SHA-256, mounts it read-only and hidden, and runs Apple's `/usr/sbin/installer` on `Install Sedef Amp.pkg` for the formats you have installed (plus the one Sedef runs as), deselecting the others; then it detaches the image and deletes its folder | macOS asks for an administrator's password ("Sedef Amp wants to install version 0.3.1."). Then Sedef checks that every format has the new version |
+   | macOS | `Sedef-Amp-macOS.dmg` | runs one fixed install script as root, which copies the disk image into a folder of its own, checks the copy's SHA-256, mounts it read-only and hidden, and runs Apple's `/usr/sbin/installer` on `Install Sedef Amp.pkg` for the formats you have installed (plus the one Sedef runs as), deselecting the others; then it detaches the image and deletes its folder | macOS asks for an administrator's password ("Sedef Amp wants to install version 0.5.0."). Then Sedef checks that every format has the new version |
    | Windows | `Sedef-Amp-Windows-Setup.exe` | starts the setup program elevated and silent with the formats installed now (plus the one Sedef runs as), told to wait until your DAW (this process) has exited, because Windows keeps a loaded plug-in locked | Windows asks for permission (UAC). The panel says *It installs when you close your DAW.*; Setup installs once you do |
    | Linux (x86-64) | `Sedef-Amp-Linux-x86_64.tar.gz` | checks what the archive holds (no links, devices or paths outside it), then runs one fixed install script, which copies the archive into a folder of its own, checks the copy's SHA-256, unpacks it and runs its `install.sh`: as you for a copy in `~/.vst3`, `~/.clap` and `~/.local/bin`, or as root through `pkexec` with `--system` for one in `/usr/lib` | nothing for your own copy; your desktop's password prompt (polkit) for a system-wide one. Then Sedef checks every file it installed |
 
-5. **Restart.** The panel ends on *Sedef Amp 0.3.1 is installed. Restart \<your DAW\> to use it.*
+5. **Restart.** The panel ends on *Sedef Amp 0.5.0 is installed. Restart \<your DAW\> to use it.*
    (Sedef names the host when it knows it.) The pill now reads "Restart to update", in this window
    and in every other process that still runs the old version: another DAW, a new window. The first
    process that runs the new version clears that. In the standalone app, **Restart Sedef** quits it
@@ -54,7 +54,7 @@ check the result.
 ### Install manually
 
 When the automatic route fails, or can't run here, the panel offers **Install manually**, which is
-how 0.2.0 and 0.3.0 update: Sedef copies the verified installer into your Downloads folder with
+how 0.2.0 to 0.4.0 update: Sedef copies the verified installer into your Downloads folder with
 the "downloaded from the internet" mark a browser gives it, and opens it (macOS: the disk image,
 Windows: the setup program) or, on Linux, shows the archive in your file manager. You run the
 installer yourself after quitting your DAW. The releases page is always one click away too.
@@ -85,7 +85,7 @@ One HTTPS request per check, and nothing else:
 GET https://api.github.com/repos/mr-kaynak/sedef-amp/releases/latest
 Accept: application/vnd.github+json
 X-GitHub-Api-Version: 2022-11-28
-User-Agent: SedefAmp/0.3.1 (macOS)
+User-Agent: SedefAmp/0.4.0 (macOS)
 ```
 
 The User-Agent carries the Sedef version and the OS family, nothing more: no identifier, no OS

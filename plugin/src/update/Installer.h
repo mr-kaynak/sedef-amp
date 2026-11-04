@@ -40,7 +40,7 @@ struct InstallRequest
 {
     juce::File file;           // the verified installer, in the private cache
     juce::String expectedHash; // its SHA-256, checked again right before it is used
-    juce::String version;      // the release's, e.g. "0.3.1"
+    juce::String version;      // the release's, e.g. "0.5.0"
     bool relaunch = false;     // Windows: open the standalone app once Setup has run
     void* window = nullptr;    // Windows: the window the permission prompt belongs to
 };

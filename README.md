@@ -23,7 +23,7 @@ around them.
 
 | | |
 |---|---|
-| **Pedals** | **Tide** compressor (3:1, tilt EQ, parallel blend) · **Pearl** transparent overdrive with mid boost · **Coral** distortion · **Ripple** tremolo / chorus / vibrato · noise gate |
+| **Pedals** | **Trench** octave down (one and two octaves, analog style) · **Remora** two-transistor fuzz (germanium / silicon, bias, cleans up with the guitar's volume) · **Tide** compressor (3:1, tilt EQ, parallel blend) · **Urchin** octave-up fuzz · **Sargasso** sustain fuzz with a mid-scoop tone · **Pearl** transparent overdrive with mid boost · **Kelp** classic mid-hump overdrive, also a tight boost · **Coral** distortion · **Ripple** tremolo / chorus / vibrato · **Breaker** treble booster (Treble / Full range) · noise gate |
 | **Amps** | **Lagoon** — glassy, wide clean · **Reef** — British crunch with three voicings · **Abyss** — tight, saturated lead with bright and mid-shift switches |
 | **Captures** | load any Neural Amp Modeler (`.nam`) capture of a real amp or full rig in place of the amps, levelled to match them |
 | **Cabs** | 1x12 open, 2x12 open, 4x12 closed · two mics per cab from ten mic models, placed anywhere over the cone, backed off and turned off axis · room mics · load your own IRs |
@@ -137,8 +137,11 @@ engine/   Pure C++20 DSP library with no JUCE dependency, unit-tested on every O
   ([ADR-0004](docs/adr/0004-single-parameter-schema.md)).
 - Hard real-time rules: the audio thread never allocates, locks or waits; a test proves it
   ([ADR-0005](docs/adr/0005-real-time-safety.md)).
-- Nonlinear stages run oversampled with latency-aligned bypasses, so switching pedals never
-  shifts your timing ([ADR-0008](docs/adr/0008-oversampling.md)).
+- Nonlinear stages run oversampled through minimum-phase filters: the whole rig is 0.85 ms of
+  latency at 48 kHz, and Settings > Latency > Linear phase keeps every frequency in time for
+  mixing. Bypasses are latency-aligned, so switching pedals never shifts your timing
+  ([ADR-0008](docs/adr/0008-oversampling.md), [ADR-0009](docs/adr/0009-minimum-phase-oversampling.md),
+  [docs/dsp/oversampling.md](docs/dsp/oversampling.md)).
 - Every DSP module documents the public research it's based on in [docs/dsp/](docs/dsp/).
 
 Start with [docs/architecture.md](docs/architecture.md).

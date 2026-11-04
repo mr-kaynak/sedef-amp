@@ -56,9 +56,9 @@ float outputGain (float volume, float master, float output) noexcept
 }
 } // namespace
 
-void LagoonModel::prepare (double sampleRate)
+void LagoonModel::prepare (double sampleRate, OversamplingMode mode)
 {
-    prepareBase (sampleRate);
+    prepareBase (sampleRate, mode);
     knobs_.prepare (sampleRate);
 
     inHpf_.setCoeffs (design::highpass1 (fs_, 10.0));

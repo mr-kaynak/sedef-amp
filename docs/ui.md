@@ -100,7 +100,9 @@ and warns when the global is missing, which must never happen in a browser.
 Startup is one round trip: `sedef_hello(PROTOCOL_VERSION)` returns the schema, values, presets,
 IR slots, the capture, saved UI state and session facts. A protocol mismatch shows a banner but
 keeps going. After that the UI listens to `sedef:params`, `sedef:telemetry`, `sedef:pitch`,
-`sedef:presets`, `sedef:ir` and `sedef:capture`.
+`sedef:presets`, `sedef:ir` and `sedef:capture`, and to `sedef:session` for the session facts
+that change after startup (sample rate, latency, layout: the latency moves with Settings >
+Latency).
 
 ### Parameter flow
 
@@ -145,7 +147,7 @@ validates everything, because state may come from an older build.
 
 ## The mock backend
 
-`MockBackend` holds values for all 149 parameters (from `src/generated/parameters.json`), the real
+`MockBackend` holds values for all 176 parameters (from `src/generated/parameters.json`), the real
 factory presets (`presets/factory/*.sedefpreset`, bundled at build time with `import.meta.glob`)
 plus one user preset, IR slots, UI state (in `localStorage` when running in a browser), tap tempo,
 and simulators. Preset handling mirrors `plugin/src/PresetManager.cpp`: ids are
@@ -194,7 +196,7 @@ browser the canvas fits the window. Everything is vector or text, so it stays cr
 | Header     | logo, preset bar (prev/next, category chip, name with dirty dot, A/B with copy, Save), input/output gain with peak meters, clip latches and the Doubler switch, Tuner, Intonation, Metronome (standalone only), Settings         |
 | Presets    | browser over the rig ([details](ui/presets.md)): rail, list with tag chips and search, detail pane with the chain by stage; click or arrows audition, Enter keeps, Esc goes back exactly; `[` `]` `P` `A` `B`                    |
 | Tabs       | Pedals · Amp · EQ · Cab · FX, keys 1–5 and arrow keys; each tab shows what is switched on inside it                                                                                                                              |
-| Pedals     | Gate (threshold, open/closed lamp), Tide/Pearl/Coral/Ripple enclosures with LEDs and footswitches, Tide gain reduction, Ripple rate lamp                                                                              |
+| Pedals     | Gate (threshold, open/closed lamp); Trench/Remora/Tide/Urchin/Sargasso/Pearl/Kelp/Coral/Ripple/Breaker enclosures in signal order with LEDs and footswitches (the row scrolls sideways when they don't fit, the next pedal peeking in at the edge; focus brings a half-hidden control into view); Remora Germanium/Silicon and Breaker Treble/Full switches; Tide gain reduction, Ripple rate lamp; playing hints on Trench and Urchin, read with their footswitch |
 | Amp        | Lagoon/Reef/Abyss faceplates; Reef voice lever; Abyss bright/shift levers; amp/cab link; Capture: load or drop a .nam file, gear/author/model, trims, through-cab, interface level, recent, missing file                         |
 | EQ         | the current amp's bank: 9 faders on a log axis under a live response curve, low/high cut, on/off, flatten                                                                                                                        |
 | Cab        | cab picker; Mic A/B markers anywhere over the cone (drag or click to place, wheel or Alt-drag for distance, keys), off-axis stem, other speakers' map; type, position, distance, off-axis, level, pan, phase, room, custom IR    |
@@ -202,6 +204,7 @@ browser the canvas fits the window. Everything is vector or text, so it stays cr
 | Tuner      | needle + strobe, note and octave, cents, Hz, "Tune up" hint, reference 420–460 Hz, mute; in tune within ±1 cent after 0.15 s, with hysteresis; holds the last reading ([tuner.md](dsp/tuner.md#3-display))                       |
 | Intonation | instrument → measure each string (tune open, capture 12th fret, result with saddle diagram) → summary with copy as text                                                                                                          |
 | Metronome  | play/stop, tempo knob + tap, signature, sound, volume, step grid (off/normal/accent/soft), live beat                                                                                                                             |
+| Settings   | window size; Stereo input (sum to mono or two channels); Latency: Low latency or Linear phase, a global setting kept out of presets ([oversampling.md](dsp/oversampling.md)); updates; About with the session's rate and latency, which follow the Latency setting                                                  |
 | Updates    | header pill when a newer release is out ("Update available"), while it updates ("Updating…") or once installed ("Restart to update"); panel with versions, last check, Check now, the automatic-check switch, release notes, Update now (download with progress and Cancel, then the OS installer's steps), Restart Sedef in the standalone app, Install manually and the releases page after a failure, Skip this version, Later ([updates.md](updates.md)) |
 
 ### EQ curve

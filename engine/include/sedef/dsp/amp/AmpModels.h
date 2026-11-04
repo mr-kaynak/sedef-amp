@@ -87,11 +87,11 @@ public:
     int latencySamples() const noexcept { return os_.latencySamples(); }
 
 protected:
-    void prepareBase (double sampleRate)
+    void prepareBase (double sampleRate, OversamplingMode mode)
     {
         fs_ = sampleRate;
         const int factorLog2 = Oversampler::factorLog2For (sampleRate);
-        os_.prepare (kControlBlock, kMaxChannels, factorLog2);
+        os_.prepare (kControlBlock, kMaxChannels, factorLog2, mode);
         fsOs_ = sampleRate * static_cast<double> (1 << factorLog2);
     }
 
@@ -104,7 +104,7 @@ protected:
 class LagoonModel : public ModelBase<LagoonModel>
 {
 public:
-    void prepare (double sampleRate);
+    void prepare (double sampleRate, OversamplingMode mode = OversamplingMode::lowLatency);
     void reset() noexcept;
     void setSettings (const LagoonSettings& s) noexcept;
     void processChunk (const AudioView& io) noexcept;
@@ -139,7 +139,7 @@ private:
 class ReefModel : public ModelBase<ReefModel>
 {
 public:
-    void prepare (double sampleRate);
+    void prepare (double sampleRate, OversamplingMode mode = OversamplingMode::lowLatency);
     void reset() noexcept;
     void setSettings (const ReefSettings& s) noexcept;
     void processChunk (const AudioView& io) noexcept;
@@ -180,7 +180,7 @@ private:
 class AbyssModel : public ModelBase<AbyssModel>
 {
 public:
-    void prepare (double sampleRate);
+    void prepare (double sampleRate, OversamplingMode mode = OversamplingMode::lowLatency);
     void reset() noexcept;
     void setSettings (const AbyssSettings& s) noexcept;
     void processChunk (const AudioView& io) noexcept;
@@ -207,10 +207,11 @@ private:
     FirstOrder inHpf_, v1Shelf_;
     TriodeStage v1_;
     AdaaTriodeStage v2_, v3_, v4_;
-    FirstOrder v1Lpf_, gainHpf_, v2Lpf_, v3Hpf_, v3Shelf_, v3Lpf_, v4Hpf_, v4Lpf_;
-    FirstOrder piHpf_, resonance_;
+    FirstOrder v1Lpf_, gainHpf_, v2Shelf_, v2Lpf_, v3Hpf_, v3Shelf_, v3Lpf_, v4Hpf_, v4Lpf_;
+    FirstOrder weight_, piHpf_, resonance_;
     MixShelf bright_, presence_;
     ToneStackFilter stack_;
+    Biquad voiceMid_;
     PowerAmp pa_;
     Biquad otHpf_;
     FirstOrder otLpf_;

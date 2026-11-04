@@ -47,8 +47,11 @@ public:
     CaptureStage& operator= (const CaptureStage&) = delete;
 
     /// The stage's latency: the built-in amp's, or what the rate conversion needs for captures
-    /// made at 44.1, 48, 88.2 or 96 kHz if that is longer. Also what captures must be built for.
-    static int latencyFor (double sampleRate, int ampLatency) noexcept;
+    /// made at 44.1, 48, 88.2 or 96 kHz if that is longer (minimum phase: its group delay at low
+    /// frequencies; linear phase: the full filter's look-ahead). Also what captures must be
+    /// built for.
+    static int latencyFor (double sampleRate, int ampLatency,
+                           OversamplingMode mode = OversamplingMode::lowLatency) noexcept;
 
     /// Mono. `ampLatency` is the built-in amp's latency at this rate.
     void prepare (const ProcessSpec& spec, int ampLatency);

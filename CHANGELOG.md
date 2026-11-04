@@ -6,25 +6,103 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Settings > Latency:** Low latency, the default, or **Linear phase**, the 0.4.0 filters, which
+  keep every frequency in time for mixing and re-amping and add about 5 ms at 48 kHz. Switching
+  restarts the audio for a moment and tells the host the new latency; the status bar and About
+  follow it. Sessions saved with 0.4.0 open in Low latency.
+- New parameter: `oversampling` (global, not automatable, not saved in presets).
+
 ### Changed
 
+- **Latency is down from 6.2 ms to 0.85 ms at 48 kHz** (298 to 41 samples; 296 to 40 at
+  44.1 kHz, 295 to 32 at 96 kHz). Every pedal and the amp now oversample through minimum-phase
+  filters, about 5 samples each instead of 37, quick enough to play through live. The latency
+  the host compensates still never changes when you switch a pedal or the amp. The tone is the
+  same: responses and harmonics match the previous filters to 0.05 dB, and the new filters reject
+  aliasing harder (what they let fold back into the top of the band at 44.1 kHz is down from
+  −25 dB to −94 dB). Captures convert their sample rate the same way, with no look-ahead
+  ([docs/dsp/oversampling.md](docs/dsp/oversampling.md),
+  [ADR-0009](docs/adr/0009-minimum-phase-oversampling.md)).
 - **Updates install themselves:** **Update now** downloads the new version into a private folder,
   verifies it and installs it through your OS's own installer, so there is no disk image to open,
   no installer to click through and nothing to delete by hand. You answer your OS's password or
   permission prompt; the installer replaces the formats you have. On macOS Apple's installer runs
   on the verified package; on Windows the setup waits until your DAW has closed (the plug-in is
   locked until then); on Linux the archive's `install.sh` runs, through `pkexec` for a system-wide
-  install. The panel then says "Sedef Amp 0.3.1 is installed. Restart <your DAW> to use it.", in
+  install. The panel then says "Sedef Amp <version> is installed. Restart <your DAW> to use it.", in
   every DAW and window that still runs the old version, and the standalone app offers **Restart
   Sedef**. Where that can't run (a copy outside the installer's folders, a sandboxed host, no
   `pkexec`) or anything fails, **Install manually** saves the verified installer to Downloads and
   opens it as before ([docs/updates.md](docs/updates.md)).
-- This takes effect from the update after this one: 0.2.0 and 0.3.0 install 0.3.1 the old way
-  (the installer in Downloads), and 0.3.1 and later update in one click.
-- **Windows setup:** `/WAITPID=<pid>` waits for that process to exit before installing, and
-  `/RELAUNCH` opens the standalone app afterwards.
+- This takes effect from the update after this one: 0.2.0, 0.3.0 and 0.4.0 install this release
+  the old way (the installer in Downloads), and from this release on updates take one click.
+- **Windows setup:** `/WAITPID=<pid> /WAITPIDTIME=<its creation time>` waits for that process to
+  exit before installing (not for a later process that got its id), holding the setup file so
+  nothing can change it meanwhile, and `/RELAUNCH` opens the standalone app afterwards.
 - **Releases** are installed over the previous release on every OS, through the updater's own
   code, before they are published ([docs/releasing.md](docs/releasing.md#install-test)).
+
+## [0.4.0] - 2026-11-04
+
+Abyss is tight instead of fuzzy, and six new pedals: a mid-hump overdrive, an octave-up fuzz, an
+analog-style octave down, a two-transistor fuzz, a sustain fuzz and a treble booster.
+
+### Added
+
+- **Three new pedals** on the pedals page, in signal order ([architecture](docs/architecture.md)):
+  - **Trench**, an analog-style octave down: one and two octaves below the note you play, from
+    a divider that tracks single notes and fades its subs out on chords and silence instead of
+    sputtering. Sub −1, Sub −2, Direct and Tone. It sits first, right after the gate, where it
+    hears the clean guitar ([docs/dsp/trench.md](docs/dsp/trench.md)).
+  - **Urchin**, an octave-up fuzz modelled on the transformer-and-diodes circuit: Fuzz, Octave,
+    Tone and Level. Like the original, its octave rings clearest on single notes on the neck
+    pickup, above the 12th fret ([docs/dsp/urchin.md](docs/dsp/urchin.md)).
+  - **Kelp**, the classic mid-hump overdrive: Drive, Tone and Level. Drive down and Level up, it
+    is the mid-pushed boost that tightens a high-gain amp ([docs/dsp/kelp.md](docs/dsp/kelp.md)).
+- New factory presets: **Holdfast** (Kelp boosting Abyss), **Thermocline** (an octave-up fuzz
+  lead) and **Benthic** (riffs doubled an octave below). New preset tags: `fuzz`, `octave`.
+- New parameters: `kelpEnabled`, `kelpDrive`, `kelpTone`, `kelpLevel`, `urchinEnabled`,
+  `urchinFuzz`, `urchinOctave`, `urchinTone`, `urchinLevel`, `trenchEnabled`, `trenchDirect`,
+  `trenchSub1`, `trenchSub2`, `trenchTone`.
+- **Remora**, a two-transistor feedback fuzz, right behind Trench at the front of the board.
+  Germanium is soft and warm, silicon harder, brighter and louder; Bias moves from a gated,
+  sputtering starve through symmetric at noon to hot; Guitar volume stands in for the guitar's own
+  knob, and rolling it back cleans the fuzz up (from 42 % to 7 % distortion between 10 and 5, only
+  3 dB quieter) the way the real circuit does ([docs/dsp/remora.md](docs/dsp/remora.md)).
+- **Sargasso**, a four-stage sustain fuzz after the compressor and Urchin. Sustain holds a plucked
+  note above −20 dB for 1.7 s at minimum and 3.5 s at full; Tone blends a low-pass and a
+  high-pass, with a 9 dB mid scoop near 1 kHz at noon ([docs/dsp/sargasso.md](docs/dsp/sargasso.md)).
+- **Breaker**, a germanium treble booster last on the board, straight into the amp. Treble peaks
+  at 1.5 kHz and keeps the lows out; Full peaks at 460 Hz for a broad boost; Boost goes from
+  +3 to +31 dB at the peak and clips softly when pushed ([docs/dsp/breaker.md](docs/dsp/breaker.md)).
+- Both fuzzes leave at their input level with Volume at noon, every pedal switches click-free, and
+  aliasing on high notes stays below −69 dB.
+- New parameters: `remoraEnabled`, `remoraFuzz`, `remoraVolume`, `remoraBias`,
+  `remoraGuitarVolume`, `remoraTransistor`, `sargassoEnabled`, `sargassoSustain`, `sargassoTone`,
+  `sargassoVolume`, `breakerEnabled`, `breakerBoost`, `breakerRange` (163 → 176).
+
+### Changed
+
+- The rig's latency is 1.5 ms longer at 48 kHz (187 samples): Kelp and Urchin are oversampled,
+  and like Pearl and Coral they keep their latency when switched off, so turning pedals on and
+  off never changes what the host compensates.
+- **Abyss is tight again:** palm mutes stop instead of droning, power chords and triads keep their
+  notes apart, and soft picking cleans up, without giving up the lead gain at the top of the knob.
+  In 0.3.0 two fixed stages after the gain knob squared every note even at low gain, so Abyss
+  behaved like a fuzz pedal. Now the gain knob does the work, the low strings hit the clippers
+  about 18 dB later than the mids, and the knob turns like an audio-taper pot: crunch to a tight
+  rhythm sound in the lower half, the lead wall at the top. At the default gain, eighth-note chugs
+  at 150 bpm now fall 20 dB between hits (was 10), a power chord's sum and difference tones sit
+  18 dB below its notes (was 11), and 24 dB of picking strength moves the output 7 dB (was 3).
+  At full gain a single note still sustains about 5 s, even from a quiet interface. The tone
+  colour is unchanged ([docs/dsp/amps.md](docs/dsp/amps.md#5-tight-not-fuzzy)).
+- Abyss factory presets were re-voiced for the new knob: Mariana (gain 0.6) is a tight
+  palm-mute sound, and the lead presets Riptide and Bioluminescence sustain as long as before.
+- Remora, Sargasso and Breaker add another 111 samples at 48 kHz (298 for the whole rig, 6.2 ms):
+  each is oversampled and, like the other drives, keeps its latency when switched off, so
+  switching them never moves the timeline.
 
 ## [0.3.0] - 2026-11-03
 
@@ -215,7 +293,8 @@ The first public build: a complete guitar rig with a tuner and an intonation wor
 - Every CI build is checked with pluginval (strictness 8), clap-validator and auval, and a smoke
   test opens the editor in a real host and WebView on every OS.
 
-[Unreleased]: https://github.com/mr-kaynak/sedef-amp/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/mr-kaynak/sedef-amp/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/mr-kaynak/sedef-amp/releases/tag/v0.1.0

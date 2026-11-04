@@ -177,7 +177,7 @@ describe('PresetBrowser', () => {
     list.focus();
     fireEvent.keyDown(list, { key: 'Home' });
     await settle();
-    expect(presets().currentName).toBe('Bioluminescence');
+    expect(presets().currentName).toBe('Benthic');
     fireEvent.keyDown(list, { key: 'End' });
     await settle();
     expect(presets().currentName).toBe('Undertow');
@@ -478,8 +478,8 @@ describe('PresetBrowser', () => {
     fireEvent.keyDown(search(), { key: 'Enter' });
     await settle();
     // Keys faster than the plugin answers: only the newest waiting load is sent.
-    expect(load.mock.calls.map(([id]) => id)).toEqual(['factory:undertow']);
-    expect(presets()).toMatchObject({ currentName: 'Undertow', recent: ['factory:undertow'] });
+    expect(load.mock.calls.map(([id]) => id)).toEqual(['factory:tidewater']);
+    expect(presets()).toMatchObject({ currentName: 'Tidewater', recent: ['factory:tidewater'] });
 
     load.mockClear();
     await openBrowser();
@@ -503,8 +503,8 @@ describe('PresetBrowser', () => {
     fireEvent.keyDown(search(), { key: 'Enter' });
     await act(() => new Promise((resolve) => setTimeout(resolve, 120)));
     const truth = await h.mock.call('sedef_presets_list');
-    expect(truth).toMatchObject({ currentName: 'Harbor Lights' });
-    expect(presets()).toMatchObject({ currentName: 'Harbor Lights', recent: truth.recent });
+    expect(truth).toMatchObject({ currentName: 'Holdfast' });
+    expect(presets()).toMatchObject({ currentName: 'Holdfast', recent: truth.recent });
   });
 
   it('offers no Undo across A/B slots', async () => {

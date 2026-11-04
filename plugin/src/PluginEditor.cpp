@@ -484,6 +484,8 @@ juce::var SedefEditor::hello()
     lastIrRevision_ = processor_.irRevision.load();
     lastCaptureRevision_ = processor_.captures().revision.load();
     lastDirty_ = processor_.presets().isDirty();
+    lastSampleRate_ = processor_.engine().sampleRate();
+    lastLatency_ = processor_.engine().latencySamples();
 
     return object ({ { "protocol", kProtocolVersion },
                      { "appVersion", SEDEF_VERSION },
@@ -535,6 +537,21 @@ void SedefEditor::timerCallback()
     }
     if (processor_.captures().revision.load() != lastCaptureRevision_)
         emitCapture();
+    emitSessionIfChanged();
+}
+
+void SedefEditor::emitSessionIfChanged()
+{
+    const double rate = processor_.engine().sampleRate();
+    const int latency = processor_.engine().latencySamples();
+    if (juce::exactlyEqual (rate, lastSampleRate_) && latency == lastLatency_)
+        return;
+    lastSampleRate_ = rate;
+    lastLatency_ = latency;
+    browser_->emitEventIfBrowserIsVisible (
+        "sedef:session", object ({ { "sampleRate", rate },
+                                   { "latencySamples", latency },
+                                   { "layout", processor_.layoutDescription() } }));
 }
 
 void SedefEditor::emitParams()

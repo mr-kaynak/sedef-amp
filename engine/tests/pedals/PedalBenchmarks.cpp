@@ -1,11 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 #include "PedalTestUtils.h"
 #include "sedef/core/Denormals.h"
+#include "sedef/dsp/Breaker.h"
 #include "sedef/dsp/Coral.h"
+#include "sedef/dsp/Kelp.h"
 #include "sedef/dsp/NoiseGate.h"
 #include "sedef/dsp/Pearl.h"
+#include "sedef/dsp/Remora.h"
 #include "sedef/dsp/Ripple.h"
+#include "sedef/dsp/Sargasso.h"
 #include "sedef/dsp/Tide.h"
+#include "sedef/dsp/Trench.h"
+#include "sedef/dsp/Urchin.h"
 
 #include <catch2/catch_test_macros.hpp>
 #include <cstdio>
@@ -47,4 +53,13 @@ TEST_CASE ("Pedal CPU cost", "[.bench]")
     report ("Ripple tremolo", bench<dsp::Ripple> ({ dsp::Ripple::Tremolo, 5.0f, 0.7f }));
     report ("Ripple chorus", bench<dsp::Ripple> ({ dsp::Ripple::Chorus, 1.0f, 0.7f }));
     report ("Ripple vibrato", bench<dsp::Ripple> ({ dsp::Ripple::Vibrato, 5.0f, 0.7f }));
+    report ("Kelp", bench<dsp::Kelp> ({ 0.6f, 0.5f, 0.5f }));
+    report ("Urchin", bench<dsp::Urchin> ({ 0.6f, 1.0f, 0.5f, 0.5f }));
+    report ("Trench", bench<dsp::Trench> ({ 0.5f, 0.6f, 0.4f, 0.5f }));
+    report ("Remora germanium",
+            bench<dsp::Remora> ({ 0.8f, 0.5f, 0.5f, 1.0f, dsp::Remora::Germanium }));
+    report ("Remora silicon",
+            bench<dsp::Remora> ({ 0.8f, 0.5f, 0.5f, 1.0f, dsp::Remora::Silicon }));
+    report ("Sargasso", bench<dsp::Sargasso> ({ 0.8f, 0.5f, 0.5f }));
+    report ("Breaker", bench<dsp::Breaker> ({ 0.8f, dsp::Breaker::Treble }));
 }

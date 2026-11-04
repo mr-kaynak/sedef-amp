@@ -39,7 +39,21 @@ export type ParamValues = Record<string, number>;
 
 /** Blocks a preset can switch on besides the amp and cab, in signal order. */
 export type PresetBlock =
-  'gate' | 'tide' | 'pearl' | 'coral' | 'ripple' | 'eq' | 'doubler' | 'drift' | 'fathom';
+  | 'gate'
+  | 'trench'
+  | 'remora'
+  | 'tide'
+  | 'urchin'
+  | 'sargasso'
+  | 'pearl'
+  | 'kelp'
+  | 'coral'
+  | 'ripple'
+  | 'breaker'
+  | 'eq'
+  | 'doubler'
+  | 'drift'
+  | 'fathom';
 
 export interface PresetInfo {
   /** Stable id: "factory:<slug>" or "user:<relative path>" */
@@ -451,9 +465,21 @@ export interface PitchEvent {
   displayCents: number;
 }
 
+/** The session facts of the handshake that can change while the editor is open. */
+export interface SessionEvent {
+  sampleRate: number;
+  latencySamples: number;
+  layout: string;
+}
+
 export interface Events {
   /** Changed parameter values (host automation, preset loads, undo). Batched at 60 Hz. */
   'sedef:params': { values: ParamValues };
+  /**
+   * The sample rate or the latency changed (the host prepared again, or the oversampling
+   * setting). Absent from plug-ins up to 0.4.0: they only report these in the hello.
+   */
+  'sedef:session': SessionEvent;
   /** 30 Hz while the editor is open. */
   'sedef:telemetry': TelemetryEvent;
   /** 60 Hz while pitch analysis is active (sedef_tuner_setActive). */

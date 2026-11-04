@@ -59,15 +59,15 @@ TEST_CASE ("Full gain reaches high-gain saturation on Abyss and hot crunch on Re
 
 TEST_CASE ("Gain knobs are useful over their whole travel", "[amp]")
 {
-    // Reef and Abyss: every quarter turn moves the distortion threshold by a similar step, so no
-    // part of the travel is dead.
-    for (int model : { AmpSection::Reef, AmpSection::Abyss })
+    // Reef: every quarter turn moves the distortion threshold by a similar step, so no part of the
+    // travel is dead.
     {
         double previous = 0.0;
         for (int q = 0; q <= 4; ++q)
         {
-            const double t = test::thdCrossing (at (model, 0.25f * static_cast<float> (q)), kFs);
-            CAPTURE (model, q, t, previous);
+            const double t =
+                test::thdCrossing (at (AmpSection::Reef, 0.25f * static_cast<float> (q)), kFs);
+            CAPTURE (q, t, previous);
             REQUIRE (!std::isnan (t));
             if (q > 0)
             {
@@ -76,6 +76,31 @@ TEST_CASE ("Gain knobs are useful over their whole travel", "[amp]")
             }
             previous = t;
         }
+    }
+    // Abyss tapers like an audio pot: small steps low down, larger ones towards the lead wall, and
+    // no flat spot or jump anywhere. (v0.3.0 moved 14 dB per quarter turn everywhere, which put
+    // noon 27 dB into saturation for a strum; see docs/dsp/amps.md, section 5.)
+    {
+        std::vector<double> t;
+        for (int g = 0; g <= 10; ++g)
+        {
+            t.push_back (
+                test::thdCrossing (at (AmpSection::Abyss, 0.1f * static_cast<float> (g)), kFs));
+            REQUIRE (!std::isnan (t.back()));
+        }
+        // Measured: 2.5 dB per 0.1 at the bottom, rising to 8.7 at the top.
+        for (size_t i = 1; i < t.size(); ++i)
+        {
+            const double step = t[i - 1] - t[i];
+            CAPTURE (i, t[i - 1], t[i], step);
+            CHECK (step >= 2.0);
+            CHECK (step <= 9.5);
+            if (i > 1)
+                CHECK (step >= t[i - 2] - t[i - 1] - 0.5); // the taper only steepens
+        }
+        CAPTURE (t[0], t[5], t[10]); // measured -10.7, -32.5, -70.9
+        CHECK (t[5] < -30.0);        // noon: a high-gain rhythm sound...
+        CHECK (t[5] > -36.0);        // ...that still cleans up with the pick (v0.3.0: -39.2)
     }
     // Lagoon stays clean up to noon at every DI level up to -12 dBFS and breaks up near the top.
     const double lagoonNoon = test::thdCrossing (at (AmpSection::Lagoon, 0.5f), kFs);
@@ -88,7 +113,7 @@ TEST_CASE ("Gain knobs are useful over their whole travel", "[amp]")
 TEST_CASE ("Single notes sustain at full gain, even from a quiet DI", "[amp]")
 {
     // A G3 picked as hard as one string of a strum at the given DI level; the dry note stays
-    // within 6 dB of its peak for 0.68 s.
+    // within 6 dB of its peak for 0.69 s.
     const double dry = test::sustainSeconds (test::guitarNote (kFs, 8.0, kNoteHz, -24.0), kFs);
     const auto abyss = at (AmpSection::Abyss, 1.0f);
     const auto reef = at (AmpSection::Reef, 1.0f);

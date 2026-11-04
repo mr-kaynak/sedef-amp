@@ -173,18 +173,33 @@ TEST_CASE ("Models are level-matched at default settings", "[amp]")
 
 TEST_CASE ("Distortion rises monotonically with gain on Reef and Abyss", "[amp]")
 {
+    // A 220 Hz sine at -18 dBFS RMS: compression (small-signal gain minus gain at this level) rises
+    // with every 0.1 of gain, and THD spans a wide range. On Reef THD itself rises at every step.
+    // On Abyss it need not: its cold clipper starts asymmetric (second harmonic, a warm crunch) and
+    // turns symmetric as it saturates (odd harmonics), and the second harmonic fades on the way, so
+    // THD dips around a third of the travel while the distortion keeps growing.
     const int model = GENERATE (1, 2);
-    std::vector<double> curve;
+    const auto gainAt = [] (const AmpSection::Settings& s, double dbfsRms) {
+        AmpSection amp;
+        test::prepareAmp (amp, s, 48000.0);
+        auto v = sine (220.0, 48000.0, 0.5, dbfsRms);
+        test::runAmp (amp, v);
+        return test::dbfs (test::rms (v, v.size() - 16384)) - dbfsRms;
+    };
+    std::vector<double> curve, squash;
     for (int g = 0; g <= 10; ++g)
     {
         auto s = defaults (model);
         s.reef.gain = s.abyss.gain = static_cast<float> (g) / 10.0f;
         curve.push_back (sineThd (s));
+        squash.push_back (gainAt (s, -100.0) - gainAt (s, -18.0));
     }
     for (size_t i = 1; i < curve.size(); ++i)
     {
-        CAPTURE (model, i, curve[i - 1], curve[i]);
-        CHECK (curve[i] > curve[i - 1]);
+        CAPTURE (model, i, curve[i - 1], curve[i], squash[i - 1], squash[i]);
+        CHECK (squash[i] > squash[i - 1]);
+        if (model == AmpSection::Reef)
+            CHECK (curve[i] > curve[i - 1]);
     }
     // The knob spans a wide range. (At the top, output THD flattens out: the stages are already
     // square and the post-clip tone stack and low-passes shape the harmonics; what keeps rising
@@ -327,10 +342,10 @@ TEST_CASE ("Latency equals the oversampler's and an impulse arrives there", "[am
     AmpSection amp;
     auto s = defaults (AmpSection::Lagoon);
     s.lagoon = { 0.2f, 0.5f, 0.0f, 0.2f, 0.5f }; // clean, cut fully open
-    test::prepareAmp (amp, s, fs);
+    test::prepareAmp (amp, s, fs, 512, OversamplingMode::linearPhase);
 
     Oversampler os;
-    os.prepare (64, 1, Oversampler::factorLog2For (fs));
+    os.prepare (64, 1, Oversampler::factorLog2For (fs), OversamplingMode::linearPhase);
     CHECK (amp.latencySamples() == os.latencySamples());
 
     std::vector<float> v (4096, 0.0f);
@@ -349,6 +364,43 @@ TEST_CASE ("Latency equals the oversampler's and an impulse arrives there", "[am
     CAPTURE (fs, latency, peakAt - at);
     CHECK (peakAt >= at + latency);
     CHECK (peakAt <= at + latency + smear);
+}
+
+TEST_CASE ("Low latency: the amp is the linear-phase amp, earlier by the latency saved", "[amp]")
+{
+    // The minimum-phase oversampler's group delay is flat at guitar frequencies, so each model's
+    // phase there (its voicing filters') is the same in both modes once each mode's reported
+    // latency is taken off: to 0.05 samples from 100 Hz to 3 kHz. Clean settings, where the
+    // amp is nearly linear.
+    const double fs = GENERATE (44100.0, 48000.0, 96000.0);
+    const int model = GENERATE (0, 1, 2);
+    auto s = defaults (model);
+    s.lagoon = { 0.2f, 0.5f, 0.0f, 0.2f, 0.5f };
+    s.reef.gain = 0.05f;
+    s.abyss.gain = 0.02f;
+    Oversampler os;
+    os.prepare (64, 1, Oversampler::factorLog2For (fs));
+    for (const double hz : { 100.0, 300.0, 1000.0, 3000.0 })
+    {
+        double relative[2] {};
+        for (const auto mode : { OversamplingMode::lowLatency, OversamplingMode::linearPhase })
+        {
+            AmpSection amp;
+            test::prepareAmp (amp, s, fs, 64, mode);
+            if (mode == OversamplingMode::lowLatency)
+                CHECK (amp.latencySamples() == os.latencySamples());
+            std::vector<float> x (32768);
+            test::fillSine (x, hz, fs, 0.01f);
+            auto y = x;
+            test::runAmp (amp, y);
+            relative[static_cast<int> (mode)] =
+                test::toneDelaySamples (x.data() + 16384, y.data() + 16384, 16384, hz, fs,
+                                        amp.latencySamples()) -
+                amp.latencySamples();
+        }
+        CAPTURE (fs, model, hz, relative[0], relative[1]);
+        CHECK (std::abs (relative[0] - relative[1]) <= 0.05);
+    }
 }
 
 TEST_CASE ("Stereo channels are processed independently", "[amp]")

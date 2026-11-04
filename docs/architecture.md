@@ -10,8 +10,10 @@ VST3 / AU / CLAP plugin and as a standalone application. It ships a complete
 rig in one window:
 
 ```
-Input ─► Tuner tap ─► Input Gain ─► Gate ─► Tide (comp)
-      ─► Pearl (overdrive) ─► Coral (distortion) ─► Ripple (modulation)
+Input ─► Tuner tap ─► Input Gain ─► Gate ─► Trench (octave down) ─► Remora (fuzz)
+      ─► Tide (comp) ─► Urchin (octave-up fuzz) ─► Sargasso (sustain fuzz)
+      ─► Pearl (overdrive) ─► Kelp (mid overdrive) ─► Coral (distortion)
+      ─► Ripple (modulation) ─► Breaker (treble booster)
       ─► Amp (Lagoon | Reef | Abyss) ─► Cab (2 mics + room)
       ─► 9-band EQ (one bank per amp) ─► Doubler ─► Drift (tape echo)
       ─► Fathom (plate | hall reverb) ─► Metronome ─► Output Gain ─► Output
@@ -145,8 +147,10 @@ Rules:
    coefficients (`core/BlockSmoother.h`).
 3. `process` must handle `numFrames == 0`, any block size up to the prepared
    maximum, and 1 or 2 channels.
-4. Nonlinear stages run inside `core::Oversampler` (2× or 4×, linear-phase
-   half-band FIR). Modules report the resulting latency.
+4. Nonlinear stages run inside `core::Oversampler` (2× or 4×; minimum-phase
+   IIR half-bands by default, linear-phase FIRs in the Linear phase setting,
+   [dsp/oversampling.md](dsp/oversampling.md)). Modules pass `spec.oversampling`
+   on and report the resulting latency, a whole number of samples.
 5. Output must be finite for any finite input and any settings. Tests enforce
    this with randomised settings and full-scale noise.
 6. Denormals are flushed by `ScopedNoDenormals` at the engine entry; modules
@@ -162,8 +166,8 @@ own instead, so their tails ring out ("spillover") after being switched off.
 
 `Engine` builds the chain from two reusable halves:
 
-- `Channel`: Input Gain → Gate → Tide → Pearl → Coral → Ripple →
-  Amp → Cab. Mono in, mono or stereo out.
+- `Channel`: Input Gain → Gate → Trench → Remora → Tide → Urchin → Sargasso → Pearl →
+  Kelp → Coral → Ripple → Breaker → Amp → Cab. Mono in, mono or stereo out.
 - `PostChain`: EQ → Doubler → Drift → Fathom → Metronome → Output Gain. Stereo.
 
 | Host layout | Mode | Graph |
@@ -176,6 +180,39 @@ own instead, so their tails ring out ("spillover") after being switched off.
 The gate detector always listens to the raw input before input gain, so gating
 follows the guitar's DI level regardless of input gain.
 
+The pedal order is fixed for now; a pedalboard that lets the player reorder the pedals is
+planned. Each pedal's page explains its place ("Where it goes in the chain"), in short:
+
+- **Trench right after the gate.** An octave divider tracks best on the clean, uncompressed
+  guitar: every drive in front of it would add harmonics for the tracker to mistake for the note,
+  and the compressor would flatten the envelope that shapes the sub. The gate in front keeps
+  noise from triggering it.
+- **Remora right behind Trench.** The two-transistor fuzz cleans up with the guitar's volume
+  because its low input impedance loads the pickup; anything that colours or buffers the guitar in
+  front of it spoils that, so it comes before the compressor and every drive. Trench goes ahead of
+  it because a divider can't track a fuzzed note, and its subs into a fuzz are a classic pairing.
+- **Urchin after Tide, before the drives.** Its rectifier needs a clean signal too (a clipped
+  input folds into a near-constant level, not an octave), and a compressor in front evens out the
+  notes and makes them sustain into the octave.
+- **Kelp after Pearl, right before Coral and the amp.** A mid-hump overdrive is the pedal that
+  tightens what follows it: its low cut and mid push shape what the distortion or a high-gain amp
+  sees. Pearl, transparent, can push it.
+- **Sargasso after Urchin, before the overdrives.** The sustain fuzz doesn't need the guitar's
+  impedance, and a compressor in front evens out the attack it clips. It comes after Urchin,
+  whose rectifier wants an unclipped note.
+- **Breaker last, straight into the amp.** A treble booster shapes what a driven amp sees: it
+  should get the whole board's output, and in front of a fuzz or overdrive it would be clipped
+  flat.
+
+Each oversampled pedal (Remora, Urchin, Sargasso, Pearl, Kelp, Coral, Breaker) adds its
+oversampler's latency to the chain whether it is on or off, so switching pedals never changes the
+latency reported to the host. With the default minimum-phase oversampling that is 5 samples per
+stage at 44.1/48 kHz: 41 samples (0.85 ms) for the whole rig at 48 kHz, including the amp and the
+capture stage. Settings > Latency > Linear phase brings back 0.4.0's linear-phase filters,
+298 samples (6.2 ms). The setting is the `oversampling` parameter; changing it prepares the engine
+again and reports the new latency to the host
+([dsp/oversampling.md](dsp/oversampling.md)).
+
 Selecting an amp also selects the matching cab and EQ bank while
 `ampCabLink` is on. With the link off, `cabModel` picks the cab independently.
 The EQ bank always follows the amp.
@@ -185,10 +222,16 @@ The EQ bank always follows the amp.
 | Module | Character | Notes |
 |---|---|---|
 | Gate | Sidechained downward expander with hysteresis and hold | detector on raw input |
+| Trench | Analog-style octave divider, −1 and −2 octaves | tracking low-pass, Schmitt trigger, flip-flops, polyBLEP; no OS ([trench.md](dsp/trench.md)) |
+| Remora | Two-transistor feedback fuzz, germanium / silicon | Ebers–Moll pair, guitar-volume clean-up, bias servo, 4× OS ([remora.md](dsp/remora.md)) |
 | Tide | Fixed-threshold 3:1 compressor, tilt EQ, parallel blend | soft knee, program-dependent release |
+| Urchin | Transformer-and-diodes octave-up fuzz | full-wave rectifier into an asymmetric clipper, 4× OS, ADAA ([urchin.md](dsp/urchin.md)) |
+| Sargasso | Four-stage sustain fuzz, low-pass/high-pass tone blend | two cascaded clippers, 4× OS ([sargasso.md](dsp/sargasso.md)) |
 | Pearl | Mid-hump overdrive with mid-boost | clipping in the feedback path, 4× OS |
+| Kelp | Classic mid-hump overdrive | diode-law feedback clipping, 723 Hz tone stage, 4× OS, ADAA ([kelp.md](dsp/kelp.md)) |
 | Coral | Hard-clipping distortion with low-pass "cut" | 4× OS |
 | Ripple | Tremolo, chorus, vibrato | 0.69–7.19 Hz |
+| Breaker | Germanium treble booster, Treble / Full range | resonant input network, Ebers–Moll stage, 4× OS ([breaker.md](dsp/breaker.md)) |
 | Lagoon | Clean amp, glassy and wide | two triode stages, FMV tone stack |
 | Reef | Crunch amp, three voicings | cascaded stages, British-style tone stack |
 | Abyss | High-gain lead amp, bright and shift switches | four stages, shifted mid |

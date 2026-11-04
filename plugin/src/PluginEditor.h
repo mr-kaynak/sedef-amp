@@ -39,6 +39,9 @@ private:
     void loadIr (int mic, int cab, juce::WebBrowserComponent::NativeFunctionCompletion completion);
     void emitCapture();
     void loadCapture (juce::WebBrowserComponent::NativeFunctionCompletion completion);
+    /// The session facts of hello() that can change while the editor is open (sample rate,
+    /// latency), when they do.
+    void emitSessionIfChanged();
 
     // UI smoke test (SEDEF_UI_SMOKE_TEST=<result file>): see smokeTestTick().
     void smokeTestTick();
@@ -62,6 +65,8 @@ private:
     int lastIrRevision_ = -1;
     int lastCaptureRevision_ = -1;
     bool lastDirty_ = false;
+    double lastSampleRate_ = 0.0;
+    int lastLatency_ = -1;
     int tick_ = 0;
     bool pageReady_ = false;
 

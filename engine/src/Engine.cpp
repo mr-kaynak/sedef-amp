@@ -7,16 +7,22 @@
 #include "sedef/core/InputFold.h"
 #include "sedef/core/Math.h"
 #include "sedef/core/Smoothed.h"
+#include "sedef/dsp/Breaker.h"
 #include "sedef/dsp/Coral.h"
 #include "sedef/dsp/Doubler.h"
 #include "sedef/dsp/Drift.h"
 #include "sedef/dsp/Fathom.h"
 #include "sedef/dsp/GraphicEq.h"
+#include "sedef/dsp/Kelp.h"
 #include "sedef/dsp/Metronome.h"
 #include "sedef/dsp/NoiseGate.h"
 #include "sedef/dsp/Pearl.h"
+#include "sedef/dsp/Remora.h"
 #include "sedef/dsp/Ripple.h"
+#include "sedef/dsp/Sargasso.h"
 #include "sedef/dsp/Tide.h"
+#include "sedef/dsp/Trench.h"
+#include "sedef/dsp/Urchin.h"
 #include "sedef/dsp/amp/AmpSection.h"
 #include "sedef/dsp/cab/CabSim.h"
 #include "sedef/dsp/capture/CaptureStage.h"
@@ -48,6 +54,16 @@ struct ChainSettings
     dsp::AmpSection::Settings amp;
     dsp::CabSim::Settings cab;
     dsp::CaptureStage::Settings capture;
+    // Pedals lane: Trench, Urchin and Kelp.
+    bool trenchOn = false, urchinOn = false, kelpOn = false;
+    dsp::Trench::Settings trench;
+    dsp::Urchin::Settings urchin;
+    dsp::Kelp::Settings kelp;
+    // Drives lane: Remora, Sargasso and Breaker.
+    bool remoraOn = false, sargassoOn = false, breakerOn = false;
+    dsp::Remora::Settings remora;
+    dsp::Sargasso::Settings sargasso;
+    dsp::Breaker::Settings breaker;
 };
 
 dsp::CabSim::MicSettings micSettings (const ParamSnapshot& p, int mic, int cab)
@@ -111,6 +127,22 @@ ChainSettings chainSettings (const ParamSnapshot& p)
 
     s.capture = { p.choice (P::ampSource) == 1, p[P::captureInput], p[P::captureOutput],
                   p[P::captureInterfaceLevel], p.flag (P::captureCab) };
+
+    // Pedals lane: Trench, Urchin and Kelp.
+    s.trenchOn = p.flag (P::trenchEnabled);
+    s.trench = { p[P::trenchDirect], p[P::trenchSub1], p[P::trenchSub2], p[P::trenchTone] };
+    s.urchinOn = p.flag (P::urchinEnabled);
+    s.urchin = { p[P::urchinFuzz], p[P::urchinOctave], p[P::urchinTone], p[P::urchinLevel] };
+    s.kelpOn = p.flag (P::kelpEnabled);
+    s.kelp = { p[P::kelpDrive], p[P::kelpTone], p[P::kelpLevel] };
+    // Drives lane: Remora, Sargasso and Breaker.
+    s.remoraOn = p.flag (P::remoraEnabled);
+    s.remora = { p[P::remoraFuzz], p[P::remoraVolume], p[P::remoraBias], p[P::remoraGuitarVolume],
+                 p.choice (P::remoraTransistor) };
+    s.sargassoOn = p.flag (P::sargassoEnabled);
+    s.sargasso = { p[P::sargassoSustain], p[P::sargassoTone], p[P::sargassoVolume] };
+    s.breakerOn = p.flag (P::breakerEnabled);
+    s.breaker = { p[P::breakerBoost], p.choice (P::breakerRange) };
     return s;
 }
 
@@ -296,6 +328,15 @@ struct Chain
     dsp::AmpSection amp;
     dsp::CabSim cab;
     dsp::CaptureStage capture; // the amp or a .nam capture, and the cab or not
+    // Pedals lane: Trench, Urchin and Kelp, each a self-contained module in a latency-aligned
+    // bypass slot.
+    Slot<dsp::Trench> trench;
+    Slot<dsp::Urchin> urchin;
+    Slot<dsp::Kelp> kelp;
+    // Drives lane: Remora, Sargasso and Breaker (their places in the chain: process()).
+    Slot<dsp::Remora> remora;
+    Slot<dsp::Sargasso> sargasso;
+    Slot<dsp::Breaker> breaker;
 
     std::vector<float> buffer;
     std::vector<float> sidechain;
@@ -303,15 +344,21 @@ struct Chain
     bool gateRan = false, tideRan = false;
     bool snapGain = true;
 
-    void prepare (double sampleRate, int maxBlock)
+    void prepare (double sampleRate, int maxBlock, OversamplingMode oversampling)
     {
-        const ProcessSpec mono { sampleRate, maxBlock, 1 };
+        const ProcessSpec mono { sampleRate, maxBlock, 1, oversampling };
         inputGain.reset (sampleRate, 0.02);
         gate.prepare (mono);
         tide.prepare (mono);
         pearl.prepare (mono);
         coral.prepare (mono);
         ripple.prepare (mono);
+        trench.prepare (mono);
+        urchin.prepare (mono);
+        kelp.prepare (mono);
+        remora.prepare (mono);
+        sargasso.prepare (mono);
+        breaker.prepare (mono);
         amp.prepare (mono);
         capture.prepare (mono, amp.latencySamples());
         cab.prepare ({ sampleRate, maxBlock, 2 });
@@ -321,7 +368,9 @@ struct Chain
 
     int latency() const noexcept
     {
-        return pearl.latency + coral.latency + capture.latencySamples() + cab.latencySamples();
+        return pearl.latency + coral.latency + capture.latencySamples() + cab.latencySamples() +
+               trench.latency + urchin.latency + kelp.latency + remora.latency + sargasso.latency +
+               breaker.latency;
     }
 
     void reset() noexcept
@@ -332,6 +381,12 @@ struct Chain
         pearl.reset();
         coral.reset();
         ripple.reset();
+        trench.reset();
+        urchin.reset();
+        kelp.reset();
+        remora.reset();
+        sargasso.reset();
+        breaker.reset();
         amp.reset();
         capture.reset();
         cab.reset();
@@ -367,10 +422,23 @@ struct Chain
         const auto run = [] (auto& m, const AudioView& v) {
             m.process (v);
         };
+        // Pedals lane: Trench, Urchin and Kelp go where they sound best (the "Where it goes in the
+        // chain" section of docs/dsp/trench.md, urchin.md and kelp.md). The order stays fixed
+        // until the pedalboard makes it the player's.
+        // Drives lane: Remora, Sargasso and Breaker ("Chain position" in docs/dsp/remora.md,
+        // sargasso.md and breaker.md). Remora right behind the octave divider, which needs the
+        // clean guitar more; Sargasso after the octave-up fuzz, whose rectifier wants an unclipped
+        // note; Breaker last, straight into the amp.
+        trench.process (x, n, s.trenchOn, s.trench, run); // pedals lane
+        remora.process (x, n, s.remoraOn, s.remora, run); // drives lane
         tideRan = tide.process (x, n, s.tideOn, s.tide, run);
+        urchin.process (x, n, s.urchinOn, s.urchin, run);       // pedals lane
+        sargasso.process (x, n, s.sargassoOn, s.sargasso, run); // drives lane
         pearl.process (x, n, s.pearlOn, s.pearl, run);
+        kelp.process (x, n, s.kelpOn, s.kelp, run); // pedals lane
         coral.process (x, n, s.coralOn, s.coral, run);
         ripple.process (x, n, s.rippleOn, s.ripple, run);
+        breaker.process (x, n, s.breakerOn, s.breaker, run); // drives lane
 
         capture.setSettings (s.capture);
         capture.process (amp, s.amp, AudioView (x, n));
@@ -438,7 +506,7 @@ void Engine::prepare (double sampleRate, int maxBlockSize, int numInputs, int nu
     // Both chains are prepared and reset even in mono: custom IRs are published to both, and an
     // idle chain must not keep a half-finished IR crossfade (and its kernel) alive.
     for (auto& chain : d.chains)
-        chain.prepare (sampleRate, block);
+        chain.prepare (sampleRate, block, oversampling_.load());
 
     const ProcessSpec stereo { sampleRate, block, 2 };
     d.eq.prepare (stereo);

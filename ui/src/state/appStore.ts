@@ -2,7 +2,13 @@
 // Session facts from the handshake (host, sample rate, layout), the custom IR slots and the
 // capture.
 import { create } from 'zustand';
-import type { CaptureState, HelloResponse, IrState, WrapperType } from '../bridge/protocol';
+import type {
+  CaptureState,
+  HelloResponse,
+  IrState,
+  SessionEvent,
+  WrapperType,
+} from '../bridge/protocol';
 
 export interface SessionInfo {
   appVersion: string;
@@ -65,4 +71,16 @@ export function applyHello(hello: HelloResponse, backend: 'juce' | 'mock'): void
     capture: hello.capture ?? NO_CAPTURE,
     capturesSupported: hello.capture !== undefined,
   });
+}
+
+/** The host prepared again or the oversampling changed: new rate, latency or layout. */
+export function applySession(e: SessionEvent): void {
+  useAppStore.setState((s) => ({
+    session: {
+      ...s.session,
+      sampleRate: e.sampleRate,
+      latencySamples: e.latencySamples,
+      layout: e.layout,
+    },
+  }));
 }

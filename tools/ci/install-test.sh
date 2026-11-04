@@ -29,8 +29,9 @@ set -euo pipefail
 dist="$(cd "${1:?usage: install-test.sh <dist> <artefacts> <sedef-update-check>}" && pwd)"
 artefacts="$(cd "${2:?}" && pwd)"
 tool="${3:?}"
-OLD_TAG="${OLD_TAG:-v0.3.0}"
 repo="${GITHUB_REPOSITORY:-mr-kaynak/sedef-amp}"
+# The release users update from: the latest one published.
+OLD_TAG="${OLD_TAG:-$(gh release view --repo "$repo" --json tagName --jq .tagName)}"
 here="$(cd "$(dirname "$0")" && pwd)"
 version="$("$here/../packaging/version.sh")"
 work="$(mktemp -d)"

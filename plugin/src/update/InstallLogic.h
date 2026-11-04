@@ -111,7 +111,7 @@ juce::String macInstallScript();
 juce::StringArray macInstallCommand (const juce::File& dmg, const juce::String& sha256,
                                      const juce::String& choiceChanges);
 
-/// The password prompt: "Sedef Amp wants to install version 0.3.1."
+/// The password prompt: "Sedef Amp wants to install version 0.5.0."
 juce::String installPrompt (const juce::String& version);
 
 // Windows -----------------------------------------------------------------------------------------

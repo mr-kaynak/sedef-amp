@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { StatusBar } from '../../app/StatusBar';
+import { useAppStore } from '../../state/appStore';
 import { useUiStore } from '../../state/uiStore';
 import { setupMock, type Harness } from '../../test/harness';
 import { SettingsPanel } from './SettingsPanel';
@@ -48,5 +50,38 @@ describe('Settings panel', () => {
     fireEvent.click(screen.getByRole('radio', { name: '200%' }));
     expect(useUiStore.getState().scale).toBe(2);
     expect(call).toHaveBeenLastCalledWith('sedef_ui_setScale', 2);
+  });
+
+  it('switches the latency between low latency and linear phase, and shows the new figure', async () => {
+    const call = vi.spyOn(h.mock, 'call');
+    render(
+      <>
+        <SettingsPanel />
+        <StatusBar />
+      </>,
+    );
+
+    // Low latency is the default: the rig's 41 samples at 48 kHz.
+    const group = screen.getByRole('radiogroup', { name: 'Latency' });
+    const options = within(group).getAllByRole('radio');
+    expect(options.map((o) => o.textContent)).toEqual(['Low latency', 'Linear phase']);
+    expect(options.map((o) => o.getAttribute('aria-checked'))).toEqual(['true', 'false']);
+    expect(screen.getByText(/adds about 5 ms at 48 kHz/)).toBeInTheDocument();
+    expect(screen.getByText('0.9 ms latency')).toBeInTheDocument();
+    expect(screen.getByText(/41 samples latency/)).toBeInTheDocument();
+
+    // Linear phase: the plug-in prepares again and reports the longer latency.
+    fireEvent.click(screen.getByRole('radio', { name: 'Linear phase' }));
+    await waitFor(() => expect(useAppStore.getState().session.latencySamples).toBe(298));
+    expect(call).toHaveBeenCalledWith('sedef_setParam', 'oversampling', 1);
+    expect(screen.getByText('6.2 ms latency')).toBeInTheDocument();
+    expect(screen.getByText(/298 samples latency/)).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Linear phase' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Low latency' }));
+    await waitFor(() => expect(useAppStore.getState().session.latencySamples).toBe(41));
   });
 });

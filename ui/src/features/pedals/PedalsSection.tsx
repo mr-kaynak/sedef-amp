@@ -6,8 +6,12 @@ import { Segmented } from '../../controls/Segmented';
 import { Toggle } from '../../controls/Toggle';
 import { useParamValue } from '../../params/useParam';
 import { telemetry, useLiveFrame, useLiveSelector } from '../../state/live';
+import { BreakerPedal, RemoraPedal, SargassoPedal } from './DrivePedals';
+import { KelpPedal } from './KelpPedal';
 import { Pedal, type PedalFinish } from './Pedal';
 import styles from './PedalsSection.module.css';
+import { TrenchPedal } from './TrenchPedal';
+import { UrchinPedal } from './UrchinPedal';
 
 const FINISH: Record<'tide' | 'pearl' | 'coral' | 'ripple', PedalFinish> = {
   tide: { paint: ['#46677a', '#2c4757'], legend: '#eef0ea', legendDim: 'rgb(238 240 234 / 0.86)' },
@@ -97,7 +101,14 @@ export function PedalsSection() {
         </div>
       </div>
 
-      <div className={styles.board}>
+      {/* Focus can land on a control half-hidden at the scroll edge, which the browser leaves
+          where it is: bring the whole control (and the scroll padding) into view. */}
+      <div
+        className={styles.board}
+        onFocus={(e) => e.target.scrollIntoView({ block: 'nearest', inline: 'nearest' })}
+      >
+        <TrenchPedal />
+        <RemoraPedal />
         <Pedal
           name="Tide"
           kind="Compressor"
@@ -110,12 +121,15 @@ export function PedalsSection() {
           <Knob param="tideLevel" label="Level" />
           <Knob param="tideBlend" label="Blend" />
         </Pedal>
+        <UrchinPedal />
+        <SargassoPedal />
         <Pedal name="Pearl" kind="Overdrive" enableParam="pearlEnabled" finish={FINISH.pearl}>
           <Knob param="pearlGain" label="Gain" />
           <Knob param="pearlTone" label="Tone" />
           <Knob param="pearlLevel" label="Level" />
           <Knob param="pearlMid" label="Mid boost" />
         </Pedal>
+        <KelpPedal />
         <Pedal name="Coral" kind="Distortion" enableParam="coralEnabled" finish={FINISH.coral}>
           <Knob param="coralGain" label="Gain" />
           <Knob param="coralCut" label="Cut" />
@@ -137,6 +151,7 @@ export function PedalsSection() {
           <Knob param="rippleSpeed" label="Speed" />
           <Knob param="rippleDepth" label="Depth" />
         </Pedal>
+        <BreakerPedal />
       </div>
     </div>
   );

@@ -695,7 +695,17 @@ juce::String HeldFile::sha256()
         }
         bool isExhausted() override { return end_; }
         juce::int64 getPosition() override { return position_; }
-        bool setPosition (juce::int64) override { return false; }
+        // BufferedInputStream sets the position before every read it makes.
+        bool setPosition (juce::int64 position) override
+        {
+            LARGE_INTEGER to {};
+            to.QuadPart = position;
+            if (!SetFilePointerEx (h_, to, nullptr, FILE_BEGIN))
+                return false;
+            position_ = position;
+            end_ = false;
+            return true;
+        }
         int read (void* buffer, int bytes) override
         {
             DWORD got = 0;
@@ -714,11 +724,9 @@ juce::String HeldFile::sha256()
         juce::int64 position_ = 0;
         bool end_ = false;
     };
-    const auto h = static_cast<HANDLE> (handle_);
-    LARGE_INTEGER zero {};
-    if (!SetFilePointerEx (h, zero, nullptr, FILE_BEGIN))
+    Reader reader (static_cast<HANDLE> (handle_));
+    if (!reader.setPosition (0))
         return {};
-    Reader reader (h);
     juce::BufferedInputStream buffered (reader, 1 << 16);
     return juce::SHA256 (buffered).toHexString().toLowerCase();
 }

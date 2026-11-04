@@ -1318,6 +1318,18 @@ TEST_CASE ("A held setup can't be changed, moved or deleted", "[update][install]
     }
     CHECK (setup.deleteFile()); // let go
     CHECK_FALSE (HeldFile (setup).isOpen());
+
+    // A real setup is many buffers long: every byte counts, once.
+    juce::MemoryBlock bytes (200 * 1024 + 123);
+    juce::Random random (42);
+    random.fillBitsRandomly (bytes.getData(), bytes.getSize());
+    const auto big = s.dir.getChildFile ("big.exe");
+    REQUIRE (big.replaceWithData (bytes.getData(), bytes.getSize()));
+    HeldFile held (big);
+    REQUIRE (held.isOpen());
+    CHECK (held.sha256() == sha256Hex (big));
+    CHECK (held.sha256() == juce::SHA256 (bytes).toHexString().toLowerCase());
+    CHECK (held.sha256() != sha256Of ({})); // never the hash of nothing
 }
 
 TEST_CASE ("Creation times tell a process from a later one with its id",

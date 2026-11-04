@@ -35,12 +35,15 @@ export function describePreset(
   };
   add('gateEnabled', 'gate');
   add('trenchEnabled', 'trench');
+  add('remoraEnabled', 'remora');
   add('tideEnabled', 'tide');
   add('urchinEnabled', 'urchin');
+  add('sargassoEnabled', 'sargasso');
   add('pearlEnabled', 'pearl');
   add('kelpEnabled', 'kelp');
   add('coralEnabled', 'coral');
   add('rippleEnabled', 'ripple');
+  add('breakerEnabled', 'breaker');
   if (eqShapes) add(`${bank}Enabled`, 'eq');
   add('doublerEnabled', 'doubler');
   add('driftEnabled', 'drift');

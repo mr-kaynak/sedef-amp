@@ -51,12 +51,15 @@ const STATUS: Record<Section, () => ReactNode> = {
       ids={[
         'gateEnabled',
         'trenchEnabled',
+        'remoraEnabled',
         'tideEnabled',
         'urchinEnabled',
+        'sargassoEnabled',
         'pearlEnabled',
         'kelpEnabled',
         'coralEnabled',
         'rippleEnabled',
+        'breakerEnabled',
       ]}
     />
   ),

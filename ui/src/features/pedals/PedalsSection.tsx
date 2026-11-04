@@ -6,6 +6,7 @@ import { Segmented } from '../../controls/Segmented';
 import { Toggle } from '../../controls/Toggle';
 import { useParamValue } from '../../params/useParam';
 import { telemetry, useLiveFrame, useLiveSelector } from '../../state/live';
+import { BreakerPedal, RemoraPedal, SargassoPedal } from './DrivePedals';
 import { KelpPedal } from './KelpPedal';
 import { Pedal, type PedalFinish } from './Pedal';
 import styles from './PedalsSection.module.css';
@@ -107,6 +108,7 @@ export function PedalsSection() {
         onFocus={(e) => e.target.scrollIntoView({ block: 'nearest', inline: 'nearest' })}
       >
         <TrenchPedal />
+        <RemoraPedal />
         <Pedal
           name="Tide"
           kind="Compressor"
@@ -120,6 +122,7 @@ export function PedalsSection() {
           <Knob param="tideBlend" label="Blend" />
         </Pedal>
         <UrchinPedal />
+        <SargassoPedal />
         <Pedal name="Pearl" kind="Overdrive" enableParam="pearlEnabled" finish={FINISH.pearl}>
           <Knob param="pearlGain" label="Gain" />
           <Knob param="pearlTone" label="Tone" />
@@ -148,6 +151,7 @@ export function PedalsSection() {
           <Knob param="rippleSpeed" label="Speed" />
           <Knob param="rippleDepth" label="Depth" />
         </Pedal>
+        <BreakerPedal />
       </div>
     </div>
   );

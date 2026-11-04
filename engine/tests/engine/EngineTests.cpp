@@ -431,9 +431,11 @@ TEST_CASE ("A stereo-mode switch dips for the fades only, even in long blocks", 
     const auto quiet =
         std::count_if (w.begin(), w.end(), [steady] (float r) { return r < 0.05f * steady; });
     // 10 ms out, switch, 10 ms in (441 samples each): only the windows around the switch point
-    // are near silence. Switching at the next 4096-frame chunk instead held ~83 ms of silence.
+    // are near silence, plus the rig's latency while the fresh chains fill (their delay lines
+    // start empty). Switching at the next 4096-frame chunk instead held ~83 ms of silence.
+    const auto latencyWindows = (rig.engine.latencySamples() + 63) / 64;
     CHECK (steady > 0.01f);
-    CHECK (quiet <= 4);
+    CHECK (quiet <= 2 + latencyWindows);
 }
 
 TEST_CASE ("Switching to Dual mode does not replay stale doubler audio", "[engine]")
@@ -637,4 +639,160 @@ TEST_CASE ("Engine::process never allocates while captures play, switch and swap
     }
     for (int c = 0; c < 2; ++c)
         CHECK (test::allFinite (rig.out[c]));
+}
+
+// -------------------------------------------------------------------------------------------------
+// Fuzzes and booster: Remora, Sargasso, Breaker.
+
+TEST_CASE ("Engine::process never allocates with the fuzzes and booster on", "[engine][drives]")
+{
+    Rig rig (48000.0, 256, 1, 2);
+    test::fillNoise (rig.in[0], 0.3f, 3);
+    Random r (11);
+    auto p = randomSnapshot (r);
+    for (auto id : { ParamId::remoraEnabled, ParamId::sargassoEnabled, ParamId::breakerEnabled })
+        p[id] = 1.0f;
+    rig.run (p, 4096);
+
+    gAllocations = 0;
+    {
+        TrackAllocations track;
+        for (int round = 0; round < 4; ++round)
+        {
+            // Switches move, knobs glide: every curve blend and crossfade runs.
+            p[ParamId::remoraTransistor] = static_cast<float> (round % 2);
+            p[ParamId::breakerRange] = static_cast<float> (round / 2 % 2);
+            p[ParamId::remoraBias] = round % 2 == 0 ? 0.1f : 0.9f;
+            p[ParamId::breakerBoost] = round % 2 == 0 ? 1.0f : 0.2f;
+            p[ParamId::sargassoTone] = round % 2 == 0 ? 0.0f : 1.0f;
+            rig.run (p, 8192, 4096 + round * 8192);
+        }
+    }
+    CHECK (gAllocations.load() == 0);
+    CHECK (test::allFinite (rig.out[0]));
+}
+
+TEST_CASE ("Switching the fuzzes on does not change the chain's latency", "[engine][drives]")
+{
+    // As for Pearl: an impulse with the pedal off and on (in a nearly linear setting) must line
+    // up within the few samples its filters shift the correlation peak, not the oversampler's
+    // 31-37 samples.
+    const auto render = [] (ParamId enable, bool on) {
+        Rig rig (48000.0, 64, 1, 1);
+        rig.in[0][1000] = 0.002f;
+        auto p = ParamSnapshot::defaults();
+        p[ParamId::gateEnabled] = 0.0f;
+        p[ParamId::ampModel] = 0.0f; // Lagoon, clean
+        p[ParamId::lagoonVolume] = 0.2f;
+        p[ParamId::lagoonMaster] = 0.2f;
+        p[ParamId::remoraFuzz] = 0.0f;
+        p[ParamId::remoraGuitarVolume] = 0.3f; // rolled back: the input network is nearly flat
+        p[ParamId::sargassoSustain] = 0.0f;
+        p[enable] = on ? 1.0f : 0.0f;
+        rig.run (p, 8192);
+        return rig.out[0];
+    };
+    for (auto enable : { ParamId::remoraEnabled, ParamId::sargassoEnabled })
+    {
+        const auto off = render (enable, false);
+        const auto on = render (enable, true);
+        int bestLag = 0;
+        double best = -1.0;
+        for (int lag = -64; lag <= 64; ++lag)
+        {
+            double acc = 0.0;
+            for (int i = 900; i < 4000; ++i)
+                acc += static_cast<double> (off[static_cast<size_t> (i)]) *
+                       on[static_cast<size_t> (i + lag)];
+            acc = std::abs (acc); // the pedals may invert relative to the dry path's filters
+            if (acc > best)
+            {
+                best = acc;
+                bestLag = lag;
+            }
+        }
+        CAPTURE (static_cast<int> (enable));
+        CHECK (std::abs (bestLag) <= 6);
+    }
+}
+
+TEST_CASE ("Switching the fuzzes and booster on and off is click-free", "[engine][drives]")
+{
+    // The slot crossfades over 10 ms between the (latency-aligned) dry path and the pedal, which
+    // restarts from a clean state. The switch must sound like that crossfade and nothing more: no
+    // thump from the restart, no comb from a misaligned dry path. Reference: the steady "off" and
+    // "on" renders, crossfaded ideally. A guitar-like tone (147 Hz and seven harmonics).
+    constexpr int kSwitch = 24000, kFade = 480;
+    for (auto enable :
+         { ParamId::remoraEnabled, ParamId::sargassoEnabled, ParamId::breakerEnabled })
+    {
+        const auto render = [enable] (int mode) { // 0 off, 1 on, 2 switched on at kSwitch
+            Rig rig (48000.0, 64, 1, 2);
+            for (size_t i = 0; i < rig.in[0].size(); ++i)
+            {
+                double v = 0.0;
+                for (int k = 1; k <= 8; ++k)
+                    v += std::sin (kTwoPiD * 147.0 * k * static_cast<double> (i) / 48000.0) / k;
+                rig.in[0][i] = 0.05f * static_cast<float> (v);
+            }
+            auto p = ParamSnapshot::defaults();
+            p[ParamId::gateEnabled] = 0.0f;
+            p[ParamId::ampModel] = 0.0f; // Lagoon, clean, so the crossfade passes it unchanged
+            p[ParamId::lagoonVolume] = 0.2f;
+            p[ParamId::lagoonMaster] = 0.3f;
+            p[ParamId::breakerBoost] = 0.2f;
+            p[enable] = mode == 1 ? 1.0f : 0.0f;
+            rig.run (p, kSwitch);
+            if (mode == 2)
+                p[enable] = 1.0f;
+            rig.run (p, 9600, kSwitch);
+            return rig.out[0];
+        };
+        const auto off = render (0);
+        const auto on = render (1);
+        const auto switched = render (2);
+        const int latency = [] {
+            Engine e;
+            e.prepare (48000.0, 64, 1, 2);
+            return e.latencySamples();
+        }();
+
+        // Where the fade shows up in the output depends on the latency after the pedal; find it.
+        const size_t from = kSwitch - 64, to = static_cast<size_t> (kSwitch + latency + 3 * kFade);
+        std::vector<float> ideal (switched.size());
+        float worstError = 1.0e9f;
+        for (int start = 0; start <= latency; ++start)
+        {
+            std::vector<float> candidate (switched.size());
+            float error = 0.0f;
+            for (size_t i = from - 2; i < to; ++i)
+            {
+                const int k = static_cast<int> (i) - kSwitch - start;
+                const float a = std::clamp (static_cast<float> (k) / kFade, 0.0f, 1.0f);
+                candidate[i] = off[i] + a * (on[i] - off[i]);
+                error = std::max (error, std::abs (switched[i] - candidate[i]));
+            }
+            if (error < worstError)
+            {
+                worstError = error;
+                ideal = candidate;
+            }
+        }
+        float worstEdge = 0.0f, idealEdge = 0.0f, top = 0.0f;
+        for (size_t i = from; i < to; ++i)
+        {
+            const auto d2 = [] (const std::vector<float>& v, size_t j) {
+                return std::abs (v[j] - 2.0f * v[j - 1] + v[j - 2]);
+            };
+            worstEdge = std::max (worstEdge, d2 (switched, i));
+            idealEdge = std::max (idealEdge, d2 (ideal, i));
+            top = std::max (top, std::abs (ideal[i]));
+        }
+        CAPTURE (static_cast<int> (enable), worstEdge, idealEdge, worstError, top);
+        CHECK (worstEdge <= 1.25f * idealEdge);
+        // The restarted pedal settles within the fade (its filters and bias start from rest), so
+        // the switch is not exactly the ideal crossfade; a dry path off by the oversampler's
+        // latency would miss it by about the signal's whole size.
+        CHECK (worstError <= 0.2f * top);
+    }
 }

@@ -79,12 +79,15 @@ describe('Trench, Urchin and Kelp panels', () => {
     const names = screen.getAllByRole('region').map((region) => region.getAttribute('aria-label'));
     expect(names).toEqual([
       'Trench Octave down',
+      'Remora Fuzz',
       'Tide Compressor',
       'Urchin Octave-up fuzz',
+      'Sargasso Sustain fuzz',
       'Pearl Overdrive',
       'Kelp Mid overdrive',
       'Coral Distortion',
       'Ripple Modulation',
+      'Breaker Treble booster',
     ]);
   });
 });

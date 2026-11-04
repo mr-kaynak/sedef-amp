@@ -25,6 +25,7 @@ SedefProcessor::SedefProcessor()
         jassert (raw_[i] != nullptr);
     }
     engine_.setMetronomePattern (metronomePattern_);
+    engine_.setBoard (board_);
     // The saved-state snapshot must match the preset manager from the start, or the first save
     // and a save after the timer has run would differ (clap-validator checks state byte for byte).
     savedPresetId_ = presets_.currentId();
@@ -41,7 +42,8 @@ SedefProcessor::SedefProcessor()
           {},
           false });
     // Presets carry the pedalboard. One saved before it existed loads the board that matches its
-    // parameters (Board::legacyFor); so does Init.
+    // parameters (Board::legacyFor). Init, which has no file and so no parameters, gets only the
+    // pedals the defaults switch on, as a fresh instance does (board_).
     presets_.addAttachment ({ "board", [this] (bool) { return boardToVar (board()); },
                               [this] (const juce::var& ref, bool) {
                                   if (const auto b = boardFromVar (ref))
@@ -54,7 +56,9 @@ SedefProcessor::SedefProcessor()
                               [] (const juce::var& stored, const juce::var& parameters) {
                                   if (const auto b = boardFromVar (stored))
                                       return boardToVar (*b);
-                                  return boardToVar (legacyBoardFor (parameters));
+                                  return boardToVar (parameters.isObject()
+                                                         ? legacyBoardFor (parameters)
+                                                         : switchedOnBoardFor (parameters));
                               },
                               true });
     startTimerHz (20);

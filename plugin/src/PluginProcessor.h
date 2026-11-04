@@ -138,7 +138,9 @@ private:
     };
     std::array<LoadedValue, kNumParams> loaded_ {};
     std::array<std::uint8_t, 13> metronomePattern_ { 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
-    Board board_ = Board::legacy(); // guarded by extraLock_, which also serialises engine_.setBoard
+    // Guarded by extraLock_, which also serialises engine_.setBoard. A fresh instance opens on
+    // Init's board: only the pedals the defaults switch on (switchedOnBoardFor).
+    Board board_ = switchedOnBoardFor ({});
     std::atomic<double> uiScale_ { 1.0 };
     std::array<double, 4> taps_ {};
     int numTaps_ = 0;

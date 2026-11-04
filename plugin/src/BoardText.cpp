@@ -43,15 +43,27 @@ Board boardFromText (const juce::String& text)
     return board;
 }
 
-Board legacyBoardFor (const juce::var& parameters)
+namespace
 {
-    return Board::legacyFor ([&parameters] (ParamId id) {
+    /// Whether `parameters` switches `id` on; a value it doesn't hold is the default.
+    bool storedOn (const juce::var& parameters, ParamId id)
+    {
         const auto& s = spec (id);
         const juce::Identifier key (toJuce (s.id));
         const float value =
             parameters.hasProperty (key) ? static_cast<float> (parameters[key]) : s.defaultValue;
         return s.sanitise (value) >= 0.5f;
-    });
+    }
+} // namespace
+
+Board legacyBoardFor (const juce::var& parameters)
+{
+    return Board::legacyFor ([&parameters] (ParamId id) { return storedOn (parameters, id); });
+}
+
+Board switchedOnBoardFor (const juce::var& parameters)
+{
+    return Board::switchedOn ([&parameters] (ParamId id) { return storedOn (parameters, id); });
 }
 
 } // namespace sedef::plugin

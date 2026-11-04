@@ -732,30 +732,32 @@ constexpr const char* kSmokePresetScript = R"js((() => {
     // The pedalboard travels with snapshots, presets and A/B, and counts towards "dirty".
     const pedals = async () => (await call('sedef_hello', 2)).board.pedals;
     const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+    // A fresh instance opens on Init's board: the Gate alone, the only pedal on by default.
     const startBoard = hello.board.pedals;
-    const reversed = [...startBoard].reverse();
-    const setAnswer = await call('sedef_board_set', [...reversed, 'no-such-pedal', reversed[0]]);
-    const boardSet = same(setAnswer.pedals, reversed) && (await call('sedef_presets_list')).dirty;
-    await call('sedef_presets_snapshot', 'browse'); // the browser opens on the reversed board
-    // Mariana was saved before the board: the legacy board, as the fresh instance had. Benthic
-    // brings its own.
+    const freshBoard = same(startBoard, ['gate']);
+    const custom = ['ripple', 'coral', 'tide'];
+    const setAnswer = await call('sedef_board_set', [...custom, 'no-such-pedal', custom[0]]);
+    const boardSet = same(setAnswer.pedals, custom) && (await call('sedef_presets_list')).dirty;
+    await call('sedef_presets_snapshot', 'browse'); // the browser opens on the custom board
+    // Each factory preset brings its own board: only the pedals it switches on.
     await call('sedef_presets_load', 'factory:mariana', true);
-    const legacyBoard = same(await pedals(), startBoard) && startBoard.length > 5;
+    const marianaBoard = same(await pedals(), ['gate']);
     await call('sedef_presets_load', 'factory:benthic', true);
-    const presetBoard = legacyBoard && same(await pedals(), ['gate', 'trench', 'kelp']);
+    const presetBoard = marianaBoard && same(await pedals(), ['gate', 'trench', 'kelp']);
     await call('sedef_presets_restore', 'browse');
-    const boardRestored = same(await pedals(), reversed);
+    const boardRestored = same(await pedals(), custom);
     await call('sedef_presets_compare', 'switch'); // to B: Riptide, from the earlier A/B
     await call('sedef_board_set', ['pearl']);
     await call('sedef_presets_compare', 'switch');
-    const boardA = same(await pedals(), reversed);
+    const boardA = same(await pedals(), custom);
     await call('sedef_presets_compare', 'switch');
     const boardB = same(await pedals(), ['pearl']);
     await call('sedef_presets_compare', 'switch');
     await call('sedef_presets_restore', 'undo');
     const boardUndone = same(await pedals(), startBoard) &&
       differences(before, await values()).length === 0;
-    const board = { boardSet, presetBoard, boardRestored, boardA, boardB, boardUndone };
+    const board = { freshBoard, boardSet, presetBoard, boardRestored, boardA, boardB,
+      boardUndone };
 
     const ok = metadata && auditionChanged > 0 && restoreMismatches.length === 0 &&
       restoredPreset && stressMismatches.length === 0 && undoMismatches.length === 0 &&

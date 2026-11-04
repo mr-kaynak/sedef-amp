@@ -104,12 +104,22 @@ std::vector<float> render (SedefProcessor& p)
 const Board kCustom = boardOf ({ PedalId::ripple, PedalId::coral, PedalId::tide });
 } // namespace
 
-TEST_CASE ("A new instance plays the legacy board")
+TEST_CASE ("A new instance opens on Init's board: the pedals the defaults switch on")
 {
     Fixture f;
     SedefProcessor p;
-    CHECK (p.board() == Board::legacy());
+    // Only the Gate is on by default, so the board holds it alone, not the whole fixed chain.
+    CHECK (p.board() == boardOf ({ PedalId::gate }));
+    CHECK (p.board() == plugin::switchedOnBoardFor ({}));
     CHECK_FALSE (p.presets().isDirty());
+
+    // The engine plays it from the first block, and a save keeps it.
+    render (p);
+    CHECK (p.engine().telemetry().pedalRan[index (PedalId::gate)].load());
+    SedefProcessor restored;
+    restored.setBoard (kCustom);
+    restore (restored, stateOf (p));
+    CHECK (restored.board() == boardOf ({ PedalId::gate }));
 }
 
 TEST_CASE ("The board text keeps what this build knows, in order, once")
@@ -215,8 +225,14 @@ TEST_CASE ("Presets carry the board; ones saved before it get the legacy board")
     SedefProcessor p;
     auto& presets = p.presets();
 
-    // Every factory preset predates the board.
-    REQUIRE (presets.load ("factory:riptide", true));
+    // A user preset saved by a build before the board: the fixed chain it played.
+    const auto old = plugin::PresetManager::userFolder().getChildFile ("Before the board.sedefpreset");
+    REQUIRE (old.getParentDirectory().createDirectory());
+    REQUIRE (old.replaceWithText (R"({ "format": "sedef-preset", "version": 1,
+                                       "name": "Before the board",
+                                       "parameters": { "tideEnabled": 1 } })"));
+    presets.scan();
+    REQUIRE (presets.load ("user:Before the board.sedefpreset", true));
     CHECK (p.board() == Board::legacy());
     CHECK_FALSE (presets.isDirty());
 
@@ -230,8 +246,8 @@ TEST_CASE ("Presets carry the board; ones saved before it get the legacy board")
     const auto json = juce::JSON::parse (file);
     CHECK (plugin::boardFromVar (json["board"]) == kCustom);
 
-    REQUIRE (presets.load ("factory:nacre", true));
-    CHECK (p.board() == Board::legacy());
+    REQUIRE (presets.load ("factory:riptide", true));
+    CHECK (p.board() == boardOf ({ PedalId::gate }));
     REQUIRE (presets.load (id, true));
     CHECK (p.board() == kCustom);
     CHECK_FALSE (presets.isDirty());
@@ -240,10 +256,13 @@ TEST_CASE ("Presets carry the board; ones saved before it get the legacy board")
     p.setBoard (kCustom);
     CHECK_FALSE (presets.isDirty());
 
-    // Init is the legacy board.
+    // Init has no file, so nothing saved before the board: its board is the pedals its
+    // defaults switch on, the Gate alone.
     presets.loadInit();
-    CHECK (p.board() == Board::legacy());
+    CHECK (p.board() == boardOf ({ PedalId::gate }));
     CHECK_FALSE (presets.isDirty());
+    p.setBoard (Board::legacy());
+    CHECK (presets.isDirty());
 }
 
 TEST_CASE ("Factory presets saved with a board load it")
@@ -258,9 +277,16 @@ TEST_CASE ("Factory presets saved with a board load it")
     CHECK (p.board() == boardOf ({ PedalId::gate, PedalId::kelp }));
     REQUIRE (presets.load ("factory:thermocline", false));
     CHECK (p.board() == boardOf ({ PedalId::gate, PedalId::tide, PedalId::urchin }));
-    // One saved before the board: the fixed chain it played.
     REQUIRE (presets.load ("factory:nacre", false));
-    CHECK (p.board() == Board::legacy());
+    CHECK (p.board() == boardOf ({ PedalId::gate, PedalId::tide, PedalId::ripple }));
+    // Each holds exactly the pedals it switches on (the factory-preset-boards test also renders
+    // each against the fixed chain).
+    for (const auto* name : { "benthic", "brine", "coral-fuzz", "mariana", "riptide" })
+    {
+        REQUIRE (presets.load (juce::String ("factory:") + name, false));
+        CHECK (p.board() ==
+               Board::switchedOn ([&p] (ParamId id) { return p.paramValue (id) >= 0.5f; }));
+    }
 }
 
 TEST_CASE ("A preset file without a board gets the pedals it switches on")
@@ -271,6 +297,10 @@ TEST_CASE ("A preset file without a board gets the pedals it switches on")
     juce::var parameters (new juce::DynamicObject());
     parameters.getDynamicObject()->setProperty ("coralEnabled", 1.0);
     CHECK (plugin::legacyBoardFor (parameters) == Board::legacy());
+    // Only those pedals (the defaults switch the Gate on), for Init and a fresh instance.
+    CHECK (plugin::switchedOnBoardFor (parameters) ==
+           boardOf ({ PedalId::gate, PedalId::coral }));
+    CHECK (plugin::switchedOnBoardFor ({}) == boardOf ({ PedalId::gate }));
     for (std::size_t i = 0; i < kNumPedals; ++i)
         parameters.getDynamicObject()->setProperty (plugin::toJuce (spec (kPedals[i].enable).id),
                                                     1.0);
@@ -287,11 +317,11 @@ TEST_CASE ("Snapshots, Undo and A/B bring the board back")
     auto& presets = p.presets();
     using Slot = plugin::PresetManager::Slot;
 
-    // The browser: audition a preset (it has the legacy board), then Esc back.
+    // The browser: audition a preset (it has its own board), then Esc back.
     p.setBoard (kCustom);
     presets.snapshot (Slot::browse);
     REQUIRE (presets.load ("factory:mariana", true));
-    CHECK (p.board() == Board::legacy());
+    CHECK (p.board() == boardOf ({ PedalId::gate }));
     REQUIRE (presets.restore (Slot::browse));
     CHECK (p.board() == kCustom);
     CHECK (presets.isDirty());

@@ -22,5 +22,8 @@ Board boardFromText (const juce::String& text);
 /// The board for a preset's parameters (an object of id: value) when the preset has none:
 /// Board::legacyFor with the values it stores (missing ones default).
 Board legacyBoardFor (const juce::var& parameters);
+/// Board::switchedOn for the same values: only the pedals they switch on. With no parameters
+/// (void), the defaults': Init's board, and a fresh instance's.
+Board switchedOnBoardFor (const juce::var& parameters);
 
 } // namespace sedef::plugin

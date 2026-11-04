@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import type { PedalFinish } from '../Pedal';
 
-// Enclosure paints. Every legend and its dim tone reach 4.5:1 on both ends of the gradient.
+// Enclosure paints. Every legend and its dim tone reach 4.5:1 on both ends of the gradient, and
+// each paint stays clear of the other pedals' (navy Trench, plum Urchin, sea-green Sargasso,
+// bronze Remora), so no two enclosures on the board look alike.
 export const MODS_FINISH: Record<'conch' | 'anemone' | 'gyre' | 'jetty' | 'beacon', PedalFinish> = {
   // The pink-apricot inside of a conch shell.
   conch: {
@@ -9,23 +11,23 @@ export const MODS_FINISH: Record<'conch' | 'anemone' | 'gyre' | 'jetty' | 'beaco
     legend: '#3a2117',
     legendDim: 'rgb(58 33 23 / 0.85)',
   },
-  // A sea anemone's deep green.
+  // A yellow sea anemone, open in the current.
   anemone: {
-    paint: ['#2a6259', '#1c4640'],
-    legend: '#eaf5f0',
-    legendDim: 'rgb(234 245 240 / 0.9)',
+    paint: ['#dcb04c', '#c39434'],
+    legend: '#2b1d05',
+    legendDim: 'rgb(43 29 5 / 0.9)',
   },
-  // Plum, for the slow turning of an ocean gyre.
-  gyre: { paint: ['#6e3d62', '#4d2a45'], legend: '#f6e9f1', legendDim: 'rgb(246 233 241 / 0.8)' },
-  // Weathered timber.
+  // Lavender, for the slow turning of an ocean gyre.
+  gyre: { paint: ['#c3b3de', '#a794ca'], legend: '#24183a', legendDim: 'rgb(36 24 58 / 0.9)' },
+  // Driftwood, silvered by the sea.
   jetty: {
-    paint: ['#6c5847', '#4f4134'],
-    legend: '#f3ece2',
-    legendDim: 'rgb(243 236 226 / 0.9)',
+    paint: ['#c2bdb2', '#a39e94'],
+    legend: '#1f1d19',
+    legendDim: 'rgb(31 29 25 / 0.9)',
   },
-  // Night sea with a lamp-gold legend.
+  // A lighthouse's black iron with a lamp-gold legend.
   beacon: {
-    paint: ['#2b3d58', '#1b293d'],
+    paint: ['#3a3d42', '#232528'],
     legend: '#f4e6bf',
     legendDim: 'rgb(244 230 191 / 0.8)',
   },

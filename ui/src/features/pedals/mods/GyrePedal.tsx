@@ -19,7 +19,12 @@ export function GyrePedal() {
       finish={MODS_FINISH.gyre}
       status={
         <div className={styles.switches}>
-          <Segmented param="gyreStages" size="sm" labels={['4-stage', '6-stage']} />
+          <Segmented
+            param="gyreStages"
+            size="sm"
+            labels={['4-stage', '6-stage']}
+            className={styles.opaque}
+          />
         </div>
       }
       led={

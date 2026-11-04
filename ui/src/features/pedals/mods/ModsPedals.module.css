@@ -12,7 +12,7 @@
 }
 
 /* On a light enclosure the switch's usual tinted well washes out its unselected labels; this one
-   is nearly opaque, so they keep 4.5:1 (Conch). */
+   is nearly opaque, so they keep 4.5:1 (Conch, Anemone and Gyre). */
 .switches > .opaque {
   background: rgb(6 17 25 / 0.88);
 }

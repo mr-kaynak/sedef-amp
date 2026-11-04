@@ -15,8 +15,13 @@ export function AnemonePedal() {
       finish={MODS_FINISH.anemone}
       status={
         <div className={styles.switches}>
-          <Segmented param="anemoneMode" size="sm" labels={['Low', 'Band', 'High']} />
-          <Segmented param="anemoneDirection" size="sm" />
+          <Segmented
+            param="anemoneMode"
+            size="sm"
+            labels={['Low', 'Band', 'High']}
+            className={styles.opaque}
+          />
+          <Segmented param="anemoneDirection" size="sm" className={styles.opaque} />
         </div>
       }
     >

@@ -10,6 +10,7 @@ import {
   PEDALS,
   removePedal,
   sanitiseBoard,
+  switchedOnBoardFor,
 } from './registry';
 
 describe('pedal registry', () => {
@@ -75,6 +76,19 @@ describe('pedal registry', () => {
   it('gives a preset without a board the legacy board plus the other pedals it switches on', () => {
     expect(legacyBoardFor(() => false)).toEqual(LEGACY_BOARD);
     expect(legacyBoardFor(() => true)).toEqual(PEDALS.map((p) => p.id).sort(byRank));
+  });
+
+  it('gives Init and the factory presets only the pedals they switch on, in default order', () => {
+    expect(switchedOnBoardFor(() => false)).toEqual([]);
+    expect(switchedOnBoardFor((enable) => enable === 'gateEnabled')).toEqual(['gate']);
+    const on = new Set(['rippleEnabled', 'kelpEnabled', 'gateEnabled', 'trenchEnabled']);
+    expect(switchedOnBoardFor((enable) => on.has(enable))).toEqual([
+      'gate',
+      'trench',
+      'kelp',
+      'ripple',
+    ]);
+    expect(switchedOnBoardFor(() => true)).toEqual(LEGACY_BOARD);
   });
 });
 

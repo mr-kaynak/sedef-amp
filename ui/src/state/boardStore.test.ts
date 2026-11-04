@@ -13,6 +13,8 @@ import { useToastStore } from './toastStore';
 const LEGACY = [...LEGACY_BOARD];
 /** 0.3.0's pedals, a short board to edit. */
 const FIVE = ['gate', 'tide', 'pearl', 'coral', 'ripple'];
+/** The board Nacre (the mock's start-up preset) carries: the pedals it switches on. */
+const NACRE = ['gate', 'tide', 'ripple'];
 const pedals = () => useBoardStore.getState().pedals;
 const dirty = () => usePresetStore.getState().state.dirty;
 const settle = () =>
@@ -100,13 +102,26 @@ describe('board store', () => {
     const saved = usePresetStore.getState().state.currentId;
     expect(dirty()).toBe(false);
 
+    // Factory presets carry only the pedals they switch on.
     await act(async () => presetActions.load('factory:mariana'));
     await settle();
-    expect(pedals()).toEqual(LEGACY);
+    expect(pedals()).toEqual(['gate']);
 
     await act(async () => presetActions.load(saved!));
     await settle();
     expect(pedals()).toEqual(['coral', 'pearl']);
+    expect(dirty()).toBe(false);
+
+    // A user preset saved before the board: the whole fixed chain it played.
+    await act(async () => presetActions.load('user:Live/Sunday set.sedefpreset'));
+    await settle();
+    expect(pedals()).toEqual(LEGACY);
+    expect(dirty()).toBe(false);
+
+    // Init has no file: the pedals its defaults switch on, the Gate alone.
+    await act(async () => presetActions.init());
+    await settle();
+    expect(pedals()).toEqual(['gate']);
     expect(dirty()).toBe(false);
   });
 
@@ -118,7 +133,7 @@ describe('board store', () => {
     await settle();
     await act(async () => presetActions.compare('switch'));
     await settle();
-    expect(pedals()).toEqual(LEGACY);
+    expect(pedals()).toEqual(NACRE);
     await act(async () => presetActions.compare('switch'));
     await settle();
     expect(pedals()).toEqual(['ripple']);
@@ -132,7 +147,7 @@ describe('board store', () => {
     await act(async () => presetActions.snapshot('undo'));
     await act(async () => presetActions.load('factory:mariana'));
     await settle();
-    expect(pedals()).toEqual(LEGACY);
+    expect(pedals()).toEqual(['gate']);
     await act(async () => presetActions.restore('undo'));
     await settle();
     expect(pedals()).toEqual(['tide', 'coral']);

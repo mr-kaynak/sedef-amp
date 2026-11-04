@@ -37,10 +37,10 @@ import { createRandom } from './mock/random';
 import { TelemetrySimulator } from './mock/telemetrySim';
 import { UpdateSimulator, type UpdateScenario } from './mock/updateSim';
 import {
-  LEGACY_BOARD,
   legacyBoardFor,
   sameBoard,
   sanitiseBoard,
+  switchedOnBoardFor,
 } from '../features/pedals/registry';
 
 export interface MockOptions {
@@ -122,9 +122,12 @@ export class MockBackend implements Backend {
     values: { ...p.values },
     ...(p.board ? { board: [...p.board] } : {}),
   }));
-  /** The pedalboard, and the one the loaded preset had (it counts towards "dirty"). */
-  private board: string[] = [...LEGACY_BOARD];
-  private loadedBoard: string[] = [...LEGACY_BOARD];
+  /**
+   * The pedalboard, and the one the loaded preset had (it counts towards "dirty"). Until a
+   * preset loads, Init's: the pedals the defaults switch on.
+   */
+  private board: string[] = this.initBoard();
+  private loadedBoard: string[] = [...this.board];
   private boardRevision = 0;
   private presetState: PresetState = {
     items: [],
@@ -436,7 +439,7 @@ export class MockBackend implements Backend {
       this.applyPresetValues({});
       this.presetState = { ...this.presetState, currentId: null, currentName: 'Init' };
       this.emit('sedef:params', { values: { ...this.values } });
-      this.setBoardFromPreset([...LEGACY_BOARD]);
+      this.setBoardFromPreset(this.initBoard());
       return this.publishPresets();
     },
     sedef_presets_snapshot: (slot) => {
@@ -609,6 +612,12 @@ export class MockBackend implements Backend {
       this.values[spec.id] = value;
       this.loaded[spec.id] = value;
     }
+  }
+
+  /** Init has no file to carry a board: only the pedals its defaults switch on (the Gate). */
+  private initBoard(): string[] {
+    const defaults = defaultValues(bundledSchema);
+    return switchedOnBoardFor((enable) => (defaults[enable] ?? 0) >= 0.5);
   }
 
   private loadPreset(id: string, notify: boolean): void {

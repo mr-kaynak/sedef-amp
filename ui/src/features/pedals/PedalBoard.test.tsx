@@ -5,7 +5,6 @@ import { Toasts } from '../../app/Toasts';
 import type { MockOptions } from '../../bridge/mockBackend';
 import { useBoardStore } from '../../state/boardStore';
 import { flush, setupMock, type Harness } from '../../test/harness';
-import { LEGACY_BOARD } from './registry';
 import { PedalBoard } from './PedalBoard';
 
 /** 0.3.0's pedals: most tests play this board. */
@@ -143,8 +142,8 @@ describe('PedalBoard', () => {
         await h.mock.call('sedef_presets_load', 'factory:mariana', false);
       });
       await settle();
-      // Saved before the board: the fixed chain it replaced.
-      expect(shown()).toEqual(LEGACY_BOARD);
+      // Mariana carries its own board: the one pedal it switches on.
+      expect(shown()).toEqual(['gate']);
       expect(screen.queryByText('Removed Ripple')).not.toBeInTheDocument();
     });
 

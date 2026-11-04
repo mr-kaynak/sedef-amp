@@ -83,6 +83,16 @@ export function legacyBoardFor(isOn: (enableParam: string) => boolean): string[]
   return board;
 }
 
+/**
+ * Only the pedals switched on, each at its default position (sedef::Board::switchedOn): Init's
+ * board and a fresh instance's (the Gate alone), and what each factory preset carries.
+ */
+export function switchedOnBoardFor(isOn: (enableParam: string) => boolean): string[] {
+  let board: string[] = [];
+  for (const p of PEDALS) if (isOn(p.enable)) board = addPedal(board, p.id);
+  return board;
+}
+
 export function sameBoard(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((id, i) => b[i] === id);
 }

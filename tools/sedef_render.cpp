@@ -5,6 +5,7 @@
 //   sedef-render --preset presets/factory/nacre.sedefpreset --out nacre.wav
 //   sedef-render --in my-di.wav --set ampModel=2 --set abyssGain=0.8 --out lead.wav
 //   sedef-render --check presets/factory/*.sedefpreset
+//   sedef-render --check-boards presets/factory/*.sedefpreset
 //   sedef-render --capture amp.nam --set captureCab=0 --out capture.wav
 //   sedef-render --set pearlEnabled=1 --set coralEnabled=1 --board coral,pearl --out swapped.wav
 //   sedef-render --board gate,pearl,ripple --switch 2.5=ripple,gate,pearl --out reorder.wav
@@ -392,7 +393,8 @@ int usage()
     std::fputs ("usage: sedef-render [--preset FILE] [--in DI.wav] [--out OUT.wav] [--seconds S]\n"
                 "                    [--rate HZ] [--capture FILE.nam] [--set id=value]...\n"
                 "                    [--board id,id,...] [--switch SECONDS=id,id,...]...\n"
-                "       sedef-render --check PRESET...\n",
+                "       sedef-render --check PRESET...\n"
+                "       sedef-render --check-boards PRESET...\n",
                 stderr);
     return 2;
 }
@@ -433,6 +435,46 @@ int main (int argc, char** argv)
                          args[i].c_str(), static_cast<double> (s.rmsDb),
                          static_cast<double> (s.peakDb));
             failures += ok ? 0 : 1;
+        }
+        return failures == 0 ? 0 : 1;
+    }
+
+    if (args[0] == "--check-boards")
+    {
+        // A factory preset's board holds exactly the pedals it switches on, and plays exactly
+        // what the fixed chain played (the legacy board), in either oversampling mode.
+        const auto di = syntheticDi (rate, 3.0);
+        int failures = 0;
+        for (std::size_t i = 1; i < args.size(); ++i)
+        {
+            auto snap = ParamSnapshot::defaults();
+            const auto values = readPresetParameters (args[i]);
+            const auto board = readPresetBoard (args[i]);
+            std::string why;
+            if (!values || !applyParameters (snap, *values, args[i]))
+                why = "unreadable";
+            else if (!board)
+                why = "no board";
+            else
+                for (std::size_t k = 0; k < kNumPedals && why.empty(); ++k)
+                    if (snap.flag (kPedals[k].enable) != board->contains (static_cast<PedalId> (k)))
+                        why = std::string (kPedals[k].id) +
+                              (board->contains (static_cast<PedalId> (k)) ? " is off but on the board"
+                                                                          : " is on but off the board");
+            for (const float mode : { 0.0f, 1.0f })
+            {
+                if (!why.empty())
+                    break;
+                snap[ParamId::oversampling] = mode;
+                const auto a = render (di, rate, snap, *board);
+                const auto b = render (di, rate, snap, legacyBoard (snap));
+                if (a.left != b.left || a.right != b.right || a.latency != b.latency)
+                    why = mode > 0.5f ? "differs from the legacy board (linear phase)"
+                                      : "differs from the legacy board (low latency)";
+            }
+            std::printf ("%s  %-48s %s\n", why.empty() ? "ok  " : "FAIL", args[i].c_str(),
+                         why.c_str());
+            failures += why.empty() ? 0 : 1;
         }
         return failures == 0 ? 0 : 1;
     }

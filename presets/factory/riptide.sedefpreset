@@ -10,6 +10,7 @@
     "solo"
   ],
   "description": "Singing lead with a quarter-note echo and a little hall.",
+  "board": ["gate"],
   "parameters": {
     "ampModel": 2,
     "abyssGain": 0.69,

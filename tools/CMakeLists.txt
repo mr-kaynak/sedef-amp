@@ -10,6 +10,9 @@ if(SEDEF_BUILD_TESTS)
     # Every factory preset must render finite, unclipped and at a sane level.
     file(GLOB SEDEF_FACTORY_PRESET_FILES CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/presets/factory/*.sedefpreset)
     add_test(NAME factory-presets COMMAND sedef-render --check ${SEDEF_FACTORY_PRESET_FILES})
+    # Each one's board holds the pedals it switches on and sounds exactly like the fixed chain.
+    add_test(NAME factory-preset-boards
+        COMMAND sedef-render --check-boards ${SEDEF_FACTORY_PRESET_FILES})
 
     # The UI's copy of the schema must match the engine's.
     add_test(NAME ui-schema-in-sync

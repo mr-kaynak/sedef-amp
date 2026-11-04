@@ -9,6 +9,7 @@
     "rockabilly"
   ],
   "description": "Mid-gain crunch with a tape slapback, for rockabilly and early rock.",
+  "board": ["gate"],
   "parameters": {
     "ampModel": 1,
     "reefGain": 0.38,

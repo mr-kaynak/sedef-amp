@@ -6,6 +6,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-04
+
+Abyss is tight instead of fuzzy, and six new pedals: a mid-hump overdrive, an octave-up fuzz, an
+analog-style octave down, a two-transistor fuzz, a sustain fuzz and a treble booster.
+
 ### Added
 
 - **Three new pedals** on the pedals page, in signal order ([architecture](docs/architecture.md)):
@@ -250,7 +255,8 @@ The first public build: a complete guitar rig with a tuner and an intonation wor
 - Every CI build is checked with pluginval (strictness 8), clap-validator and auval, and a smoke
   test opens the editor in a real host and WebView on every OS.
 
-[Unreleased]: https://github.com/mr-kaynak/sedef-amp/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/mr-kaynak/sedef-amp/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/mr-kaynak/sedef-amp/releases/tag/v0.1.0

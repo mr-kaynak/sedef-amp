@@ -25,8 +25,8 @@ Some identifiers must stay fixed so upgrades and uninstalls find earlier install
 `AppId` in `tools/packaging/windows/sedef-amp.iss` and the macOS package IDs
 `io.github.mr-kaynak.sedef-amp.{app,vst3,au,clap}`. Installed copies of Sedef also pass the next
 release's installer the pkg's choice ids (`app`, `vst3`, `au`, `clap` in
-`tools/packaging/macos/distribution.xml.in`) and Setup's `/WAITPID` and `/RELAUNCH` switches: keep
-them too.
+`tools/packaging/macos/distribution.xml.in`), Setup's component names (`vst3`, `clap`,
+`standalone`) and its `/WAITPID`, `/WAITPIDTIME` and `/RELAUNCH` switches: keep them too.
 
 ## Signing status
 
@@ -87,9 +87,9 @@ a failure stops the release before anything is published.
 
 | OS | What it checks |
 |---|---|
-| macOS | Installs the previous release (`OLD_TAG`, v0.3.0) with `sudo installer`, then the new disk image the way **Update now** does (mount, choose the installed formats, Apple's installer with `sudo -n` in place of the password prompt, detach). Every bundle must have the new version and the new pkg's binary, and no disk image may stay attached. Then it removes the AU and installs again: the AU must stay removed. |
-| Windows | Installs the previous release with VST3 and CLAP only, passing `/WAITPID` and `/RELAUNCH`, which that setup doesn't know and must ignore. Then the new setup starts elevated with the update's switches and a dummy process as `/WAITPID`: it must wait for that process, install this build's VST3 and CLAP binaries and leave the standalone app out, because silent Setup reuses the formats chosen last time. |
-| Linux | Installs the previous release for the runner's user, then the new archive the way Update now does: unpacked, checked and installed with `install.sh`. The VST3's version and every binary must be the new build's. |
+| macOS | Installs the previous release (`OLD_TAG`, v0.3.0) with `sudo installer`, then the new disk image the way **Update now** does: the formats installed now are chosen, and the install script runs as root with `sudo -n` in place of the password prompt (copy, checksum, mount, Apple's installer, detach). Every bundle must have the new version and the new pkg's binary, and no disk image or script folder may stay behind. Then it removes the AU, puts the previous release's VST3 back and installs again: the VST3 must be replaced and the AU must stay removed. |
+| Windows | Installs the previous release with VST3 and CLAP only, passing the update's switches, which that setup doesn't know and must ignore. Then the new setup starts elevated with the update's switches and a dummy process as `/WAITPID`: while it waits, nothing may write or move the setup file; it must wait for that process, install this build's VST3 and CLAP binaries and leave the standalone app out (`/COMPONENTS` names the formats found). Then the setup runs alone: it must hold its own file while it waits, and must not wait for a process whose creation time differs from `/WAITPIDTIME` (a reused id). |
+| Linux | Installs the previous release for the runner's user and system-wide, then the new archive the way Update now does, in the home folder and then system-wide through the root script (with `sudo -n` in place of `pkexec`). The VST3's version and every binary must be the new build's, the system copy root's, and no script folder may stay behind. |
 
 The script installs into the system's plug-in folders with root rights, which CI machines grant
 without a password. Don't run it on your own computer; `sedef_update_tests` covers the same code

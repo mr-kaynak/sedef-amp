@@ -94,9 +94,10 @@ Uninstall from **Settings → Apps → Installed apps → Sedef Amp**. For unatt
 installer takes the usual Inno Setup switches, e.g.
 `Sedef-Amp-Windows-Setup.exe /VERYSILENT /NORESTART /COMPONENTS="vst3,clap,standalone"`. Close
 DAWs first: a silent install closes programs that hold the plugin, and without `/NORESTART` it
-restarts Windows on its own if a file was still in use. Sedef's updater adds `/WAITPID=<pid>`
-(wait for that process to exit before installing) and, from the standalone app, `/RELAUNCH`
-(open it again afterwards).
+restarts Windows on its own if a file was still in use. Sedef's updater adds
+`/WAITPID=<pid> /WAITPIDTIME=<its creation time>` (wait for that process to exit before
+installing, unless its id now belongs to a process created at another time) and, from the
+standalone app, `/RELAUNCH` (open it again afterwards).
 
 ## Linux
 

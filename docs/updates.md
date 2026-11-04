@@ -34,9 +34,9 @@ and open it, as described under [Install manually](#install-manually), for their
 
    | OS | File | What Sedef does | What you see |
    | --- | --- | --- | --- |
-   | macOS | `Sedef-Amp-macOS.dmg` | mounts the disk image read-only and hidden, and runs Apple's `/usr/sbin/installer` on `Install Sedef Amp.pkg` for the formats you have installed (plus the one Sedef runs as), deselecting the others | macOS asks for an administrator's password ("Sedef Amp wants to install version 0.3.1."). Then the image is detached and Sedef checks that every format has the new version |
-   | Windows | `Sedef-Amp-Windows-Setup.exe` | starts the setup program elevated and silent, told to wait until your DAW (this process) has exited, because Windows keeps a loaded plug-in locked | Windows asks for permission (UAC). The panel says *It installs when you close your DAW.*; Setup installs the formats you chose last time once you do |
-   | Linux (x86-64) | `Sedef-Amp-Linux-x86_64.tar.gz` | unpacks the archive into a private folder, refusing links, devices and paths outside it, and runs its `install.sh`: as you for a copy in `~/.vst3`, `~/.clap` and `~/.local/bin`, or `install.sh --system` through `pkexec` for one in `/usr/lib` | nothing for your own copy; your desktop's password prompt (polkit) for a system-wide one. Then Sedef checks the VST3's version |
+   | macOS | `Sedef-Amp-macOS.dmg` | runs one fixed install script as root, which copies the disk image into a folder of its own, checks the copy's SHA-256, mounts it read-only and hidden, and runs Apple's `/usr/sbin/installer` on `Install Sedef Amp.pkg` for the formats you have installed (plus the one Sedef runs as), deselecting the others; then it detaches the image and deletes its folder | macOS asks for an administrator's password ("Sedef Amp wants to install version 0.3.1."). Then Sedef checks that every format has the new version |
+   | Windows | `Sedef-Amp-Windows-Setup.exe` | starts the setup program elevated and silent with the formats installed now (plus the one Sedef runs as), told to wait until your DAW (this process) has exited, because Windows keeps a loaded plug-in locked | Windows asks for permission (UAC). The panel says *It installs when you close your DAW.*; Setup installs once you do |
+   | Linux (x86-64) | `Sedef-Amp-Linux-x86_64.tar.gz` | checks what the archive holds (no links, devices or paths outside it), then runs one fixed install script, which copies the archive into a folder of its own, checks the copy's SHA-256, unpacks it and runs its `install.sh`: as you for a copy in `~/.vst3`, `~/.clap` and `~/.local/bin`, or as root through `pkexec` with `--system` for one in `/usr/lib` | nothing for your own copy; your desktop's password prompt (polkit) for a system-wide one. Then Sedef checks every file it installed |
 
 5. **Restart.** The panel ends on *Sedef Amp 0.3.1 is installed. Restart \<your DAW\> to use it.*
    (Sedef names the host when it knows it.) The pill now reads "Restart to update", in this window
@@ -46,8 +46,10 @@ and open it, as described under [Install manually](#install-manually), for their
 
 Cancelling the password or permission prompt is not an error: the panel is ready to install again,
 and the verified download is reused. Closing the last Sedef window, or unloading the plug-in,
-while Sedef installs stops what it waits on (a password dialog still open goes away) and detaches
-the disk image, so keep the window open until the panel says it is installed.
+while Sedef installs stops Sedef waiting, at once: a password dialog still open goes away, and an
+install already under way finishes by itself (on Windows, a permission prompt stays up, and Setup
+runs if you allow it). Keep the window open until the panel says it is installed, so Sedef can
+check the result.
 
 ### Install manually
 
@@ -133,10 +135,11 @@ setting, the setting applies at once and Sedef's update thread writes it. Deleti
 the settings and makes the next window open check again.
 
 The download folder is created with mode 0700 on macOS and Linux (Windows' per-user folders are
-private already) and holds the current installer only. It also holds the mount point of the disk
-image while macOS installs, and the unpacked archive while Linux installs. An installed update's
-file is deleted; a download for a version you then don't install is deleted once a check finds
-nothing newer. On Windows the setup stays there until it has run.
+private already) and holds the current installer only. An installed update's file is deleted; a
+download for a version you then don't install is deleted once a check finds nothing newer. On
+Windows the setup stays there until it has run, and while it is held (below) a newer download takes
+the next free name. The install script's own folder (`/private/var/tmp/sedef-update.*` on macOS,
+`/var/tmp/sedef-update.*` on Linux) exists only while it runs.
 
 **Install manually** saves to `~/Downloads` (on Linux the `XDG_DOWNLOAD_DIR` folder), or to your
 home folder when there is none. A verified copy already there is reused; a different file with the
@@ -161,24 +164,39 @@ from a different release.
 
 - Nothing installs without your click on **Update now** followed by the OS's own password or
   permission prompt. Sedef never stores, sees or caches a password.
-- What runs elevated is only the OS's installer on the verified file, by absolute path: Apple's
-  `/usr/sbin/installer` on `Install Sedef Amp.pkg` from the verified disk image (through
-  `/usr/bin/osascript`'s "with administrator privileges"), the verified setup program (through
-  `ShellExecuteEx` with `runas`), or the verified archive's `install.sh --system` (through
-  `/usr/bin/pkexec`). An install for your own folders on Linux runs as you.
-- No string from the network, the release or the file system is ever spliced into shell or
-  AppleScript text. Every command is an argv. On macOS the AppleScript is a constant: the prompt
-  and every path reach it as arguments (`on run argv`) and the shell through `quoted form of`.
-  Sedef's own commands (`hdiutil`, `installer`, `pkexec`, `install.sh`) run through `posix_spawn`,
-  never a shell. The Windows switches are numbers Sedef writes itself.
-- The file sits in a private folder (mode 0700), and its SHA-256 is checked again right before it
-  is mounted, launched or unpacked. The disk image is mounted read-only, hidden and at a random
-  mount point inside that folder; the pkg must be a regular file at its root, not a link. A Linux
-  archive is listed before anything is unpacked: links, devices, absolute paths, `..`, colons and
-  backslashes, duplicates and more than 1 GiB unpacked are refused, and the layout must be what
-  `install.sh` expects. Sedef unpacks it itself, so what was checked is what is written.
+- What runs elevated is fixed: on macOS and Linux one constant install script (in
+  `plugin/src/update/InstallLogic.cpp`), run through `/usr/bin/osascript`'s "with administrator
+  privileges" or `/usr/bin/pkexec`; on Windows the verified setup program, through
+  `ShellExecuteEx` with `runas`. An install for your own folders on Linux runs the same script as
+  you.
+- **Nothing your own programs can write is used once you have given the password.** Your other
+  programs run as you, so the private download folder doesn't stop them. So, as root, the script
+  makes a folder only root can open (`mktemp -d`, `umask 077`), copies the file into it, checks
+  the copy's SHA-256 against the one Sedef verified, and mounts (macOS) or unpacks (Linux) that
+  copy and installs from it; it writes the choice changes there too. Swapping the downloaded file,
+  a mount or an unpacked file while the password dialog is open changes nothing: the copy fails its
+  check, or the swapped files are never read. The script detaches the image and deletes its folder
+  on every way out. On Windows, Sedef opens the setup with no write and no delete sharing, checks
+  its SHA-256 through that handle and keeps it open until Sedef's process exits; with `/WAITPID`,
+  Setup opens its own file the same way before it waits, while Sedef still holds it, and keeps it
+  until it has finished. Nobody can change, replace or rename the setup between the check and the
+  end of the install.
+- No string from the network, the release or the file system is ever spliced into shell,
+  AppleScript or PowerShell text. Every command is an argv. The scripts are constants; the file,
+  its SHA-256 and the choice changes reach them as arguments (on macOS through `on run argv` and
+  `quoted form of`). Every program runs through `posix_spawn` with no descriptor of the host's
+  beyond stdin, stdout and stderr. The Windows switches are names and numbers Sedef writes itself.
+- A Linux archive is read before anything runs, from the very bytes whose SHA-256 was checked:
+  links, devices, absolute paths, `..`, colons and backslashes, duplicates, data in anything but a
+  file, more than 20000 headers and more than 1 GiB unpacked are refused, and the layout must be
+  what `install.sh` expects. The script unpacks only a copy with that SHA-256, so it unpacks what
+  was checked, with `tar --no-same-owner --no-same-permissions`.
 - After an install Sedef checks the result: `CFBundleShortVersionString` of every macOS bundle it
-  installed, the VST3's `moduleinfo.json` on Linux. A mismatch is reported.
+  installed; on Linux, every file of the VST3, CLAP and standalone app against the archive's, by
+  SHA-256, and the VST3's `moduleinfo.json`. A mismatch is reported.
+- On Windows, `/WAITPIDTIME` carries the creation time of the process to wait for: if its id has
+  been reused by another process by the time Setup starts, Setup doesn't wait for that one. The
+  wait has no limit, as the panel says (*It installs when you close your DAW.*).
 
 **What it does not protect against.**
 
@@ -190,9 +208,10 @@ from a different release.
 - Until releases are signed, the automatic route skips the Gatekeeper and SmartScreen prompts that
   an unsigned download gets, which users were told to click through anyway: neither prompt checks
   a publisher for an unsigned file.
-- A program that already runs as you can change the file between the last check and the moment
-  the installer reads it. The private folder keeps other users out, not your own programs; such a
-  program could equally change your DAW.
+- A program that already runs as you can still change your DAW, your plug-in folders in your home
+  folder (Linux), or what you type into the password dialog's owner. The install keeps it from
+  turning your password into root for its own code, not from everything a program running as you
+  can do.
 
 **The next layers.**
 
@@ -211,8 +230,11 @@ from a different release.
 
 - Sedef never writes into plug-in folders itself.
 - Closing the last Sedef window or unloading the plug-in never hangs: the update thread is
-  cancelled, any program it waits on is killed, and the disk image is detached (left for the next
-  start to detach if the OS's installer still reads it).
+  cancelled, and every wait ends at once. A password dialog goes away with the program that shows
+  it; an install that runs as root by then can't be stopped by Sedef and finishes by itself, owned
+  by the system from then on; an install in your own folders is left to finish rather than stopped
+  halfway. On Windows the permission prompt waits on a thread of its own that keeps the plug-in's
+  code loaded until the prompt is answered.
 - The copy that **Install manually** saves gets the OS's downloaded-file mark, as a browser
   download would: the quarantine attribute on macOS (Gatekeeper checks it before it opens), the
   `Zone.Identifier` stream with the Internet zone on Windows (SmartScreen and the attachment
@@ -232,13 +254,13 @@ from a different release.
 | --- | --- |
 | `plugin/src/update/UpdateLogic.*` | versions, the release model, installer names, checksum lists, the throttle, `update.json`: no network, no threads |
 | `plugin/src/update/UpdateClient.*` | the GET, the verified download (blocking, cancellable, redirects checked by hand) and the verified copy for Install manually |
-| `plugin/src/update/InstallLogic.*` | the cache, the macOS formats and choice changes, `hdiutil`'s plist, the `osascript` argv, Setup's switches, the tar reader and its checks: no processes |
-| `plugin/src/update/InstallProcess.*` | argv-only child processes (`posix_spawn`), killed on a cancel or a timeout |
-| `plugin/src/update/Installer.*` | the install per OS, and how it asks for permission (`osascript`, `pkexec`, `ShellExecuteEx`) |
+| `plugin/src/update/InstallLogic.*` | the cache, the macOS formats and choice changes, the install scripts and their exit codes, the `osascript` argv, Setup's switches and components, the tar reader and its checks: no processes |
+| `plugin/src/update/InstallProcess.*` | argv-only child processes (`posix_spawn`, no inherited descriptors) under a shell that always dies at a kill, so a cancel never waits |
+| `plugin/src/update/Installer.*` | the install per OS, how it asks for permission (`osascript`, `pkexec`, `ShellExecuteEx` on its own thread), the held setup file and the restart after exit on Windows |
 | `plugin/src/update/DownloadMark.*` | the quarantine attribute (macOS) and `Zone.Identifier` stream (Windows) on Install manually's copy |
 | `plugin/src/update/UpdateService.*` | the per-process service: worker thread, state, `update.json` locking |
 | `plugin/src/update/UpdateBridge.*` | the editor's `sedef_update_*` functions and `sedef:update` events, the host's name |
-| `tools/packaging/windows/sedef-amp.iss` | `/WAITPID` and `/RELAUNCH` |
+| `tools/packaging/windows/sedef-amp.iss` | `/WAITPID`, `/WAITPIDTIME`, the held setup file and `/RELAUNCH` |
 | `plugin/tests/` | `sedef_update_tests`: the logic, the client against a local HTTP server, the service with a scripted installer, and on macOS and Linux the real routes with a stand-in for the prompt |
 | `plugin/tools/sedef_update_check.cpp` | `sedef-update-check`: the same code against the real API, and `--install` |
 | `tools/ci/install-test.sh` | the release workflow's install test (CI machines only) |
@@ -262,11 +284,13 @@ this tool only, never into the plug-in, and no environment variable switches it)
 into your system's plug-in folders. Leave it to CI: `release.yml` runs it on every OS through
 `tools/ci/install-test.sh` ([docs/releasing.md](releasing.md#install-test)). `--expect <version>`
 is the version to check for, `--system` installs Linux system-wide, and on Windows
-`--waitpid <pid>` is the process Setup waits for and `--log <file>` keeps Setup's log.
+`--waitpid <pid>` is the process Setup waits for (`--waitpid-time <FILETIME>` overrides its
+creation time) and `--log <file>` keeps Setup's log.
 
-The unit tests never ask for a password or install anything: the macOS route mounts and detaches
-real disk images made with `hdiutil create`, and a stand-in for `osascript` installs into a fake
-root; the Linux route runs a stand-in `install.sh`.
+The unit tests never ask for a password or install anything: they run the real install scripts as
+you, the macOS one with a stand-in where it runs `/usr/sbin/installer` (it copies, checks, mounts
+and detaches real disk images made with `hdiutil create`) and a stand-in for `osascript` that
+installs into a fake root; the Linux one with a stand-in `install.sh`.
 
 In the browser preview, `?update=available` shows a pending update (also `current`, `skipped`,
 `error`, `noinstaller`, `mismatch` and `unsupported`), and the install's states: `declined` (the
@@ -276,5 +300,6 @@ password dialog is cancelled), `installfail`, `elsewhere`, `installed` (by anoth
 The installer names above are a contract with every installed copy of Sedef: renaming an asset in
 `.github/workflows/release.yml` breaks one-click updates for everyone who has not updated yet
 (they fall back to the releases page). So are the pkg's choice ids (`app`, `vst3`, `au`, `clap`),
-the Inno Setup `AppId` and the `/WAITPID` and `/RELAUNCH` switches, which the installed copies
-pass to the next release's installer.
+the Inno Setup `AppId`, its component names (`vst3`, `clap`, `standalone`) and the `/WAITPID`,
+`/WAITPIDTIME` and `/RELAUNCH` switches, which the installed copies pass to the next release's
+installer.

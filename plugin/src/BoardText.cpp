@@ -45,15 +45,15 @@ Board boardFromText (const juce::String& text)
 
 namespace
 {
-    /// Whether `parameters` switches `id` on; a value it doesn't hold is the default.
-    bool storedOn (const juce::var& parameters, ParamId id)
-    {
-        const auto& s = spec (id);
-        const juce::Identifier key (toJuce (s.id));
-        const float value =
-            parameters.hasProperty (key) ? static_cast<float> (parameters[key]) : s.defaultValue;
-        return s.sanitise (value) >= 0.5f;
-    }
+/// Whether `parameters` switches `id` on; a value it doesn't hold is the default.
+bool storedOn (const juce::var& parameters, ParamId id)
+{
+    const auto& s = spec (id);
+    const juce::Identifier key (toJuce (s.id));
+    const float value =
+        parameters.hasProperty (key) ? static_cast<float> (parameters[key]) : s.defaultValue;
+    return s.sanitise (value) >= 0.5f;
+}
 } // namespace
 
 Board legacyBoardFor (const juce::var& parameters)

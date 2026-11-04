@@ -226,7 +226,8 @@ TEST_CASE ("Presets carry the board; ones saved before it get the legacy board")
     auto& presets = p.presets();
 
     // A user preset saved by a build before the board: the fixed chain it played.
-    const auto old = plugin::PresetManager::userFolder().getChildFile ("Before the board.sedefpreset");
+    const auto old =
+        plugin::PresetManager::userFolder().getChildFile ("Before the board.sedefpreset");
     REQUIRE (old.getParentDirectory().createDirectory());
     REQUIRE (old.replaceWithText (R"({ "format": "sedef-preset", "version": 1,
                                        "name": "Before the board",
@@ -298,8 +299,7 @@ TEST_CASE ("A preset file without a board gets the pedals it switches on")
     parameters.getDynamicObject()->setProperty ("coralEnabled", 1.0);
     CHECK (plugin::legacyBoardFor (parameters) == Board::legacy());
     // Only those pedals (the defaults switch the Gate on), for Init and a fresh instance.
-    CHECK (plugin::switchedOnBoardFor (parameters) ==
-           boardOf ({ PedalId::gate, PedalId::coral }));
+    CHECK (plugin::switchedOnBoardFor (parameters) == boardOf ({ PedalId::gate, PedalId::coral }));
     CHECK (plugin::switchedOnBoardFor ({}) == boardOf ({ PedalId::gate }));
     for (std::size_t i = 0; i < kNumPedals; ++i)
         parameters.getDynamicObject()->setProperty (plugin::toJuce (spec (kPedals[i].enable).id),

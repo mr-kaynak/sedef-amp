@@ -459,8 +459,9 @@ int main (int argc, char** argv)
                 for (std::size_t k = 0; k < kNumPedals && why.empty(); ++k)
                     if (snap.flag (kPedals[k].enable) != board->contains (static_cast<PedalId> (k)))
                         why = std::string (kPedals[k].id) +
-                              (board->contains (static_cast<PedalId> (k)) ? " is off but on the board"
-                                                                          : " is on but off the board");
+                              (board->contains (static_cast<PedalId> (k))
+                                   ? " is off but on the board"
+                                   : " is on but off the board");
             for (const float mode : { 0.0f, 1.0f })
             {
                 if (!why.empty())

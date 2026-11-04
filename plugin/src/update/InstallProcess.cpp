@@ -139,6 +139,24 @@ private:
     bool ok_ = false;
 };
 
+/// No descriptor of the host's beyond 0, 1 and 2 reaches the child: a DAW's audio devices,
+/// sockets and locks stay with the DAW. macOS has POSIX_SPAWN_CLOEXEC_DEFAULT (Attributes);
+/// glibc 2.34 and later have the "close from 3" action. Call after the actions that set 0-2.
+void closeTheRest ([[maybe_unused]] posix_spawn_file_actions_t* actions)
+{
+#if JUCE_LINUX
+#if defined(__GLIBC__) && (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 34))
+    posix_spawn_file_actions_addclosefrom_np (actions, 3);
+#else
+#error "The updater needs glibc 2.34 or later (posix_spawn_file_actions_addclosefrom_np)"
+#endif
+#endif
+}
+
+/// The shell every program runs under: it starts the program and waits for it, and exits with its
+/// status. It is ours, so a SIGKILL always ends it, whoever the program has become since.
+constexpr const char* kShim = "\"$@\" & wait \"$!\"";
+
 /// A pipe whose ends close on exec (the child gets copies on 1 and 2).
 struct Pipe
 {
@@ -220,7 +238,7 @@ int currentProcessId() noexcept
 
 #if JUCE_WINDOWS
 
-ProcessResult runProcess (const juce::StringArray&, int, const std::function<bool()>&)
+ProcessResult runProcess (const juce::StringArray&, int, const std::function<bool()>&, OnCancel)
 {
     return {};
 }
@@ -233,7 +251,7 @@ bool spawnDetached (const juce::StringArray&)
 #else
 
 ProcessResult runProcess (const juce::StringArray& argv, int timeoutMs,
-                          const std::function<bool()>& cancelled)
+                          const std::function<bool()>& cancelled, OnCancel onCancel)
 {
     ProcessResult r;
     if (argv.isEmpty() || !juce::File::isAbsolutePath (argv[0]))
@@ -246,8 +264,11 @@ ProcessResult runProcess (const juce::StringArray& argv, int timeoutMs,
     posix_spawn_file_actions_addopen (actions.get(), 0, "/dev/null", O_RDONLY, 0);
     posix_spawn_file_actions_adddup2 (actions.get(), out.write, 1);
     posix_spawn_file_actions_adddup2 (actions.get(), err.write, 2);
+    closeTheRest (actions.get());
 
-    const CArgv args (argv);
+    juce::StringArray shim { "/bin/sh", "-c", kShim, "sedef" };
+    shim.addArray (argv);
+    const CArgv args (shim);
     pid_t pid = -1;
     if (posix_spawn (&pid, args.pointers[0], actions.get(), attributes.get(), args.pointers.data(),
                      environment()) != 0)
@@ -288,14 +309,24 @@ ProcessResult runProcess (const juce::StringArray& argv, int timeoutMs,
             break; // someone else reaped it (a host's SIGCHLD handler): the exit code is lost
         const bool late =
             timeoutMs > 0 && juce::Time::getMillisecondCounterHiRes() - started > timeoutMs;
-        if (late || (cancelled && cancelled()))
+        const bool stop = cancelled && cancelled();
+        if (late || stop)
         {
-            kill (-pid, SIGKILL); // its process group: what it started goes too
-            kill (pid, SIGKILL);
+            const bool letFinish = !late && onCancel == OnCancel::LetFinish;
+            if (!letFinish)
+                kill (-pid, SIGKILL); // the group: the program and what it started, unless root
+            kill (pid, SIGKILL);      // the shell, which is ours: waitpid returns at once
             while (waitpid (pid, &status, 0) < 0 && errno == EINTR)
             {
             }
             r.killed = true;
+            // Whatever is left of the group is root's now, or was left to finish.
+            const auto there = [pid] {
+                return kill (-pid, 0) == 0 || errno == EPERM;
+            };
+            for (int i = 0; i < 30 && !letFinish && there(); ++i)
+                usleep (10000);
+            r.abandoned = there();
             break;
         }
     }
@@ -321,6 +352,7 @@ bool spawnDetached (const juce::StringArray& argv)
     posix_spawn_file_actions_addopen (actions.get(), 0, "/dev/null", O_RDONLY, 0);
     posix_spawn_file_actions_addopen (actions.get(), 1, "/dev/null", O_WRONLY, 0);
     posix_spawn_file_actions_addopen (actions.get(), 2, "/dev/null", O_WRONLY, 0);
+    closeTheRest (actions.get());
     const CArgv args (argv);
     pid_t pid = -1;
     return posix_spawn (&pid, args.pointers[0], actions.get(), attributes.get(),

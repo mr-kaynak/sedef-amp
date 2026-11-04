@@ -367,10 +367,10 @@ DownloadResult Client::downloadVerified (const Release& release, const Asset& as
     {
         if (matchesChecksum (target, expected))
             return finish (target);
-        if (!options.replace)
+        // A copy that can't go (a setup that is held or still runs, on Windows) stays, and this
+        // one takes the next free name.
+        if (!options.replace || !target.deleteFile())
             target = numberedSibling (target);
-        else if (!target.deleteFile())
-            return fail (Error::Disk, "cannot replace " + target.getFullPathName());
     }
     if (folder.getBytesFreeOnVolume() < asset.size)
         return fail (Error::Disk, "not enough free space in " + folder.getFullPathName());

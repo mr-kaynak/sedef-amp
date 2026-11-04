@@ -72,6 +72,7 @@ void SedefProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     engine_.setAnalysisEnabled (false);
     {
         const std::scoped_lock lock (engineLock_);
+        engine_.setOversampling (requestedOversampling());
         engine_.prepare (sampleRate, samplesPerBlock, ins, outs);
         engine_.setMetronomeAllowed (isStandalone());
         engine_.setMetronomePattern (metronomePattern());
@@ -268,6 +269,38 @@ void SedefProcessor::timerCallback()
     analysis_.setReferenceHz (paramValue (ParamId::tunerReference));
     irs_.collectGarbage();
     captures_.collectGarbage();
+
+    // Settings > Latency: the oversampling is a session setting that changes the latency.
+    if (prepared_ && requestedOversampling() != engine_.oversampling())
+        applyOversampling();
+}
+
+OversamplingMode SedefProcessor::requestedOversampling() const noexcept
+{
+    return paramValue (ParamId::oversampling) >= 0.5f ? OversamplingMode::linearPhase
+                                                      : OversamplingMode::lowLatency;
+}
+
+void SedefProcessor::applyOversampling()
+{
+    // Like a sample-rate change: the oversamplers and the capture conversion are rebuilt, so the
+    // audio callback is held off (hosts play silence for those few milliseconds), then the host
+    // is told the new latency, which it accepts as a settings change.
+    suspendProcessing (true);
+    engine_.setAnalysisEnabled (false);
+    {
+        const std::scoped_lock lock (engineLock_);
+        engine_.setOversampling (requestedOversampling());
+        engine_.prepare (engine_.sampleRate(), engine_.maxBlockSize(), engine_.numInputs(),
+                         engine_.numOutputs());
+        engine_.setMetronomeAllowed (isStandalone());
+        engine_.setMetronomePattern (metronomePattern());
+    }
+    captures_.rebuild(); // built for the old conversion: rebuilt before the audio comes back
+    irs_.rebuildAll();
+    analysis_.engineWasPrepared();
+    setLatencySamples (engine_.latencySamples());
+    suspendProcessing (false);
 }
 
 void SedefProcessor::captureLoaded()

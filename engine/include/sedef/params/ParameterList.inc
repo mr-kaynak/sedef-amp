@@ -183,3 +183,4 @@ SEDEF_PARAM(sargassoVolume, "Sargasso Volume", "Sargasso", Float, 0.0f, 1.0f, 0.
 SEDEF_PARAM(breakerEnabled, "Breaker", "Breaker", Bool, 0.0f, 1.0f, 0.0f, 1.0f, "", "", true)
 SEDEF_PARAM(breakerBoost, "Breaker Boost", "Breaker", Float, 0.0f, 1.0f, 0.5f, 1.0f, "knob", "", true)
 SEDEF_PARAM(breakerRange, "Breaker Range", "Breaker", Choice, 0.0f, 1.0f, 0.0f, 1.0f, "", "Treble|Full", true)
+SEDEF_PARAM(oversampling, "Oversampling", "Global", Choice, 0.0f, 1.0f, 0.0f, 1.0f, "", "Low latency|Linear phase", false)

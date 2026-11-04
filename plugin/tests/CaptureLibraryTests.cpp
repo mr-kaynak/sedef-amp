@@ -380,6 +380,32 @@ TEST_CASE ("Rebuilding after a rate change keeps the capture playing")
     CHECK (model != capture);
 }
 
+TEST_CASE ("Rebuilding after an oversampling switch keeps the capture playing")
+{
+    // Settings > Latency prepares the engine again in the other mode: the capture is rebuilt for
+    // the new rate conversion and the stage's new latency.
+    Rig rig;
+    REQUIRE (rig.library->loadFile (rig.write ("O.nam", linear ({ 0.5f, 0.2f }))).isEmpty());
+    for (const auto mode :
+         { sedef::OversamplingMode::linearPhase, sedef::OversamplingMode::lowLatency })
+    {
+        {
+            const std::scoped_lock lock (rig.lock);
+            rig.engine.setOversampling (mode);
+            rig.engine.prepare (44100.0, 128, 1, 2);
+        }
+        rig.library->rebuild();
+        CHECK (rig.library->stateAsVar()["error"].isVoid());
+        CHECK (rig.engine.capture (0).modelSpec().oversampling == mode);
+        CHECK (rig.engine.latencySamples() ==
+               (mode == sedef::OversamplingMode::lowLatency ? 40 : 296));
+        const auto model = rig.play (0.0f);
+        const auto capture = rig.play (1.0f);
+        CHECK (model != capture);
+        CHECK (rig.engine.capture (0).captureAudible());
+    }
+}
+
 // Untrusted paths and files --------------------------------------------------------------------
 // Sessions, presets and the recent list all name files; none of them is trusted.
 

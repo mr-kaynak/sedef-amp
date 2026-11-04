@@ -2,6 +2,7 @@
 #include "sedef/board/PedalRack.h"
 
 #include <cassert>
+#include <limits>
 
 namespace sedef
 {
@@ -28,13 +29,11 @@ void PedalRack::prepare (const ProcessSpec& mono)
 #include "sedef/board/PedalList.inc"
 #undef SEDEF_PEDAL
 
-    pad_.prepare (std::max (totalLatency_, 1));
     // A keyed pedal reads the key up to the whole rack's latency late, a block at a time.
     keyDelay_.prepare (totalLatency_ + mono.maxBlockSize);
     keyed_.assign (static_cast<size_t> (mono.maxBlockSize), 0.0f);
     ran_.fill (false);
-    padLength_ = totalLatency_ - latencyOf (order_); // latencies depend on the sample rate
-    pad_.reset();
+    layout_ = layoutOf (order_); // which pedals have latency depends on the rate and the mode
 }
 
 void PedalRack::reset() noexcept
@@ -42,7 +41,6 @@ void PedalRack::reset() noexcept
 #define SEDEF_PEDAL(id, name, category, rank, enable, Module, settings) slots_.id.reset();
 #include "sedef/board/PedalList.inc"
 #undef SEDEF_PEDAL
-    pad_.reset();
     keyDelay_.reset();
     ran_.fill (false);
 }
@@ -55,43 +53,71 @@ int PedalRack::latencyOf (const Board& board) const noexcept
     return sum;
 }
 
+PedalRack::Layout PedalRack::layoutOf (const Board& board) const noexcept
+{
+    Layout layout;
+    std::array<bool, kNumPedals> placed {};
+    const auto delaysBefore = [&] (int rank) {
+        // Board::everyPedal() is in rank order.
+        for (const auto id : Board::everyPedal())
+        {
+            const auto i = index (id);
+            if (pedalInfo (id).rank >= rank)
+                break;
+            if (!placed[i] && latency_[i] > 0 && !board.contains (id))
+            {
+                layout.steps[layout.size++] = { id, false };
+                placed[i] = true;
+            }
+        }
+    };
+    for (const auto id : board)
+    {
+        delaysBefore (pedalInfo (id).rank);
+        layout.steps[layout.size++] = { id, true };
+    }
+    delaysBefore (std::numeric_limits<int>::max());
+    return layout;
+}
+
 bool PedalRack::needsDuck (const Board& next) const noexcept
 {
-    // Pedals that stay must keep their relative order...
-    std::size_t j = 0;
-    for (const auto id : order_)
-    {
-        if (!next.contains (id))
-            continue;
-        while (j < next.size() && !order_.contains (next[j]))
-            ++j;
-        if (j >= next.size() || next[j] != id)
-            return true;
-        ++j;
-    }
-    // ...and the latency may only move by the pad, which can't happen mid-signal.
-    for (const auto id : order_)
-        if (!next.contains (id) && latencyOf (id) > 0)
-            return true;
-    for (const auto id : next)
-        if (!order_.contains (id) && latencyOf (id) > 0)
-            return true;
-    return false;
+    // Pedals without latency that join or leave can fade in or out where they are, as long as
+    // nothing else moves: compare the two chains without them.
+    const auto without = [&] (const Layout& layout) {
+        Layout kept;
+        for (const auto step : layout)
+        {
+            const bool fades =
+                latencyOf (step.id) == 0 && order_.contains (step.id) != next.contains (step.id);
+            if (!fades)
+                kept.steps[kept.size++] = step;
+        }
+        return kept;
+    };
+    return !(without (layout_) == without (layoutOf (next)));
 }
 
 void PedalRack::rewire (const Board& order) noexcept
 {
     // Pedals that stay keep their state: the signal faded out through them, so what they hold is
     // quiet, and a compressor that kept its envelope doesn't overshoot when the signal returns.
-    for (const auto id : order)
+    // Joining pedals start clean; leaving ones are bypassed at once (their delay stays).
+    for (std::size_t i = 0; i < kNumPedals; ++i)
     {
-        if (order_.contains (id))
+        const auto id = static_cast<PedalId> (i);
+        const bool joins = order.contains (id) && !order_.contains (id);
+        const bool leaves = !order.contains (id) && order_.contains (id);
+        if (!joins && !leaves)
             continue;
         switch (id)
         {
 #define SEDEF_PEDAL(pid, name, category, rank, enable, Module, settings)                           \
     case PedalId::pid:                                                                             \
-        slots_.pid.reset();                                                                        \
+        if (joins)                                                                                 \
+            slots_.pid.reset();                                                                    \
+        else                                                                                       \
+            slots_.pid.fader.snap (false);                                                         \
         break;
 #include "sedef/board/PedalList.inc"
 #undef SEDEF_PEDAL
@@ -100,10 +126,7 @@ void PedalRack::rewire (const Board& order) noexcept
         }
     }
     order_ = order;
-    const int pad = totalLatency_ - latencyOf (order_);
-    if (pad != padLength_)
-        pad_.reset(); // what it holds was delayed by the old length
-    padLength_ = pad;
+    layout_ = layoutOf (order_);
 }
 
 void PedalRack::adopt (const Board& order) noexcept
@@ -126,6 +149,7 @@ void PedalRack::adopt (const Board& order) noexcept
         }
     }
     order_ = order;
+    layout_ = layoutOf (order_);
 }
 
 bool PedalRack::fullyBypassed (PedalId id) const noexcept
@@ -181,11 +205,13 @@ void PedalRack::process (float* io, const float* key, int n, const PedalSettings
         keyDelay_.push (key[i]);
 
     ran_.fill (false);
-    int before = 0; // latency of the pedals so far
-    for (const auto id : order_)
+    int before = 0; // latency of the chain so far
+    for (const auto step : layout_)
     {
+        const auto id = step.id;
         const auto i = index (id);
-        const bool enabled = settings.on[i] && !forcedOff[i];
+        // A delay left by a pedal off the board: its bypass, a pure delay.
+        const bool enabled = step.onBoard && settings.on[i] && !forcedOff[i];
         switch (id)
         {
 #define SEDEF_PEDAL(pid, name, category, rank, enable, Module, unused)                             \
@@ -199,13 +225,6 @@ void PedalRack::process (float* io, const float* key, int n, const PedalSettings
         }
         before += latency_[i];
     }
-
-    if (padLength_ > 0)
-        for (int i = 0; i < n; ++i)
-        {
-            pad_.push (io[i]);
-            io[i] = pad_.read (padLength_);
-        }
 }
 
 } // namespace sedef

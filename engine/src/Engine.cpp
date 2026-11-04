@@ -212,7 +212,7 @@ struct Chain
 
     int latency() const noexcept
     {
-        // Every pedal's latency, whatever is on the board (PedalRack pads the difference).
+        // Every pedal's latency, whatever is on the board (PedalRack keeps the delays).
         return rack.latencySamples() + capture.latencySamples() + cab.latencySamples();
     }
 

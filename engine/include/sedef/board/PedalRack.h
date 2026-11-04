@@ -135,15 +135,18 @@ struct PedalSettings
 
 /// Every pedal there is, prepared once, played in the order of the board. Mono.
 ///
-/// Pedals off the board are not processed at all. A pad delay stands in for their latency, so
-/// the rack's latency is always that of every pedal together and never changes with the board.
+/// Pedals off the board are not processed. One with latency leaves its bypass delay in the
+/// chain (a pure delay, no processing), where the fixed chain had it: before the first pedal on
+/// the board that ranks after it, or at the end. So the rack's latency is always that of every
+/// pedal together and never changes with the board, and a board in default order plays exactly
+/// what the fixed chain played with the other pedals switched off.
 /// The rack's owner (Engine) decides when the order may change: rewire() restarts the pedals
 /// (at the bottom of a duck), adopt() takes in pedals without latency as they are.
 class PedalRack
 {
 public:
     void prepare (const ProcessSpec& mono);
-    /// Clears every pedal, the pad and the key; the order stays.
+    /// Clears every pedal and the key; the order stays.
     void reset() noexcept;
 
     /// Every pedal's latency together: what the rack always delays by.
@@ -153,13 +156,39 @@ public:
     int latencyOf (const Board& board) const noexcept;
 
     const Board& order() const noexcept { return order_; }
-    /// True when going from the current order to `next` needs the signal ducked: pedals that
-    /// stay on the board change their relative order, or a pedal with latency joins or leaves.
-    /// Anything else is bypass fades (adopt()).
+
+    /// One step of the chain the rack plays: a pedal on the board, or the delay a pedal with
+    /// latency leaves behind when it is off the board.
+    struct Step
+    {
+        PedalId id = PedalId::Count;
+        bool onBoard = false;
+        bool operator== (const Step&) const = default;
+    };
+    struct Layout
+    {
+        std::array<Step, kNumPedals> steps {};
+        std::size_t size = 0;
+        const Step* begin() const noexcept { return steps.data(); }
+        const Step* end() const noexcept { return steps.data() + size; }
+        bool operator== (const Layout& o) const noexcept
+        {
+            return size == o.size && std::equal (begin(), end(), o.begin());
+        }
+    };
+    /// The chain `board` plays: its pedals in order, each off-board pedal with latency as a delay
+    /// before the first pedal on the board that ranks after it (or at the end).
+    Layout layoutOf (const Board& board) const noexcept;
+    const Layout& layout() const noexcept { return layout_; }
+
+    /// True when going from the current order to `next` needs the signal ducked: anything that
+    /// moves a pedal or a delay in the chain (pedals that stay change their relative order, a
+    /// pedal with latency joins or leaves). Pedals without latency joining or leaving where
+    /// nothing else moves are bypass fades (adopt()).
     bool needsDuck (const Board& next) const noexcept;
     /// A new order at silence: joining pedals start from a clean state (the next block snaps
-    /// each to its switch), the others keep theirs, and the pad takes up the latency of the
-    /// pedals off the board.
+    /// each to its switch), leaving ones turn into their delay at once, the others keep their
+    /// state.
     void rewire (const Board& order) noexcept;
     /// A new order that only adds or drops pedals without latency, keeping the others' order.
     /// Joining pedals start bypassed and fade in when on; leaving ones must already be fully
@@ -195,8 +224,7 @@ private:
     int totalLatency_ = 0;
     Board order_ = Board::legacy();
 
-    DelayLine pad_; // the latency of the pedals off the board
-    int padLength_ = 0;
+    Layout layout_;
     DelayLine keyDelay_; // the raw input, delayed to where a keyed pedal sits
     const float* key_ = nullptr;
     std::vector<float> keyed_;

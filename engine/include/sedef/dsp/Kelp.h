@@ -3,7 +3,6 @@
 
 #include "sedef/core/AudioView.h"
 #include "sedef/core/Biquad.h"
-#include "sedef/core/DelayLine.h"
 #include "sedef/core/Oversampler.h"
 #include "sedef/core/Smoothed.h"
 
@@ -71,7 +70,7 @@ private:
     bool primed_ = false;
 
     Oversampler oversampler_;
-    std::array<DelayLine, kMaxChannels> cleanDelay_; // aligns the clean term with the clipper
+    AlignedDryPath clean_; // lines the clean term up with the clipper
     std::array<std::vector<float>, kMaxChannels> drive_;
     std::array<float*, kMaxChannels> drivePtrs_ {};
     std::array<FeedbackDiodes, kMaxChannels> diodes_;

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 #pragma once
 
+#include "sedef/core/AudioView.h"
+
 #include <cstddef>
 #include <memory>
 #include <optional>
@@ -39,12 +41,14 @@ struct CaptureInfo
 };
 
 /// Where one runnable instance plays: the engine's rate, block size and the capture stage's
-/// fixed latency (CaptureStage::latencySamples()).
+/// fixed latency (CaptureStage::latencySamples()), and whether its rate conversion is minimum
+/// phase (lowLatency) or linear phase, like the rig's oversampling.
 struct CaptureSpec
 {
     double sampleRate = 48000.0;
     int maxBlockSize = 512;
     int latencySamples = 0;
+    OversamplingMode oversampling = OversamplingMode::lowLatency;
 
     bool operator== (const CaptureSpec&) const = default;
 };
@@ -131,7 +135,9 @@ public:
     int settleSamples() const noexcept;
 
     /// Audio thread. Mono, n <= spec().maxBlockSize, `in` may alias `out`. The output is
-    /// normalised and exactly spec().latencySamples late. Non-finite model output becomes silence.
+    /// normalised and spec().latencySamples late: exactly in linear phase, at low frequencies to
+    /// within half a sample in minimum phase (a capture made below 44.1 kHz can be later there,
+    /// docs/dsp/nam.md). Non-finite model output becomes silence.
     void process (const float* in, float* out, int n) noexcept;
 
     /// Instrumentation for tests: models alive now, models destroyed by the calling thread, and

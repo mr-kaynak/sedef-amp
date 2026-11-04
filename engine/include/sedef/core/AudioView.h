@@ -11,11 +11,20 @@ namespace sedef
 /// The engine processes at most two channels.
 inline constexpr int kMaxChannels = 2;
 
+/// How the nonlinear stages oversample (docs/dsp/oversampling.md). A session setting: switching
+/// it means preparing again, because it changes the latency.
+enum class OversamplingMode
+{
+    lowLatency, ///< minimum-phase IIR half-bands: 5 samples per stage at 44.1/48 kHz
+    linearPhase ///< linear-phase FIR half-bands: 37 samples per stage at 44.1/48 kHz
+};
+
 struct ProcessSpec
 {
     double sampleRate = 48000.0;
     int maxBlockSize = 512;
     int numChannels = 2;
+    OversamplingMode oversampling = OversamplingMode::lowLatency;
 };
 
 /// Non-owning view over planar float audio. Cheap to copy.

@@ -152,23 +152,44 @@ of the lower Nyquist). Positions are kept in exact integer time units (1/(f_host
 the output doesn't depend on the block size, bit for bit. At equal rates it is a straight
 pass-through.
 
-The bridge needs to look ahead, so it adds latency. The stage latency is the larger of the
-built-in amp's oversampler latency and what captures made at 44.1, 48, 88.2 or 96 kHz need at
-that rate, so both sources share it, and how well a capture plays never depends on the amp's
-latency or on which capture is loaded:
+The stage latency is the larger of the built-in amp's oversampler latency and what captures made
+at 44.1, 48, 88.2 or 96 kHz need at that rate, so both sources share it, and how well a capture
+plays never depends on the amp's latency or on which capture is loaded. What a capture needs
+follows the rig's oversampling setting ([oversampling.md](oversampling.md)):
 
-| Host rate | Built-in amp | Stage (both sources) | Added |
-|---|---|---|---|
-| 44.1 kHz | 37 | 37 | 0 |
-| 48 kHz | 37 | 39 | 2 samples, 0.04 ms |
-| 88.2 kHz | 31 | 72 | 41 samples, 0.46 ms |
-| 96 kHz | 31 | 78 | 47 samples, 0.49 ms |
-| 176.4 kHz | 0 | 143 | 0.81 ms |
-| 192 kHz | 0 | 155 | 0.81 ms |
+- **Low latency** (the default): the bridge uses the minimum-phase version of the same windowed
+  sinc (`MinimumPhaseKernel`, from its real cepstrum): the same magnitude response with no
+  look-ahead, so the delay is the filters' own group delay at low frequencies, 2.361 zero
+  crossings per conversion, about 0.12 ms for the round trip at every host rate. The read
+  position is set so the capture lags the stage's latency to half a sample at guitar
+  frequencies.
 
-The latency is reported to the host through `Engine::latencySamples()`. Captures made at 44.1 to
-192 kHz get the full 16-zero-crossing filter at every host rate; captures made at 16 to 32 kHz
-get 5 to 12. Budgeting for a 48 kHz capture only would leave a 44.1 kHz capture 15 zero
+  | Host rate | Built-in amp | Stage (both sources) | Added |
+  |---|---|---|---|
+  | 44.1 kHz | 5 | 5 | 0 |
+  | 48 kHz | 5 | 6 | 1 sample, 0.02 ms |
+  | 88.2 kHz | 3 | 10 | 7 samples, 0.08 ms |
+  | 96 kHz | 3 | 11 | 8 samples, 0.08 ms |
+  | 176.4 kHz | 0 | 21 | 0.12 ms |
+  | 192 kHz | 0 | 23 | 0.12 ms |
+
+  A capture made below 44.1 kHz needs more than that; it plays with the full filter, a little
+  late (a 16 kHz capture at 48 kHz: 0.2 ms after the amp would).
+
+- **Linear phase**: the bridge looks ahead by the full filter, as up to 0.4.0:
+
+  | Host rate | Built-in amp | Stage (both sources) | Added |
+  |---|---|---|---|
+  | 44.1 kHz | 37 | 37 | 0 |
+  | 48 kHz | 37 | 39 | 2 samples, 0.04 ms |
+  | 88.2 kHz | 31 | 72 | 41 samples, 0.46 ms |
+  | 96 kHz | 31 | 78 | 47 samples, 0.49 ms |
+  | 176.4 kHz | 0 | 143 | 0.81 ms |
+  | 192 kHz | 0 | 155 | 0.81 ms |
+
+The latency is reported to the host through `Engine::latencySamples()`. In low latency every
+capture gets the full 16-zero-crossing filter. In linear phase, captures made at 44.1 to
+192 kHz get the full filter at every host rate; captures made at 16 to 32 kHz get 5 to 12. Budgeting for a 48 kHz capture only would leave a 44.1 kHz capture 15 zero
 crossings at 48 kHz and 14 above, and none at all next to an amp without latency.
 
 ## 7. In the plug-in
@@ -263,8 +284,10 @@ amp mode builds one instance per chain and costs twice as much.
   Eigen's own blocking); a ConvNet as the conditioning model.
 - **Rate bridge** (`RateBridgeTests.cpp`): latencies per rate, with the full filter for
   44.1–96 kHz captures at every host rate whatever the amp's latency; round trip within ±0.05 dB and
-  error below −60 dB in the pass band; exact, linear-phase latency; output independent of block
-  size; more than 70 dB rejection of what the lower rate can't carry.
+  error below −60 dB in the pass band; exact, linear-phase latency; the minimum-phase kernel
+  (causal, same magnitude, its group delay) and its latencies, flat pass band and block-size
+  independence, and a 16 kHz capture playing late rather than cut short; output independent of
+  block size; more than 70 dB rejection of what the lower rate can't carry.
 - **Stage** (`CaptureStageTests.cpp`): level at every host rate (−15 ± 0.25 dB, within 1 dB of
   Reef at 44.1 and 48 kHz); trims and calibration; bit-exact built-in amp with no capture; time alignment of the two
   paths; click-free switching and model crossfades; nothing freed on the audio thread; clearing;

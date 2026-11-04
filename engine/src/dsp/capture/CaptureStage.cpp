@@ -116,6 +116,7 @@ struct CaptureStage::Impl
     std::atomic<double> sampleRate { 48000.0 };
     std::atomic<int> maxBlock { 512 };
     std::atomic<int> latency { 0 };
+    std::atomic<OversamplingMode> oversampling { OversamplingMode::lowLatency };
     CaptureSpec rtSpec;
     int ampLatency = 0;
 
@@ -145,7 +146,8 @@ struct CaptureStage::Impl
             const unsigned v = specVersion.load (std::memory_order_acquire);
             const CaptureSpec s { sampleRate.load (std::memory_order_relaxed),
                                   maxBlock.load (std::memory_order_relaxed),
-                                  latency.load (std::memory_order_relaxed) };
+                                  latency.load (std::memory_order_relaxed),
+                                  oversampling.load (std::memory_order_relaxed) };
             std::atomic_thread_fence (std::memory_order_acquire);
             if ((v & 1u) == 0 && specVersion.load (std::memory_order_relaxed) == v)
                 return s;
@@ -162,6 +164,7 @@ struct CaptureStage::Impl
         sampleRate.store (s.sampleRate, std::memory_order_relaxed);
         maxBlock.store (s.maxBlockSize, std::memory_order_relaxed);
         latency.store (s.latencySamples, std::memory_order_relaxed);
+        oversampling.store (s.oversampling, std::memory_order_relaxed);
         specVersion.store (v + 2, std::memory_order_release);
         rtSpec = s;
     }
@@ -266,13 +269,16 @@ struct CaptureStage::Impl
 CaptureStage::CaptureStage() : impl_ (std::make_unique<Impl>()) {}
 CaptureStage::~CaptureStage() = default;
 
-int CaptureStage::latencyFor (double sampleRate, int ampLatency) noexcept
+int CaptureStage::latencyFor (double sampleRate, int ampLatency, OversamplingMode mode) noexcept
 {
     // Room for the full filter for captures made at any of the common rates, so how well a
     // capture plays never depends on the amp's latency or on which capture is loaded.
     int latency = ampLatency;
     for (const double modelRate : { 44100.0, 48000.0, 88200.0, 96000.0 })
-        latency = std::max (latency, capture::RateBridge::minimumLatency (sampleRate, modelRate));
+        latency = std::max (latency,
+                            mode == OversamplingMode::lowLatency
+                                ? capture::RateBridge::minimumPhaseLatency (sampleRate, modelRate)
+                                : capture::RateBridge::minimumLatency (sampleRate, modelRate));
     return latency;
 }
 
@@ -280,7 +286,7 @@ void CaptureStage::prepare (const ProcessSpec& spec, int ampLatency)
 {
     auto& d = *impl_;
     const int block = std::max (1, spec.maxBlockSize);
-    const int latency = latencyFor (spec.sampleRate, ampLatency);
+    const int latency = latencyFor (spec.sampleRate, ampLatency, spec.oversampling);
     d.ampLatency = ampLatency;
     d.ampDelay.prepare (std::max (1, latency - ampLatency));
     for (auto* v : { &d.dry, &d.ampOut, &d.capture, &d.voice, &d.gainIn, &d.gainIface, &d.direct })
@@ -289,7 +295,7 @@ void CaptureStage::prepare (const ProcessSpec& spec, int ampLatency)
         s->reset (spec.sampleRate, kFadeSeconds);
     for (auto* s : { &d.inGain, &d.ifaceGain, &d.outGain })
         s->reset (spec.sampleRate, kGainRampSeconds);
-    d.setSpec ({ spec.sampleRate, block, latency });
+    d.setSpec ({ spec.sampleRate, block, latency, spec.oversampling });
     reset(); // drops a fade in progress: the model fading out was built for the old spec
     d.handoff.collect();
 }

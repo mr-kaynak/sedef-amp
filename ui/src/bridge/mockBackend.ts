@@ -64,6 +64,10 @@ export interface MockOptions {
    */
   jitter?: { maxMs: number; seed?: number };
 }
+/** The session the mock plays: 48 kHz, mono in, stereo out. */
+const MOCK_RATE = 48000;
+const MOCK_LAYOUT = 'Mono → Stereo';
+
 // The plugin editor's timer: telemetry every other 60 Hz tick, pitch on every tick.
 const TELEMETRY_HZ = 30;
 const PITCH_HZ = 60;
@@ -266,9 +270,9 @@ export class MockBackend implements Backend {
         appVersion: APP_VERSION,
         wrapperType: this.options.wrapperType ?? 'Browser',
         isStandalone: this.options.isStandalone ?? true,
-        sampleRate: 48000,
-        latencySamples: 64,
-        layout: 'Mono → Stereo',
+        sampleRate: MOCK_RATE,
+        latencySamples: this.latency(),
+        layout: MOCK_LAYOUT,
         schema: [...this.schema],
         values: { ...this.values },
         uiState: this.uiState,
@@ -507,12 +511,24 @@ export class MockBackend implements Backend {
 
   // --- Internals ------------------------------------------------------------------------------
 
+  /** The rig's latency at the mock's 48 kHz: what the engine reports for each oversampling. */
+  private latency(): number {
+    return this.value('oversampling') >= 0.5 ? 298 : 41;
+  }
+
   private setValue(id: string, value: number): void {
     const spec = this.specs[id];
     if (!spec) return;
     const next = snapValue(spec, value);
     if (this.values[id] === next) return;
     this.values[id] = next;
+    if (id === 'oversampling')
+      // Like the plug-in: prepared again, and the editor reports the new latency.
+      this.emit('sedef:session', {
+        sampleRate: MOCK_RATE,
+        latencySamples: this.latency(),
+        layout: MOCK_LAYOUT,
+      });
     if (isGlobalParam(id)) return;
     const dirty = this.isDirty();
     if (dirty !== this.presetState.dirty) {

@@ -168,9 +168,10 @@ new model; the incoming model is reset first so it carries no stale tail. Only t
 runs, plus the outgoing one during a fade. A change that arrives mid-fade reverses the fade if it
 goes back to the previous model, otherwise it is queued and starts when the fade ends.
 
-**Latency.** `latencySamples()` is the oversampler's round trip (37 samples at 44.1/48 kHz,
-31 at 88.2/96 kHz, 0 above). The voicing filters are minimum phase and add about 40 µs of group
-delay on top at high frequencies.
+**Latency.** `latencySamples()` is the oversampler's round trip: 5 samples at 44.1/48 kHz, 3 at
+88.2/96 kHz, 0 above, in the default Low latency mode; 37 and 31 in Linear phase
+([oversampling.md](oversampling.md)). The voicing filters are minimum phase and add about 40 µs
+of group delay on top at high frequencies.
 
 ## 4. Gain targets and input level
 
@@ -564,7 +565,7 @@ sources above; interface input levels are from manufacturers' public spec sheets
 | Lagoon clean | Volume and master at 0.25: THD < 1 % for a 220 Hz sine at -18 dBFS RMS; both at 1: > 10 %. |
 | Model switching | All six model pairs: the largest sample-to-sample step during a switch is within 1.1x of steady state. Model changes every 10 ms (fade reversals and queued third models) also stay within 1.1x. |
 | Automation | Each of the 22 knobs and switches swept 0 → 1 → 0 over one second with a new value every 64-sample block: output finite and the largest step within 1.1x of the largest step of any of 17 static settings along the sweep. |
-| Latency | `latencySamples()` equals the oversampler's at 44.1 / 48 / 96 / 192 kHz; an impulse through a clean Lagoon peaks at that latency plus at most 60 µs (voicing-filter group delay), never before. |
+| Latency | `latencySamples()` equals the oversampler's at 44.1 / 48 / 96 / 192 kHz; in Linear phase an impulse through a clean Lagoon peaks at that latency plus at most 60 µs (voicing-filter group delay), never before; in Low latency each model's phase at 100 Hz–3 kHz is the linear-phase model's, earlier by the latency saved, to 0.05 samples. |
 | Channels and blocks | Stereo channels are independent (left equals a mono run bit for bit); block size does not change the output. |
 
 Hidden reports: `"[.voicing]"` prints levels, THD and level curves per drive knob, octave-band

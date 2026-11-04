@@ -103,9 +103,9 @@ float outputGain (float gain, float master, float output) noexcept
 }
 } // namespace
 
-void AbyssModel::prepare (double sampleRate)
+void AbyssModel::prepare (double sampleRate, OversamplingMode mode)
 {
-    prepareBase (sampleRate);
+    prepareBase (sampleRate, mode);
     knobs_.prepare (sampleRate);
     knobs_.setRampSeconds (Bright, sampleRate, kSwitchRampSeconds);
     knobs_.setRampSeconds (Shift, sampleRate, kSwitchRampSeconds);

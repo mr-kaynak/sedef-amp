@@ -159,10 +159,11 @@ inline double thd (const std::vector<float>& v, double hz, double fs)
 
 /// Prepares an amp for mono processing with the given settings applied and settled.
 inline void prepareAmp (dsp::AmpSection& amp, const dsp::AmpSection::Settings& s,
-                        double fs = 48000.0, int block = 512)
+                        double fs = 48000.0, int block = 512,
+                        OversamplingMode mode = OversamplingMode::lowLatency)
 {
     amp.setSettings (s);
-    amp.prepare ({ fs, block, 1 });
+    amp.prepare ({ fs, block, 1, mode });
     amp.setSettings (s);
 }
 

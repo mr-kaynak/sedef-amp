@@ -76,8 +76,7 @@ holds x below xs (κ sets how soft the knee is). The curve is monotonic, bounded
 | `remoraTransistor` | Germanium / Silicon, morphed over 50 ms. |
 
 Knobs are smoothed over 20 ms, gains ramp over 30 ms, filters update every 32 samples while
-moving. `latencySamples()` is the oversampler's (37 samples at 44.1/48 kHz, 31 at 88.2/96 kHz, 0
-above).
+moving. `latencySamples()` is the oversampler's (5 samples at 44.1/48 kHz, 3 at 88.2/96 kHz, 0 above; 37 and 31 in Linear phase, [oversampling.md](oversampling.md)).
 
 ## Measurements (48 kHz, `engine/tests/pedals/RemoraTests.cpp`)
 

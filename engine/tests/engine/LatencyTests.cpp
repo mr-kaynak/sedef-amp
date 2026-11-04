@@ -203,8 +203,9 @@ TEST_CASE ("Switching a pedal moves the timing by its voicing alone, in both mod
     // its oversampler's latency), so what switching a pedal does to the timing at guitar
     // frequencies is its own voicing's phase. Low latency must not add to it: the shift from
     // off to on is the same as in linear phase to a tenth of a sample. (Not Urchin: its rectifier
-    // moves the note an octave up, so the fundamental's phase at its output is no timing.)
-    const double fs = GENERATE (44100.0, 48000.0, 96000.0);
+    // moves the note an octave up, so the fundamental's phase at its output is no timing.) 48 kHz
+    // covers the 4x design (44.1 kHz runs the same filters), 96 kHz the 2x one.
+    const double fs = GENERATE (48000.0, 96000.0);
     for (const auto pedal : kOversampledPedals)
         for (const double hz : { 110.0, 330.0 })
         {

@@ -38,7 +38,9 @@ int latencyOf (double fs, OversamplingMode mode, int block = 64)
 /// A mono-in rig that renders `in` with fixed parameters.
 struct LatencyRig
 {
-    LatencyRig (double fs, OversamplingMode mode, int block = 64) : fs (fs), block (block)
+    LatencyRig (double sampleRate, OversamplingMode mode, int blockSize = 64)
+        : fs (sampleRate),
+          block (blockSize)
     {
         engine.setOversampling (mode);
         engine.prepare (fs, block, 1, 2);

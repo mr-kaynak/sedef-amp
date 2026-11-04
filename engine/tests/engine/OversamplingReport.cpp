@@ -321,7 +321,8 @@ TEST_CASE ("Oversampling report: what folds into the audible band",
                     const auto up = os.upsample (AudioView (&d, 1, block));
                     for (int i = 0; i < up.numFrames(); ++i, ++t)
                         up.channel (0)[i] =
-                            0.5f * static_cast<float> (std::sin (kTwoPiD * hf * t / fsHigh));
+                            0.5f * static_cast<float> (
+                                       std::sin (kTwoPiD * hf * static_cast<double> (t) / fsHigh));
                     float* o = out.data() + s;
                     os.downsample (AudioView (&o, 1, block));
                 }

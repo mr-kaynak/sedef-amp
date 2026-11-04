@@ -39,10 +39,7 @@ std::unique_ptr<Installer> installerFor (Service::Options& options)
 {
     if (options.installer != nullptr)
         return std::move (options.installer);
-    auto config = defaultInstallerConfig();
-    if (options.cache != juce::File())
-        config.cache = options.cache;
-    return makeSystemInstaller (std::move (config));
+    return makeSystemInstaller (defaultInstallerConfig());
 }
 } // namespace
 
@@ -75,8 +72,9 @@ Service::~Service()
     }
     signalThreadShouldExit();
     notify();
-    // A cancelled request returns at once and a killed process at once; the margin covers a stack
-    // that ignores cancel() and detaching a disk image.
+    // A cancelled request returns at once, and so does every wait for a process or a prompt (an
+    // install already under way as root goes on without us); the margin covers a network stack
+    // that ignores cancel().
     stopThread (Client::kTimeoutMs + 2000);
 }
 
@@ -208,11 +206,8 @@ void Service::pageOpened()
         const std::scoped_lock l (lock_);
         adopt (std::move (store));
         start = startAutomaticCheckIfDue();
-        if (!tidied_ || stale)
-        {
-            tidied_ = true;
+        if (stale)
             tidyPending_ = start = true;
-        }
     }
     if (start)
         wake();
@@ -503,7 +498,6 @@ std::optional<Store> Service::updateStore (int timeoutMs, Modify&& modify)
 
 void Service::tidy()
 {
-    installer_->cleanUp();
     auto store = updateStore (kStoreLockTimeoutMs, [this] (Store& s) {
         const auto recorded = Version::parse (s.installedVersion);
         if (!recorded || compare (*recorded, current_) > 0)
@@ -525,12 +519,12 @@ void Service::clearCache (const juce::String& keep)
 {
     for (const auto& item : cache_.findChildFiles (juce::File::findFilesAndDirectories, false))
     {
-        if (item.getFileName() == keep || item.getFileName() == "mnt")
-            continue; // mount points go with their image (Installer::cleanUp)
+        if (item.getFileName() == keep)
+            continue;
         if (item.isDirectory())
             item.deleteRecursively();
         else
-            item.deleteFile(); // fails for a setup that still runs (Windows): it stays
+            item.deleteFile(); // fails for a setup that is held or still runs (Windows): it stays
     }
 }
 

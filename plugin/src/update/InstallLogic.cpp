@@ -3,14 +3,13 @@
 
 #include <algorithm>
 #include <cstring>
+#include <juce_cryptography/juce_cryptography.h>
 #include <set>
 
 #if JUCE_MAC
 #include <CoreFoundation/CoreFoundation.h>
 #endif
 #if !JUCE_WINDOWS
-#include <climits>
-#include <cstdlib>
 #include <sys/stat.h>
 #include <unistd.h>
 #endif
@@ -234,15 +233,19 @@ private:
 };
 
 /// Calls `visit` for every entry with a stream over its data, and returns an error, or empty when
-/// the archive was read to its end. Long names and pax paths apply to the entry that follows them.
+/// the archive was read to its end. Long names and pax paths apply to the entry that follows them;
+/// they count as headers and their bytes count towards the size, like any entry's.
 template <typename Visit>
-juce::String forEachEntry (juce::InputStream& in, Visit&& visit)
+juce::String forEachEntry (juce::InputStream& in, const std::function<bool()>& cancelled,
+                           Visit&& visit)
 {
     juce::String longName, paxPath;
     juce::int64 unpacked = 0;
     int count = 0;
     for (bool first = true;; first = false)
     {
+        if (cancelled && cancelled())
+            return "cancelled";
         unsigned char header[kBlock];
         const int got = readFully (in, header, kBlock);
         if (got == 0 && first)
@@ -261,6 +264,11 @@ juce::String forEachEntry (juce::InputStream& in, Visit&& visit)
             return "a header has no valid size";
         const char flag = static_cast<char> (header[156]);
         const bool posix = std::memcmp (header + 257, "ustar\0", 6) == 0;
+        if (++count > kMaxTarEntries)
+            return "the archive has too many entries";
+        unpacked += size + padding (size);
+        if (unpacked > kMaxUnpackedBytes)
+            return "the archive unpacks to more than 1 GiB";
 
         if (flag == 'L' || flag == 'K' || flag == 'x' || flag == 'g')
         {
@@ -299,11 +307,9 @@ juce::String forEachEntry (juce::InputStream& in, Visit&& visit)
             continue;
         }
 
-        if (++count > kMaxTarEntries)
-            return "the archive has too many entries";
         TarEntry entry;
         entry.type = typeOf (flag);
-        entry.size = entry.type == TarEntry::Type::File ? size : 0;
+        entry.size = size;
         entry.mode = static_cast<int> (juce::jmax<juce::int64> (0, numberField (header + 100, 8)));
         auto name = textField (header, 100);
         if (posix && header[345] != 0)
@@ -311,9 +317,8 @@ juce::String forEachEntry (juce::InputStream& in, Visit&& visit)
         entry.path = paxPath.isNotEmpty() ? paxPath : (longName.isNotEmpty() ? longName : name);
         paxPath.clear();
         longName.clear();
-        unpacked += entry.size;
-        if (unpacked > kMaxUnpackedBytes)
-            return "the archive unpacks to more than 1 GiB";
+        if (entry.type != TarEntry::Type::File && size != 0)
+            return entry.path + " has data but is not a file";
 
         EntryStream data (in, size);
         if (const auto error = visit (entry, data); error.isNotEmpty())
@@ -418,18 +423,6 @@ bool makePrivateFolder (const juce::File& folder)
 #endif
 }
 
-juce::File realPath (const juce::File& file)
-{
-#if JUCE_WINDOWS
-    return file;
-#else
-    char buffer[PATH_MAX] = {};
-    return realpath (file.getFullPathName().toRawUTF8(), buffer) != nullptr
-               ? juce::File (juce::String::fromUTF8 (buffer))
-               : file;
-#endif
-}
-
 // macOS -------------------------------------------------------------------------------------------
 
 juce::File macBundlePath (const MacComponent& component, const juce::File& root)
@@ -491,32 +484,6 @@ juce::var parsePlist (const juce::String& xml)
     return first != nullptr ? plistValue (*first) : juce::var();
 }
 
-juce::String parseMountPoint (const juce::String& plist)
-{
-    juce::StringArray points;
-    const auto parsed = parsePlist (plist); // keeps the arrays below alive
-    if (const auto* entities = parsed["system-entities"].getArray())
-        for (const auto& e : *entities)
-            if (const auto point = e["mount-point"].toString(); point.isNotEmpty())
-                points.add (point);
-    return points.size() == 1 ? points[0] : juce::String();
-}
-
-juce::StringArray mountPointsUnder (const juce::String& infoPlist, const juce::File& folder)
-{
-    juce::StringArray points;
-    const auto parsed = parsePlist (infoPlist); // keeps the arrays below alive
-    if (const auto* images = parsed["images"].getArray())
-        for (const auto& image : *images)
-            if (const auto* entities = image["system-entities"].getArray())
-                for (const auto& e : *entities)
-                    if (const auto point = e["mount-point"].toString();
-                        juce::File::isAbsolutePath (point) &&
-                        juce::File (point).isAChildOf (folder))
-                        points.addIfNotAlreadyThere (point);
-    return points;
-}
-
 juce::String bundleShortVersion (const juce::File& bundle)
 {
     juce::MemoryBlock data;
@@ -571,15 +538,53 @@ std::optional<int> appleScriptErrorNumber (const juce::String& errorOutput)
     return number.getIntValue();
 }
 
-juce::StringArray installerArgv (const juce::File& pkg, const juce::File& choices)
+juce::String macInstallScript()
 {
-    return { "/usr/sbin/installer",
-             "-pkg",
-             pkg.getFullPathName(),
-             "-applyChoiceChangesXML",
-             choices.getFullPathName(),
-             "-target",
-             "/" };
+    // Constant. The arguments: the disk image, its SHA-256, the choice changes (XML text).
+    return R"(set -u
+umask 077
+PATH=/usr/bin:/bin:/usr/sbin:/sbin
+export PATH
+trap '' PIPE HUP
+dmg=$1 sum=$2 choices=$3
+d=$(mktemp -d /private/var/tmp/sedef-update.XXXXXX) || exit 81
+exec 3>&2 >"$d/log" 2>&1
+attached=
+finish() {
+    status=$?
+    if [ -n "$attached" ]; then
+        hdiutil detach "$d/mnt" -quiet || hdiutil detach "$d/mnt" -force -quiet
+    fi
+    tail -c 2000 "$d/log" >&3
+    rm -rf "$d"
+    exit "$status"
+}
+trap finish EXIT
+trap 'exit 80' INT TERM
+cp "$dmg" "$d/i.dmg" || exit 81
+actual=$(shasum -a 256 <"$d/i.dmg") || exit 82
+[ "${actual%% *}" = "$sum" ] || exit 82
+mkdir "$d/mnt" || exit 81
+hdiutil attach -quiet -nobrowse -readonly -noautoopen -mountpoint "$d/mnt" "$d/i.dmg" || exit 83
+attached=1
+pkg="$d/mnt/Install Sedef Amp.pkg"
+if [ ! -f "$pkg" ] || [ -L "$pkg" ]; then exit 84; fi
+printf '%s' "$choices" >"$d/choices.xml" || exit 81
+umask 022
+/usr/sbin/installer -pkg "$pkg" -applyChoiceChangesXML "$d/choices.xml" -target / || exit 85
+)";
+}
+
+juce::StringArray macInstallCommand (const juce::File& dmg, const juce::String& sha256,
+                                     const juce::String& choiceChanges)
+{
+    return { "/bin/sh",
+             "-c",
+             macInstallScript(),
+             "sedef",
+             dmg.getFullPathName(),
+             sha256.toLowerCase(),
+             choiceChanges };
 }
 
 juce::String installPrompt (const juce::String& version)
@@ -589,20 +594,46 @@ juce::String installPrompt (const juce::String& version)
 
 // Windows -----------------------------------------------------------------------------------------
 
-juce::String windowsSetupParameters (juce::uint32 waitPid, bool relaunch)
+juce::StringArray windowsComponentsToInstall (const juce::File& commonFiles,
+                                              const juce::File& appFolder,
+                                              const juce::File& runningModule)
+{
+    const auto vst3 = commonFiles.getChildFile ("VST3").getChildFile ("Sedef Amp.vst3");
+    const auto clap = commonFiles.getChildFile ("CLAP").getChildFile ("Sedef Amp.clap");
+    const auto app = appFolder.getChildFile ("Sedef Amp.exe");
+    const bool known = commonFiles != juce::File();
+    juce::StringArray out;
+    if (known && (vst3.isDirectory() || runningModule.isAChildOf (vst3)))
+        out.add ("vst3");
+    if (known && (clap.existsAsFile() || runningModule == clap))
+        out.add ("clap");
+    if (appFolder != juce::File() && (app.existsAsFile() || runningModule == app))
+        out.add ("standalone");
+    if (out.isEmpty())
+        out = { "vst3", "clap", "standalone" };
+    return out;
+}
+
+juce::String windowsSetupParameters (juce::uint32 waitPid, juce::uint64 waitPidCreated,
+                                     const juce::StringArray& components, bool relaunch)
 {
     juce::String p (
         "/SILENT /SUPPRESSMSGBOXES /NORESTART /NOCLOSEAPPLICATIONS /RESTARTEXITCODE=3010");
+    if (!components.isEmpty())
+        p << " /COMPONENTS=" << components.joinIntoString (",");
     p << " /WAITPID=" << juce::String (waitPid);
+    if (waitPidCreated != 0)
+        p << " /WAITPIDTIME=" << juce::String (waitPidCreated);
     if (relaunch)
         p << " /RELAUNCH";
     return p;
 }
 
-bool windowsSetupUpdates (const juce::File& runningModule, const juce::File& commonFiles)
+bool windowsSetupUpdates (const juce::File& runningModule, const juce::File& commonFiles,
+                          const juce::File& appFolder)
 {
-    if (runningModule.getFileName().equalsIgnoreCase ("Sedef Amp.exe"))
-        return true; // the standalone app: Setup reuses the folder it was installed to
+    if (appFolder != juce::File() && runningModule == appFolder.getChildFile ("Sedef Amp.exe"))
+        return true;
     if (commonFiles == juce::File())
         return false;
     return runningModule.isAChildOf (
@@ -612,25 +643,18 @@ bool windowsSetupUpdates (const juce::File& runningModule, const juce::File& com
 
 // Linux -------------------------------------------------------------------------------------------
 
-TarListing listTarGz (juce::InputStream& gzipped)
+TarListing listTarGz (juce::InputStream& gzipped, const std::function<bool()>& cancelled)
 {
     TarListing listing;
     juce::GZIPDecompressorInputStream in (&gzipped, false,
                                           juce::GZIPDecompressorInputStream::gzipFormat);
-    listing.error = forEachEntry (in, [&listing] (const TarEntry& e, juce::InputStream&) {
-        listing.entries.push_back (e);
+    listing.error = forEachEntry (in, cancelled, [&listing] (TarEntry e, juce::InputStream& data) {
+        if (e.type == TarEntry::Type::File)
+            e.sha256 = juce::SHA256 (data, e.size).toHexString().toLowerCase();
+        listing.entries.push_back (std::move (e));
         return juce::String();
     });
     return listing;
-}
-
-TarListing listTarGz (const juce::File& archive)
-{
-    juce::FileInputStream file (archive);
-    if (!file.openedOk())
-        return { "cannot read " + archive.getFileName(), {} };
-    juce::BufferedInputStream buffered (file, 1 << 16);
-    return listTarGz (buffered);
 }
 
 juce::String checkLinuxArchive (const std::vector<TarEntry>& entries, juce::String& error)
@@ -681,70 +705,6 @@ juce::String checkLinuxArchive (const std::vector<TarEntry>& entries, juce::Stri
     return top;
 }
 
-bool extractTarGz (const juce::File& archive, const juce::File& destination, juce::String& error,
-                   juce::String* top)
-{
-    const auto listing = listTarGz (archive);
-    if (listing.error.isNotEmpty())
-    {
-        error = listing.error;
-        return false;
-    }
-    const auto folder = checkLinuxArchive (listing.entries, error);
-    if (folder.isEmpty())
-        return false;
-    if (top != nullptr)
-        *top = folder;
-
-    juce::FileInputStream file (archive);
-    if (!file.openedOk())
-    {
-        error = "cannot read " + archive.getFileName();
-        return false;
-    }
-    juce::BufferedInputStream buffered (file, 1 << 16);
-    juce::GZIPDecompressorInputStream in (&buffered, false,
-                                          juce::GZIPDecompressorInputStream::gzipFormat);
-    size_t index = 0;
-    error = forEachEntry (in, [&] (const TarEntry& e, juce::InputStream& data) -> juce::String {
-        // The same entries as the listing that was checked, or nothing is written.
-        if (index >= listing.entries.size() || listing.entries[index].path != e.path ||
-            listing.entries[index].type != e.type || listing.entries[index].size != e.size)
-            return "the archive changed while it was unpacked";
-        ++index;
-        const auto path = normalisedPath (e.path);
-        if (path.isEmpty())
-            return {};
-        if (const auto problem = typeProblem (e) + pathProblem (path); problem.isNotEmpty())
-            return problem;
-        const auto target = destination.getChildFile (path);
-        if (!target.isAChildOf (destination))
-            return path + " leaves its folder";
-        if (e.type == TarEntry::Type::Directory)
-            return target.createDirectory() ? juce::String() : "cannot create " + path;
-        if (target.exists() || !target.getParentDirectory().createDirectory())
-            return "cannot create " + path;
-        {
-            juce::FileOutputStream out (target);
-            if (!out.openedOk() || out.writeFromInputStream (data, -1) != e.size)
-                return "cannot write " + path;
-            out.flush();
-            if (out.getStatus().failed())
-                return "cannot write " + path;
-        }
-#if !JUCE_WINDOWS
-        // Windows files have no execute bit (JUCE reports failure there), and the archive is
-        // only installed on Linux; elsewhere it is unpacked for the tests.
-        if ((e.mode & 0111) != 0 && !target.setExecutePermission (true))
-            return "cannot make " + path + " executable";
-#endif
-        return {};
-    });
-    if (error.isEmpty() && index != listing.entries.size())
-        error = "the archive changed while it was unpacked";
-    return error.isEmpty();
-}
-
 LinuxScope linuxScopeOf (const juce::File& running, const juce::File& homeFolder)
 {
     const auto in = [&running] (const juce::File& vst3, const juce::File& clap,
@@ -775,6 +735,88 @@ juce::File linuxStandalone (LinuxScope scope, const juce::File& homeFolder)
     return (scope == LinuxScope::System ? juce::File ("/usr/local/bin")
                                         : homeFolder.getChildFile (".local/bin"))
         .getChildFile ("sedef-amp");
+}
+
+juce::File linuxClap (LinuxScope scope, const juce::File& homeFolder)
+{
+    return (scope == LinuxScope::System ? juce::File ("/usr/lib/clap")
+                                        : homeFolder.getChildFile (".clap"))
+        .getChildFile ("Sedef Amp.clap");
+}
+
+std::vector<InstalledFile> linuxInstalledFiles (const std::vector<TarEntry>& entries,
+                                                const juce::String& top, LinuxScope scope,
+                                                const juce::File& home)
+{
+    const auto bundle = top + "/VST3/Sedef Amp.vst3/";
+    std::vector<InstalledFile> out;
+    for (const auto& e : entries)
+    {
+        if (e.type != TarEntry::Type::File)
+            continue;
+        const auto path = normalisedPath (e.path);
+        if (path.startsWith (bundle))
+            out.push_back (
+                { linuxVst3Bundle (scope, home).getChildFile (path.substring (bundle.length())),
+                  e.sha256 });
+        else if (path == top + "/CLAP/Sedef Amp.clap")
+            out.push_back ({ linuxClap (scope, home), e.sha256 });
+        else if (path == top + "/Standalone/Sedef Amp")
+            out.push_back ({ linuxStandalone (scope, home), e.sha256 });
+    }
+    return out;
+}
+
+juce::String linuxInstallScript()
+{
+    // Constant. The arguments: the archive, its SHA-256, "system" or "user".
+    return R"(set -u
+umask 077
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+trap '' PIPE HUP
+archive=$1 sum=$2 scope=$3
+d=$(mktemp -d /var/tmp/sedef-update.XXXXXX) || exit 81
+exec 3>&2 >"$d/log" 2>&1
+finish() {
+    status=$?
+    tail -c 2000 "$d/log" >&3
+    rm -rf "$d"
+    exit "$status"
+}
+trap finish EXIT
+trap 'exit 80' INT TERM
+cp "$archive" "$d/a.tar.gz" || exit 81
+if command -v sha256sum >/dev/null; then
+    actual=$(sha256sum <"$d/a.tar.gz") || exit 82
+else
+    actual=$(shasum -a 256 <"$d/a.tar.gz") || exit 82
+fi
+[ "${actual%% *}" = "$sum" ] || exit 82
+mkdir "$d/u" || exit 81
+# What is installed gets the usual modes; the folder keeps everything else out (0700).
+umask 022
+tar --no-same-owner --no-same-permissions -xzf "$d/a.tar.gz" -C "$d/u" || exit 83
+set -- "$d"/u/*/install.sh
+if [ "$#" -ne 1 ] || [ ! -f "$1" ] || [ -L "$1" ]; then exit 84; fi
+if [ "$scope" = system ]; then
+    "$1" --system || exit 85
+else
+    "$1" || exit 85
+fi
+)";
+}
+
+juce::StringArray linuxInstallCommand (const juce::File& archive, const juce::String& sha256,
+                                       LinuxScope scope)
+{
+    return { "/bin/sh",
+             "-c",
+             linuxInstallScript(),
+             "sedef",
+             archive.getFullPathName(),
+             sha256.toLowerCase(),
+             scope == LinuxScope::System ? "system" : "user" };
 }
 
 juce::String moduleInfoVersion (const juce::String& json)

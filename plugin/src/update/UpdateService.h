@@ -128,10 +128,9 @@ private:
     void runCheck (bool forced, Cancellation& cancel);
     void runDownload (Job job, Cancellation& cancel);
     void runInstall (const Release& release, const DownloadResult& download, Cancellation& cancel);
-    /// Detaches what an earlier process left mounted and drops an installed-version record this
-    /// version has caught up with.
+    /// Drops an installed-version record this version has caught up with.
     void tidy();
-    /// Deletes everything in the cache but `keep` (and live mount points).
+    /// Deletes everything in the cache but `keep` (and what can't go: a held setup, on Windows).
     void clearCache (const juce::String& keep = {});
     ManualReason manualReason();
     /// lock_ held. Takes `store` as the current one, with the unsaved settings on top.
@@ -177,7 +176,7 @@ private:
     juce::String hostName_;
     bool standalone_ = false;
     void* window_ = nullptr;
-    bool tidyPending_ = false, tidied_ = false;
+    bool tidyPending_ = false;
     Job pending_ = Job::None;
     std::shared_ptr<Cancellation> cancel_; // the running job's, made when the worker takes it
     juce::uint32 lastProgressMessage_ = 0;

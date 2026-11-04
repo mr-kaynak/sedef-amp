@@ -67,7 +67,7 @@ struct FakeInstall
     InstallResult::Outcome outcome = InstallResult::Outcome::Installed;
     Error error = Error::None;
     bool block = false; // waits in the permission step until cancelled
-    std::atomic<int> installs { 0 }, relaunches { 0 }, cleanUps { 0 };
+    std::atomic<int> installs { 0 }, relaunches { 0 };
     std::atomic<bool> waiting { false }, sawCancel { false };
     InstallRequest last;
 };
@@ -121,8 +121,6 @@ public:
         ++f_->relaunches;
         return true;
     }
-
-    void cleanUp() override { ++f_->cleanUps; }
 
 private:
     std::shared_ptr<FakeInstall> f_;
@@ -654,7 +652,6 @@ TEST_CASE ("An installed update is remembered across processes until one runs it
     CHECK (readStore (f.store).installedVersion.isEmpty());
     CHECK (state["phase"].toString() == "idle");
     CHECK_FALSE (static_cast<bool> (updated->state()["updateAvailable"]));
-    CHECK (f.fake->cleanUps >= 1); // and detaches what an earlier process may have left
 
     // ...so an old copy that opens later offers the update again.
     auto old = f.make ("0.1.0");

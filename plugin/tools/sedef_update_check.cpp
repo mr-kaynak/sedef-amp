@@ -9,13 +9,15 @@
 //   sedef-update-check [--current <version>] [--platform macOS|Windows|Linux] [--arm]
 //                      [--download <folder>] [--asset <name>]
 //   sedef-update-check --install <file> [--expect <version>] [--system] [--waitpid <pid>]
-//                      [--log <file>]
+//                      [--waitpid-time <FILETIME>] [--log <file>]
 //
 // --install runs the plug-in's automatic install (plugin/src/update/Installer.cpp) on a package
-// that was just built, with no API request: on macOS it mounts the disk image, picks the formats
-// that are installed and runs Apple's installer; on Linux it unpacks the archive and runs
-// install.sh (in your home folder, or --system); on Windows it starts the setup elevated with the
-// update's switches, waiting for process --waitpid, and waits for it. It then checks the versions.
+// that was just built, with no API request: on macOS it picks the formats that are installed and
+// runs the install script as root (it copies, checks and mounts the disk image and runs Apple's
+// installer); on Linux it runs the install script, which unpacks the archive and runs install.sh
+// (in your home folder, or as root with --system); on Windows it starts the setup elevated with
+// the update's switches, waiting for process --waitpid (if it was created at --waitpid-time,
+// which defaults to that process's own), and waits for it. It then checks what was installed.
 // The release workflow runs it on CI machines, which have passwordless sudo (macOS, Linux) or run
 // elevated (Windows). This tool asks with `sudo -n` where the plug-in shows the OS's password
 // prompt; that difference exists only here, at compile time, never in the plug-in.
@@ -52,6 +54,7 @@ struct Options
     juce::String expect = SEDEF_VERSION;
     bool system = false;
     juce::uint32 waitPid = 0;
+    juce::uint64 waitPidTime = 0;
     juce::File log;
 };
 
@@ -94,6 +97,8 @@ bool parseArguments (int argc, char* argv[], Options& o)
             o.system = true;
         else if (name == "--waitpid")
             o.waitPid = static_cast<juce::uint32> (value().getLargeIntValue());
+        else if (name == "--waitpid-time")
+            o.waitPidTime = static_cast<juce::uint64> (value().getLargeIntValue());
         else if (name == "--log")
             o.log = juce::File::getCurrentWorkingDirectory().getChildFile (value());
         else
@@ -106,7 +111,17 @@ bool parseArguments (int argc, char* argv[], Options& o)
 Elevated sudoElevate (const juce::StringArray& command, const juce::String& prompt,
                       Cancellation& cancel)
 {
-    print ("  as root (" + prompt + "): " + command.joinIntoString (" "));
+    // The install script is long and constant: name it, and show its arguments.
+    juce::StringArray shown;
+    for (int i = 0; i < command.size(); ++i)
+    {
+        if (i == 2 && command[1] == "-c")
+            shown.add ("<install script>");
+        else if (i != 1 || command[1] != "-c")
+            shown.add (command[i].length() > 100 ? command[i].substring (0, 60) + "..."
+                                                 : command[i]);
+    }
+    print ("  as root (" + prompt + "): " + shown.joinIntoString (" "));
     juce::StringArray argv { "/usr/bin/sudo", "-n" };
     argv.addArray (command);
     Elevated e;
@@ -118,6 +133,8 @@ Elevated sudoElevate (const juce::StringArray& command, const juce::String& prom
     e.status = !e.process.started      ? Elevated::Status::Unavailable
                : e.process.succeeded() ? Elevated::Status::Ok
                                        : Elevated::Status::Failed;
+    if (e.status == Elevated::Status::Failed)
+        e.exitCode = e.process.exitCode;
     return e;
 }
 
@@ -156,6 +173,7 @@ int install (const Options& options)
     else
         config.scope = LinuxScope::User;
     config.waitPid = options.waitPid;
+    config.waitPidCreated = options.waitPidTime;
     config.keepProcess = true;
     if (options.log != juce::File())
         config.extraSetupParameters = "/LOG=\"" + options.log.getFullPathName() + "\"";
@@ -169,7 +187,14 @@ int install (const Options& options)
     if (currentPlatform() == Platform::MacOS)
         print ("formats: " + macChoicesToInstall (config.root, {}).joinIntoString (", "));
     if (currentPlatform() == Platform::Windows)
-        print ("Setup waits for process " + juce::String (options.waitPid));
+    {
+        print ("components: " +
+               windowsComponentsToInstall (config.commonFiles, config.appFolder, {})
+                   .joinIntoString (", "));
+        print ("Setup waits for process " + juce::String (options.waitPid) + ", created at " +
+               juce::String (options.waitPidTime != 0 ? options.waitPidTime
+                                                      : processCreationTime (options.waitPid)));
+    }
 
     Cancellation cancel;
     const auto started = juce::Time::getMillisecondCounterHiRes();

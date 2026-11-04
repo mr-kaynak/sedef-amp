@@ -93,38 +93,41 @@ TEST_CASE ("With no capture loaded the stage plays the built-in amp, bit for bit
     CHECK (a == b);
 
     // And the stage adds only the latency the rate conversion needs beyond the amp's: nothing
-    // at 44.1 kHz, two samples at 48 kHz.
-    for (const double fs : { 44100.0, 48000.0 })
-    {
-        nt::StageRig stage (fs, 64);
-        auto x = test::guitarStrum (fs, 1.0);
-        stage.run (x);
-        dsp::AmpSection amp;
-        amp.prepare ({ fs, 64, 1 });
-        auto y = test::guitarStrum (fs, 1.0); // 44,100 samples: the last block is short
-        for (std::size_t s = 0; s < y.size(); s += 64)
+    // at 44.1 kHz, two samples at 48 kHz in linear phase and one in low latency.
+    for (const auto mode : { OversamplingMode::linearPhase, OversamplingMode::lowLatency })
+        for (const double fs : { 44100.0, 48000.0 })
         {
-            amp.setSettings ({});
-            amp.process (AudioView (y.data() + s,
-                                    static_cast<int> (std::min<std::size_t> (64, y.size() - s))));
+            nt::StageRig stage (fs, 64, mode);
+            auto x = test::guitarStrum (fs, 1.0);
+            stage.run (x);
+            dsp::AmpSection amp;
+            amp.prepare ({ fs, 64, 1, mode });
+            auto y = test::guitarStrum (fs, 1.0); // 44,100 samples: the last block is short
+            for (std::size_t s = 0; s < y.size(); s += 64)
+            {
+                amp.setSettings ({});
+                amp.process (AudioView (
+                    y.data() + s, static_cast<int> (std::min<std::size_t> (64, y.size() - s))));
+            }
+            const auto pad =
+                static_cast<std::size_t> (stage.stage.latencySamples() - amp.latencySamples());
+            const bool linear = mode == OversamplingMode::linearPhase;
+            CAPTURE (fs, pad, linear);
+            CHECK (pad == (fs == 44100.0 ? 0u : linear ? 2u : 1u));
+            CHECK (std::equal (y.begin(), y.end() - static_cast<long> (pad),
+                               x.begin() + static_cast<long> (pad)));
         }
-        const auto pad =
-            static_cast<std::size_t> (stage.stage.latencySamples() - amp.latencySamples());
-        CAPTURE (fs, pad);
-        CHECK (pad == (fs == 44100.0 ? 0u : 2u));
-        CHECK (std::equal (y.begin(), y.end() - static_cast<long> (pad),
-                           x.begin() + static_cast<long> (pad)));
-    }
 }
 
 TEST_CASE ("Capture and built-in amp line up in time", "[capture]")
 {
     const double fs = GENERATE (44100.0, 48000.0, 96000.0);
-    // An identity capture against a clean Lagoon at low drive: both impulse responses must peak
-    // at the stage's latency (the amp's voicing filters add up to 60 us, as in the amp tests).
+    // Linear phase. An identity capture against a clean Lagoon at low drive: both impulse
+    // responses must peak at the stage's latency (the amp's voicing filters add up to 60 us, as
+    // in the amp tests).
     const auto f = nt::parseOrFail (nt::linear ({ 1.0f }));
     const auto peakAt = [fs, &f] (bool capture) {
-        nt::StageRig rig (fs, 64);
+        nt::StageRig rig (fs, 64, OversamplingMode::linearPhase);
         rig.load (f);
         rig.settings.useCapture = capture;
         rig.ampSettings.model = dsp::AmpSection::Lagoon;
@@ -145,6 +148,36 @@ TEST_CASE ("Capture and built-in amp line up in time", "[capture]")
     CHECK (capturePeak == latency);
     CHECK (ampPeak >= latency);
     CHECK (ampPeak <= latency + static_cast<int> (std::ceil (60.0e-6 * fs)));
+}
+
+TEST_CASE ("Low latency: capture and built-in amp line up in time", "[capture]")
+{
+    // Minimum phase has no single arrival time, so the timing that matters is the delay at
+    // guitar frequencies. An identity capture made at 48 kHz: its round trip lags the stage's
+    // latency to half a sample (the rate conversion's group delay, rounded), from 82 Hz to
+    // 2 kHz. The clean amp: its own voicing's phase on top of the latency, the same in both
+    // modes (AmpSectionTests).
+    const double fs = GENERATE (44100.0, 48000.0, 96000.0, 192000.0);
+    const auto f = nt::parseOrFail (nt::linear ({ 1.0f }));
+    nt::StageRig rig (fs, 64);
+    rig.load (f);
+    rig.settings.useCapture = true;
+    const int latency = rig.stage.latencySamples();
+    CHECK (latency == dsp::CaptureStage::latencyFor (fs, rig.amp.latencySamples()));
+    std::vector<float> warm (static_cast<std::size_t> (fs * 0.1), 0.0f);
+    rig.run (warm); // past the 30 ms fade from the amp
+    for (const double hz : { 82.0, 330.0, 1000.0, 2000.0 })
+    {
+        std::vector<float> x (32768);
+        test::fillSine (x, hz, fs, 0.05f);
+        auto y = x;
+        rig.run (y);
+        const double d =
+            test::toneDelaySamples (x.data() + 16384, y.data() + 16384, 16384, hz, fs, latency);
+        CAPTURE (fs, hz, latency, d);
+        // Half a sample of rounding, and the conversion's delay rises slightly by 2 kHz.
+        CHECK (std::abs (d - latency) <= (hz <= 1000.0 ? 0.5 : 0.55));
+    }
 }
 
 TEST_CASE ("Switching between the amp and a capture is click-free", "[capture]")

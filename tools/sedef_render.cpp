@@ -8,6 +8,7 @@
 //   sedef-render --capture amp.nam --set captureCab=0 --out capture.wav
 //   sedef-render --set pearlEnabled=1 --set coralEnabled=1 --board coral,pearl --out swapped.wav
 //   sedef-render --board gate,pearl,ripple --switch 2.5=ripple,gate,pearl --out reorder.wav
+//   sedef-render --preset presets/factory/nacre.sedefpreset --set oversampling=1 --out lin.wav
 //
 // Without --in, a synthetic guitar DI (plucked-string chords and single notes) is used. The
 // pedalboard is --board, else the preset's "board", else the board a preset saved before the
@@ -330,6 +331,11 @@ RenderResult render (const std::vector<float>& input, double fs, const ParamSnap
 {
     Engine engine;
     engine.setBoard (board);
+    // The oversampling is a session setting the engine takes at prepare (--set oversampling=1
+    // renders in linear phase).
+    engine.setOversampling (params.choice (ParamId::oversampling) == 1
+                                ? OversamplingMode::linearPhase
+                                : OversamplingMode::lowLatency);
     engine.prepare (fs, block, 1, 2);
     if (capture != nullptr)
         for (int c = 0; c < engine.numCabs(); ++c)

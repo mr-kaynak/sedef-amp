@@ -198,9 +198,9 @@ struct Chain
     float inputPeak = 0.0f;
     bool snapGain = true;
 
-    void prepare (double sampleRate, int maxBlock)
+    void prepare (double sampleRate, int maxBlock, OversamplingMode oversampling)
     {
-        const ProcessSpec mono { sampleRate, maxBlock, 1 };
+        const ProcessSpec mono { sampleRate, maxBlock, 1, oversampling };
         inputGain.reset (sampleRate, 0.02);
         rack.prepare (mono);
         amp.prepare (mono);
@@ -326,7 +326,7 @@ void Engine::prepare (double sampleRate, int maxBlockSize, int numInputs, int nu
     // Both chains are prepared and reset even in mono: custom IRs are published to both, and an
     // idle chain must not keep a half-finished IR crossfade (and its kernel) alive.
     for (auto& chain : d.chains)
-        chain.prepare (sampleRate, block);
+        chain.prepare (sampleRate, block, oversampling_.load());
 
     const ProcessSpec stereo { sampleRate, block, 2 };
     d.eq.prepare (stereo);

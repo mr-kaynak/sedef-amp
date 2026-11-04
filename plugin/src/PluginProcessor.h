@@ -104,6 +104,11 @@ public:
 private:
     void timerCallback() override;
     void mirrorPreset();
+    /// What the `oversampling` parameter asks for.
+    OversamplingMode requestedOversampling() const noexcept;
+    /// Message thread: prepares the engine again at its rate and block size for the requested
+    /// oversampling, with the audio callback held off, and reports the new latency.
+    void applyOversampling();
 
     juce::AudioProcessorValueTreeState state_;
     std::array<std::atomic<float>*, kNumParams> raw_ {};

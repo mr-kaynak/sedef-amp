@@ -137,8 +137,11 @@ engine/   Pure C++20 DSP library with no JUCE dependency, unit-tested on every O
   ([ADR-0004](docs/adr/0004-single-parameter-schema.md)).
 - Hard real-time rules: the audio thread never allocates, locks or waits; a test proves it
   ([ADR-0005](docs/adr/0005-real-time-safety.md)).
-- Nonlinear stages run oversampled with latency-aligned bypasses, so switching pedals never
-  shifts your timing ([ADR-0008](docs/adr/0008-oversampling.md)).
+- Nonlinear stages run oversampled through minimum-phase filters: the whole rig is 0.85 ms of
+  latency at 48 kHz, and Settings > Latency > Linear phase keeps every frequency in time for
+  mixing. Bypasses are latency-aligned, so switching pedals never shifts your timing
+  ([ADR-0008](docs/adr/0008-oversampling.md), [ADR-0009](docs/adr/0009-minimum-phase-oversampling.md),
+  [docs/dsp/oversampling.md](docs/dsp/oversampling.md)).
 - Every DSP module documents the public research it's based on in [docs/dsp/](docs/dsp/).
 
 Start with [docs/architecture.md](docs/architecture.md).

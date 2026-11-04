@@ -5,7 +5,7 @@ import { isInsideJuce, JuceBackend } from '../bridge/juceBackend';
 import { MockBackend } from '../bridge/mockBackend';
 import { PROTOCOL_VERSION } from '../bridge/protocol';
 import { applyRemoteValues, initParams } from '../params/paramStore';
-import { applyHello, useAppStore } from '../state/appStore';
+import { applyHello, applySession, useAppStore } from '../state/appStore';
 import { invoke, setBackend } from '../state/backendRef';
 import { pitch, telemetry } from '../state/live';
 import { applyPresetState } from '../state/presetStore';
@@ -42,6 +42,7 @@ export async function connect(backend: Backend): Promise<() => void> {
     backend.on('sedef:ir', (ir) => useAppStore.setState({ ir })),
     backend.on('sedef:capture', (capture) => useAppStore.setState({ capture })),
     backend.on('sedef:board', (board) => applyBoardState(board)),
+    backend.on('sedef:session', (e) => applySession(e)),
   ];
 
   try {

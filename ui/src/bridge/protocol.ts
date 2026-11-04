@@ -427,9 +427,21 @@ export interface PitchEvent {
   displayCents: number;
 }
 
+/** The session facts of the handshake that can change while the editor is open. */
+export interface SessionEvent {
+  sampleRate: number;
+  latencySamples: number;
+  layout: string;
+}
+
 export interface Events {
   /** Changed parameter values (host automation, preset loads, undo). Batched at 60 Hz. */
   'sedef:params': { values: ParamValues };
+  /**
+   * The sample rate or the latency changed (the host prepared again, or the oversampling
+   * setting). Absent from plug-ins up to 0.4.0: they only report these in the hello.
+   */
+  'sedef:session': SessionEvent;
   /** 30 Hz while the editor is open. */
   'sedef:telemetry': TelemetryEvent;
   /** 60 Hz while pitch analysis is active (sedef_tuner_setActive). */

@@ -39,8 +39,8 @@ in ─► HP 100 Hz (Q 0.55) ─► high shelf +6 dB @ 1 kHz ─► × G ─► 
 | `level` | 40 dB × (level − 0.5) (±20 dB) plus a gain-dependent trim, `trimDb(g) = −4.62 + 7.03 e^(−g/0.22)`, fitted so that at level 0.5 the guitar-like reference tone (eight harmonics of 147 Hz, −10 dBFS peak) comes out within ±0.3 dB of its input level at every gain. |
 
 Gains are ramped per sample (30 ms); filter coefficients are recomputed every 32 samples while
-their knob is moving. `latencySamples()` returns the oversampler's latency (37 samples at
-44.1/48 kHz, 31 at 88.2/96 kHz, 0 above).
+their knob is moving. `latencySamples()` returns the oversampler's latency
+(5 samples at 44.1/48 kHz, 3 at 88.2/96 kHz, 0 above; 37 and 31 in Linear phase, [oversampling.md](oversampling.md)).
 
 ## References
 

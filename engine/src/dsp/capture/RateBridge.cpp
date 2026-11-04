@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cmath>
+#include <complex>
 
 namespace sedef::dsp::capture
 {
@@ -48,6 +49,44 @@ std::int64_t nextPow2 (std::int64_t n) noexcept
     while (p < n)
         p <<= 1;
     return p;
+}
+
+/// In-place radix-2 FFT (N a power of two), double precision; the inverse is scaled by 1/N.
+/// Only used to build MinimumPhaseKernel, once.
+void fft (std::vector<std::complex<double>>& a, bool inverse)
+{
+    const std::size_t n = a.size();
+    for (std::size_t i = 1, j = 0; i < n; ++i)
+    {
+        std::size_t bit = n >> 1;
+        for (; (j & bit) != 0; bit >>= 1)
+            j ^= bit;
+        j ^= bit;
+        if (i < j)
+            std::swap (a[i], a[j]);
+    }
+    std::vector<std::complex<double>> twiddle (n / 2);
+    for (std::size_t k = 0; k < n / 2; ++k)
+    {
+        const double angle =
+            (inverse ? kTwoPiD : -kTwoPiD) * static_cast<double> (k) / static_cast<double> (n);
+        twiddle[k] = { std::cos (angle), std::sin (angle) };
+    }
+    for (std::size_t len = 2; len <= n; len <<= 1)
+    {
+        const std::size_t half = len / 2, stride = n / len;
+        for (std::size_t i = 0; i < n; i += len)
+            for (std::size_t k = 0; k < half; ++k)
+            {
+                const auto u = a[i + k];
+                const auto v = a[i + k + half] * twiddle[k * stride];
+                a[i + k] = u + v;
+                a[i + k + half] = u - v;
+            }
+    }
+    if (inverse)
+        for (auto& x : a)
+            x /= static_cast<double> (n);
 }
 
 struct Widths
@@ -93,6 +132,63 @@ void SincKernel::design (int zeroCrossings, double beta, int phases)
 
 // -------------------------------------------------------------------------------------------------
 
+MinimumPhaseKernel::MinimumPhaseKernel()
+{
+    // The linear-phase prototype, both sides: h[n] = g ((n - Z P) / P), n = 0 .. 2 Z P.
+    SincKernel linear;
+    linear.design (kZeroCrossings, RateBridge::kKaiserBeta, kPhases);
+    const std::int64_t centre = static_cast<std::int64_t> (kZeroCrossings) * kPhases;
+    const std::int64_t length = 2 * centre + 1;
+
+    // Real cepstrum, folded onto positive quefrencies, exponentiated back (Oppenheim and Schafer
+    // 12.8). Sixteen times the prototype's length keeps the cepstrum's aliasing below the float
+    // table's precision; the floor (-200 dB) only touches the stop band's nulls.
+    std::size_t n = 1;
+    while (n < 16 * static_cast<std::size_t> (length))
+        n <<= 1;
+    std::vector<std::complex<double>> a (n);
+    for (std::int64_t i = 0; i < length; ++i)
+        a[static_cast<std::size_t> (i)] = linear.atTableIndex (static_cast<double> (i - centre));
+    fft (a, false);
+    double peak = 0.0;
+    for (const auto& x : a)
+        peak = std::max (peak, std::abs (x));
+    for (auto& x : a)
+        x = std::log (std::max (std::abs (x), 1.0e-10 * peak));
+    fft (a, true);
+    for (std::size_t i = 1; i < n / 2; ++i)
+    {
+        a[i] = 2.0 * a[i].real();
+        a[n - i] = 0.0;
+    }
+    a[0] = a[0].real();
+    a[n / 2] = a[n / 2].real();
+    fft (a, false);
+    for (auto& x : a)
+        x = std::exp (x);
+    fft (a, true);
+
+    last_ = length - 1;
+    table_.assign (static_cast<std::size_t> (length) + 1, 0.0f);
+    double sum = 0.0, moment = 0.0;
+    for (std::int64_t i = 0; i < length; ++i)
+    {
+        const double h = a[static_cast<std::size_t> (i)].real();
+        table_[static_cast<std::size_t> (i)] = static_cast<float> (h);
+        sum += h;
+        moment += h * static_cast<double> (i);
+    }
+    delayZc_ = moment / sum / kPhases;
+}
+
+const MinimumPhaseKernel& MinimumPhaseKernel::standard()
+{
+    static const MinimumPhaseKernel kernel;
+    return kernel;
+}
+
+// -------------------------------------------------------------------------------------------------
+
 int RateBridge::minimumLatency (double hostRate, double modelRate, int zeroCrossings,
                                 double passband) noexcept
 {
@@ -115,6 +211,66 @@ int RateBridge::zeroCrossingsFor (double hostRate, double modelRate, int latency
     return 0;
 }
 
+double RateBridge::minimumPhaseDelay (double hostRate, double modelRate) noexcept
+{
+    const auto fh = wholeHertz (hostRate);
+    const auto fm = wholeHertz (modelRate);
+    if (fh == fm)
+        return 0.0;
+    // A zero crossing is 1 / c input samples: host samples going in, model samples coming back.
+    const auto w = widthsFor (fh, fm, 1, kDefaultPassband);
+    return MinimumPhaseKernel::kDelayZc *
+           (1.0 / w.cu + static_cast<double> (fh) / (w.cd * static_cast<double> (fm)));
+}
+
+int RateBridge::minimumPhaseLatency (double hostRate, double modelRate) noexcept
+{
+    return static_cast<int> (std::lround (minimumPhaseDelay (hostRate, modelRate)));
+}
+
+void RateBridge::allocate (std::int64_t hostSpan, std::int64_t modelSpan)
+{
+    const auto hostSize = nextPow2 (hostSpan);
+    hostHist_.assign (static_cast<std::size_t> (hostSize), 0.0f);
+    hostMask_ = hostSize - 1;
+    const auto modelSize = nextPow2 (modelSpan);
+    modelHist_.assign (static_cast<std::size_t> (modelSize), 0.0f);
+    modelMask_ = modelSize - 1;
+}
+
+void RateBridge::prepareMinimumPhase (double hostRate, double modelRate, int maxHostBlock,
+                                      int latency)
+{
+    fh_ = wholeHertz (hostRate);
+    fm_ = wholeHertz (modelRate);
+    if (passthrough())
+    {
+        prepare (hostRate, modelRate, maxHostBlock, latency);
+        return;
+    }
+    minimumPhase_ = true;
+    mpKernel_ = &MinimumPhaseKernel::standard();
+    maxHostBlock = std::max (1, maxHostBlock);
+
+    // The kernel is causal over twice the prototype's zero crossings: the spans reach back only.
+    const auto w = widthsFor (fh_, fm_, 2 * MinimumPhaseKernel::kZeroCrossings, kDefaultPassband);
+    cu_ = w.cu;
+    cd_ = w.cd;
+    wu_ = w.wu;
+    wd_ = w.wd;
+    const int delay = minimumPhaseLatency (hostRate, modelRate);
+    readDelay_ = std::max (0, latency - delay);
+    latency_ = readDelay_ + delay;
+    settle_ = latency_ + static_cast<int> (ceilDiv (wu_ + wd_, fm_)) + 1;
+    maxModelBlock_ =
+        static_cast<int> (floorDiv (static_cast<std::int64_t> (maxHostBlock) * fm_, fh_)) + 2;
+
+    allocate (maxHostBlock + ceilDiv (fh_, fm_) + ceilDiv (wu_, fm_) + 8,
+              ceilDiv (static_cast<std::int64_t> (maxHostBlock + readDelay_ + 2) * fm_, fh_) +
+                  ceilDiv (wd_, fh_) + maxModelBlock_ + 16);
+    reset();
+}
+
 void RateBridge::prepare (double hostRate, double modelRate, int maxHostBlock, int latency,
                           int zeroCrossings, double passband)
 {
@@ -122,6 +278,9 @@ void RateBridge::prepare (double hostRate, double modelRate, int maxHostBlock, i
     fm_ = wholeHertz (modelRate);
     maxHostBlock = std::max (1, maxHostBlock);
     latency_ = std::max (latency, minimumLatency (hostRate, modelRate, zeroCrossings, passband));
+    minimumPhase_ = false;
+    mpKernel_ = nullptr;
+    readDelay_ = latency_;
 
     if (passthrough())
     {
@@ -133,6 +292,7 @@ void RateBridge::prepare (double hostRate, double modelRate, int maxHostBlock, i
         modelHist_.assign (static_cast<std::size_t> (size), 0.0f);
         modelMask_ = size - 1;
         hostMask_ = 0;
+        settle_ = latency_;
         reset();
         return;
     }
@@ -143,6 +303,7 @@ void RateBridge::prepare (double hostRate, double modelRate, int maxHostBlock, i
     cd_ = w.cd;
     wu_ = w.wu;
     wd_ = w.wd;
+    settle_ = latency_ + static_cast<int> (ceilDiv (2 * (wu_ + wd_), fm_)) + 1;
     maxModelBlock_ =
         static_cast<int> (floorDiv (static_cast<std::int64_t> (maxHostBlock) * fm_, fh_)) + 2;
 
@@ -182,6 +343,32 @@ int RateBridge::toModel (const float* hostIn, int n, float* modelIn) noexcept
         hostHist_[static_cast<std::size_t> ((hostCount_ + s) & hostMask_)] = hostIn[s];
     hostCount_ += n;
 
+    if (minimumPhase_)
+    {
+        // Model sample k sits at time k fh and reads back over the kernel's span: the newest
+        // host sample it needs is the one at or before k fh.
+        const auto& kernel = *mpKernel_;
+        const double phases = MinimumPhaseKernel::kPhases;
+        const double step = cu_ * phases;
+        const std::int64_t limit = hostCount_ * fm_;
+        int m = 0;
+        while (nextModel_ * fh_ < limit && m < maxModelBlock_)
+        {
+            const std::int64_t tau = nextModel_ * fh_;
+            const std::int64_t hi = floorDiv (tau, fm_);
+            const std::int64_t lo = floorDiv (tau - wu_, fm_) + 1;
+            double x =
+                cu_ * (static_cast<double> (tau - hi * fm_) / static_cast<double> (fm_)) * phases;
+            float acc = 0.0f;
+            for (std::int64_t i = hi; i >= lo; --i, x += step)
+                acc +=
+                    hostHist_[static_cast<std::size_t> (i & hostMask_)] * kernel.atTableIndex (x);
+            modelIn[m++] = acc * static_cast<float> (cu_);
+            ++nextModel_;
+        }
+        return m;
+    }
+
     const double phases = kernel_.phases();
     const double step = cu_ * phases;
     const std::int64_t limit = hostCount_ * fm_;
@@ -215,6 +402,30 @@ void RateBridge::fromModel (const float* modelOut, int m, float* hostOut, int n)
         for (int s = 0; s < n; ++s)
             hostOut[s] =
                 modelHist_[static_cast<std::size_t> ((nextHost_ + s - latency_) & modelMask_)];
+        nextHost_ += n;
+        return;
+    }
+
+    if (minimumPhase_)
+    {
+        // Output j carries time (j - readDelay) fm and reads model samples back from there.
+        const auto& kernel = *mpKernel_;
+        const double phases = MinimumPhaseKernel::kPhases;
+        const double step = cd_ * phases;
+        for (int s = 0; s < n; ++s)
+        {
+            const std::int64_t sigma = (nextHost_ + s - readDelay_) * fm_;
+            const std::int64_t hi = floorDiv (sigma, fh_);
+            const std::int64_t lo = floorDiv (sigma - wd_, fh_) + 1;
+            assert (hi < modelCount_);
+            double x =
+                cd_ * (static_cast<double> (sigma - hi * fh_) / static_cast<double> (fh_)) * phases;
+            float acc = 0.0f;
+            for (std::int64_t k = hi; k >= lo; --k, x += step)
+                acc +=
+                    modelHist_[static_cast<std::size_t> (k & modelMask_)] * kernel.atTableIndex (x);
+            hostOut[s] = acc * static_cast<float> (cd_);
+        }
         nextHost_ += n;
         return;
     }

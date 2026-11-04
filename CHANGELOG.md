@@ -8,6 +8,35 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **Five filter and modulation pedals**, each with its own enclosure on the Pedals page:
+  - **Anemone**, an envelope filter: low-, band- or high-pass that opens (or closes) with your
+    picking, with a fast attack and a slower release for funk
+    ([docs/dsp/anemone.md](docs/dsp/anemone.md)).
+  - **Conch**, an inductor wah: Position is the rocker (automatable), Resonance sets the peak, and
+    Auto rocks the pedal from your picking ([docs/dsp/conch.md](docs/dsp/conch.md)).
+  - **Beacon**, a photocell vibe: four staggered stages and a lamp that throbs rather than sways,
+    in Chorus or Vibrato ([docs/dsp/beacon.md](docs/dsp/beacon.md)).
+  - **Gyre**, a phaser with 4 or 6 stages and Feedback ([docs/dsp/gyre.md](docs/dsp/gyre.md)).
+  - **Jetty**, a bucket-brigade flanger with Feedback in either polarity
+    ([docs/dsp/jetty.md](docs/dsp/jetty.md)).
+
+  Anemone and Conch go between Trench and Remora, before the drives; Beacon, Gyre and Jetty after
+  the drives, before Ripple. All five are off by default and add no latency, so existing sessions
+  and presets sound the same.
+- New parameters (176 → 201): `anemoneEnabled`, `anemoneSensitivity`, `anemoneRange`,
+  `anemoneResonance`, `anemoneMode`, `anemoneDirection`, `conchEnabled`, `conchMode`,
+  `conchPosition`, `conchResonance`, `conchSensitivity`, `beaconEnabled`, `beaconSpeed`,
+  `beaconDepth`, `beaconMode`, `gyreEnabled`, `gyreSpeed`, `gyreDepth`, `gyreFeedback`,
+  `gyreStages`, `jettyEnabled`, `jettySpeed`, `jettyDepth`, `jettyDelay`, `jettyFeedback`.
+- **Sea Lantern** factory preset: Lagoon pushed by Coral into the Beacon vibe, with a plate.
+
+## [0.4.0] - 2026-11-04
+
+Abyss is tight instead of fuzzy, and six new pedals: a mid-hump overdrive, an octave-up fuzz, an
+analog-style octave down, a two-transistor fuzz, a sustain fuzz and a treble booster.
+
+### Added
+
 - **Three new pedals** on the pedals page, in signal order ([architecture](docs/architecture.md)):
   - **Trench**, an analog-style octave down: one and two octaves below the note you play, from
     a divider that tracks single notes and fades its subs out on chords and silence instead of
@@ -23,7 +52,7 @@ All notable changes to this project are documented here. The format follows
 - New parameters: `kelpEnabled`, `kelpDrive`, `kelpTone`, `kelpLevel`, `urchinEnabled`,
   `urchinFuzz`, `urchinOctave`, `urchinTone`, `urchinLevel`, `trenchEnabled`, `trenchDirect`,
   `trenchSub1`, `trenchSub2`, `trenchTone`.
-- **Remora**, a two-transistor feedback fuzz, at the front of the board after Trench and the filters.
+- **Remora**, a two-transistor feedback fuzz, right behind Trench at the front of the board.
   Germanium is soft and warm, silicon harder, brighter and louder; Bias moves from a gated,
   sputtering starve through symmetric at noon to hot; Guitar volume stands in for the guitar's own
   knob, and rolling it back cleans the fuzz up (from 42 % to 7 % distortion between 10 and 5, only
@@ -39,27 +68,6 @@ All notable changes to this project are documented here. The format follows
 - New parameters: `remoraEnabled`, `remoraFuzz`, `remoraVolume`, `remoraBias`,
   `remoraGuitarVolume`, `remoraTransistor`, `sargassoEnabled`, `sargassoSustain`, `sargassoTone`,
   `sargassoVolume`, `breakerEnabled`, `breakerBoost`, `breakerRange` (163 → 176).
-- **Five filter and modulation pedals**, each with its own enclosure on the Pedals page:
-  - **Anemone**, an envelope filter: low-, band- or high-pass that opens (or closes) with your
-    picking, with a fast attack and a slower release for funk
-    ([docs/dsp/anemone.md](docs/dsp/anemone.md)).
-  - **Conch**, an inductor wah: Position is the rocker (automatable), Resonance sets the peak, and
-    Auto rocks the pedal from your picking ([docs/dsp/conch.md](docs/dsp/conch.md)).
-  - **Beacon**, a photocell vibe: four staggered stages and a lamp that throbs rather than sways,
-    in Chorus or Vibrato ([docs/dsp/beacon.md](docs/dsp/beacon.md)).
-  - **Gyre**, a phaser with 4 or 6 stages and Feedback ([docs/dsp/gyre.md](docs/dsp/gyre.md)).
-  - **Jetty**, a bucket-brigade flanger with Feedback in either polarity
-    ([docs/dsp/jetty.md](docs/dsp/jetty.md)).
-
-  Anemone and Conch sit after Trench, before Remora and the other drives; Beacon, Gyre and Jetty
-  after the drives, before Ripple. All five are off by default and add no latency, so existing sessions
-  and presets sound the same.
-- New parameters (176 → 201): `anemoneEnabled`, `anemoneSensitivity`, `anemoneRange`,
-  `anemoneResonance`, `anemoneMode`, `anemoneDirection`, `conchEnabled`, `conchMode`,
-  `conchPosition`, `conchResonance`, `conchSensitivity`, `beaconEnabled`, `beaconSpeed`,
-  `beaconDepth`, `beaconMode`, `gyreEnabled`, `gyreSpeed`, `gyreDepth`, `gyreFeedback`,
-  `gyreStages`, `jettyEnabled`, `jettySpeed`, `jettyDepth`, `jettyDelay`, `jettyFeedback`.
-- **Sea Lantern** factory preset: Lagoon pushed by Coral into the Beacon vibe, with a plate.
 
 ### Changed
 
@@ -81,8 +89,6 @@ All notable changes to this project are documented here. The format follows
 - Remora, Sargasso and Breaker add another 111 samples at 48 kHz (298 for the whole rig, 6.2 ms):
   each is oversampled and, like the other drives, keeps its latency when switched off, so
   switching them never moves the timeline.
-- The pedals board centres a row that fits, leaves room for the enclosures' shadows and brings a
-  control that keyboard focus lands on at its edge fully into view.
 
 ## [0.3.0] - 2026-11-03
 
@@ -273,7 +279,8 @@ The first public build: a complete guitar rig with a tuner and an intonation wor
 - Every CI build is checked with pluginval (strictness 8), clap-validator and auval, and a smoke
   test opens the editor in a real host and WebView on every OS.
 
-[Unreleased]: https://github.com/mr-kaynak/sedef-amp/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/mr-kaynak/sedef-amp/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/mr-kaynak/sedef-amp/releases/tag/v0.1.0

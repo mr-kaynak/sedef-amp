@@ -271,10 +271,13 @@ std::unique_ptr<CaptureModel> CaptureFile::instantiate (const CaptureSpec& spec,
                                                         std::string* error) const
 {
     const auto& info = impl_->v.info;
+    const bool minimumPhase = spec.oversampling == OversamplingMode::lowLatency;
     const int zeroCrossings = capture::RateBridge::zeroCrossingsFor (
         spec.sampleRate, info.sampleRate, spec.latencySamples);
     const bool sameRate = std::llround (spec.sampleRate) == std::llround (info.sampleRate);
-    if (!sameRate && zeroCrossings == 0)
+    // A minimum-phase bridge plays at any latency: one too short for a capture made below
+    // 44.1 kHz makes it a little late instead (docs/dsp/nam.md, "Sample rate and latency").
+    if (!sameRate && !minimumPhase && zeroCrossings == 0)
     {
         if (error != nullptr)
             *error = "This capture can't play at " +
@@ -287,8 +290,13 @@ std::unique_ptr<CaptureModel> CaptureFile::instantiate (const CaptureSpec& spec,
         auto& m = *model->impl_;
         m.file = shared_from_this();
         m.spec = spec;
-        m.bridge.prepare (spec.sampleRate, info.sampleRate, spec.maxBlockSize, spec.latencySamples,
-                          sameRate ? capture::RateBridge::kDefaultZeroCrossings : zeroCrossings);
+        if (minimumPhase)
+            m.bridge.prepareMinimumPhase (spec.sampleRate, info.sampleRate, spec.maxBlockSize,
+                                          spec.latencySamples);
+        else
+            m.bridge.prepare (
+                spec.sampleRate, info.sampleRate, spec.maxBlockSize, spec.latencySamples,
+                sameRate ? capture::RateBridge::kDefaultZeroCrossings : zeroCrossings);
         m.modelIn.assign (static_cast<std::size_t> (m.bridge.maxModelBlock()), 0.0f);
         m.modelOut.assign (m.modelIn.size(), 0.0f);
         m.dsp = build (impl_->v.data);
@@ -299,13 +307,14 @@ std::unique_ptr<CaptureModel> CaptureFile::instantiate (const CaptureSpec& spec,
         const double hostPerModel = spec.sampleRate / info.sampleRate;
         m.settleSamples = static_cast<int> (std::ceil (static_cast<double> (info.receptiveField) *
                                                        hostPerModel)) +
-                          spec.latencySamples + 64;
+                          std::max (spec.latencySamples, m.bridge.settleSamples()) + 64;
         // The model rests where Reset() left it; silence through the rate conversion puts that
         // resting output (a capture may sit at an offset) into its history too, so the first
         // block starts there instead of stepping up to it after the latency.
         const auto block = static_cast<std::size_t> (std::max (1, spec.maxBlockSize));
         std::vector<float> silence (block, 0.0f), scratch (block);
-        for (int left = 2 * spec.latencySamples; left > 0; left -= static_cast<int> (block))
+        for (int left = std::max (2 * spec.latencySamples, m.bridge.settleSamples()); left > 0;
+             left -= static_cast<int> (block))
             model->process (silence.data(), scratch.data(),
                             std::min (left, static_cast<int> (block)));
         return model;

@@ -144,4 +144,31 @@ double measureGainDb (ProcessFn&& process, double hz, double fs, int frames = 16
     return 20.0 * std::log10 (std::max (out, 1e-12) / amp);
 }
 
+/// Phase (radians) of one frequency component, Hann-windowed; sample 0 is time 0.
+inline double tonePhase (const float* d, int n, double hz, double fs)
+{
+    const double w = kTwoPiD * hz / fs;
+    double re = 0.0, im = 0.0;
+    for (int i = 0; i < n; ++i)
+    {
+        const double win = 0.5 - 0.5 * std::cos (kTwoPiD * i / (n - 1));
+        re += win * d[i] * std::cos (w * i);
+        im -= win * d[i] * std::sin (w * i);
+    }
+    return std::atan2 (im, re);
+}
+
+/// How many samples `out` lags `in` at one frequency (the phase delay, steady state over the
+/// same n samples of both), taken on the branch nearest `expected`.
+inline double toneDelaySamples (const float* in, const float* out, int n, double hz, double fs,
+                                double expected = 0.0)
+{
+    const double w = kTwoPiD * hz / fs;
+    const double lag = tonePhase (in, n, hz, fs) - tonePhase (out, n, hz, fs);
+    const double period = kTwoPiD / w;
+    double d = lag / w;
+    d += period * std::round ((expected - d) / period);
+    return d;
+}
+
 } // namespace sedef::test

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 #pragma once
 
+#include "sedef/core/AudioView.h"
 #include "sedef/core/SpscRing.h"
 #include "sedef/core/Transport.h"
 #include "sedef/params/Parameters.h"
@@ -49,11 +50,17 @@ public:
     void prepare (double sampleRate, int maxBlockSize, int numInputs, int numOutputs);
     void reset();
 
+    /// How the nonlinear stages oversample (docs/dsp/oversampling.md). Not real time: it takes
+    /// effect at the next prepare(), which changes latencySamples().
+    void setOversampling (OversamplingMode mode) noexcept { oversampling_.store (mode); }
+    OversamplingMode oversampling() const noexcept { return oversampling_.load(); }
+
     /// Audio thread. Any frame count; long blocks are processed in prepared-size chunks.
     void process (const float* const* inputs, float* const* outputs, int numFrames,
                   const ParamSnapshot& params, const Transport& transport) noexcept;
 
-    /// Constant for a given prepare() (oversampled stages are always latency-aligned).
+    /// Constant for a given prepare() (oversampled stages are always latency-aligned): the
+    /// low-frequency delay of the whole rig, whatever is switched on.
     /// These getters are safe from any thread.
     int latencySamples() const noexcept { return latency_.load (std::memory_order_acquire); }
     double sampleRate() const noexcept { return sampleRate_.load (std::memory_order_acquire); }
@@ -103,6 +110,7 @@ private:
     std::atomic<int> numInputs_ { 1 };
     std::atomic<int> numOutputs_ { 2 };
     std::atomic<int> latency_ { 0 };
+    std::atomic<OversamplingMode> oversampling_ { OversamplingMode::lowLatency };
 };
 
 } // namespace sedef

@@ -6,6 +6,7 @@
 //   sedef-render --in my-di.wav --set ampModel=2 --set abyssGain=0.8 --out lead.wav
 //   sedef-render --check presets/factory/*.sedefpreset
 //   sedef-render --capture amp.nam --set captureCab=0 --out capture.wav
+//   sedef-render --preset presets/factory/nacre.sedefpreset --set oversampling=1 --out lin.wav
 //
 // Without --in, a synthetic guitar DI (plucked-string chords and single notes) is used.
 
@@ -274,6 +275,11 @@ RenderResult render (const std::vector<float>& input, double fs, const ParamSnap
                      int block = 256, const dsp::CaptureFile* capture = nullptr)
 {
     Engine engine;
+    // The oversampling is a session setting the engine takes at prepare (--set oversampling=1
+    // renders in linear phase).
+    engine.setOversampling (params.choice (ParamId::oversampling) == 1
+                                ? OversamplingMode::linearPhase
+                                : OversamplingMode::lowLatency);
     engine.prepare (fs, block, 1, 2);
     if (capture != nullptr)
         for (int c = 0; c < engine.numCabs(); ++c)

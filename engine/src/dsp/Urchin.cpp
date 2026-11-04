@@ -85,7 +85,8 @@ void Urchin::prepare (const ProcessSpec& spec)
     sampleRate_ = spec.sampleRate;
     numChannels_ = std::clamp (spec.numChannels, 1, kMaxChannels);
     maxBlockSize_ = std::max (spec.maxBlockSize, 1);
-    oversampler_.prepare (maxBlockSize_, numChannels_, Oversampler::factorLog2For (sampleRate_));
+    oversampler_.prepare (maxBlockSize_, numChannels_, Oversampler::factorLog2For (sampleRate_),
+                          spec.oversampling);
 
     const double osRate = sampleRate_ * oversampler_.factor();
     couplingPole_ = std::exp (-kTwoPiD * kCouplingHz / osRate);

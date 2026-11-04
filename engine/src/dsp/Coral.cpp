@@ -75,8 +75,8 @@ void Coral::prepare (const ProcessSpec& spec)
     sampleRate_ = spec.sampleRate;
     numChannels_ = std::clamp (spec.numChannels, 1, kMaxChannels);
     maxBlockSize_ = std::max (spec.maxBlockSize, 1);
-    oversampler_.prepare (spec.maxBlockSize, numChannels_,
-                          Oversampler::factorLog2For (sampleRate_));
+    oversampler_.prepare (spec.maxBlockSize, numChannels_, Oversampler::factorLog2For (sampleRate_),
+                          spec.oversampling);
 
     driveGain_.reset (sampleRate_, kGainRampSeconds);
     outputGain_.reset (sampleRate_, kGainRampSeconds);

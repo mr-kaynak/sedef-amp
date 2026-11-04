@@ -1,6 +1,7 @@
 # ADR-0008: Oversampling strategy
 
-Status: Accepted
+Status: Accepted; the default filters are superseded by
+[ADR-0009](0009-minimum-phase-oversampling.md), which keeps these as the Linear phase option.
 
 ## Context
 

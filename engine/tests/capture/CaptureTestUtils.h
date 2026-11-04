@@ -203,11 +203,11 @@ inline std::shared_ptr<const dsp::CaptureFile> parseOrFail (const std::string& t
 /// A stage prepared for mono at `fs` with the built-in amp's latency at that rate.
 struct StageRig
 {
-    StageRig (double fs, int block)
+    StageRig (double fs, int block, OversamplingMode mode = OversamplingMode::lowLatency)
     {
-        amp.prepare ({ fs, block, 1 });
+        amp.prepare ({ fs, block, 1, mode });
         cab.prepare ({ fs, block, 2 });
-        stage.prepare ({ fs, block, 1 }, amp.latencySamples());
+        stage.prepare ({ fs, block, 1, mode }, amp.latencySamples());
         maxBlock = block;
     }
 

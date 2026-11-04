@@ -25,7 +25,7 @@ Pearl stays transparent at low gain; Kelp always has its hump.
 ## Signal flow
 
 ```
-in ─► HP 20 Hz (input coupling) ─┬──────────── delay (= oversampler latency) ───────────┐
+in ─► HP 20 Hz (input coupling) ─┬─────────── aligned (oversampler round trip) ─────────┐
                                   │                                                       │
                                   └─► HP 720 Hz (R4 C3) ─► × Rf/R4 ─► LP 1/(2π Rf Cf) ─►   │
                                       [4× oversampled] diodes: v + a sinh v = w           │
@@ -62,7 +62,9 @@ in ─► HP 20 Hz (input coupling) ─┬──────────── d
   with `G = ωp/ωz`, so it runs as a fixed 5 kHz high-pass blended in with a per-sample smoothed
   gain: turning the knob never touches a filter coefficient (recomputing the shelf every 32 samples
   measured 12× the static click indicator in the sweep test).
-- The clean term is delayed by exactly the oversampler latency so the two paths sum coherently.
+- The clean term takes the oversampler's round trip without the clipper (`AlignedDryPath`: a delay
+  of the latency in Linear phase, the same IIR up and down in Low latency), so the two paths sum
+  coherently at every frequency.
 
 ## Control mapping
 
@@ -73,8 +75,8 @@ in ─► HP 20 Hz (input coupling) ─┬──────────── d
 | `level` | 40 dB × (level − 0.5) (±20 dB) plus a trim, `trimDb(d) = −4.11 − 1.26 d`, fitted so that at level 0.5 the reference tone (eight harmonics of 147 Hz, −10 dBFS peak) comes out within ±0.1 dB of its input level at every drive. |
 
 Gains ramp per sample over 30 ms; the drive's filter corner and diode curve follow a 20 ms
-smoother, updated every 32 samples. `latencySamples()` returns the oversampler's latency (37
-samples at 44.1/48 kHz, 31 at 88.2/96 kHz, 0 above).
+smoother, updated every 32 samples. `latencySamples()` returns the oversampler's latency
+(5 samples at 44.1/48 kHz, 3 at 88.2/96 kHz, 0 above; 37 and 31 in Linear phase, [oversampling.md](oversampling.md)).
 
 ## Measurements (48 kHz)
 

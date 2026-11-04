@@ -97,8 +97,12 @@ namespace
 {
 struct Rig
 {
-    Rig (double fs, int blockSize, int ins, int outs) : in (ins, 1 << 16), out (outs, 1 << 16)
+    Rig (double fs, int blockSize, int ins, int outs,
+         OversamplingMode mode = OversamplingMode::lowLatency)
+        : in (ins, 1 << 16),
+          out (outs, 1 << 16)
     {
+        engine.setOversampling (mode);
         engine.prepare (fs, blockSize, ins, outs);
         block = blockSize;
     }
@@ -724,11 +728,13 @@ TEST_CASE ("Switching the fuzzes and booster on and off is click-free", "[engine
     // thump from the restart, no comb from a misaligned dry path. Reference: the steady "off" and
     // "on" renders, crossfaded ideally. A guitar-like tone (147 Hz and seven harmonics).
     constexpr int kSwitch = 24000, kFade = 480;
+    const auto oversampling =
+        GENERATE (OversamplingMode::lowLatency, OversamplingMode::linearPhase);
     for (auto enable :
          { ParamId::remoraEnabled, ParamId::sargassoEnabled, ParamId::breakerEnabled })
     {
-        const auto render = [enable] (int mode) { // 0 off, 1 on, 2 switched on at kSwitch
-            Rig rig (48000.0, 64, 1, 2);
+        const auto render = [enable, oversampling] (int mode) { // 0 off, 1 on, 2 on at kSwitch
+            Rig rig (48000.0, 64, 1, 2, oversampling);
             for (size_t i = 0; i < rig.in[0].size(); ++i)
             {
                 double v = 0.0;
@@ -752,17 +758,21 @@ TEST_CASE ("Switching the fuzzes and booster on and off is click-free", "[engine
         const auto off = render (0);
         const auto on = render (1);
         const auto switched = render (2);
-        const int latency = [] {
+        const int latency = [oversampling] {
             Engine e;
+            e.setOversampling (oversampling);
             e.prepare (48000.0, 64, 1, 2);
             return e.latencySamples();
         }();
 
-        // Where the fade shows up in the output depends on the latency after the pedal; find it.
-        const size_t from = kSwitch - 64, to = static_cast<size_t> (kSwitch + latency + 3 * kFade);
+        // Where the fade shows up in the output depends on the latency after the pedal, and on
+        // the amp's and cab's own delay (its voicing filters, the mic's distance from the cone);
+        // find it.
+        const int search = latency + 192;
+        const size_t from = kSwitch - 64, to = static_cast<size_t> (kSwitch + search + 3 * kFade);
         std::vector<float> ideal (switched.size());
         float worstError = 1.0e9f;
-        for (int start = 0; start <= latency; ++start)
+        for (int start = 0; start <= search; ++start)
         {
             std::vector<float> candidate (switched.size());
             float error = 0.0f;
@@ -789,7 +799,8 @@ TEST_CASE ("Switching the fuzzes and booster on and off is click-free", "[engine
             idealEdge = std::max (idealEdge, d2 (ideal, i));
             top = std::max (top, std::abs (ideal[i]));
         }
-        CAPTURE (static_cast<int> (enable), worstEdge, idealEdge, worstError, top);
+        CAPTURE (static_cast<int> (oversampling), static_cast<int> (enable), worstEdge, idealEdge,
+                 worstError, top);
         CHECK (worstEdge <= 1.25f * idealEdge);
         // The restarted pedal settles within the fade (its filters and bias start from rest), so
         // the switch is not exactly the ideal crossfade; a dry path off by the oversampler's

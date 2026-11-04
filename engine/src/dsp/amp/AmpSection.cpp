@@ -160,9 +160,9 @@ AmpSection::~AmpSection() = default;
 void AmpSection::prepare (const ProcessSpec& spec)
 {
     auto& d = *impl_;
-    d.lagoon.prepare (spec.sampleRate);
-    d.reef.prepare (spec.sampleRate);
-    d.abyss.prepare (spec.sampleRate);
+    d.lagoon.prepare (spec.sampleRate, spec.oversampling);
+    d.reef.prepare (spec.sampleRate, spec.oversampling);
+    d.abyss.prepare (spec.sampleRate, spec.oversampling);
     for (auto& s : d.scratch)
         s.assign (static_cast<size_t> (kControlBlock), 0.0f);
     d.fade.reset (spec.sampleRate, kModelFadeSeconds);

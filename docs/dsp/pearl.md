@@ -13,7 +13,7 @@ cleans it up.
 ## Signal flow
 
 ```
-in ─► HP 20 Hz ─► mid boost (peak 850 Hz) ─┬─────────── delay (= oversampler latency) ──┐
+in ─► HP 20 Hz ─► mid boost (peak 850 Hz) ─┬────────── aligned (oversampler round trip) ┐
                                             │                                            │
                                             └─► HP 650 Hz ─► × G ─► LP (14→5 kHz) ─►     │
                                                 [4× oversampled] feedback-diode limiter  │
@@ -33,7 +33,9 @@ in ─► HP 20 Hz ─► mid boost (peak 850 Hz) ─┬────────
   first-order antiderivative anti-aliasing (closed-form antiderivative, evaluated in double).
   Inharmonic products of a 1.3 kHz or 2.6 kHz note at full gain stay below −68 dB re the
   fundamental at 44.1/48 kHz (−40…−50 dB with oversampling alone).
-- The clean path is delayed by exactly the oversampler latency so the two paths sum coherently
+- The clean path takes the oversampler's round trip without the clipper (`AlignedDryPath`: a
+  delay of the latency in Linear phase, the same IIR up and down in Low latency), so the two
+  paths sum coherently at every frequency
   (the ADAA's half-sample delay at the oversampled rate, 1/8 of a base sample at 4×, is negligible).
 
 ## Control mapping
@@ -46,8 +48,8 @@ in ─► HP 20 Hz ─► mid boost (peak 850 Hz) ─┬────────
 | `level` | 40 dB × (level − 0.5) (±20 dB) plus a gain-dependent trim, `trimDb(g) = −2.26 − 7.7 g + 3.44 g²`, fitted so that at level 0.5 a guitar-like reference tone (eight harmonics of 147 Hz, −10 dBFS peak) comes out at −0.5 dB (gain 0), 0 dB (gain 0.5) and +1 dB (gain 1). |
 
 Gains are ramped per sample (30 ms); filter coefficients are recomputed every 32 samples while
-their knob is moving. `latencySamples()` returns the oversampler's latency (37 samples at
-44.1/48 kHz, 31 at 88.2/96 kHz, 0 above).
+their knob is moving. `latencySamples()` returns the oversampler's latency
+(5 samples at 44.1/48 kHz, 3 at 88.2/96 kHz, 0 above; 37 and 31 in Linear phase, [oversampling.md](oversampling.md)).
 
 Measured at gain 0.5, sine at 0.2 FS: THD 4.9 % at 82 Hz vs 19 % at 750 Hz (low end clean); at
 196 Hz THD goes 2.6 % → 13 % → 16 % for 0.05/0.2/0.5 FS input (touch sensitivity).

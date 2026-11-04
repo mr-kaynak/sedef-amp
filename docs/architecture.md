@@ -254,7 +254,7 @@ the start of a block. `BoardSwitch` takes every chain's rack to it without click
 **Latency** is constant whatever is on the board, so the host's delay compensation never
 changes mid-session. The rig reports the latency of every pedal together (the oversampled
 drives), and the rack pads whatever the board's pedals don't use with one compensating delay.
-At 48 kHz that is 298 samples, the same as the fixed chain.
+It equals what the fixed chain reported, so sessions saved before the board keep their timing.
 
 Measured by `[.board-measure]` (`engine/tests/board/BoardMeasure.cpp`): the legacy board turned
 into Gate, Pearl, Tide, Coral, Ripple (Pearl moves in front of Tide, the six pedals that are off

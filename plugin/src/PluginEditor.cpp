@@ -717,9 +717,9 @@ constexpr const char* kSmokePresetScript = R"js((() => {
     const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
     const startBoard = hello.board.pedals;
     const reversed = [...startBoard].reverse();
-    await call('sedef_presets_snapshot', 'browse');
     const setAnswer = await call('sedef_board_set', [...reversed, 'no-such-pedal', reversed[0]]);
     const boardSet = same(setAnswer.pedals, reversed) && (await call('sedef_presets_list')).dirty;
+    await call('sedef_presets_snapshot', 'browse'); // the browser opens on the reversed board
     // Mariana was saved before the board: the legacy board, as the fresh instance had. Benthic
     // brings its own.
     await call('sedef_presets_load', 'factory:mariana', true);

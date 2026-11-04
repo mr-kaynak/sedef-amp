@@ -8,6 +8,32 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **Pedalboard:** the Pedals page is a board. Add pedals from a picker grouped by category, take
+  them off (with Undo), and drag them into any order by their handle, or move them with the
+  arrow keys or the move buttons. The board is saved with the session and with presets, and
+  A/B, preset Undo and the browser's audition carry it. Pedals off the board cost no CPU, and
+  the plug-in's latency stays the same whatever is on it. A reorder is a short duck (about
+  12 ms) rather than a click; adding and removing use each pedal's bypass fade
+  ([docs/architecture.md](docs/architecture.md#the-pedalboard)).
+- The Gate is a board pedal, first by default; it still listens to the guitar wherever it sits.
+- `sedef-render --board gate,tide,…` renders through a given board (without it, a preset's own
+  board), and `--switch 2.5=ripple,gate,…` changes the board mid-render.
+
+### Changed
+
+- Sessions and presets saved before the board (0.4.0 and earlier) open with the fixed chain it
+  replaces (Gate, Trench, Remora, Tide, Urchin, Sargasso, Pearl, Kelp, Coral, Ripple, Breaker;
+  0.3.0 had Gate, Tide, Pearl, Coral and Ripple, in that order) and sound exactly as they did.
+- The Pedals tab shows a lamp for each pedal on the board, in its order.
+- Holdfast, Thermocline and Benthic carry boards with just the pedals they use.
+
+## [0.4.0] - 2026-11-04
+
+Abyss is tight instead of fuzzy, and six new pedals: a mid-hump overdrive, an octave-up fuzz, an
+analog-style octave down, a two-transistor fuzz, a sustain fuzz and a treble booster.
+
+### Added
+
 - **Three new pedals** on the pedals page, in signal order ([architecture](docs/architecture.md)):
   - **Trench**, an analog-style octave down: one and two octaves below the note you play, from
     a divider that tracks single notes and fades its subs out on chords and silence instead of
@@ -39,16 +65,6 @@ All notable changes to this project are documented here. The format follows
 - New parameters: `remoraEnabled`, `remoraFuzz`, `remoraVolume`, `remoraBias`,
   `remoraGuitarVolume`, `remoraTransistor`, `sargassoEnabled`, `sargassoSustain`, `sargassoTone`,
   `sargassoVolume`, `breakerEnabled`, `breakerBoost`, `breakerRange` (163 → 176).
-- **Pedalboard:** the Pedals page is a board. Add pedals from a picker grouped by category, take
-  them off (with Undo), and drag them into any order by their handle, or move them with the
-  arrow keys or the move buttons. The board is saved with the session and with presets, and
-  A/B, preset Undo and the browser's audition carry it. Pedals off the board cost no CPU, and
-  the plug-in's latency stays the same whatever is on it. A reorder is a short duck (about
-  12 ms) rather than a click; adding and removing use each pedal's bypass fade
-  ([docs/architecture.md](docs/architecture.md#the-pedalboard)).
-- The Gate is a board pedal, first by default; it still listens to the guitar wherever it sits.
-- `sedef-render --board gate,tide,…` renders through a given board (without it, a preset's own
-  board), and `--switch 2.5=ripple,gate,…` changes the board mid-render.
 
 ### Changed
 
@@ -70,11 +86,6 @@ All notable changes to this project are documented here. The format follows
 - Remora, Sargasso and Breaker add another 111 samples at 48 kHz (298 for the whole rig, 6.2 ms):
   each is oversampled and, like the other drives, keeps its latency when switched off, so
   switching them never moves the timeline.
-- Sessions and presets saved before the board open with the fixed chain it replaces (Gate,
-  Trench, Remora, Tide, Urchin, Sargasso, Pearl, Kelp, Coral, Ripple, Breaker; 0.3.0 had Gate,
-  Tide, Pearl, Coral and Ripple, in that order) and sound exactly as they did.
-- The Pedals tab shows a lamp for each pedal on the board, in its order.
-- Holdfast, Thermocline and Benthic carry boards with just the pedals they use.
 
 ## [0.3.0] - 2026-11-03
 
@@ -265,7 +276,8 @@ The first public build: a complete guitar rig with a tuner and an intonation wor
 - Every CI build is checked with pluginval (strictness 8), clap-validator and auval, and a smoke
   test opens the editor in a real host and WebView on every OS.
 
-[Unreleased]: https://github.com/mr-kaynak/sedef-amp/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/mr-kaynak/sedef-amp/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/mr-kaynak/sedef-amp/releases/tag/v0.1.0

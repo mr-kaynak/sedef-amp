@@ -8,6 +8,21 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **Three new pedals** on the pedals page, in signal order ([architecture](docs/architecture.md)):
+  - **Trench**, an analog-style octave down: one and two octaves below the note you play, from
+    a divider that tracks single notes and fades its subs out on chords and silence instead of
+    sputtering. Sub −1, Sub −2, Direct and Tone. It sits first, right after the gate, where it
+    hears the clean guitar ([docs/dsp/trench.md](docs/dsp/trench.md)).
+  - **Urchin**, an octave-up fuzz modelled on the transformer-and-diodes circuit: Fuzz, Octave,
+    Tone and Level. Like the original, its octave rings clearest on single notes on the neck
+    pickup, above the 12th fret ([docs/dsp/urchin.md](docs/dsp/urchin.md)).
+  - **Kelp**, the classic mid-hump overdrive: Drive, Tone and Level. Drive down and Level up, it
+    is the mid-pushed boost that tightens a high-gain amp ([docs/dsp/kelp.md](docs/dsp/kelp.md)).
+- New factory presets: **Holdfast** (Kelp boosting Abyss), **Thermocline** (an octave-up fuzz
+  lead) and **Benthic** (riffs doubled an octave below). New preset tags: `fuzz`, `octave`.
+- New parameters: `kelpEnabled`, `kelpDrive`, `kelpTone`, `kelpLevel`, `urchinEnabled`,
+  `urchinFuzz`, `urchinOctave`, `urchinTone`, `urchinLevel`, `trenchEnabled`, `trenchDirect`,
+  `trenchSub1`, `trenchSub2`, `trenchTone`.
 - **Five filter and modulation pedals**, each with its own enclosure on the Pedals page:
   - **Anemone**, an envelope filter: low-, band- or high-pass that opens (or closes) with your
     picking, with a fast attack and a slower release for funk
@@ -20,16 +35,35 @@ All notable changes to this project are documented here. The format follows
   - **Jetty**, a bucket-brigade flanger with Feedback in either polarity
     ([docs/dsp/jetty.md](docs/dsp/jetty.md)).
 
-  Anemone and Conch sit before the drives, Beacon, Gyre and Jetty after them, before Ripple. All
-  five are off by default, so existing sessions and presets sound the same.
-- New parameters (174 in all): `anemoneEnabled`, `anemoneSensitivity`, `anemoneRange`,
+  Anemone and Conch sit after Trench, before Tide and the drives; Beacon, Gyre and Jetty after
+  the drives, before Ripple. All five are off by default and add no latency, so existing sessions
+  and presets sound the same.
+- New parameters (188 in all): `anemoneEnabled`, `anemoneSensitivity`, `anemoneRange`,
   `anemoneResonance`, `anemoneMode`, `anemoneDirection`, `conchEnabled`, `conchMode`,
   `conchPosition`, `conchResonance`, `conchSensitivity`, `beaconEnabled`, `beaconSpeed`,
   `beaconDepth`, `beaconMode`, `gyreEnabled`, `gyreSpeed`, `gyreDepth`, `gyreFeedback`,
   `gyreStages`, `jettyEnabled`, `jettySpeed`, `jettyDepth`, `jettyDelay`, `jettyFeedback`.
 - **Sea Lantern** factory preset: Lagoon pushed by Coral into the Beacon vibe, with a plate.
-- The Pedals board lays the pedals out in signal order and scrolls sideways when they don't fit;
-  the next pedal peeks in at the edge, and keyboard focus brings a control into view.
+
+### Changed
+
+- The rig's latency is 1.5 ms longer at 48 kHz (187 samples): Kelp and Urchin are oversampled,
+  and like Pearl and Coral they keep their latency when switched off, so turning pedals on and
+  off never changes what the host compensates.
+- **Abyss is tight again:** palm mutes stop instead of droning, power chords and triads keep their
+  notes apart, and soft picking cleans up, without giving up the lead gain at the top of the knob.
+  In 0.3.0 two fixed stages after the gain knob squared every note even at low gain, so Abyss
+  behaved like a fuzz pedal. Now the gain knob does the work, the low strings hit the clippers
+  about 18 dB later than the mids, and the knob turns like an audio-taper pot: crunch to a tight
+  rhythm sound in the lower half, the lead wall at the top. At the default gain, eighth-note chugs
+  at 150 bpm now fall 20 dB between hits (was 10), a power chord's sum and difference tones sit
+  18 dB below its notes (was 11), and 24 dB of picking strength moves the output 7 dB (was 3).
+  At full gain a single note still sustains about 5 s, even from a quiet interface. The tone
+  colour is unchanged ([docs/dsp/amps.md](docs/dsp/amps.md#5-tight-not-fuzzy)).
+- Abyss factory presets were re-voiced for the new knob: Mariana (gain 0.6) is a tight
+  palm-mute sound, and the lead presets Riptide and Bioluminescence sustain as long as before.
+- The pedals board centres a row that fits, leaves room for the enclosures' shadows and brings a
+  control that keyboard focus lands on at its edge fully into view.
 
 ## [0.3.0] - 2026-11-03
 

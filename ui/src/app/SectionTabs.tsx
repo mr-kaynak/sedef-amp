@@ -45,14 +45,18 @@ function CabStatus() {
 }
 
 const STATUS: Record<Section, () => ReactNode> = {
+  // Signal order, as on the board.
   pedals: () => (
     <Leds
       ids={[
         'gateEnabled',
+        'trenchEnabled',
         'anemoneEnabled',
         'conchEnabled',
         'tideEnabled',
+        'urchinEnabled',
         'pearlEnabled',
+        'kelpEnabled',
         'coralEnabled',
         'beaconEnabled',
         'gyreEnabled',

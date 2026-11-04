@@ -14,7 +14,7 @@ style of a well-known amp family, tuned for feel and for sitting well in front o
 |---|---|
 | **Lagoon** (clean) | Glassy, chimey, wide headroom. Clean at any guitar level with volume and master at noon; breaks up only when both are high. Touch-sensitive second-harmonic warmth, scooped mids, sparkle that fades as volume goes up (bright cap). |
 | **Reef** (crunch) | British-style crunch: cascaded stages, a cold-biased second stage, a cathode follower into the tone stack, more power-amp sag. Edge of breakup at the bottom of the gain knob, a hot crunch bordering on lead at the top. Cleans up with picking dynamics; three voicings. |
-| **Abyss** (lead) | Modern high gain that stays tight and articulate: four stages with coupling high-passes up to 160 Hz keeping low end out of the clippers, low-pass poles between stages against fizz, a movable mid scoop, presence and resonance in the power amp to restore weight and bite after the distortion. At full gain light picking and single notes are fully saturated and sustain for seconds. |
+| **Abyss** (lead) | Modern high gain that stays tight and articulate: four stages, with the low strings held back ahead of the cold clipper (a partly bypassed cathode, coupling high-passes at 100 and 200 Hz) so they saturate about 18 dB later than the mids, low-pass poles between stages against fizz, a movable mid scoop, presence and resonance in the power amp to restore weight and bite after the distortion. The gain knob does the saturating: crunch to a tight rhythm sound over its lower half, the lead wall at the top, where light picking and single notes are fully saturated and sustain for seconds (section 5). |
 
 Signals are in normalised units: a triode stage starts to bend audibly around |x| = 1. A guitar
 DI at -18 dBFS RMS (strum peaks around -4 dBFS) is the design input level; section 4 relates it
@@ -45,10 +45,11 @@ Reef
 
 Abyss
 [base] in ─ HPF 25 Hz ─ V1 cathode shelf -5 dB < 150 Hz ─►
-[OS]   V1 triode ─ LP 14k ─ HPF 70 Hz ─ BRIGHT shelf (GAIN-dependent) ─ V2 cold clipper* (drive = GAIN)
-       ─ LP 6.5k ─ HPF 160 Hz ─ cathode shelf -4 dB < 300 Hz ─ V3* (x7) ─ LP 5k ─ HPF 50 Hz
-       ─ V4* (x3.5) ─ LP 3.5k ─ cathode follower ─ tone stack (BASS MID TREBLE; SHIFT moves the scoop) ─ HPF 20 Hz
-       ─ resonance +4.5 dB < 100 Hz ─ PRESENCE shelf ─ power amp (drive = MASTER) ─►
+[OS]   V1 triode ─ LP 14k ─ HPF 100 Hz ─ BRIGHT shelf (GAIN-dependent) ─ V2 cathode shelf -10 dB < 280 Hz
+       ─ V2 cold clipper* (drive = GAIN) ─ LP 4.5k ─ HPF 200 Hz ─ cathode shelf -4 dB < 300 Hz ─ V3* (x2.5)
+       ─ LP 4k ─ HPF 50 Hz ─ V4* (x1.4) ─ LP 3k ─ cathode follower ─ tone stack (BASS MID TREBLE; SHIFT moves
+       the scoop) ─ weight +4 dB < 120 Hz ─ mid -3.5 dB at 1.3 kHz ─ HPF 20 Hz ─ resonance +6 dB < 100 Hz
+       ─ PRESENCE shelf ─ power amp (drive = MASTER) ─►
 [base] transformer HPF 45 Hz ─ LP 14k ─ level (GAIN/MASTER comp, OUTPUT)
 
 * anti-aliased triode stage (ADAA, see below)
@@ -143,7 +144,7 @@ over 80 ms. Gains ramp per sample; filter coefficients follow every 32 samples.
 | Reef `gain` | V1b drive, exponential 0.35 → 60 (45 dB of travel). Bright shelf scales by `(1 - gain)^1.3`. |
 | Reef `presence` | Preamp high shelf ahead of V2a: `-12 dB * (1 - presence)^1.3`, transition ~1.5-6 kHz. Clockwise = more presence (flat at 1). |
 | Abyss `bright` | Bright cap: high shelf (~1.2-3.5 kHz transition), 9 dB at gain 0 falling to 1.5 dB at gain 1 (`sqrt(gain)` blend). |
-| Abyss `gain` | V2 drive, exponential 0.3 → 220 (57 dB of travel). |
+| Abyss `gain` | V2 drive 1.6 → 2600 (64 dB), audio-style taper: drive = 1.6 · (2600 / 1.6)^t with t = g (0.6 + 0.4 g). The 10 % THD point moves 2.5 dB per 0.1 at the bottom of the knob, rising smoothly to 8.7 dB per 0.1 at the top (v0.3.0: exponential 0.3 → 220, 5.7 dB per 0.1 everywhere). |
 | Abyss `shift` | Tone stack mid scoop ~480 Hz → ~800 Hz. |
 | Abyss `presence` | Power-amp high shelf, 0 → +10 dB (transition ~1.6-5 kHz at full). |
 | `bass` / `mid` / `treble` (Reef, Abyss) | Tone stack pots; bass log taper, mid and treble linear. |
@@ -152,9 +153,9 @@ over 80 ms. Gains ramp per sample; filter coefficients follow every 32 samples.
 
 **Level compensation.** Turning a drive knob up raises the level only by part of the drive change
 (`drive^(1 - c)` while the stages are still linear: c = 0.5 for Lagoon volume and master, 0.11 / 0.35
-for Reef gain / master, 0.04 / 0.35 for Abyss gain / master); the rest becomes saturation. Each
+for Reef gain / master, 0.02 / 0.35 for Abyss gain / master); the rest becomes saturation. Each
 knob feels like turning up an amp without jumping tens of decibels. Reef and Abyss rise by 12 and
-5 dB over the lower half of the gain knob (as the preamp goes from clean or edge-of-breakup into
+9 dB over the lower half of the gain knob (as the preamp goes from clean or edge-of-breakup into
 saturation) and stay within 1 dB over the upper half; no 0.1 step moves the level by more than
 3.7 dB.
 
@@ -219,14 +220,15 @@ ch. 1, eq. 1.4-1.5; Aiken):
 | Cold clipper, 39k unbypassed | x2.4, 7.7 dB | formula |
 | 470k / 470k interstage divider | -6 dB | |
 
-The usual filter values land where Abyss's already are: 2.2 nF into a 1M grid leak is a 72 Hz
-high-pass and 1 nF a 159 Hz one (Abyss: 70 and 160 Hz); a 1.5k cathode with 0.68 uF shelves below
-156 Hz (Abyss V1: 150 Hz). An anode bypass cap works against the stage's output impedance, Ra
-in parallel with ra + (mu + 1) Rk: 38.5k bypassed, 68k with an unbypassed 1.5k, 98k for a 39k cold
-clipper, so 470 pF gives 8.8, 5.0 and 3.5 kHz, the range of Abyss's 6.5 / 5 / 3.5 kHz interstage
-low-passes. Grid stoppers add more: a stage with a gain of 60 has about 150 pF of Miller input
-capacitance, so a 470k stopper is a 2.2 kHz low-pass (Aiken, "What is Miller capacitance?";
-the Valve Wizard on grid stoppers in later stages).
+The usual filter values land where Abyss's are: 2.2 nF into a 1M grid leak is a 72 Hz high-pass and
+1 nF a 159 Hz one (Abyss in v0.3.0: 70 and 160 Hz; now 100 and 200 Hz, 1.5 and 0.8 nF, section 5);
+a 1.5k cathode with 0.68 uF shelves below 156 Hz (Abyss V1: 150 Hz). An anode bypass cap works
+against the stage's output impedance, Ra in parallel with ra + (mu + 1) Rk: 38.5k bypassed, 68k
+with an unbypassed 1.5k, 98k for a 39k cold clipper, so 470 pF gives 8.8, 5.0 and 3.5 kHz, the
+range of Abyss's interstage low-passes (6.5 / 5 / 3.5 kHz in v0.3.0, 4.5 / 4 / 3 kHz now). Grid
+stoppers add more: a stage with a gain of 60 has about 150 pF of Miller input capacitance, so a
+470k stopper is a 2.2 kHz low-pass (Aiken, "What is Miller capacitance?"; the Valve Wizard on grid
+stoppers in later stages).
 
 Totals, with the gain pot fully up and each stage's headroom taken as its bias (about 1.5 V):
 
@@ -242,15 +244,18 @@ Totals, with the gain pot fully up and each stage's headroom taken as its bias (
 So the targets: at full gain, Abyss should start to compress near -72 dBFS and Reef near -48, with
 10 % THD a few dB above. Musically, a lightly picked single note (12-20 mV RMS, -39 to -34 dBFS)
 is then 25-35 dB into saturation on Abyss, so it compresses and sustains, and about 10 dB on Reef.
-Measured: Abyss's 1 dB compression point at full gain is -73.6 dBFS (10 % THD at -67.8), Reef's
--50.1 (10 % THD at -46.8).
+Measured in v0.3.0: Abyss's 1 dB compression point at full gain is -73.6 dBFS (10 % THD at
+-67.8), Reef's -50.1 (10 % THD at -46.8). Since Abyss was re-staged (section 5) it compresses from
+-70.0 at full gain (10 % THD at -70.9) and from -31.5 at noon.
 
 ### Before and after
 
 Input levels in dBFS RMS. THD10: a 220 Hz sine reaches 10 % THD. Knee 6 dB: the output falls 6 dB
 behind the small-signal gain (sine; the G3 note in brackets, as the matching strum level).
-Sustain: seconds a G3 note picked like one string of the strum stays within 6 dB of its peak (dry
-note: 0.68 s). Crest: peak-to-RMS of the strum output (dry: 14.2 dB).
+Sustain: seconds a G3 note picked like one string of the strum stays within 6 dB of its peak, from
+the pick (dry note: 0.69 s; measured from the loudest window until v0.3.0, which reads up to 0.02 s
+lower for these rows but under-reads a saturated note whose flat envelope peaks late). Crest:
+peak-to-RMS of the strum output (dry: 14.2 dB).
 
 | Amp, drive | THD10 | Knee 6 dB | Sustain at DI -30 / -24 / -18 | Crest at DI -30 / -18 |
 |---|---|---|---|---|
@@ -262,6 +267,8 @@ note: 0.68 s). Crest: peak-to-RMS of the strum output (dry: 14.2 dB).
 | Abyss 0.5, v0.3.0 | -39.2 | -35.8 (-34.4) | 1.43 / 2.08 / 2.78 | 7.0 / 6.5 |
 | Abyss 1, v0.2.0 | -44.0 | -38.1 (-36.7) | 1.62 / 2.28 / 2.98 | 6.5 / 6.7 |
 | Abyss 1, v0.3.0 | **-67.8** | -64.4 (-62.9) | **4.92 / 5.78 / 6.58** | 6.6 / 6.8 |
+| Abyss 0.5, now (section 5) | -32.5 | -22.9 (-25.9) | 0.79 / 1.14 / 1.69 | 8.2 / 6.7 |
+| Abyss 1, now | **-70.9** | -61.4 (-64.1) | **4.79 / 5.67 / 6.42** | 6.6 / 6.6 |
 
 The v0.2.0 numbers bear the report out: at full gain Abyss reached 10 % THD at 6 mV RMS, so a
 light single note (12-20 mV) was only 6-10 dB into distortion, and Reef at 20 mV RMS, a mid-gain
@@ -270,8 +277,9 @@ Abyss reaches 10 % THD at 0.4 mV RMS and Reef at 4.6 mV RMS.
 
 What changed:
 
-- **Abyss:** the gain pot now spans 0.3 → 220 (was 0.6 → 30), V3 is driven x7 (was 3.5) and V4
-  x3.5 (was 2.5), so a fully clipped stage drives the next one 12-15 dB and 8-10 dB past its knee.
+- **Abyss** (re-staged after v0.3.0, see section 5): the gain pot now spans 0.3 → 220 (was
+  0.6 → 30), V3 is driven x7 (was 3.5) and V4 x3.5 (was 2.5), so a fully clipped stage drives the
+  next one 12-15 dB and 8-10 dB past its knee.
   The anode bypass low-passes after V2, V3 and V4 moved down to 6.5, 5 and 3.5 kHz (were 9, 7,
   7 kHz) to hold the fizz and aliasing that the extra saturation creates. V2-V4 are anti-aliased.
 - **Reef:** the gain pot spans 0.35 → 60 (was 16) and V2a is driven x2.6 (was 2.2); V1b and V2a
@@ -282,7 +290,8 @@ What changed:
   volume 0.5), breaking up near the top (THD10 -19.8 at full volume).
 - **Taper:** each quarter turn now moves Reef's THD10 by 10-11 dB and Abyss's by 14 dB (v0.2.0:
   7-8 dB), so the whole travel does something: Abyss at gain 0 is an edge-of-breakup crunch at the
-  design level, at 0.25 a crunch, at 0.5 a high-gain rhythm sound, at 1 a wall of gain.
+  design level, at 0.25 a crunch, at 0.5 a high-gain rhythm sound, at 1 a wall of gain. (Abyss
+  now tapers like an audio pot instead, section 5.)
 - **Tightness and fizz** at full gain, measured as octave bands re. the total: palm-muted chugs
   keep the 63 / 125 Hz bands where v0.2.0 had them (-13.1 / -4.3 dB vs. -13.5 / -4.5), the 63 Hz
   band 3 dB below a clean amp's; the strum's 8 kHz band through a rough cab stand-in is -30.2 dB (v0.2.0
@@ -298,12 +307,187 @@ What changed:
   | full master, v0.3.0 | -61.6 dB | -63.2 dB | -60.0 dB |
   | default master, v0.2.0 | -105.8 dB | -93.7 dB | -56.6 dB |
   | default master, v0.3.0 | -105.8 dB | -81.8 dB | -64.6 dB |
+  | full master, now (section 5) | -61.6 dB | -63.2 dB | -68.0 dB |
+  | default master, now | -105.8 dB | -81.8 dB | -67.7 dB |
 
   With 13-24 dB more gain, Abyss aliases 4-8 dB less than before and Reef stays below -80 dB at
   the default master; at full master the power amp clipping a saturated preamp dominates in all
-  three models. The worst case is always the 4.3 kHz tone.
+  three models. The worst case is always the 4.3 kHz tone. Re-staged, Abyss's V3 and V4 are hit
+  9-14 dB less hard, and it aliases another 3-8 dB less.
 
-## 5. References
+## 5. Tight, not fuzzy
+
+### The report
+
+The player whose feedback drove v0.3.0 tried it: "Abyss is really problematic. The tone sounds
+broken, as if a fuzz pedal were on. It has no tight tone." The fix keeps the lead gain v0.3.0 added
+at the top of the knob and changes how Abyss gets there. All numbers in this section are amp only
+at 48 kHz, every other knob at its default, from the hidden report `"[.tight]"`
+(`AmpTightnessReport.cpp`) unless a line says otherwise; the DI signals are the string model of
+`AmpTestUtils.h` at the design level (a strum at -18 dBFS RMS).
+
+The measures, and why each one:
+
+- **Palm mutes.** One muted E5 chug (E2 B2 E3, the strings' partials decaying with time constants
+  of 0.08 s and less): how long it rings above its peak -20 dB after the pick (dry: 0.18 s). And
+  eighth-note chugs at 150 bpm: how far the output falls between them (dry: 30 dB). A compressor
+  holds a chug at full level until its input has decayed below the knee, so every 10 dB of
+  saturation adds about 0.1 s of ring and takes about 10 dB off the dip; that is the drone of a
+  fuzz.
+- **Intermodulation.** A nonlinearity turns two notes into sum and difference tones as well as
+  harmonics. For a fifth these mostly land on the harmonic series of the "difference tone" an
+  octave below the root, which is why power chords are the chords of distorted guitar; a third's
+  land between the notes' harmonics and beat (Lilja 2009, ch. 4). The DI's partials are exactly
+  harmonic, so the measure is the power between the notes' harmonics (more than 2.5 Hz from any)
+  re. the power on them, 30 Hz-5 kHz: two sines (E2 + B2, -24 dBFS RMS each), a ringing E5 and an
+  E major triad (E3 G#3 B3) picked at the strum's strength. Dry: below -50 dB.
+- **Low end at the clippers.** The input level where an 82 Hz sine is compressed by 6 dB minus the
+  level for 660 Hz: how much later the low strings saturate than the upper mids.
+- **Clipping shape.** For a 220 Hz sine at DI -24: odd minus even harmonic power and the output's
+  crest factor (sine 3 dB, square 0 dB).
+- **Picking.** A G3 picked from DI -36 to -12 (24 dB): how far the output's envelope peak moves.
+- **Fizz.** The strum output's power above 6 kHz re. its total, before the cab.
+
+### What v0.3.0 did
+
+The v0.3.0 numbers, left to right gain 0.3 / 0.5 (default) / 0.75 / 1:
+
+| Measure | v0.3.0 | Reef 0.5 / 1 |
+|---|---|---|
+| Chug rings above -20 dB (s; dry 0.18) | 0.28 / 0.39 / 0.49 / 0.51 | 0.25 / 0.44 |
+| Dip between chugs at 150 bpm (dB; dry 30.3) | 20.0 / 10.3 / 4.9 / 3.8 | 24.1 / 7.2 |
+| E2 + B2 intermodulation (dB) | -21.8 / -16.9 / -16.4 / -15.3 | -17.9 / -12.0 |
+| E5 chord intermodulation (dB) | -17.0 / -11.3 / -10.0 / -10.2 | -22.7 / -10.3 |
+| E triad intermodulation (dB) | -9.7 / -4.9 / -3.6 / -3.8 | -17.0 / -5.6 |
+| Odd minus even harmonics at DI -24 (dB) | +8.1 / +12.0 / +4.8 / +9.8 | +2.8 / +28.9 |
+| Crest factor, sine at DI -24 (dB) | 2.2 / 1.5 / 2.9 / 4.0 | 2.9 / 2.6 |
+| THD of a soft note (sine at DI -36) | 4 / 15 / 30 / 32 % | 2 / 31 % |
+| Output range for 24 dB of picking (dB) | 9.3 / 3.0 / 0.7 / -0.1 | 15.7 / 1.7 |
+| Power above 6 kHz (dB) | -23.0 / -19.9 / -19.1 / -18.9 | -33.9 / -22.0 |
+| Low E saturates later than 660 Hz by (dB) | 12.8 / 12.6 / 12.6 / 12.5 | 1.9 / 1.7 |
+| Compression of a low E at DI -24 (dB) | 1.1 / 9.0 / 23.0 / 37.6 | 1.3 / 20.5 |
+
+So at the default gain Abyss behaved like Reef at full gain, plus fizz: palm mutes ran together,
+an E triad's intermodulation was only 5 dB below its notes, a 220 Hz sine came out nearly square
+with odd harmonics 12 dB over the even ones, and the output followed 24 dB of picking by 3 dB.
+
+**Root cause.** Instrumenting a copy of the chain (it matches `AmpSection` to within 1e-4) shows
+where the saturation sat: the share of a strum's samples (DI -18) on the flat part of each stage's
+curve, where its slope is below 0.25:
+
+| Gain | v0.3.0: V2 / V3 / V4 | now: V2 / V3 / V4 |
+|---|---|---|
+| 0.3 | 0 / 16 / 58 % | 7 / 6 / 1 % |
+| 0.5 | 31 / 60 / 83 % | 56 / 29 / 11 % |
+| 0.75 | 81 / 74 / 87 % | 92 / 43 / 19 % |
+| 1 | 95 / 75 / 86 % | 98 / 45 / 20 % |
+
+v0.3.0 raised the gain mostly with the two fixed stages after the gain pot: V3 driven x7 and V4
+x3.5. They take whatever V2 passes and square it, so even at gain 0.3, where V2 itself barely
+clips, V4 spent 58 % of a strum on the flat of its curve, and from 0.5 up three clippers in a row
+were saturated. In the published four-stage cascade of section 4 the stages instead overload one
+after another as the input rises, each well after the one downstream of it, so at moderate gain
+only the last is deep in saturation. And because each squaring stage re-creates a chord's low
+fundamental from the square it is fed, the 160 Hz coupling high-pass ahead of V3 could not keep
+palm mutes tight: v0.3.0's low E saturated only 12.6 dB after the mids, and at the default gain a
+low E at DI -24 was already compressed 9 dB.
+
+What did not cause it, tried on the instrumented v0.3.0 chain at gain 0.5: turning the grid-
+conduction bias shift off, halving the power-amp sag, inverting the signal between stages as real
+stages do, or lowering the interstage low-passes each changed the chug dip by at most 0.3 dB and
+the intermodulation by at most 1 dB; the lower low-passes took 1.4 dB off the fizz. The power amp
+adds little at the default master (master 0.1 instead of 0.5: chug dip 12.1 instead of 10.3 dB);
+presence, bright and bass change the dip by less than 0.6 dB. The Mariana preset, at gain 0.65 with
+shift on, was the worst of all: a 5.1 dB dip.
+
+### The fix
+
+- **The gain pot does the saturating.** V3 is driven x2.5 and V4 x1.4 (were x7 and x3.5): a fully
+  clipped V2 drives V3 about 8 dB past its knee and V3 drives V4 about 3 dB, so V4 polishes
+  rather than squares. The pot's range moves up to make up for it (drive 1.6 → 2600) and tapers
+  like an audio pot (t = g (0.6 + 0.4 g)), so the lower half is a crunch to a tight rhythm sound
+  and the top quarter the lead wall.
+- **The low strings reach the cold clipper later.** V2's cathode resistor is partly bypassed by a
+  small capacitor, a first-order shelf with about 10 dB more gain above 900 Hz than below 280 Hz
+  (Blencowe 1.18; a cold clipper's unbypassed and bypassed gains differ by up to 17 dB, section 4),
+  and the coupling high-passes ahead of V2 and V3 move from 70 and 160 Hz to 100 and 200 Hz (1.5 nF
+  and 0.8 nF into 1M). The low E now saturates about 18 dB after the mids.
+- **Less fizz between the stages:** the anode-bypass and Miller low-passes after V2, V3 and V4 sit
+  at 4.5, 4 and 3 kHz (were 6.5, 5 and 3.5 kHz), inside the range of section 4's component values.
+- **The same colour.** Cutting the low end ahead of the clippers changes the spectrum of what they
+  put out: less below 250 Hz, more at 1-2 kHz. A fixed voicing after the tone stack (+4 dB below
+  120 Hz, -3.5 dB around 1.3 kHz) and the resonance shelf at +6 dB (was +4.5) put the v0.3.0
+  balance back: the octave bands of a strum and of palm mutes through the rough cab are within
+  0.8 dB of v0.3.0 on average (largest band difference 2.1 dB), and through the default cab the
+  open chord of the listening renders within 2.1 dB per band (0.7 dB on average at gain 0.5,
+  1.2 dB at full gain). The change is in how the amp moves, not in its colour.
+- **Presets** were re-voiced: Mariana, the tight palm-mute preset, from gain 0.65 to 0.6; the two
+  lead presets to the gain where they sustain as long as before (Riptide 0.55 → 0.69,
+  Bioluminescence 0.5 → 0.65); Undertow to where it breaks up as much as before (0.21 → 0.33).
+
+### Before and after the fix
+
+Gain 0.3 / 0.5 / 0.75 / 1:
+
+| Measure | v0.3.0 | now |
+|---|---|---|
+| 10 % THD, 220 Hz sine (dBFS RMS in) | -27.8 / -39.2 / -53.5 / -67.8 | -21.2 / -32.5 / -50.1 / -70.9 |
+| 1 dB compression, 220 Hz (dBFS RMS in) | -33.5 / -44.9 / -59.2 / -73.5 | -19.8 / -31.5 / -49.1 / -69.9 |
+| Chug rings above -20 dB (s; dry 0.18) | 0.28 / 0.39 / 0.49 / 0.51 | **0.20 / 0.28** / 0.42 / 0.51 |
+| Dip between chugs at 150 bpm (dB; dry 30.3) | 20.0 / 10.3 / 4.9 / 3.8 | **27.6 / 20.3** / 6.6 / 5.1 |
+| Same through the full chain (default cab, gate) | 20.7 / 12.4 / 10.2 / 10.4 | **27.8 / 21.4** / 11.3 / 11.1 |
+| E2 + B2 intermodulation (dB) | -21.8 / -16.9 / -16.4 / -15.3 | -25.2 / **-20.5** / -17.7 / -15.6 |
+| E5 chord intermodulation (dB) | -17.0 / -11.3 / -10.0 / -10.2 | -27.9 / **-18.2** / -13.7 / -11.9 |
+| E triad intermodulation (dB) | -9.7 / -4.9 / -3.6 / -3.8 | -16.5 / **-9.0** / -5.4 / -4.2 |
+| Low E saturates later than 660 Hz by (dB) | 12.8 / 12.6 / 12.6 / 12.5 | 17.9 / 17.7 / 17.6 / 17.6 |
+| Compression of a low E at DI -24 (dB) | 1.1 / 9.0 / 23.0 / 37.6 | 0.1 / **0.5** / 13.8 / 36.0 |
+| Odd minus even harmonics at DI -24 (dB) | +8.1 / +12.0 / +4.8 / +9.8 | -19.4 / **-5.5** / +16.1 / +19.3 |
+| Crest factor, sine at DI -24 (dB) | 2.2 / 1.5 / 2.9 / 4.0 | 3.6 / 3.1 / 2.8 / 2.8 |
+| THD of a soft note (sine at DI -36) | 4 / 15 / 30 / 32 % | 2 / **7** / 8 / 18 % |
+| Output range for 24 dB of picking (dB; dry 24) | 9.3 / 3.0 / 0.7 / -0.1 | 16.2 / **6.8** / 1.0 / 0.1 |
+| A hard chug masks a quiet 1.5 kHz note for (s) | 0.19 / 0.25 / 0.24 / 0.27 | 0.06 / 0.15 / 0.20 / 0.22 |
+| Power above 6 kHz (dB) | -23.0 / -19.9 / -19.1 / -18.9 | -26.7 / **-23.4** / -21.1 / -20.7 |
+| G3 sustain, DI -30 / -24 (s, gain 0.5 and 1) | 1.44 / 2.10 and 4.93 / 5.79 | 0.79 / 1.14 and **4.79 / 5.67** |
+| Strum level at DI -18 (dBFS RMS) | -15.3 / -15.0 / -15.4 / -15.9 | -16.9 / -15.0 / -14.8 / -15.1 |
+
+At the default gain the chugs now stop (20 dB between eighths, 0.28 s of ring against the dry
+string's 0.18 s), chords keep their notes apart (an E5's sum and difference tones 18 dB below the
+notes, was 11), the low E at a hard pick passes almost uncompressed while the mids saturate, even
+harmonics lead as in a cold-biased triode, soft picking is a light crunch and the output follows
+the pick. Full gain keeps the lead wall: a G3 from a quiet interface (DI -30) sustains 4.8 s, 10 %
+THD arrives 3 dB lower than in v0.3.0 and the 1 dB compression point 3.6 dB higher, and every palm-
+mute, intermodulation and picking measure is at least as good as in v0.3.0; the waveform itself is
+a saturated, nearly symmetric one there, as a lead wall is. At 0.75 and up a chord still blurs
+(triad -5.4 dB): any amp that saturates that deeply intermodulates, which is why high-gain rhythm
+parts are power chords.
+
+The price is sustain in the middle of the knob: at noon a G3 from DI -30 holds 0.8 s (v0.3.0 1.4 s,
+v0.2.0 0.6 s); 2 s needs a gain of about 0.72. That is the point of the taper: rhythm in the lower
+half, leads above two thirds. The Abyss lead presets moved there.
+
+### Targets
+
+Locked in by `AmpTightnessTests.cpp` (all fail on v0.3.0) and `AmpGainTests.cpp`:
+
+- **Tight:** a palm-muted chug rings above -20 dB for at most 0.23 / 0.31 / 0.46 s at gain 0.3 /
+  0.5 / 0.75, and eighth-note chugs at 150 bpm dip at least 25 / 17 / 5.5 dB between hits.
+- **Low end:** the low E saturates at least 16 dB after 660 Hz at gain 0.5 and 1; at gain 0.5 a
+  low E at DI -24 is compressed less than 2 dB while 660 Hz is compressed more than 8 dB.
+- **Articulate:** at gain 0.5, E2 + B2 intermodulation below -18 dB, an E5 chord below -16 dB and
+  an E triad below -7.5 dB; at full gain an E5 below -10.5 dB (v0.3.0 -10.2).
+- **Not a fuzz:** at gain 0.5 the even harmonics of a 220 Hz sine at DI -24 outweigh the odd ones,
+  its crest factor stays above 2.3 dB, a soft note (DI -36) stays below 10 % THD, 24 dB of picking
+  moves the output more than 5.5 dB, and the strum has less than -22 dB of its power above 6 kHz.
+- **Rhythm at noon, lead at the top:** the 1 dB compression point at gain 0.5 lies between -35
+  and -27 dBFS RMS (Reef at noon: -27.8) and below -66 at full gain; 10 % THD at noon between -36
+  and -30.
+- **Enough gain:** 10 % THD at full gain at or below -64 dBFS RMS at 44.1-192 kHz, and a G3
+  sustains at least 4.2 s from DI -30 and 5 s from DI -24 (the 0.2.0 complaint stays answered).
+- **Smooth knob:** every 0.1 of gain moves the 10 % THD point by 2-9.5 dB and the steps only grow
+  towards the top (no flat spot, no jump); the strum level moves less than 4 dB per 0.1 and less
+  than 1.5 dB over the upper half; automating the knob stays click-free.
+
+## 6. References
 
 - D. T. Yeh and J. O. Smith, "Discretization of the '59 Fender Bassman Tone Stack", Proc. 9th Int.
   Conf. on Digital Audio Effects (DAFx-06), Montreal, 2006. Tone stack topology and coefficients.
@@ -340,6 +524,10 @@ What changed:
   Using Continuous-Time Convolution", Proc. 19th Int. Conf. on Digital Audio Effects (DAFx-16),
   Brno, 2016; S. Bilbao, F. Esqueda, J. D. Parker and V. Välimäki, "Antiderivative Antialiasing
   for Memoryless Nonlinearities", IEEE Signal Processing Letters 24(7), 2017. First-order ADAA.
+- E. Lilja, *Theory and Analysis of Classic Heavy Metal Harmony*, PhD thesis, University of
+  Helsinki, 2009 (IAML Finland), ch. 4: the power chord, harmonic overtones and combination tones
+  of distorted chords, major and minor triads under distortion. Why the intermodulation measures
+  of section 5 use a fifth and a triad.
 - R. Bristow-Johnson, "Cookbook formulae for audio EQ biquad filter coefficients" (via
   `core/Biquad`). Bilinear transform: any DSP textbook, e.g. J. O. Smith, *Introduction to
   Digital Filters*, CCRMA, 2007.
@@ -348,7 +536,7 @@ No code, data or measurements from other products were used (ADR-0006). Componen
 tone stack tables and the gain budget are generic values from published schematics and from the
 sources above; interface input levels are from manufacturers' public spec sheets.
 
-## 6. Tests (`engine/tests/amp/`, tag `[amp]`)
+## 7. Tests (`engine/tests/amp/`, tag `[amp]`)
 
 | Test | Asserts |
 |---|---|
@@ -358,14 +546,20 @@ sources above; interface input levels are from manufacturers' public spec sheets
 | Finite output | Random settings (re-randomised every ~40 ms, including model, voice and switches) with full-scale stereo noise at 44.1 / 48 / 96 kHz and blocks of 1, 17, 64, 512: all finite and bounded. Non-finite and out-of-range settings are sanitised. |
 | Silence | After a loud strum and 3 s of silence the output is below -100 dBFS (all models at full drive); digital silence from a cold start stays exactly zero. |
 | Gain staging | All three models at defaults are within [-18, -12] dBFS RMS and within 3 dB of each other at 44.1 / 48 / 96 kHz (measured: -15.0 ±0.1 dBFS). |
-| THD vs. gain | Reef and Abyss THD (220 Hz sine, -18 dBFS RMS) rises strictly at every 0.1 step of gain and spans at least 3x. |
-| Full-gain targets | At 44.1 / 48 / 96 / 192 kHz, 10 % THD is reached at <= -64 dBFS RMS on Abyss (measured -67.8) and between -51 and -43 on Reef (-46.8), at least 15 dB apart. |
-| Gain taper | Every quarter turn moves Reef's and Abyss's 10 % THD point by 8-16 dB (measured 10-11 and 14). Lagoon at volume 0.5 stays under 10 % THD up to -12 dBFS and breaks up below -15 dBFS at full volume. |
-| Sustain | A G3 note at full gain stays within 6 dB of its peak for >= 4.2 s (DI -30) and >= 5 s (DI -24) on Abyss, >= 1.6 s and >= 2.2 s on Reef; the dry note: 0.68 s. |
+| THD vs. gain | For a 220 Hz sine at -18 dBFS RMS, compression rises strictly at every 0.1 step of gain on Reef and Abyss and THD spans at least 3x; on Reef THD itself rises at every step. (Abyss's THD dips around a third of the travel, where its cold clipper turns from second-harmonic crunch to symmetric saturation.) |
+| Full-gain targets | At 44.1 / 48 / 96 / 192 kHz, 10 % THD is reached at <= -64 dBFS RMS on Abyss (measured -70.9) and between -51 and -43 on Reef (-46.8), at least 15 dB apart. |
+| Gain taper | Every quarter turn moves Reef's 10 % THD point by 8-16 dB (measured 10-11). Abyss tapers like an audio pot: every 0.1 moves it by 2-9.5 dB, each step at least as large as the one before less 0.5 dB (measured 2.5 rising to 8.7), and noon lies between -36 and -30 dBFS (-32.5). Lagoon at volume 0.5 stays under 10 % THD up to -12 dBFS and breaks up below -15 dBFS at full volume. |
+| Sustain | A G3 note at full gain stays within 6 dB of its peak, from the pick, for >= 4.2 s (DI -30) and >= 5 s (DI -24) on Abyss (measured 4.8 and 5.7), >= 1.6 s and >= 2.2 s on Reef; the dry note: 0.69 s. |
 | Density | Full-gain Abyss strum output has a crest factor below 7.5 dB at DI -30, -24, -18 and -12 dBFS. |
 | Level vs. gain | Strum level never moves more than 4 dB per 0.1 of gain, and by less than 1.5 dB over the upper half (Reef, Abyss). |
 | Tight, no fizz | Full-gain Abyss chugs: 63 Hz octave < -12.5 dB and 125 Hz < -3.5 dB re. the total, 2 dB below clean Lagoon's 63 Hz; full-gain strum through the rough cab: 8 kHz octave < -28.4 dB, 16 kHz < -48 dB (Reef, Abyss). |
-| Aliasing | Worst image of a harmonic for 1.2 / 2.7 / 4.3 kHz sines at full drive: < -58 dB at full master, < -62 dB at the default master, all models (measured worst -60.0 and -64.6, Abyss). |
+| Aliasing | Worst image of a harmonic for 1.2 / 2.7 / 4.3 kHz sines at full drive: < -58 dB at full master, < -62 dB at the default master, all models (measured worst -61.6, Lagoon, and -67.7, Abyss). |
+| Abyss palm mutes | One palm-muted E5 chug at DI -18 rings above its peak -20 dB for <= 0.23 / 0.31 / 0.46 s at gain 0.3 / 0.5 / 0.75 (measured 0.20 / 0.28 / 0.42; v0.3.0 0.28 / 0.39 / 0.49), and eighth-note chugs at 150 bpm dip >= 25 / 17 / 5.5 dB between hits (27.6 / 20.3 / 6.6; v0.3.0 20.0 / 10.3 / 4.9). |
+| Abyss chords | At gain 0.5: intermodulation (power between the notes' harmonics re. on them) of E2 + B2 sines at -24 dBFS each < -18 dB (-20.5; v0.3.0 -16.9), a ringing E5 < -16 dB (-18.2; -11.3), an E triad < -7.5 dB (-9.0; -4.9); at full gain an E5 < -10.5 dB (-11.9; -10.2). |
+| Abyss low end | The 6 dB compression point of an 82 Hz sine lies >= 16 dB above 660 Hz's at gain 0.5 and 1 (17.7 / 17.6; v0.3.0 12.6); at gain 0.5 an 82 Hz sine at DI -24 is compressed < 2 dB (0.5; v0.3.0 9.0) while 660 Hz is compressed > 8 dB (12.7). |
+| Abyss compression points | 1 dB compression of a 220 Hz sine at gain 0.5 between -35 and -27 dBFS RMS (-31.5; v0.3.0 -44.9), at full gain below -66 (-69.9). |
+| Abyss picking | At gain 0.5: 24 dB of picking (G3, DI -36 to -12) moves the output > 5.5 dB (6.8; v0.3.0 3.0), a sine at DI -36 stays < 10 % THD (7.4 %; 14.6 %), and at DI -24 the even harmonics outweigh the odd (-5.5 dB; v0.3.0 +12.0) with a crest factor > 2.3 dB (3.1; 1.5). |
+| Abyss fizz | At gain 0.5 the strum has < -22 dB of its power above 6 kHz (-23.4; v0.3.0 -19.9). |
 | ADAA stage | `AdaaTriodeStage` is exactly silent at rest, settles on its static curve to 1e-5, tracks the curve's mean for slow signals, and aliases at least 10 dB less than the sampled curve inside the 4x oversampler (measured 19 dB). |
 | Lagoon clean | Volume and master at 0.25: THD < 1 % for a 220 Hz sine at -18 dBFS RMS; both at 1: > 10 %. |
 | Model switching | All six model pairs: the largest sample-to-sample step during a switch is within 1.1x of steady state. Model changes every 10 ms (fade reversals and queued third models) also stay within 1.1x. |
@@ -376,23 +570,26 @@ sources above; interface input levels are from manufacturers' public spec sheets
 Hidden reports: `"[.voicing]"` prints levels, THD and level curves per drive knob, octave-band
 spectra (raw and through a rough cab stand-in), compression curves, the effect of each switch and
 worst-case aliasing at full and default master; `"[.gain]"` prints the section 4 tables (THD and compression knees, sustain,
-level and crest factor per drive setting and DI level, chug spectra); `"[.bench]"` prints
-ns/sample. The synthetic DI signals (strum, single note, palm-muted chugs) are in
-`AmpTestUtils.h`.
+level and crest factor per drive setting and DI level, chug spectra); `"[.tight]"` prints the
+section 5 tables (compression points per frequency, palm-mute ring and dip, intermodulation,
+clipping shape, fizz, picking dynamics, the other Abyss knobs and presets); `"[.bench]"` prints
+ns/sample. The synthetic DI signals (strum, single note, palm-muted chugs, a single chug, ringing
+chords) are in `AmpTestUtils.h`.
 
 Measured on an Apple M2 (RelWithDebInfo, -O3), 48 kHz, 4x oversampling, 64-sample blocks, mono:
-Lagoon ~175-210 ns/sample (0.8-1.0 % of one core), Reef ~230-245 ns (1.1-1.2 %), Abyss
-~265-285 ns (1.3-1.4 %); the anti-aliased stages cost no more than the plain ones. A crossfade
-between two models costs the sum of both. Stereo costs twice mono. Worst-case aliasing at full
-gain with a 1.2-4.3 kHz sine: -60 dB or lower re. the fundamental at full master, -64 dB or
-lower at the default master (section 4).
+Lagoon ~150-160 ns/sample (0.7-0.8 % of one core), Reef ~200-215 ns (1.0 %), Abyss ~280 ns
+(1.35 %); the anti-aliased stages cost no more than the plain ones. Abyss's second cathode shelf
+and post-stack voicing filters (section 5) cost about 30-40 ns: v0.3.0's Abyss measured 240-255 ns
+in the same runs. A crossfade between two models costs the sum of both. Stereo costs twice mono.
+Worst-case aliasing at full gain with a 1.2-4.3 kHz sine: -61.6 dB or lower re. the fundamental at
+full master (Lagoon; Abyss -68.0), -67.7 dB or lower at the default master (section 4).
 
 Not covered by an automated test here: allocation-freedom. `prepare` is the only function that
 allocates (the oversampler buffers and one 32-frame scratch buffer per channel); this was checked
 once with a counting global allocator over 2000 randomised blocks, model switches and resets. The
 engine-level allocation test (ADR-0005) covers it permanently.
 
-## 7. Known limitations and future work
+## 8. Known limitations and future work
 
 - These are block models (filters around static curves with a little state), not circuit
   simulations: no plate-load or source-impedance interaction between stages beyond the bias
@@ -404,15 +601,23 @@ engine-level allocation test (ADR-0005) covers it permanently.
   circuits it is named after it acts in the phase inverter, before the output tubes.
 - The bilinear warp of the tone stack reaches 0.38 dB at 20 kHz in its most extreme setting. That
   is above the cab's roll-off, so there is no pre-warp.
-- Voicing constants were set by measurement (spectra, THD and compression curves, level
-  matching against a synthetic strum, and from v0.3.0 the gain budget of section 4), not by a
-  listening panel. A listening pass with real DI
-  recordings through the cab should follow, and the constants at the top of each model file are
-  the knobs for it.
+- Voicing constants were set by measurement (spectra, THD and compression curves, level matching
+  against a synthetic strum, from v0.3.0 the gain budget of section 4, and since then the palm-
+  mute, intermodulation and picking measures of section 5), not by a listening panel. A listening
+  pass with real DI recordings through the cab should follow, and the constants at the top of each
+  model file are the knobs for it.
+- Abyss's post-stack voicing (+4 dB below 120 Hz, -3.5 dB at 1.3 kHz) is a fixed filter that
+  puts back the spectrum the low cut ahead of the clippers takes away, not a model of a circuit
+  element. Its intermodulation measures use synthetic strings with exactly harmonic partials;
+  real strings are slightly inharmonic, which adds a little beating that no amp removes.
+- Mid-knob Abyss sustains less than v0.3.0 did at the same setting (a G3 from DI -30: 0.8 s at
+  noon, was 1.4 s): leads belong above about 0.65. A player who sets gain by ear will simply turn
+  further.
 - No noise or hum is modelled, on purpose: silence in gives silence out. The interface's own
-  noise and the guitar's hum are another matter: full-gain Abyss has about 59 dB of small-signal
-  gain at 1 kHz (Reef 31 dB), so white noise at -90 dBFS RMS comes out at -37 dBFS, as hiss from a
-  real four-stage preamp would. Keep the gate on.
+  noise and the guitar's hum are another matter: full-gain Abyss has about 61 dB of small-signal
+  gain at 1 kHz (Reef 31 dB), so white noise at -90 dBFS RMS comes out at -33 dBFS (v0.3.0: -37;
+  the low cut ahead of the clippers leaves the hiss band more gain than the low end), as hiss from
+  a real four-stage preamp would. Keep the gate on.
 - The input calibration (section 4) is a documented convention, not a control: Input Gain is the
   trim. A target mark on the input meter, or an "auto-set from a strum" helper, would make it
   easier to find.

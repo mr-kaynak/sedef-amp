@@ -11,7 +11,7 @@ upwards (an auto-wah with the wah's own voice).
 
 ## Chain position
 
-**Before the drives** (after the gate and Anemone, before Tide). A wah in front of the drives is
+**Before the drives** (after Trench and Anemone, before Tide). A wah in front of the drives is
 the classic order: the drive saturates the moving peak, which is what gives the cocked, vocal
 sound, and Tide after it evens out the level the peak adds. After a high-gain drive the wah would
 filter the distortion's fizz instead.

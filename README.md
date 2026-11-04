@@ -23,7 +23,7 @@ around them.
 
 | | |
 |---|---|
-| **Pedals** | **Tide** compressor (3:1, tilt EQ, parallel blend) · **Pearl** transparent overdrive with mid boost · **Coral** distortion · **Ripple** tremolo / chorus / vibrato · **Anemone** envelope filter · **Conch** inductor wah with Auto mode · **Beacon** photocell vibe · **Gyre** 4- or 6-stage phaser · **Jetty** flanger with ± feedback · noise gate |
+| **Pedals** | **Trench** octave down (one and two octaves, analog style) · **Anemone** envelope filter · **Conch** inductor wah with Auto mode · **Tide** compressor (3:1, tilt EQ, parallel blend) · **Urchin** octave-up fuzz · **Pearl** transparent overdrive with mid boost · **Kelp** classic mid-hump overdrive, also a tight boost · **Coral** distortion · **Beacon** photocell vibe · **Gyre** 4- or 6-stage phaser · **Jetty** flanger with ± feedback · **Ripple** tremolo / chorus / vibrato · noise gate |
 | **Amps** | **Lagoon** — glassy, wide clean · **Reef** — British crunch with three voicings · **Abyss** — tight, saturated lead with bright and mid-shift switches |
 | **Captures** | load any Neural Amp Modeler (`.nam`) capture of a real amp or full rig in place of the amps, levelled to match them |
 | **Cabs** | 1x12 open, 2x12 open, 4x12 closed · two mics per cab from ten mic models, placed anywhere over the cone, backed off and turned off axis · room mics · load your own IRs |

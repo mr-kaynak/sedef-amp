@@ -5,6 +5,7 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
+#include <complex>
 #include <cstdio>
 
 using namespace sedef;
@@ -317,6 +318,49 @@ TEST_CASE ("Minimum phase: channels are independent and silence decays to zero",
     // 90 ms after the burst the tail is gone entirely (no denormal crawl).
     CHECK (*std::max_element (left.end() - block, left.end()) == 0.0f);
     CHECK (*std::min_element (left.end() - block, left.end()) == 0.0f);
+}
+
+TEST_CASE ("Bypass crossfade: the minimum-phase comb stays in the top octave",
+           "[core][oversampling]")
+{
+    // A slot switching a pedal fades over 10 ms between the dry path, delayed by the whole
+    // samples latencySamples() reports, and the pedal behind its oversampler. With minimum phase
+    // the two differ in phase in the top octave, so mid-fade they partly cancel there. The
+    // bare oversampler (a pedal that changes nothing) is the worst case: measured here, the dip
+    // below the steady level during a fade. Linear phase has none.
+    const double fs = GENERATE (44100.0, 48000.0);
+    // The wet path against the dry one at hz, measured on steady sines, gives the output's level
+    // at every point of the linear fade: |(1 - a) + a W / D|. The dip is its lowest.
+    const auto dipDb = [fs] (OversamplingMode mode, double hz) {
+        Oversampler os;
+        os.prepare (64, 1, 2, mode);
+        const auto latency = static_cast<size_t> (os.latencySamples());
+        std::vector<float> in (32768);
+        test::fillSine (in, hz, fs, 0.5f);
+        const auto wet = roundTrip (os, in, 64);
+        const auto phasor = [hz, fs] (const float* d, int n) {
+            std::complex<double> acc;
+            for (int i = 0; i < n; ++i)
+                acc += static_cast<double> (d[i]) * std::polar (1.0, -kTwoPiD * hz * i / fs);
+            return acc;
+        };
+        const int n = 16384;
+        const auto ratio = phasor (wet.data() + 16384, n) / phasor (in.data() + 16384 - latency, n);
+        double lowest = 1.0e9;
+        for (int k = 0; k <= 1000; ++k)
+        {
+            const double a = k / 1000.0;
+            lowest = std::min (lowest, std::abs ((1.0 - a) + a * ratio));
+        }
+        return db (lowest);
+    };
+    for (const double hz : { 100.0, 1000.0, 5000.0, 10000.0, 12000.0 })
+    {
+        const double low = dipDb (kLow, hz), linear = dipDb (kLinear, hz);
+        CAPTURE (fs, hz, low, linear);
+        CHECK (linear > -0.05);
+        CHECK (low > (hz <= 5000.0 ? -0.05 : hz <= 10000.0 ? -0.35 : -1.1));
+    }
 }
 
 TEST_CASE ("AlignedDryPath is the oversampler's round trip with nothing in between",

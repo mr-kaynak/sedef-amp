@@ -468,9 +468,12 @@ TEST_CASE ("The install scripts are constant; everything else is an argument", "
 
 TEST_CASE ("Setup's switches for an update", "[update][install][windows]")
 {
-    CHECK (windowsSetupParameters (1234, 0, { "vst3", "clap" }, false) ==
+    CHECK (windowsSetupParameters (1234, 5678, { "vst3", "clap" }, false) ==
            "/SILENT /SUPPRESSMSGBOXES /NORESTART /NOCLOSEAPPLICATIONS /RESTARTEXITCODE=3010 "
-           "/COMPONENTS=vst3,clap /WAITPID=1234");
+           "/COMPONENTS=vst3,clap /WAITPID=1234 /WAITPIDTIME=5678");
+    // Without the creation time Setup could not tell the host from a later process: no switches,
+    // and no Setup.
+    CHECK (windowsSetupParameters (1234, 0, { "vst3", "clap" }, false).isEmpty());
     CHECK (windowsSetupParameters (4294967295u, 133790123456789012ull, { "standalone" }, true) ==
            "/SILENT /SUPPRESSMSGBOXES /NORESTART /NOCLOSEAPPLICATIONS /RESTARTEXITCODE=3010 "
            "/COMPONENTS=standalone /WAITPID=4294967295 /WAITPIDTIME=133790123456789012 /RELAUNCH");
@@ -1330,6 +1333,90 @@ TEST_CASE ("A held setup can't be changed, moved or deleted", "[update][install]
     CHECK (held.sha256() == sha256Hex (big));
     CHECK (held.sha256() == juce::SHA256 (bytes).toHexString().toLowerCase());
     CHECK (held.sha256() != sha256Of ({})); // never the hash of nothing
+}
+
+TEST_CASE ("The setup stays held only while a Setup may run", "[update][install][windows]")
+{
+    Scratch s;
+    const auto setup = s.dir.getChildFile ("Sedef-Amp-Windows-Setup.exe");
+    REQUIRE (setup.replaceWithText ("the verified setup"));
+    InstallerConfig config;
+    config.commonFiles = s.dir.getChildFile ("Common Files");
+    config.appFolder = s.dir.getChildFile ("Sedef Amp");
+    // Stands in for ShellExecuteEx, on launchElevated's thread: notes the switches, answers.
+    juce::String parameters;
+    std::atomic<int> launched { 0 };
+    std::atomic<bool> block { false };
+    auto answer = Elevated::Status::Ok;
+    config.launch = [&] (const juce::File&, const juce::String& p, void*) {
+        parameters = p;
+        ++launched;
+        while (block)
+            juce::Thread::sleep (5);
+        LaunchResult r;
+        r.status = answer;
+        return r;
+    };
+    const InstallRequest request { setup, sha256Hex (setup), "0.5.0" };
+    Cancellation cancel;
+    const auto install = [&config, &request, &cancel] {
+        return makeInstaller (Platform::Windows, config)
+            ->install (request, [] (InstallStep) {}, cancel);
+    };
+
+    SECTION ("No at the prompt lets it go")
+    {
+        answer = Elevated::Status::Declined;
+        CHECK (install().outcome == InstallResult::Outcome::Declined);
+        CHECK (launched == 1);
+        CHECK (setup.deleteFile());
+    }
+    SECTION ("a failed launch lets it go")
+    {
+        answer = Elevated::Status::Unavailable;
+        CHECK (install().error == Error::ElevationFailed);
+        CHECK (setup.deleteFile());
+    }
+    SECTION ("a cancel before the launch lets it go")
+    {
+        cancel.cancel();
+        CHECK (install().outcome == InstallResult::Outcome::Cancelled);
+        CHECK (launched == 0);
+        CHECK (setup.deleteFile());
+    }
+    SECTION ("without the host's creation time, no Setup starts")
+    {
+        config.waitPid = 0xfffffff0u; // no such process
+        const auto r = install();
+        CHECK (r.error == Error::ElevationFailed);
+        CHECK (r.detail.contains ("started"));
+        CHECK (launched == 0);
+        CHECK (setup.deleteFile());
+    }
+    SECTION ("a Setup that started keeps it held, and waits for this very process")
+    {
+        const auto self = static_cast<juce::uint32> (currentProcessId());
+        CHECK (install().outcome == InstallResult::Outcome::Scheduled);
+        CHECK (parameters.contains (" /WAITPID=" + juce::String (self) + " "));
+        CHECK (parameters.contains (" /WAITPIDTIME=" + juce::String (processCreationTime (self))));
+        CHECK (parameters.contains (" /COMPONENTS=vst3,clap,standalone "));
+        CHECK_FALSE (setup.deleteFile()); // until this process exits
+    }
+    SECTION ("a prompt still open when Sedef closes keeps it, until it ends in No")
+    {
+        block = true;
+        answer = Elevated::Status::Declined;
+        InstallResult r;
+        std::thread worker ([&] { r = install(); });
+        const bool asked = within (10000, [&launched] { return launched.load() == 1; });
+        cancel.cancel();
+        worker.join();
+        REQUIRE (asked);
+        CHECK (r.outcome == InstallResult::Outcome::Cancelled);
+        CHECK_FALSE (setup.deleteFile()); // the prompt may still say Yes
+        block = false;
+        CHECK (within (10000, [&setup] { return setup.deleteFile(); }));
+    }
 }
 
 TEST_CASE ("Creation times tell a process from a later one with its id",

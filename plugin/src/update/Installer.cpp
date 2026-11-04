@@ -350,21 +350,21 @@ public:
     InstallResult install (const InstallRequest& request, const StepCallback& step,
                            Cancellation& cancel) override
     {
-        // Held from the check on: nobody can change, move or delete the file until this process
-        // exits, and by then Setup holds it itself (sedef-amp.iss, InitializeSetup).
+        // Held from the check on: nobody can change, move or delete the file. If Setup starts, it
+        // stays held until this process exits, and by then Setup holds it itself (sedef-amp.iss,
+        // InitializeSetup); if not, it is let go (launchElevated).
         step (InstallStep::Preparing);
-        HeldFile held (request.file);
-        if (!held.isOpen())
+        auto held = std::make_unique<HeldFile> (request.file);
+        if (!held->isOpen())
             return failure (Error::Disk, "cannot open " + request.file.getFullPathName());
-        if (held.sha256() != request.expectedHash.toLowerCase())
+        if (held->sha256() != request.expectedHash.toLowerCase())
             return failure (Error::ChecksumMismatch,
                             request.file.getFileName() + " changed after it was verified");
-        held.keepUntilExit();
         if (cancel.isCancelled())
             return outcome (InstallResult::Outcome::Cancelled);
 
-        // The host keeps the plug-in loaded and locked, so Setup waits for it to exit.
-        step (InstallStep::Permission);
+        // The host keeps the plug-in loaded and locked, so Setup waits for it to exit: for that
+        // very process, known by its creation time too. Without it, nothing is launched.
         const auto pid =
             config_.waitPid != 0 ? config_.waitPid : static_cast<juce::uint32> (currentProcessId());
         const auto created =
@@ -373,11 +373,16 @@ public:
             pid, created,
             windowsComponentsToInstall (config_.commonFiles, config_.appFolder, config_.running),
             request.relaunch);
+        if (parameters.isEmpty())
+            return failure (Error::ElevationFailed, "cannot read when process " +
+                                                        juce::String (pid) +
+                                                        " started, so Setup could not wait for it");
         if (config_.extraSetupParameters.isNotEmpty())
             parameters << " " << config_.extraSetupParameters;
-        const auto launch =
-            launchElevated (request.file, parameters, request.window, config_.keepProcess,
-                            [&cancel] { return cancel.isCancelled(); });
+        step (InstallStep::Permission);
+        const auto launch = launchElevated (
+            request.file, parameters, request.window, config_.keepProcess,
+            [&cancel] { return cancel.isCancelled(); }, std::move (held), config_.launch);
         if (launch.cancelled)
             return outcome (InstallResult::Outcome::Cancelled,
                             "if the prompt is answered with Yes later, Setup runs");
@@ -522,37 +527,35 @@ namespace
 /// for it; whichever is last frees it.
 struct LaunchJob
 {
-    std::wstring file, parameters;
-    HWND window = nullptr;
+    juce::File file;
+    juce::String parameters;
+    void* window = nullptr;
     bool keepProcess = false;
+    std::unique_ptr<HeldFile> held; // the thread's alone
+    Launch launch;
     std::mutex lock;
     bool done = false, abandoned = false;
     LaunchResult result;
 };
 
-struct ThreadStart
+/// ShellExecuteEx with "runas": blocks while UAC asks.
+LaunchResult shellExecuteElevated (const juce::File& file, const juce::String& parameters,
+                                   void* window)
 {
-    HMODULE module;
-    std::shared_ptr<LaunchJob>* job;
-};
-
-void runLaunch (std::shared_ptr<LaunchJob>* holder)
-{
-    const std::shared_ptr<LaunchJob> job (std::move (*holder));
-    delete holder;
     LaunchResult r;
     // ShellExecuteEx wants COM.
     const auto com = CoInitializeEx (nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+    const auto path = file.getFullPathName();
     SHELLEXECUTEINFOW info {};
     info.cbSize = sizeof (info);
     // NOZONECHECKS: the cache copy has no Mark of the Web and Sedef verified it. NOASYNC: this
     // thread waits for the prompt.
     info.fMask =
         SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NOZONECHECKS | SEE_MASK_FLAG_NO_UI | SEE_MASK_NOASYNC;
-    info.hwnd = job->window;
+    info.hwnd = static_cast<HWND> (window);
     info.lpVerb = L"runas";
-    info.lpFile = job->file.c_str();
-    info.lpParameters = job->parameters.c_str();
+    info.lpFile = path.toWideCharPointer();
+    info.lpParameters = parameters.toWideCharPointer();
     info.nShow = SW_SHOWNORMAL;
     const bool ok = ShellExecuteExW (&info) != FALSE;
     const auto error = GetLastError();
@@ -568,6 +571,29 @@ void runLaunch (std::shared_ptr<LaunchJob>* holder)
         r.status =
             error == ERROR_CANCELLED ? Elevated::Status::Declined : Elevated::Status::Unavailable;
         r.detail = "ShellExecuteEx failed with error " + juce::String (static_cast<int> (error));
+    }
+    return r;
+}
+
+struct ThreadStart
+{
+    HMODULE module;
+    std::shared_ptr<LaunchJob>* job;
+};
+
+void runLaunch (std::shared_ptr<LaunchJob>* holder)
+{
+    const std::shared_ptr<LaunchJob> job (std::move (*holder));
+    delete holder;
+    auto r = job->launch ? job->launch (job->file, job->parameters, job->window)
+                         : shellExecuteElevated (job->file, job->parameters, job->window);
+    // Setup runs: the file stays as it was checked until this process exits (Setup holds it
+    // from then on). No Setup: it is let go.
+    if (job->held != nullptr)
+    {
+        if (r.status == Elevated::Status::Ok)
+            job->held->keepUntilExit();
+        job->held.reset();
     }
 
     const std::scoped_lock l (job->lock);
@@ -594,13 +620,16 @@ DWORD WINAPI launchThread (void* parameter)
 } // namespace
 
 LaunchResult launchElevated (const juce::File& setup, const juce::String& parameters, void* window,
-                             bool keepProcess, const std::function<bool()>& cancelled)
+                             bool keepProcess, const std::function<bool()>& cancelled,
+                             std::unique_ptr<HeldFile> held, const Launch& launch)
 {
     auto job = std::make_shared<LaunchJob>();
-    job->file = setup.getFullPathName().toWideCharPointer();
-    job->parameters = parameters.toWideCharPointer();
-    job->window = static_cast<HWND> (window);
+    job->file = setup;
+    job->parameters = parameters;
+    job->window = window;
     job->keepProcess = keepProcess;
+    job->held = std::move (held);
+    job->launch = launch;
 
     // The thread keeps this module loaded until it is done, even if the host unloads the plug-in.
     HMODULE module = nullptr;
@@ -809,7 +838,7 @@ bool openAfterExit (juce::uint32 pid, const juce::File& app)
 #else
 
 LaunchResult launchElevated (const juce::File&, const juce::String&, void*, bool,
-                             const std::function<bool()>&)
+                             const std::function<bool()>&, std::unique_ptr<HeldFile>, const Launch&)
 {
     LaunchResult r;
     r.status = Elevated::Status::Unavailable;

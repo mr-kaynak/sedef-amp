@@ -129,8 +129,8 @@ juce::StringArray windowsComponentsToInstall (const juce::File& commonFiles,
 /// The setup's switches for an update: no wizard and no message boxes, no restart, no closing of
 /// programs, a restart reported as exit code 3010, exactly `components`, and wait for process
 /// `waitPid` (the host) to exit first, if it is still the process created at `waitPidCreated` (a
-/// FILETIME; 0 when unknown) and not a new one with the same id (sedef-amp.iss). `relaunch` opens
-/// the standalone app afterwards.
+/// FILETIME) and not a new one with the same id (sedef-amp.iss). `relaunch` opens the standalone
+/// app afterwards. Empty when `waitPidCreated` is 0: Setup would not wait, so it must not run.
 juce::String windowsSetupParameters (juce::uint32 waitPid, juce::uint64 waitPidCreated,
                                      const juce::StringArray& components, bool relaunch);
 

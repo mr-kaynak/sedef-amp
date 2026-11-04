@@ -96,6 +96,22 @@ using Elevate = std::function<Elevated (const juce::StringArray& command,
 /// The plug-in's way to ask: osascript's "with administrator privileges" on macOS, pkexec on Linux.
 Elevate systemElevate();
 
+/// Windows: how starting Setup went (launchElevated).
+struct LaunchResult
+{
+    Elevated::Status status = Elevated::Status::Failed;
+    bool cancelled = false; // stopped waiting for the prompt
+    juce::String detail;
+    void* process = nullptr; // a HANDLE when asked for; close it with closeProcess
+};
+
+class HeldFile;
+
+/// Windows: what starts Setup elevated, blocking while UAC asks (on launchElevated's thread).
+/// Empty: ShellExecuteEx with "runas". Tests stand in for it.
+using Launch = std::function<LaunchResult (const juce::File& setup, const juce::String& parameters,
+                                           void* window)>;
+
 struct InstallerConfig
 {
     juce::File root;        // macOS: the volume the pkg installs to ("/"; tests: a fake root)
@@ -109,6 +125,7 @@ struct InstallerConfig
     juce::uint64 waitPidCreated = 0;   // Windows: its creation time (0: looked up)
     bool keepProcess = false;          // Windows: hand back Setup's process (the CLI waits for it)
     juce::String extraSetupParameters; // Windows: e.g. /LOG="..." (the CLI)
+    Launch launch;                     // Windows: empty: ShellExecuteEx
 };
 
 /// This process's configuration: the real root, location, folders and way to ask.
@@ -122,15 +139,11 @@ std::unique_ptr<Installer> makeInstaller (Platform platform, InstallerConfig con
 /// keeps the plug-in's module loaded until it is done: the prompt can stay up for as long as the
 /// user likes, and `cancelled` ends the wait for it at once (the prompt stays, and if the user
 /// agrees later, Setup runs). The CLI keeps the process to wait for it; the plug-in lets it go.
-struct LaunchResult
-{
-    Elevated::Status status = Elevated::Status::Failed;
-    bool cancelled = false; // stopped waiting for the prompt
-    juce::String detail;
-    void* process = nullptr; // a HANDLE when asked for; close it with closeProcess
-};
+/// `held` (the checked setup file) goes to that thread: once Setup has started it stays held until
+/// this process exits; when the prompt ends in No or a failure it is let go.
 LaunchResult launchElevated (const juce::File& setup, const juce::String& parameters, void* window,
-                             bool keepProcess, const std::function<bool()>& cancelled = {});
+                             bool keepProcess, const std::function<bool()>& cancelled = {},
+                             std::unique_ptr<HeldFile> held = {}, const Launch& launch = {});
 /// Waits for a process from launchElevated; its exit code, or -1 on a timeout.
 int waitForProcess (void* process, int timeoutMs);
 void closeProcess (void* process);

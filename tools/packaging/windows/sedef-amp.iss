@@ -144,7 +144,7 @@ end;
 { /WAITPID=<pid>: hold this setup file, so nothing can change it until Setup has finished (the
   updater holds it until it exits, so it is the file it checked), then wait until that process has
   exited, so the files it holds are free. A process that is already gone, or that was created at
-  another time than /WAITPIDTIME says (its id was reused), means no wait. }
+  another time than /WAITPIDTIME says (its id was reused), or no /WAITPIDTIME, means no wait. }
 function InitializeSetup: Boolean;
 var
   Pid: Integer;
@@ -165,18 +165,24 @@ begin
   end;
   Holding := True;
   Log('Holding ' + ExpandConstant('{srcexe}'));
+  { Without its creation time, a process can't be told from a later one that got its id. The
+    updater always passes both. }
+  Expected := StrToInt64Def(ExpandConstant('{param:WAITPIDTIME|0}'), 0);
+  if Expected = 0 then
+  begin
+    Log(Format('No /WAITPIDTIME for process %d: not waiting for it', [Pid]));
+    Exit;
+  end;
   Process := OpenProcess(SYNCHRONIZE or PROCESS_QUERY_LIMITED_INFORMATION, 0, Pid);
   if Process = 0 then
     Exit;
-  Expected := StrToInt64Def(ExpandConstant('{param:WAITPIDTIME|0}'), 0);
-  if Expected <> 0 then
-    if (GetProcessTimes(Process, Created, ExitTime, KernelTime, UserTime) = 0) or
-       (Created <> Expected) then
-    begin
-      Log(Format('Process %d was created at another time: not waiting for it', [Pid]));
-      CloseHandle(Process);
-      Exit;
-    end;
+  if (GetProcessTimes(Process, Created, ExitTime, KernelTime, UserTime) = 0) or
+     (Created <> Expected) then
+  begin
+    Log(Format('Process %d was created at another time: not waiting for it', [Pid]));
+    CloseHandle(Process);
+    Exit;
+  end;
   Log(Format('Waiting for process %d to exit', [Pid]));
   while WaitForSingleObject(Process, 250) = WAIT_TIMEOUT do
   begin

@@ -617,13 +617,14 @@ juce::StringArray windowsComponentsToInstall (const juce::File& commonFiles,
 juce::String windowsSetupParameters (juce::uint32 waitPid, juce::uint64 waitPidCreated,
                                      const juce::StringArray& components, bool relaunch)
 {
+    if (waitPidCreated == 0)
+        return {};
     juce::String p (
         "/SILENT /SUPPRESSMSGBOXES /NORESTART /NOCLOSEAPPLICATIONS /RESTARTEXITCODE=3010");
     if (!components.isEmpty())
         p << " /COMPONENTS=" << components.joinIntoString (",");
     p << " /WAITPID=" << juce::String (waitPid);
-    if (waitPidCreated != 0)
-        p << " /WAITPIDTIME=" << juce::String (waitPidCreated);
+    p << " /WAITPIDTIME=" << juce::String (waitPidCreated);
     if (relaunch)
         p << " /RELAUNCH";
     return p;

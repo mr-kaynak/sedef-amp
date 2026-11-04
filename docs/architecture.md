@@ -302,8 +302,8 @@ applies a board only at a block boundary.
 6. **Tests and docs.** The registry tests check every pedal has a switch, a panel and a
    description. Add the pedal to the README Pedals row, `docs/ui.md` and the CHANGELOG.
 
-The pedal order is fixed for now; a pedalboard that lets the player reorder the pedals is
-planned. Each pedal's page explains its place ("Where it goes in the chain"), in short:
+The default order (the ranks in `PedalList.inc`, which also give the legacy board) follows each
+pedal's page ("Where it goes in the chain"); the player can change it on the board. In short:
 
 - **Trench right after the gate.** An octave divider tracks best on the clean, uncompressed
   guitar: every drive in front of it would add harmonics for the tracker to mistake for the note,
@@ -327,8 +327,9 @@ planned. Each pedal's page explains its place ("Where it goes in the chain"), in
   flat.
 
 Each oversampled pedal (Remora, Urchin, Sargasso, Pearl, Kelp, Coral, Breaker) adds its
-oversampler's latency to the chain whether it is on or off, so switching pedals never changes the
-latency reported to the host. With the default minimum-phase oversampling that is 5 samples per
+oversampler's latency to the chain whether it is on or off, on the board or not (the rack pads for
+the ones that aren't), so switching or moving pedals never changes the latency reported to the
+host. With the default minimum-phase oversampling that is 5 samples per
 stage at 44.1/48 kHz: 41 samples (0.85 ms) for the whole rig at 48 kHz, including the amp and the
 capture stage. Settings > Latency > Linear phase brings back 0.4.0's linear-phase filters,
 298 samples (6.2 ms). The setting is the `oversampling` parameter; changing it prepares the engine

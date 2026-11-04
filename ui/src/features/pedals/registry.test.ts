@@ -17,7 +17,22 @@ describe('pedal registry', () => {
     const ids = PEDALS.map((p) => p.id);
     expect(new Set(ids).size).toBe(ids.length);
     for (const p of PEDALS) expect(CATEGORIES).toContain(p.category);
-    expect(LEGACY_BOARD).toEqual(['gate', 'tide', 'pearl', 'coral', 'ripple']);
+    // The fixed chain the board replaced; 0.3.0's five pedals keep their order in it.
+    expect(LEGACY_BOARD).toEqual([
+      'gate',
+      'trench',
+      'remora',
+      'tide',
+      'urchin',
+      'sargasso',
+      'pearl',
+      'kelp',
+      'coral',
+      'ripple',
+      'breaker',
+    ]);
+    // Default positions agree with it.
+    expect([...PEDALS].sort((a, b) => a.rank - b.rank).map((p) => p.id)).toEqual(LEGACY_BOARD);
   });
 
   it('has a panel and a one-line description for every pedal the engine declares', () => {

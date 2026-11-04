@@ -111,8 +111,9 @@ TEST_CASE ("Board CPU (measurement)", "[.board-measure]")
         return std::chrono::duration<double, std::nano> (elapsed).count() / frames;
     };
     // Every pedal switched on; what the board holds decides what runs.
-    const auto on = cleanRig ({ ParamId::gateEnabled, ParamId::tideEnabled, ParamId::pearlEnabled,
-                                ParamId::coralEnabled, ParamId::rippleEnabled });
+    auto on = cleanRig();
+    for (std::size_t i = 0; i < kNumPedals; ++i)
+        on[kPedals[i].enable] = 1.0f;
     std::printf ("board CPU at 48 kHz, ns per sample: every pedal on the board and on %.1f; "
                  "Tide alone on the board %.1f; nothing on the board %.1f; every pedal on the "
                  "board, switched off %.1f\n",

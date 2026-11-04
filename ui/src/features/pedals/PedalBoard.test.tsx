@@ -5,7 +5,11 @@ import { Toasts } from '../../app/Toasts';
 import type { MockOptions } from '../../bridge/mockBackend';
 import { useBoardStore } from '../../state/boardStore';
 import { flush, setupMock, type Harness } from '../../test/harness';
+import { LEGACY_BOARD } from './registry';
 import { PedalBoard } from './PedalBoard';
+
+/** 0.3.0's pedals: most tests play this board. */
+const FIVE = ['gate', 'tide', 'pearl', 'coral', 'ripple'];
 
 /** Each pedal's box in the fake layout: one row, 220 px wide, 24 px apart. */
 const WIDTH = 220;
@@ -41,7 +45,7 @@ function slotIndex(el: Element): number {
 describe('PedalBoard', () => {
   let h: Harness;
   const start = async (options: MockOptions = {}) => {
-    h = await setupMock(options);
+    h = await setupMock({ board: FIVE, ...options });
     render(
       <>
         <div data-board>
@@ -139,7 +143,8 @@ describe('PedalBoard', () => {
         await h.mock.call('sedef_presets_load', 'factory:mariana', false);
       });
       await settle();
-      expect(shown()).toEqual(['gate', 'tide', 'pearl', 'coral', 'ripple']);
+      // Saved before the board: the fixed chain it replaced.
+      expect(shown()).toEqual(LEGACY_BOARD);
       expect(screen.queryByText('Removed Ripple')).not.toBeInTheDocument();
     });
 
@@ -179,10 +184,28 @@ describe('PedalBoard', () => {
       expect(add).toHaveAttribute('aria-expanded', 'true');
       const dialog = picker();
       const groups = within(dialog).getAllByRole('region');
+      // In the registry's category order, each pedal in its default order.
       expect(groups.map((g) => g.getAttribute('aria-label'))).toEqual([
         'Dynamics',
         'Drive',
+        'Fuzz',
         'Modulation',
+        'Pitch',
+      ]);
+      const names = (i: number) =>
+        within(groups[i]!)
+          .getAllByRole('button')
+          .map((b) => b.getAttribute('aria-label'));
+      expect(names(1)).toEqual([
+        'Add Pearl, overdrive',
+        'Add Kelp, mid overdrive',
+        'Add Coral, distortion',
+        'Add Breaker, treble booster',
+      ]);
+      expect(names(2)).toEqual([
+        'Add Remora, fuzz',
+        'Add Urchin, octave-up fuzz',
+        'Add Sargasso, sustain fuzz',
       ]);
       const dynamics = within(groups[0]!).getAllByRole('button');
       expect(dynamics.map((b) => b.getAttribute('aria-label'))).toEqual([

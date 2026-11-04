@@ -33,8 +33,8 @@ Factory presets use five categories: **Clean**, **Crunch** (edge of breakup to c
 **High Gain**, **Lead** and **Ambient**. Tags say what the category doesn't, from one vocabulary
 so the browser's chips stay useful (`ui/src/bridge/mock/factoryPresets.test.ts` checks both):
 
-- effects: `compressor`, `overdrive`, `boost`, `distortion`, `chorus`, `tremolo`, `vibrato`,
-  `delay`, `slapback`, `plate`, `hall`
+- effects: `compressor`, `overdrive`, `boost`, `distortion`, `fuzz`, `octave`, `chorus`,
+  `tremolo`, `vibrato`, `delay`, `slapback`, `plate`, `hall`
 - feel and use: `edge of breakup`, `rhythm`, `solo`, `swell`, `drone`
 - styles: `blues`, `rock`, `metal`, `funk`, `neo-soul`, `surf`, `rockabilly`, `garage`
 

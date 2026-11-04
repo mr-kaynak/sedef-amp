@@ -8,11 +8,17 @@
 #include "sedef/params/Parameters.h"
 
 // Every module named in PedalList.inc.
+#include "sedef/dsp/Breaker.h"
 #include "sedef/dsp/Coral.h"
+#include "sedef/dsp/Kelp.h"
 #include "sedef/dsp/NoiseGate.h"
 #include "sedef/dsp/Pearl.h"
+#include "sedef/dsp/Remora.h"
 #include "sedef/dsp/Ripple.h"
+#include "sedef/dsp/Sargasso.h"
 #include "sedef/dsp/Tide.h"
+#include "sedef/dsp/Trench.h"
+#include "sedef/dsp/Urchin.h"
 
 #include <algorithm>
 #include <array>

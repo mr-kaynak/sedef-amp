@@ -8,6 +8,37 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **Three new pedals** on the pedals page, in signal order ([architecture](docs/architecture.md)):
+  - **Trench**, an analog-style octave down: one and two octaves below the note you play, from
+    a divider that tracks single notes and fades its subs out on chords and silence instead of
+    sputtering. Sub −1, Sub −2, Direct and Tone. It sits first, right after the gate, where it
+    hears the clean guitar ([docs/dsp/trench.md](docs/dsp/trench.md)).
+  - **Urchin**, an octave-up fuzz modelled on the transformer-and-diodes circuit: Fuzz, Octave,
+    Tone and Level. Like the original, its octave rings clearest on single notes on the neck
+    pickup, above the 12th fret ([docs/dsp/urchin.md](docs/dsp/urchin.md)).
+  - **Kelp**, the classic mid-hump overdrive: Drive, Tone and Level. Drive down and Level up, it
+    is the mid-pushed boost that tightens a high-gain amp ([docs/dsp/kelp.md](docs/dsp/kelp.md)).
+- New factory presets: **Holdfast** (Kelp boosting Abyss), **Thermocline** (an octave-up fuzz
+  lead) and **Benthic** (riffs doubled an octave below). New preset tags: `fuzz`, `octave`.
+- New parameters: `kelpEnabled`, `kelpDrive`, `kelpTone`, `kelpLevel`, `urchinEnabled`,
+  `urchinFuzz`, `urchinOctave`, `urchinTone`, `urchinLevel`, `trenchEnabled`, `trenchDirect`,
+  `trenchSub1`, `trenchSub2`, `trenchTone`.
+- **Remora**, a two-transistor feedback fuzz, right behind Trench at the front of the board.
+  Germanium is soft and warm, silicon harder, brighter and louder; Bias moves from a gated,
+  sputtering starve through symmetric at noon to hot; Guitar volume stands in for the guitar's own
+  knob, and rolling it back cleans the fuzz up (from 42 % to 7 % distortion between 10 and 5, only
+  3 dB quieter) the way the real circuit does ([docs/dsp/remora.md](docs/dsp/remora.md)).
+- **Sargasso**, a four-stage sustain fuzz after the compressor and Urchin. Sustain holds a plucked
+  note above −20 dB for 1.7 s at minimum and 3.5 s at full; Tone blends a low-pass and a
+  high-pass, with a 9 dB mid scoop near 1 kHz at noon ([docs/dsp/sargasso.md](docs/dsp/sargasso.md)).
+- **Breaker**, a germanium treble booster last on the board, straight into the amp. Treble peaks
+  at 1.5 kHz and keeps the lows out; Full peaks at 460 Hz for a broad boost; Boost goes from
+  +3 to +31 dB at the peak and clips softly when pushed ([docs/dsp/breaker.md](docs/dsp/breaker.md)).
+- Both fuzzes leave at their input level with Volume at noon, every pedal switches click-free, and
+  aliasing on high notes stays below −69 dB.
+- New parameters: `remoraEnabled`, `remoraFuzz`, `remoraVolume`, `remoraBias`,
+  `remoraGuitarVolume`, `remoraTransistor`, `sargassoEnabled`, `sargassoSustain`, `sargassoTone`,
+  `sargassoVolume`, `breakerEnabled`, `breakerBoost`, `breakerRange` (163 → 176).
 - **Pedalboard:** the Pedals page is a board. Add pedals from a picker grouped by category, take
   them off (with Undo), and drag them into any order by their handle, or move them with the
   arrow keys or the move buttons. The board is saved with the session and with presets, and
@@ -21,9 +52,29 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
-- Sessions and presets saved before the board open with 0.3.0's order (Gate, Tide, Pearl, Coral,
-  Ripple) and sound exactly as they did.
+- The rig's latency is 1.5 ms longer at 48 kHz (187 samples): Kelp and Urchin are oversampled,
+  and like Pearl and Coral they keep their latency when switched off, so turning pedals on and
+  off never changes what the host compensates.
+- **Abyss is tight again:** palm mutes stop instead of droning, power chords and triads keep their
+  notes apart, and soft picking cleans up, without giving up the lead gain at the top of the knob.
+  In 0.3.0 two fixed stages after the gain knob squared every note even at low gain, so Abyss
+  behaved like a fuzz pedal. Now the gain knob does the work, the low strings hit the clippers
+  about 18 dB later than the mids, and the knob turns like an audio-taper pot: crunch to a tight
+  rhythm sound in the lower half, the lead wall at the top. At the default gain, eighth-note chugs
+  at 150 bpm now fall 20 dB between hits (was 10), a power chord's sum and difference tones sit
+  18 dB below its notes (was 11), and 24 dB of picking strength moves the output 7 dB (was 3).
+  At full gain a single note still sustains about 5 s, even from a quiet interface. The tone
+  colour is unchanged ([docs/dsp/amps.md](docs/dsp/amps.md#5-tight-not-fuzzy)).
+- Abyss factory presets were re-voiced for the new knob: Mariana (gain 0.6) is a tight
+  palm-mute sound, and the lead presets Riptide and Bioluminescence sustain as long as before.
+- Remora, Sargasso and Breaker add another 111 samples at 48 kHz (298 for the whole rig, 6.2 ms):
+  each is oversampled and, like the other drives, keeps its latency when switched off, so
+  switching them never moves the timeline.
+- Sessions and presets saved before the board open with the fixed chain it replaces (Gate,
+  Trench, Remora, Tide, Urchin, Sargasso, Pearl, Kelp, Coral, Ripple, Breaker; 0.3.0 had Gate,
+  Tide, Pearl, Coral and Ripple, in that order) and sound exactly as they did.
 - The Pedals tab shows a lamp for each pedal on the board, in its order.
+- Holdfast, Thermocline and Benthic carry boards with just the pedals they use.
 
 ## [0.3.0] - 2026-11-03
 

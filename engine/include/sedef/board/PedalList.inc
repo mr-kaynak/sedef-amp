@@ -32,3 +32,21 @@ SEDEF_PEDAL(coral, "Coral", Drive, 60, coralEnabled, dsp::Coral,
 SEDEF_PEDAL(ripple, "Ripple", Modulation, 80, rippleEnabled, dsp::Ripple,
             (dsp::Ripple::Settings { p.choice (P::rippleMode), p[P::rippleSpeed],
                                      p[P::rippleDepth] }))
+// The pedals lane: an octave divider, an octave-up fuzz and a mid-hump overdrive.
+SEDEF_PEDAL(trench, "Trench", Pitch, 15, trenchEnabled, dsp::Trench,
+            (dsp::Trench::Settings { p[P::trenchDirect], p[P::trenchSub1], p[P::trenchSub2],
+                                     p[P::trenchTone] }))
+SEDEF_PEDAL(urchin, "Urchin", Fuzz, 40, urchinEnabled, dsp::Urchin,
+            (dsp::Urchin::Settings { p[P::urchinFuzz], p[P::urchinOctave], p[P::urchinTone],
+                                     p[P::urchinLevel] }))
+SEDEF_PEDAL(kelp, "Kelp", Drive, 55, kelpEnabled, dsp::Kelp,
+            (dsp::Kelp::Settings { p[P::kelpDrive], p[P::kelpTone], p[P::kelpLevel] }))
+// The drives lane: a two-transistor fuzz, a sustain fuzz and a treble booster.
+SEDEF_PEDAL(remora, "Remora", Fuzz, 20, remoraEnabled, dsp::Remora,
+            (dsp::Remora::Settings { p[P::remoraFuzz], p[P::remoraVolume], p[P::remoraBias],
+                                     p[P::remoraGuitarVolume], p.choice (P::remoraTransistor) }))
+SEDEF_PEDAL(sargasso, "Sargasso", Fuzz, 45, sargassoEnabled, dsp::Sargasso,
+            (dsp::Sargasso::Settings { p[P::sargassoSustain], p[P::sargassoTone],
+                                       p[P::sargassoVolume] }))
+SEDEF_PEDAL(breaker, "Breaker", Drive, 95, breakerEnabled, dsp::Breaker,
+            (dsp::Breaker::Settings { p[P::breakerBoost], p.choice (P::breakerRange) }))

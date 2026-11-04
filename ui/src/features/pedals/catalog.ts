@@ -4,11 +4,15 @@
 // engine/include/sedef/board/PedalList.inc, read here through ./registry. Adding a pedal:
 // docs/architecture.md, "Adding a pedal".
 import type { ComponentType } from 'react';
+import { BreakerPedal, RemoraPedal, SargassoPedal } from './DrivePedals';
+import { KelpPedal } from './KelpPedal';
 import { CoralPanel } from './panels/CoralPanel';
 import { GatePanel } from './panels/GatePanel';
 import { PearlPanel } from './panels/PearlPanel';
 import { RipplePanel } from './panels/RipplePanel';
 import { TidePanel } from './panels/TidePanel';
+import { TrenchPedal } from './TrenchPedal';
+import { UrchinPedal } from './UrchinPedal';
 
 export interface PedalEntry {
   /** The enclosure: self-contained, it renders on its own in any container. */
@@ -44,5 +48,35 @@ export const PEDAL_CATALOG: Record<string, PedalEntry> = {
     Panel: RipplePanel,
     kind: 'Modulation',
     description: 'Tremolo, chorus or vibrato.',
+  },
+  trench: {
+    Panel: TrenchPedal,
+    kind: 'Octave down',
+    description: 'One and two octaves below single notes, like a baritone.',
+  },
+  urchin: {
+    Panel: UrchinPedal,
+    kind: 'Octave-up fuzz',
+    description: 'Fuzz with a ringing octave above, clearest high on the neck.',
+  },
+  kelp: {
+    Panel: KelpPedal,
+    kind: 'Mid overdrive',
+    description: 'Mid-hump drive, or a tight boost into a high-gain amp.',
+  },
+  remora: {
+    Panel: RemoraPedal,
+    kind: 'Fuzz',
+    description: 'Two-transistor fuzz that cleans up as you roll your volume back.',
+  },
+  sargasso: {
+    Panel: SargassoPedal,
+    kind: 'Sustain fuzz',
+    description: 'Thick fuzz that holds notes, with a scooped-mid tone control.',
+  },
+  breaker: {
+    Panel: BreakerPedal,
+    kind: 'Treble booster',
+    description: 'Pushes the upper mids into the amp; Full widens the boost.',
   },
 };

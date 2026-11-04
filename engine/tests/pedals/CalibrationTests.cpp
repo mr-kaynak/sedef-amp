@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 #include "PedalTestUtils.h"
 #include "sedef/dsp/Coral.h"
+#include "sedef/dsp/Kelp.h"
 #include "sedef/dsp/Pearl.h"
+#include "sedef/dsp/Urchin.h"
 
 #include <catch2/catch_test_macros.hpp>
 #include <cstdio>
@@ -39,5 +41,38 @@ TEST_CASE ("Calibrate drive output levels", "[.calibrate]")
             std::printf ("%s gain %.3f: %+.2f dB  peak %.3f\n", which == 0 ? "Pearl" : "Coral",
                          gain, test::db (out / in), test::peak (b[0]));
         }
+    }
+}
+
+/// The same for Kelp and Urchin (Urchin at Octave 0, 0.5 and 1: its trim is fitted to their mean).
+TEST_CASE ("Calibrate Kelp and Urchin output levels", "[.calibrate]")
+{
+    const double fs = 48000.0;
+    const int frames = 48000;
+    const auto measure = [&] (auto& module, const auto& settings) {
+        test::Buffer b (1, frames);
+        test::fillGuitarTone (b[0], fs);
+        const float in = test::rms (b[0], frames / 2);
+        module.prepare ({ fs, 512, 1 });
+        module.setSettings (settings);
+        test::processInBlocks (b, 512, [&] (AudioView v) { module.process (v); });
+        return test::db (test::rms (b[0], frames / 2) / in);
+    };
+    for (float drive : { 0.0f, 0.125f, 0.25f, 0.375f, 0.5f, 0.625f, 0.75f, 0.875f, 1.0f })
+    {
+        dsp::Kelp k;
+        std::printf ("Kelp drive %.3f: %+.2f dB\n", static_cast<double> (drive),
+                     measure (k, dsp::Kelp::Settings { drive, 0.5f, 0.5f }));
+    }
+    for (float fuzz : { 0.0f, 0.125f, 0.25f, 0.375f, 0.5f, 0.625f, 0.75f, 0.875f, 1.0f })
+    {
+        std::printf ("Urchin fuzz %.3f:", static_cast<double> (fuzz));
+        for (float octave : { 0.0f, 0.5f, 1.0f })
+        {
+            dsp::Urchin u;
+            std::printf ("  octave %.1f %+.2f dB", static_cast<double> (octave),
+                         measure (u, dsp::Urchin::Settings { fuzz, octave, 0.5f, 0.5f }));
+        }
+        std::printf ("\n");
     }
 }

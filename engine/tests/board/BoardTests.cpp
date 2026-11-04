@@ -38,15 +38,22 @@ TEST_CASE ("Every pedal is declared once, with an on/off switch", "[board]")
     CHECK_FALSE (findPedal ("").has_value());
 }
 
-TEST_CASE ("The legacy board is 0.3.0's fixed chain", "[board]")
+TEST_CASE ("The legacy board is the fixed chain the board replaced", "[board]")
 {
     const auto legacy = Board::legacy();
-    REQUIRE (legacy.size() == 5);
-    CHECK (legacy == boardOf ({ PedalId::gate, PedalId::tide, PedalId::pearl, PedalId::coral,
-                                PedalId::ripple }));
+    CHECK (legacy == boardOf ({ PedalId::gate, PedalId::trench, PedalId::remora, PedalId::tide,
+                                PedalId::urchin, PedalId::sargasso, PedalId::pearl, PedalId::kelp,
+                                PedalId::coral, PedalId::ripple, PedalId::breaker }));
+    // 0.3.0's pedals keep their order in it.
+    const auto old =
+        boardOf ({ PedalId::gate, PedalId::tide, PedalId::pearl, PedalId::coral, PedalId::ripple });
+    for (std::size_t i = 0; i + 1 < old.size(); ++i)
+        CHECK (*legacy.indexOf (old[i]) < *legacy.indexOf (old[i + 1]));
+    // Default positions agree with it: Add pedal puts a pedal where the fixed chain had it.
+    CHECK (Board::everyPedal() == legacy);
 
-    // A session from 0.3.0 has none of the newer pedals switched on: exactly the legacy board,
-    // whichever of its own pedals it switches on or off.
+    // A session saved before the board gets exactly the legacy board, whichever of its pedals it
+    // switches on or off.
     const auto defaults = ParamSnapshot::defaults();
     CHECK (Board::legacyFor ([&] (ParamId id) { return defaults.flag (id); }) == legacy);
     CHECK (Board::legacyFor ([] (ParamId) { return false; }) == legacy);
@@ -569,8 +576,9 @@ TEST_CASE ("Pedals off the board are not processed", "[board]")
     // Every pedal switched on, only some on the board: the others never run.
     BoardRig rig (48000.0, 256, 48000);
     fillSine (rig.in[0], 220.0, 48000.0, 0.2f);
-    auto p = cleanRig ({ ParamId::gateEnabled, ParamId::tideEnabled, ParamId::pearlEnabled,
-                         ParamId::coralEnabled, ParamId::rippleEnabled });
+    auto p = cleanRig ({});
+    for (std::size_t i = 0; i < kNumPedals; ++i)
+        p[kPedals[i].enable] = 1.0f;
     const auto check = [&] (const Board& board) {
         rig.engine.setBoard (board);
         rig.run (p, 0, 24000); // well past any fade or duck

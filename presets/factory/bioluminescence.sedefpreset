@@ -13,7 +13,7 @@
   "description": "Boosted lead with a hint of chorus and a dotted-eighth echo.",
   "parameters": {
     "ampModel": 2,
-    "abyssGain": 0.5,
+    "abyssGain": 0.65,
     "pearlEnabled": 1,
     "pearlGain": 0.1,
     "pearlLevel": 0.68,
@@ -30,6 +30,6 @@
     "fathomMix": 0.2,
     "fathomDecay": 3.5,
     "gateThreshold": -62.0,
-    "abyssOutput": 0.2813
+    "abyssOutput": 0.2751
   }
 }

@@ -246,6 +246,23 @@ TEST_CASE ("Presets carry the board; ones saved before it get the legacy board")
     CHECK_FALSE (presets.isDirty());
 }
 
+TEST_CASE ("Factory presets saved with a board load it")
+{
+    Fixture f;
+    SedefProcessor p;
+    auto& presets = p.presets();
+    REQUIRE (presets.load ("factory:benthic", false));
+    CHECK (p.board() == boardOf ({ PedalId::gate, PedalId::trench, PedalId::kelp }));
+    CHECK_FALSE (presets.isDirty());
+    REQUIRE (presets.load ("factory:holdfast", false));
+    CHECK (p.board() == boardOf ({ PedalId::gate, PedalId::kelp }));
+    REQUIRE (presets.load ("factory:thermocline", false));
+    CHECK (p.board() == boardOf ({ PedalId::gate, PedalId::tide, PedalId::urchin }));
+    // One saved before the board: the fixed chain it played.
+    REQUIRE (presets.load ("factory:nacre", false));
+    CHECK (p.board() == Board::legacy());
+}
+
 TEST_CASE ("A preset file without a board gets the pedals it switches on")
 {
     // As a preset written by hand or by a build before the board: the legacy board, plus any

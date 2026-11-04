@@ -74,14 +74,15 @@ public:
 
     constexpr Board() noexcept { pedals_.fill (PedalId::Count); }
 
-    /// The pedals 0.3.0 had, in its fixed order: Gate, Tide, Pearl, Coral, Ripple.
+    /// The fixed chain the board replaced, in its order: 0.3.0's Gate, Tide, Pearl, Coral and
+    /// Ripple, with the pedals that joined that chain before the board in their places.
     static Board legacy() noexcept;
     /// Every pedal, in default order.
     static Board everyPedal() noexcept;
 
     /// The board for a session or preset saved without one: the legacy board, plus every newer
-    /// pedal it switches on (`isOn (enableParam)`), each at its default position. A session from
-    /// 0.3.0 or earlier gets exactly the legacy board.
+    /// pedal it switches on (`isOn (enableParam)`), each at its default position. A session saved
+    /// before the board gets exactly the legacy board, so it plays the fixed chain it had.
     template <typename IsOn>
     static Board legacyFor (IsOn&& isOn)
     {

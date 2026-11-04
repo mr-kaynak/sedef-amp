@@ -720,8 +720,12 @@ constexpr const char* kSmokePresetScript = R"js((() => {
     await call('sedef_presets_snapshot', 'browse');
     const setAnswer = await call('sedef_board_set', [...reversed, 'no-such-pedal', reversed[0]]);
     const boardSet = same(setAnswer.pedals, reversed) && (await call('sedef_presets_list')).dirty;
-    await call('sedef_presets_load', 'factory:mariana', true); // saved before the board
-    const presetBoard = same(await pedals(), ['gate', 'tide', 'pearl', 'coral', 'ripple']);
+    // Mariana was saved before the board: the legacy board, as the fresh instance had. Benthic
+    // brings its own.
+    await call('sedef_presets_load', 'factory:mariana', true);
+    const legacyBoard = same(await pedals(), startBoard) && startBoard.length > 5;
+    await call('sedef_presets_load', 'factory:benthic', true);
+    const presetBoard = legacyBoard && same(await pedals(), ['gate', 'trench', 'kelp']);
     await call('sedef_presets_restore', 'browse');
     const boardRestored = same(await pedals(), reversed);
     await call('sedef_presets_compare', 'switch'); // to B: Riptide, from the earlier A/B

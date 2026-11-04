@@ -67,6 +67,18 @@
   min-height: 12px;
 }
 
+/* A short engraved instruction where playing it wrong makes the effect fail. */
+.hint {
+  margin: 0;
+  max-width: 100%;
+  color: var(--legend-dim);
+  font-size: var(--t-11);
+  font-weight: 450;
+  line-height: 1.3;
+  text-align: center;
+  text-wrap: balance;
+}
+
 .lamp {
   display: grid;
   place-items: center;

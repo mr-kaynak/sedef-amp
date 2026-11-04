@@ -5,7 +5,13 @@
     {"id": "tide", "name": "Tide", "category": "Dynamics", "rank": 30, "enable": "tideEnabled"},
     {"id": "pearl", "name": "Pearl", "category": "Drive", "rank": 50, "enable": "pearlEnabled"},
     {"id": "coral", "name": "Coral", "category": "Drive", "rank": 60, "enable": "coralEnabled"},
-    {"id": "ripple", "name": "Ripple", "category": "Modulation", "rank": 80, "enable": "rippleEnabled"}
+    {"id": "ripple", "name": "Ripple", "category": "Modulation", "rank": 80, "enable": "rippleEnabled"},
+    {"id": "trench", "name": "Trench", "category": "Pitch", "rank": 15, "enable": "trenchEnabled"},
+    {"id": "urchin", "name": "Urchin", "category": "Fuzz", "rank": 40, "enable": "urchinEnabled"},
+    {"id": "kelp", "name": "Kelp", "category": "Drive", "rank": 55, "enable": "kelpEnabled"},
+    {"id": "remora", "name": "Remora", "category": "Fuzz", "rank": 20, "enable": "remoraEnabled"},
+    {"id": "sargasso", "name": "Sargasso", "category": "Fuzz", "rank": 45, "enable": "sargassoEnabled"},
+    {"id": "breaker", "name": "Breaker", "category": "Drive", "rank": 95, "enable": "breakerEnabled"}
   ],
-  "legacy": ["gate", "tide", "pearl", "coral", "ripple"]
+  "legacy": ["gate", "trench", "remora", "tide", "urchin", "sargasso", "pearl", "kelp", "coral", "ripple", "breaker"]
 }

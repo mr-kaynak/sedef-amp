@@ -2,6 +2,7 @@
 import { act } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { Backend } from '../bridge/backend';
+import { LEGACY_BOARD } from '../features/pedals/registry';
 import type { BoardState } from '../bridge/protocol';
 import { flush, setupMock, type Harness } from '../test/harness';
 import { setBackend } from './backendRef';
@@ -9,7 +10,9 @@ import { applyBoardState, boardActions, resetBoardStore, useBoardStore } from '.
 import { presetActions, usePresetStore } from './presetStore';
 import { useToastStore } from './toastStore';
 
-const LEGACY = ['gate', 'tide', 'pearl', 'coral', 'ripple'];
+const LEGACY = [...LEGACY_BOARD];
+/** 0.3.0's pedals, a short board to edit. */
+const FIVE = ['gate', 'tide', 'pearl', 'coral', 'ripple'];
 const pedals = () => useBoardStore.getState().pedals;
 const dirty = () => usePresetStore.getState().state.dirty;
 const settle = () =>
@@ -45,7 +48,7 @@ describe('board store', () => {
   });
 
   it('keeps the latest edit when the answers to earlier ones come late', async () => {
-    h = await setupMock({ jitter: { maxMs: 20, seed: 7 } });
+    h = await setupMock({ board: FIVE, jitter: { maxMs: 20, seed: 7 } });
     boardActions.move('ripple', 0);
     boardActions.move('pearl', 0);
     boardActions.move('gate', 4);
@@ -65,12 +68,12 @@ describe('board store', () => {
       call: () => new Promise((resolve) => answers.push(resolve as (s: BoardState) => void)),
     } as unknown as Backend);
     resetBoardStore();
-    applyBoardState({ pedals: LEGACY, revision: 1 });
+    applyBoardState({ pedals: FIVE, revision: 1 });
     boardActions.move('ripple', 0);
     boardActions.move('pearl', 0);
     expect(pedals()).toEqual(['pearl', 'ripple', 'gate', 'tide', 'coral']);
     // The first answer would put Pearl back until the second came.
-    await act(async () => answers[0]!({ pedals: ['ripple', ...LEGACY.slice(0, 4)], revision: 2 }));
+    await act(async () => answers[0]!({ pedals: ['ripple', ...FIVE.slice(0, 4)], revision: 2 }));
     expect(pedals()).toEqual(['pearl', 'ripple', 'gate', 'tide', 'coral']);
     await act(async () =>
       answers[1]!({ pedals: ['pearl', 'ripple', 'gate', 'tide', 'coral'], revision: 3 }),

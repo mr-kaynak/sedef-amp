@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
+import { useId } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { Footswitch } from '../../controls/Footswitch';
 import { Led } from '../../controls/Led';
@@ -23,6 +24,8 @@ export interface PedalProps {
   children: ReactNode;
   /** Optional status element between the name and the footswitch (meters, rate lamps). */
   status?: ReactNode;
+  /** Optional engraved instruction in the status area ("One note at a time"). */
+  hint?: string;
   led?: ReactNode;
   /** A narrower enclosure for a pedal with one column of controls. */
   variant?: 'narrow';
@@ -36,10 +39,12 @@ export function Pedal({
   finish,
   children,
   status,
+  hint,
   led,
   variant,
 }: PedalProps) {
   const on = useParamValue(enableParam) >= 0.5;
+  const hintId = useId();
   const style = {
     '--paint-top': finish.paint[0],
     '--paint-bottom': finish.paint[1],
@@ -65,9 +70,20 @@ export function Pedal({
         <h2 className={styles.name}>{name}</h2>
         <p className={styles.kind}>{kind}</p>
       </div>
-      <div className={styles.status}>{status}</div>
+      <div className={styles.status}>
+        {status}
+        {hint && (
+          <p id={hintId} className={styles.hint}>
+            {hint}
+          </p>
+        )}
+      </div>
       <div className={styles.lamp}>{led ?? <Led on={on} size={10} />}</div>
-      <Footswitch param={enableParam} label={`${name} on/off`} />
+      <Footswitch
+        param={enableParam}
+        label={`${name} on/off`}
+        describedBy={hint ? hintId : undefined}
+      />
     </section>
   );
 }

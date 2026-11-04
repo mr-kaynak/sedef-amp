@@ -23,7 +23,7 @@ around them.
 
 | | |
 |---|---|
-| **Pedals** | A pedalboard: add the pedals you want, drag them into any order, saved with the session and presets · **Gate** noise gate · **Tide** compressor (3:1, tilt EQ, parallel blend) · **Pearl** transparent overdrive with mid boost · **Coral** distortion · **Ripple** tremolo / chorus / vibrato |
+| **Pedals** | A pedalboard: add the pedals you want, drag them into any order, saved with the session and presets · **Gate** noise gate · **Trench** octave down (one and two octaves, analog style) · **Remora** two-transistor fuzz (germanium / silicon, bias, cleans up with the guitar's volume) · **Tide** compressor (3:1, tilt EQ, parallel blend) · **Urchin** octave-up fuzz · **Sargasso** sustain fuzz with a mid-scoop tone · **Pearl** transparent overdrive with mid boost · **Kelp** classic mid-hump overdrive, also a tight boost · **Coral** distortion · **Ripple** tremolo / chorus / vibrato · **Breaker** treble booster (Treble / Full range) |
 | **Amps** | **Lagoon** — glassy, wide clean · **Reef** — British crunch with three voicings · **Abyss** — tight, saturated lead with bright and mid-shift switches |
 | **Captures** | load any Neural Amp Modeler (`.nam`) capture of a real amp or full rig in place of the amps, levelled to match them |
 | **Cabs** | 1x12 open, 2x12 open, 4x12 closed · two mics per cab from ten mic models, placed anywhere over the cone, backed off and turned off axis · room mics · load your own IRs |

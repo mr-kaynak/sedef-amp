@@ -269,7 +269,7 @@ void Trench::process (const AudioView& io) noexcept
             poly_ = target > poly_ ? std::min (target, poly_ + polyStep_)
                                    : std::max (target, poly_ - polyStep_);
             const bool runMono = poly_ < 1.0f, runPoly = poly_ > 0.0f;
-            for (int ch = 0; ch < channels; ++ch)
+            for (int ch = 0; ch < numChannels_; ++ch)
             {
                 auto& t = trackers_[static_cast<size_t> (ch)];
                 if (before < 1.0f && !runMono)
@@ -279,6 +279,10 @@ void Trench::process (const AudioView& io) noexcept
                     t.poly.reset();
                     t.polyGate = 0.0f;
                 }
+            }
+            for (int ch = 0; ch < channels; ++ch)
+            {
+                auto& t = trackers_[static_cast<size_t> (ch)];
                 float& x = io.channel (ch)[i];
                 updateLevel (t, x);
                 float sub = 0.0f;

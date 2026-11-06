@@ -2,7 +2,8 @@
 // The Updates row in Settings: where things stand, and the way into the Updates panel.
 import buttons from '../../controls/Button.module.css';
 import { uiActions } from '../../state/uiStore';
-import { selectSupported, updateActions, useUpdateStore } from './updateStore';
+import { restartText } from './text';
+import { needsRestart, selectSupported, updateActions, useUpdateStore } from './updateStore';
 import styles from './UpdatesSettings.module.css';
 
 export function UpdatesSettings({ className }: { className?: string }) {
@@ -12,11 +13,17 @@ export function UpdatesSettings({ className }: { className?: string }) {
   const status =
     state.phase === 'checking'
       ? 'Checking for updates…'
-      : state.updateAvailable && state.latest
-        ? `Sedef Amp ${state.latest.version} is available`
-        : state.latest
-          ? 'Sedef Amp is up to date'
-          : 'Not checked yet';
+      : state.phase === 'downloading' || state.phase === 'verifying'
+        ? 'Downloading the update…'
+        : state.phase === 'installing'
+          ? 'Installing the update…'
+          : needsRestart(state)
+            ? restartText(state).headline
+            : state.updateAvailable && state.latest
+              ? `Sedef Amp ${state.latest.version} is available`
+              : state.latest
+                ? 'Sedef Amp is up to date'
+                : 'Not checked yet';
 
   return (
     <section className={className}>

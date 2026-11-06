@@ -135,6 +135,14 @@ juce::String toString (Error error)
         return "disk";
     case Error::OpenFailed:
         return "openFailed";
+    case Error::BadPackage:
+        return "badPackage";
+    case Error::ElevationFailed:
+        return "elevationFailed";
+    case Error::InstallFailed:
+        return "installFailed";
+    case Error::Unverified:
+        return "unverified";
     case Error::Cancelled:
         return "cancelled";
     }
@@ -310,7 +318,7 @@ CheckResult Client::fetchLatest (Cancellation& cancel) const
 
 DownloadResult Client::downloadVerified (const Release& release, const Asset& asset,
                                          const juce::File& folder, const DownloadProgress& progress,
-                                         Cancellation& cancel) const
+                                         Cancellation& cancel, DownloadOptions options) const
 {
     DownloadResult result;
     const auto fail = [&result, &cancel] (Error error, juce::String detail) {
@@ -322,9 +330,12 @@ DownloadResult Client::downloadVerified (const Release& release, const Asset& as
         if (progress)
             progress (stage, received, asset.size);
     };
-    const auto finish = [&result, &asset, &release] (const juce::File& file) {
-        markAsDownloaded (file, asset.url, release.pageUrl); // best effort: see DownloadMark.h
+    juce::String expected;
+    const auto finish = [&result, &asset, &release, &options, &expected] (const juce::File& file) {
+        if (options.mark)
+            markAsDownloaded (file, asset.url, release.pageUrl); // best effort: see DownloadMark.h
         result.file = file;
+        result.sha256 = expected;
         return result;
     };
 
@@ -346,7 +357,7 @@ DownloadResult Client::downloadVerified (const Release& release, const Asset& as
     if (entry == table.end())
         return fail (Error::NoChecksum,
                      juce::String (kChecksumsAssetName) + " has no single line for " + asset.name);
-    const auto expected = entry->second;
+    expected = entry->second;
 
     // 2. Where it goes. Never overwrite a file we did not verify.
     if (!folder.createDirectory())
@@ -356,7 +367,10 @@ DownloadResult Client::downloadVerified (const Release& release, const Asset& as
     {
         if (matchesChecksum (target, expected))
             return finish (target);
-        target = numberedSibling (target);
+        // A copy that can't go (a setup that is held or still runs, on Windows) stays, and this
+        // one takes the next free name.
+        if (!options.replace || !target.deleteFile())
+            target = numberedSibling (target);
     }
     if (folder.getBytesFreeOnVolume() < asset.size)
         return fail (Error::Disk, "not enough free space in " + folder.getFullPathName());
@@ -403,6 +417,49 @@ DownloadResult Client::downloadVerified (const Release& release, const Asset& as
     const auto actual = sha256Hex (part);
     if (actual != expected)
         return fail (Error::ChecksumMismatch, "expected " + expected + ", got " + actual);
+    if (!part.moveFileTo (target))
+        return fail (Error::Disk, "could not rename " + part.getFullPathName());
+    return finish (target);
+}
+
+DownloadResult copyVerified (const juce::File& file, const juce::String& sha256,
+                             const juce::File& folder, const juce::String& sourceUrl,
+                             const juce::String& pageUrl)
+{
+    DownloadResult result;
+    const auto fail = [&result] (Error error, juce::String detail) {
+        result.error = error;
+        result.detail = std::move (detail);
+        return result;
+    };
+    const auto finish = [&] (const juce::File& target) {
+        markAsDownloaded (target, sourceUrl, pageUrl);
+        result.file = target;
+        result.sha256 = sha256;
+        return result;
+    };
+    if (!matchesChecksum (file, sha256))
+        return fail (Error::ChecksumMismatch,
+                     file.getFileName() + " changed after it was verified");
+    if (!folder.createDirectory())
+        return fail (Error::Disk, "cannot create " + folder.getFullPathName());
+    auto target = folder.getChildFile (file.getFileName());
+    if (target.existsAsFile())
+    {
+        if (matchesChecksum (target, sha256))
+            return finish (target);
+        target = numberedSibling (target);
+    }
+    if (folder.getBytesFreeOnVolume() < file.getSize())
+        return fail (Error::Disk, "not enough free space in " + folder.getFullPathName());
+    const auto part = target.getSiblingFile (target.getFileName() + ".part");
+    const juce::ScopeGuard removePart { [&part] { part.deleteFile(); } };
+    part.deleteFile();
+    if (!file.copyFileTo (part))
+        return fail (Error::Disk, "could not write " + part.getFullPathName());
+    if (!matchesChecksum (part, sha256))
+        return fail (Error::ChecksumMismatch,
+                     "the copy in " + folder.getFullPathName() + " does not match");
     if (!part.moveFileTo (target))
         return fail (Error::Disk, "could not rename " + part.getFullPathName());
     return finish (target);

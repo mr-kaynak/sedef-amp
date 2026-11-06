@@ -159,8 +159,9 @@ Start with [docs/architecture.md](docs/architecture.md).
 
 ## Updates & privacy
 
-Sedef checks GitHub for a new release at most once a day, when you open its window, and can
-download, verify (SHA-256) and open the installer for you. The check is a single HTTPS request
+Sedef checks GitHub for a new release at most once a day, when you open its window. **Update now**
+downloads it, verifies it (SHA-256) and installs it through your OS's own installer after your
+password or permission prompt; then you restart your DAW. The check is a single HTTPS request
 that carries only the Sedef version and your OS family, no identifiers. Switch it off in Settings
 → Updates, with `SEDEF_DISABLE_UPDATE_CHECK=1`, or at build time with `-DSEDEF_UPDATE_CHECK=OFF`.
 How it works and what it protects against: [docs/updates.md](docs/updates.md).

@@ -545,9 +545,11 @@ export class MockBackend implements Backend {
     sedef_update_check: () => this.updates.check(),
     sedef_update_setAutoCheck: (enabled) => this.updates.setAutoCheck(enabled),
     sedef_update_skip: (version) => this.updates.skip(version),
-    sedef_update_download: () => this.updates.download(),
+    sedef_update_install: () => this.updates.install(),
+    sedef_update_installManually: () => this.updates.installManually(),
     sedef_update_cancel: () => this.updates.cancel(),
     sedef_update_reveal: () => this.updates.reveal(),
+    sedef_update_restart: () => this.updates.restart(),
   };
 
   // --- Internals ------------------------------------------------------------------------------

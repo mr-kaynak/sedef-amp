@@ -42,15 +42,31 @@ export function selectSupported(s: UpdateStore): SupportedUpdateState | null {
   return s.state?.supported ? s.state : null;
 }
 
-/** The header pill: a newer release that was neither skipped nor put off with "Later". */
-export function selectShowPill(s: UpdateStore): boolean {
+/** An update is installed, or waits for the host to exit: a restart is what's left. */
+export function needsRestart(state: SupportedUpdateState | null): boolean {
+  return state?.phase === 'installed' || state?.phase === 'scheduled';
+}
+
+/**
+ * The header pill: "Restart to update" once an update is installed, "Updating…" while one
+ * downloads or installs (the panel can be closed meanwhile), else "Update available" for a newer
+ * release that was neither skipped nor put off with "Later".
+ */
+export function selectPill(s: UpdateStore): 'restart' | 'updating' | 'available' | null {
   const state = selectSupported(s);
-  return (
-    !!state?.latest &&
+  if (needsRestart(state)) return 'restart';
+  if (
+    state?.phase === 'downloading' ||
+    state?.phase === 'verifying' ||
+    state?.phase === 'installing'
+  )
+    return 'updating';
+  return !!state?.latest &&
     state.updateAvailable &&
     state.latest.version !== state.skippedVersion &&
     !s.snoozed
-  );
+    ? 'available'
+    : null;
 }
 
 export const updateActions = {
@@ -68,9 +84,11 @@ export const updateActions = {
     return request(() => invoke('sedef_update_skip', version));
   },
   unskip: () => request(() => invoke('sedef_update_skip', '')),
-  download: () => request(() => invoke('sedef_update_download')),
+  install: () => request(() => invoke('sedef_update_install')),
+  installManually: () => request(() => invoke('sedef_update_installManually')),
   cancel: () => request(() => invoke('sedef_update_cancel')),
   reveal: () => request(() => invoke('sedef_update_reveal')),
+  restart: () => request(() => invoke('sedef_update_restart')),
   /** Opens a page in the system browser (the plugin refuses anything but https). */
   openPage: (url: string) => invoke('sedef_openUrl', url),
 };

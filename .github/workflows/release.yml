@@ -77,7 +77,7 @@ jobs:
           cmake --preset release -DSEDEF_BUILD_UI=OFF -DSEDEF_BUILD_TESTS=OFF
           ${{ runner.os == 'macOS' && '-DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"' || '' }}
       - name: Build
-        run: cmake --build --preset release --target SedefAmp_All SedefAmp_CLAP
+        run: cmake --build --preset release --target SedefAmp_All SedefAmp_CLAP sedef-update-check
       # Packaging lives in tools/packaging so the same scripts run locally (docs/releasing.md).
       - name: Signing keychain (macOS)
         if: runner.os == 'macOS'
@@ -109,6 +109,15 @@ jobs:
       - name: Package (Linux)
         if: runner.os == 'Linux'
         run: tools/packaging/linux/package.sh build/release/plugin/SedefAmp_artefacts/Release dist
+      # The in-app updater's install, through its own code, on the package just built: over the
+      # previous release (docs/releasing.md#install-test). A failure stops the release.
+      - name: Install test
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          tools/ci/install-test.sh dist build/release/plugin/SedefAmp_artefacts/Release
+          build/release/plugin/sedef-update-check_artefacts/Release/sedef-update-check${{ runner.os == 'Windows' && '.exe' || '' }}
       - uses: actions/upload-artifact@v4
         with:
           name: package-${{ matrix.name }}

@@ -260,9 +260,9 @@ beating). A damped note or chord is 60 dB down 58–66 ms after the mute.
 
 ## Where it goes in the chain
 
-First, right after the gate: **Trench** → Tide → Urchin → Pearl → Kelp → Coral → Ripple. That is
-the engine's fixed order until the pedalboard lets the player choose; it is also the order we
-recommend.
+First, right after the gate: **Trench** → Anemone → Conch → Remora → Tide → Urchin → Sargasso →
+Pearl → Kelp → Coral → Beacon → Gyre → Jetty → Ripple → Breaker. That is the engine's fixed order
+until the pedalboard lets the player choose; it is also the order we recommend.
 
 - **Ahead of every drive.** Both modes need the string's own partials. Every harmonic a drive adds
   is one more the tracker has to see past (Mono), or one more partial to divide along with the

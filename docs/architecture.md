@@ -10,10 +10,11 @@ VST3 / AU / CLAP plugin and as a standalone application. It ships a complete
 rig in one window:
 
 ```
-Input ─► Tuner tap ─► Input Gain ─► Gate ─► Trench (octave down) ─► Remora (fuzz)
-      ─► Tide (comp) ─► Urchin (octave-up fuzz) ─► Sargasso (sustain fuzz)
-      ─► Pearl (overdrive) ─► Kelp (mid overdrive) ─► Coral (distortion)
-      ─► Ripple (modulation) ─► Breaker (treble booster)
+Input ─► Tuner tap ─► Input Gain ─► Gate ─► Trench (octave down)
+      ─► Anemone (envelope filter) ─► Conch (wah) ─► Remora (fuzz) ─► Tide (comp)
+      ─► Urchin (octave-up fuzz) ─► Sargasso (sustain fuzz) ─► Pearl (overdrive)
+      ─► Kelp (mid overdrive) ─► Coral (distortion) ─► Beacon (vibe) ─► Gyre (phaser)
+      ─► Jetty (flanger) ─► Ripple (modulation) ─► Breaker (treble booster)
       ─► Amp (Lagoon | Reef | Abyss) ─► Cab (2 mics + room)
       ─► 9-band EQ (one bank per amp) ─► Doubler ─► Drift (tape echo)
       ─► Fathom (plate | hall reverb) ─► Metronome ─► Output Gain ─► Output
@@ -166,8 +167,9 @@ own instead, so their tails ring out ("spillover") after being switched off.
 
 `Engine` builds the chain from two reusable halves:
 
-- `Channel`: Input Gain → Gate → Trench → Remora → Tide → Urchin → Sargasso → Pearl →
-  Kelp → Coral → Ripple → Breaker → Amp → Cab. Mono in, mono or stereo out.
+- `Channel`: Input Gain → Gate → Trench → Anemone → Conch → Remora → Tide → Urchin → Sargasso →
+  Pearl → Kelp → Coral → Beacon → Gyre → Jetty → Ripple → Breaker → Amp → Cab. Mono in, mono or
+  stereo out.
 - `PostChain`: EQ → Doubler → Drift → Fathom → Metronome → Output Gain. Stereo.
 
 | Host layout | Mode | Graph |
@@ -232,6 +234,11 @@ The EQ bank always follows the amp.
 | Coral | Hard-clipping distortion with low-pass "cut" | 4× OS |
 | Ripple | Tremolo, chorus, vibrato | 0.69–7.19 Hz |
 | Breaker | Germanium treble booster, Treble / Full range | resonant input network, Ebers–Moll stage, 4× OS ([breaker.md](dsp/breaker.md)) |
+| Anemone | Envelope filter: state-variable LP/BP/HP swept by the picking envelope, up or down | 1 ms / 120 ms envelope, Q 0.7–16 ([anemone.md](dsp/anemone.md)) |
+| Conch | Inductor wah, Manual or Auto (envelope) | 350 Hz–2.2 kHz, Q 10 → 1.6 heel to toe ([conch.md](dsp/conch.md)) |
+| Beacon | Photocell vibe: four staggered stages, lopsided lamp LFO, Chorus or Vibrato | 0.3–8 Hz ([beacon.md](dsp/beacon.md)) |
+| Gyre | 4- or 6-stage all-pass phaser with feedback | 0.1–8 Hz, ±2 octaves ([gyre.md](dsp/gyre.md)) |
+| Jetty | Bucket-brigade flanger, ± feedback, clock-tracking band limit | 0.25–10 ms, 0.05–5 Hz ([jetty.md](dsp/jetty.md)) |
 | Lagoon | Clean amp, glassy and wide | two triode stages, FMV tone stack |
 | Reef | Crunch amp, three voicings | cascaded stages, British-style tone stack |
 | Abyss | High-gain lead amp, bright and shift switches | four stages, shifted mid |

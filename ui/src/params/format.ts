@@ -66,7 +66,9 @@ export function formatValue(spec: ParamSpec, value: number): string {
     case 'st':
       return `${signed(Math.round(value), 0)} st`;
     case '%':
-      return /Pan$/.test(spec.id) ? formatPan(value) : `${Math.round(value)}%`;
+      if (/Pan$/.test(spec.id)) return formatPan(value);
+      // Bipolar percentages (Jetty's feedback) carry their sign, with the typographic minus.
+      return spec.min < 0 ? `${signed(Math.round(value), 0)}%` : `${Math.round(value)}%`;
     case 'bpm':
       return `${Math.abs(value - Math.round(value)) < 0.05 ? Math.round(value) : value.toFixed(1)} bpm`;
     case 'knob':

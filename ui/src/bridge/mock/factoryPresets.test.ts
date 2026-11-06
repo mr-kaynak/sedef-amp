@@ -6,7 +6,7 @@ import { DEFAULT_PRESET_ID, FACTORY_PRESETS, parsePresetFile } from './factoryPr
 
 describe('factory presets', () => {
   it('bundles every preset in presets/factory with plugin-style ids', () => {
-    expect(FACTORY_PRESETS).toHaveLength(16);
+    expect(FACTORY_PRESETS).toHaveLength(17);
     const ids = FACTORY_PRESETS.map((p) => p.info.id);
     expect(new Set(ids).size).toBe(ids.length);
     expect(ids).toContain(DEFAULT_PRESET_ID);
@@ -20,12 +20,12 @@ describe('factory presets', () => {
     const vocabulary = new Set(
       [
         'compressor overdrive boost distortion fuzz octave chorus tremolo vibrato delay slapback',
-        'plate hall',
+        'plate hall wah phaser flanger vibe',
         'rhythm solo swell drone blues rock metal funk neo-soul surf rockabilly garage',
       ]
         .join(' ')
         .split(' ')
-        .concat('edge of breakup'),
+        .concat('edge of breakup', 'envelope filter'),
     );
     for (const { info } of FACTORY_PRESETS) {
       expect(categories, info.name).toContain(info.folder);

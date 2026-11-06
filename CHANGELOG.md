@@ -13,13 +13,34 @@ All notable changes to this project are documented here. The format follows
   restarts the audio for a moment and tells the host the new latency; the status bar and About
   follow it. Sessions saved with 0.4.0 open in Low latency.
 - New parameter: `oversampling` (global, not automatable, not saved in presets).
+- **Five filter and modulation pedals**, each with its own enclosure on the Pedals page:
+  - **Anemone**, an envelope filter: low-, band- or high-pass that opens (or closes) with your
+    picking, with a fast attack and a slower release for funk
+    ([docs/dsp/anemone.md](docs/dsp/anemone.md)).
+  - **Conch**, an inductor wah: Position is the rocker (automatable), Resonance sets the peak, and
+    Auto rocks the pedal from your picking ([docs/dsp/conch.md](docs/dsp/conch.md)).
+  - **Beacon**, a photocell vibe: four staggered stages and a lamp that throbs rather than sways,
+    in Chorus or Vibrato ([docs/dsp/beacon.md](docs/dsp/beacon.md)).
+  - **Gyre**, a phaser with 4 or 6 stages and Feedback ([docs/dsp/gyre.md](docs/dsp/gyre.md)).
+  - **Jetty**, a bucket-brigade flanger with Feedback in either polarity
+    ([docs/dsp/jetty.md](docs/dsp/jetty.md)).
+
+  Anemone and Conch go between Trench and Remora, before the drives; Beacon, Gyre and Jetty after
+  the drives, before Ripple. All five are off by default and add no latency, so existing sessions
+  and presets sound the same.
+- New parameters (177 → 202): `anemoneEnabled`, `anemoneSensitivity`, `anemoneRange`,
+  `anemoneResonance`, `anemoneMode`, `anemoneDirection`, `conchEnabled`, `conchMode`,
+  `conchPosition`, `conchResonance`, `conchSensitivity`, `beaconEnabled`, `beaconSpeed`,
+  `beaconDepth`, `beaconMode`, `gyreEnabled`, `gyreSpeed`, `gyreDepth`, `gyreFeedback`,
+  `gyreStages`, `jettyEnabled`, `jettySpeed`, `jettyDepth`, `jettyDelay`, `jettyFeedback`.
+- **Sea Lantern** factory preset: Lagoon pushed by Coral into the Beacon vibe, with a plate.
 - **Trench Poly:** a Mono/Poly switch on Trench. Poly divides every string of a chord, so open
   chords, power chords and barres get their octave down: each note's sub lands within 1.3 cents,
   what is neither a note nor one of its partials stays 24 dB under the rest, and a sub speaks
   7–12 ms after the pick. Mono, the default, is the analog-style divider for single notes, so
   sessions and presets made before keep their sound
   ([docs/dsp/trench.md](docs/dsp/trench.md)).
-- New parameter: `trenchMode` (automatable; Mono by default).
+- New parameter (202 → 203): `trenchMode` (automatable; Mono by default).
 
 ### Changed
 
@@ -32,6 +53,24 @@ All notable changes to this project are documented here. The format follows
   −25 dB to −94 dB). Captures convert their sample rate the same way, with no look-ahead
   ([docs/dsp/oversampling.md](docs/dsp/oversampling.md),
   [ADR-0009](docs/adr/0009-minimum-phase-oversampling.md)).
+- **Updates install themselves:** **Update now** downloads the new version into a private folder,
+  verifies it and installs it through your OS's own installer, so there is no disk image to open,
+  no installer to click through and nothing to delete by hand. You answer your OS's password or
+  permission prompt; the installer replaces the formats you have. On macOS Apple's installer runs
+  on the verified package; on Windows the setup waits until your DAW has closed (the plug-in is
+  locked until then); on Linux the archive's `install.sh` runs, through `pkexec` for a system-wide
+  install. The panel then says "Sedef Amp <version> is installed. Restart <your DAW> to use it.", in
+  every DAW and window that still runs the old version, and the standalone app offers **Restart
+  Sedef**. Where that can't run (a copy outside the installer's folders, a sandboxed host, no
+  `pkexec`) or anything fails, **Install manually** saves the verified installer to Downloads and
+  opens it as before ([docs/updates.md](docs/updates.md)).
+- This takes effect from the update after this one: 0.2.0, 0.3.0 and 0.4.0 install this release
+  the old way (the installer in Downloads), and from this release on updates take one click.
+- **Windows setup:** `/WAITPID=<pid> /WAITPIDTIME=<its creation time>` waits for that process to
+  exit before installing (not for a later process that got its id), holding the setup file so
+  nothing can change it meanwhile, and `/RELAUNCH` opens the standalone app afterwards.
+- **Releases** are installed over the previous release on every OS, through the updater's own
+  code, before they are published ([docs/releasing.md](docs/releasing.md#install-test)).
 - **Trench tracks real playing.** On real guitar DI its sub chopped on and off 12–20 times a
   second: a bright pickup's 2nd and 3rd partials, the pick and the last note still ringing threw
   its period detector off. A new note tracker holds the note through all of them: on a recorded

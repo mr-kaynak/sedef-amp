@@ -8,10 +8,23 @@
 //
 //   sedef-update-check [--current <version>] [--platform macOS|Windows|Linux] [--arm]
 //                      [--download <folder>] [--asset <name>]
+//   sedef-update-check --install <file> [--expect <version>] [--system] [--waitpid <pid>]
+//                      [--waitpid-time <FILETIME>] [--log <file>]
 //
-// Exit status: 0 when every step that was asked for worked, 1 otherwise. Each run makes one API
+// --install runs the plug-in's automatic install (plugin/src/update/Installer.cpp) on a package
+// that was just built, with no API request: on macOS it picks the formats that are installed and
+// runs the install script as root (it copies, checks and mounts the disk image and runs Apple's
+// installer); on Linux it runs the install script, which unpacks the archive and runs install.sh
+// (in your home folder, or as root with --system); on Windows it starts the setup elevated with
+// the update's switches, waiting for process --waitpid (if it was created at --waitpid-time,
+// which defaults to that process's own), and waits for it. It then checks what was installed.
+// The release workflow runs it on CI machines, which have passwordless sudo (macOS, Linux) or run
+// elevated (Windows). This tool asks with `sudo -n` where the plug-in shows the OS's password
+// prompt; that difference exists only here, at compile time, never in the plug-in.
+//
+// Exit status: 0 when every step that was asked for worked, 1 otherwise. Each check makes one API
 // request (GitHub allows 60 an hour without a token).
-#include "UpdateClient.h"
+#include "Installer.h"
 
 #include <cstdio>
 
@@ -37,6 +50,12 @@ struct Options
     bool x64 = isX64();
     juce::File downloadTo;
     juce::String asset;
+    juce::File install;
+    juce::String expect = SEDEF_VERSION;
+    bool system = false;
+    juce::uint32 waitPid = 0;
+    juce::uint64 waitPidTime = 0;
+    juce::File log;
 };
 
 bool parseArguments (int argc, char* argv[], Options& o)
@@ -70,10 +89,144 @@ bool parseArguments (int argc, char* argv[], Options& o)
             o.downloadTo = juce::File::getCurrentWorkingDirectory().getChildFile (value());
         else if (name == "--asset")
             o.asset = value();
+        else if (name == "--install")
+            o.install = juce::File::getCurrentWorkingDirectory().getChildFile (value());
+        else if (name == "--expect")
+            o.expect = value();
+        else if (name == "--system")
+            o.system = true;
+        else if (name == "--waitpid")
+            o.waitPid = static_cast<juce::uint32> (value().getLargeIntValue());
+        else if (name == "--waitpid-time")
+            o.waitPidTime = static_cast<juce::uint64> (value().getLargeIntValue());
+        else if (name == "--log")
+            o.log = juce::File::getCurrentWorkingDirectory().getChildFile (value());
         else
             return false;
     }
-    return Version::parse (o.current).has_value();
+    return Version::parse (o.current).has_value() && Version::parse (o.expect).has_value();
+}
+
+/// The test seam: `sudo -n` instead of the OS's password prompt. It exists only in this tool.
+Elevated sudoElevate (const juce::StringArray& command, const juce::String& prompt,
+                      Cancellation& cancel)
+{
+    // The install script is long and constant: name it, and show its arguments.
+    juce::StringArray shown;
+    for (int i = 0; i < command.size(); ++i)
+    {
+        if (i == 2 && command[1] == "-c")
+            shown.add ("<install script>");
+        else if (i != 1 || command[1] != "-c")
+            shown.add (command[i].length() > 100 ? command[i].substring (0, 60) + "..."
+                                                 : command[i]);
+    }
+    print ("  as root (" + prompt + "): " + shown.joinIntoString (" "));
+    juce::StringArray argv { "/usr/bin/sudo", "-n" };
+    argv.addArray (command);
+    Elevated e;
+    e.process = runProcess (argv, 15 * 60 * 1000, [&cancel] { return cancel.isCancelled(); });
+    if (e.process.output.isNotEmpty())
+        print (e.process.output.trimEnd());
+    if (e.process.errors.isNotEmpty())
+        print (e.process.errors.trimEnd());
+    e.status = !e.process.started      ? Elevated::Status::Unavailable
+               : e.process.succeeded() ? Elevated::Status::Ok
+                                       : Elevated::Status::Failed;
+    if (e.status == Elevated::Status::Failed)
+        e.exitCode = e.process.exitCode;
+    return e;
+}
+
+juce::String outcomeName (InstallResult::Outcome outcome)
+{
+    switch (outcome)
+    {
+    case InstallResult::Outcome::Installed:
+        return "installed";
+    case InstallResult::Outcome::Scheduled:
+        return "scheduled";
+    case InstallResult::Outcome::Declined:
+        return "declined";
+    case InstallResult::Outcome::Cancelled:
+        return "cancelled";
+    case InstallResult::Outcome::Failed:
+        break;
+    }
+    return "failed";
+}
+
+int install (const Options& options)
+{
+    const auto& file = options.install;
+    if (!file.existsAsFile())
+    {
+        print ("no such file: " + file.getFullPathName());
+        return 1;
+    }
+    const auto version = Version::parse (options.expect)->toString();
+    auto config = defaultInstallerConfig();
+    config.running = juce::File(); // not an installed copy: the formats come from what is installed
+    config.elevate = sudoElevate;
+    if (options.system)
+        config.scope = LinuxScope::System;
+    else
+        config.scope = LinuxScope::User;
+    config.waitPid = options.waitPid;
+    config.waitPidCreated = options.waitPidTime;
+    config.keepProcess = true;
+    if (options.log != juce::File())
+        config.extraSetupParameters = "/LOG=\"" + options.log.getFullPathName() + "\"";
+
+    InstallRequest request;
+    request.file = file;
+    request.expectedHash = sha256Hex (file);
+    request.version = version;
+    print ("install " + file.getFullPathName() + " (sha256 " + request.expectedHash + ")");
+    print ("expect version " + version);
+    if (currentPlatform() == Platform::MacOS)
+        print ("formats: " + macChoicesToInstall (config.root, {}).joinIntoString (", "));
+    if (currentPlatform() == Platform::Windows)
+    {
+        print ("components: " +
+               windowsComponentsToInstall (config.commonFiles, config.appFolder, {})
+                   .joinIntoString (", "));
+        print ("Setup waits for process " + juce::String (options.waitPid) + ", created at " +
+               juce::String (options.waitPidTime != 0 ? options.waitPidTime
+                                                      : processCreationTime (options.waitPid)));
+    }
+
+    Cancellation cancel;
+    const auto started = juce::Time::getMillisecondCounterHiRes();
+    auto installer = makeSystemInstaller (config);
+    const auto result = installer->install (
+        request, [] (InstallStep step) { print ("  step: " + toString (step)); }, cancel);
+    print ("outcome: " + outcomeName (result.outcome) +
+           (result.error != Error::None
+                ? " (" + toString (result.error) + ": " + result.detail + ")"
+                : juce::String()));
+
+    if (currentPlatform() != Platform::Windows)
+    {
+        print (
+            "took " +
+            juce::String (juce::roundToInt (juce::Time::getMillisecondCounterHiRes() - started)) +
+            " ms");
+        return result.outcome == InstallResult::Outcome::Installed ? 0 : 1;
+    }
+
+    // Windows: Setup runs once process --waitpid has exited; wait for it here.
+    if (result.outcome != InstallResult::Outcome::Scheduled || result.process == nullptr)
+        return 1;
+    const int code = waitForProcess (result.process, 15 * 60 * 1000);
+    closeProcess (result.process);
+    const auto seconds = (juce::Time::getMillisecondCounterHiRes() - started) / 1000.0;
+    print ("Setup exited with " + juce::String (code) + " after " + juce::String (seconds, 1) +
+           " s");
+    const auto vst3 = config.commonFiles.getChildFile ("VST3").getChildFile ("Sedef Amp.vst3");
+    const auto found = vst3BundleVersion (vst3);
+    print (vst3.getFullPathName() + ": " + (found.isEmpty() ? juce::String ("missing") : found));
+    return code == 0 && (found.isEmpty() || found == version) ? 0 : 1;
 }
 } // namespace
 
@@ -83,9 +236,13 @@ int main (int argc, char* argv[])
     if (!parseArguments (argc, argv, options))
     {
         print ("usage: sedef-update-check [--current <version>] [--platform macOS|Windows|Linux] "
-               "[--arm] [--download <folder>] [--asset <name>]");
+               "[--arm] [--download <folder>] [--asset <name>]\n"
+               "       sedef-update-check --install <file> [--expect <version>] [--system] "
+               "[--waitpid <pid>] [--log <file>]");
         return 2;
     }
+    if (options.install != juce::File())
+        return install (options);
 
     const Client client (options.current, options.platform);
     Cancellation cancel;

@@ -444,6 +444,30 @@ TEST_CASE ("update.json round-trips and tolerates junk", "[update][store]")
     CHECK_FALSE (odd.latest.has_value());
 }
 
+TEST_CASE ("An installed update waits for a restart until that version runs", "[update][store]")
+{
+    Store s;
+    s.installedVersion = "0.2.0";
+    const auto back = storeFromVar (juce::JSON::parse (juce::JSON::toString (toVar (s))));
+    CHECK (back.installedVersion == "0.2.0");
+    CHECK (
+        storeFromVar (juce::JSON::parse (R"({"installedVersion": "v0.3.1"})")).installedVersion ==
+        "0.3.1");
+    CHECK (storeFromVar (juce::JSON::parse (R"({"installedVersion": "soon"})"))
+               .installedVersion.isEmpty());
+    CHECK (
+        storeFromVar (juce::JSON::parse (R"({"installedVersion": 3})")).installedVersion.isEmpty());
+
+    CHECK (restartNeeded (s, v ("0.1.0")));
+    CHECK_FALSE (restartNeeded (s, v ("0.2.0"))); // it runs now
+    CHECK_FALSE (restartNeeded (s, v ("0.2.1")));
+    s.latest = parsed (newRelease ("v0.2.0"));
+    CHECK (restartNeeded (s, v ("0.1.0")));
+    s.latest = parsed (newRelease ("v0.3.0")); // something newer than what was installed
+    CHECK_FALSE (restartNeeded (s, v ("0.1.0")));
+    CHECK_FALSE (restartNeeded (Store {}, v ("0.1.0")));
+}
+
 TEST_CASE ("update.json is replaced atomically", "[update][store]")
 {
     const auto dir = scratchFolder();

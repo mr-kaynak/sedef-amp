@@ -23,7 +23,7 @@ around them.
 
 | | |
 |---|---|
-| **Pedals** | **Trench** octave down (one and two octaves; Mono, analog style, or Poly, for chords) · **Remora** two-transistor fuzz (germanium / silicon, bias, cleans up with the guitar's volume) · **Tide** compressor (3:1, tilt EQ, parallel blend) · **Urchin** octave-up fuzz · **Sargasso** sustain fuzz with a mid-scoop tone · **Pearl** transparent overdrive with mid boost · **Kelp** classic mid-hump overdrive, also a tight boost · **Coral** distortion · **Ripple** tremolo / chorus / vibrato · **Breaker** treble booster (Treble / Full range) · noise gate |
+| **Pedals** | **Trench** octave down (one and two octaves; Mono, analog style, or Poly, for chords) · **Anemone** envelope filter · **Conch** inductor wah with Auto mode · **Remora** two-transistor fuzz (germanium / silicon, bias, cleans up with the guitar's volume) · **Tide** compressor (3:1, tilt EQ, parallel blend) · **Urchin** octave-up fuzz · **Sargasso** sustain fuzz with a mid-scoop tone · **Pearl** transparent overdrive with mid boost · **Kelp** classic mid-hump overdrive, also a tight boost · **Coral** distortion · **Beacon** photocell vibe · **Gyre** 4- or 6-stage phaser · **Jetty** flanger with ± feedback · **Ripple** tremolo / chorus / vibrato · **Breaker** treble booster (Treble / Full range) · noise gate |
 | **Amps** | **Lagoon** — glassy, wide clean · **Reef** — British crunch with three voicings · **Abyss** — tight, saturated lead with bright and mid-shift switches |
 | **Captures** | load any Neural Amp Modeler (`.nam`) capture of a real amp or full rig in place of the amps, levelled to match them |
 | **Cabs** | 1x12 open, 2x12 open, 4x12 closed · two mics per cab from ten mic models, placed anywhere over the cone, backed off and turned off axis · room mics · load your own IRs |
@@ -159,8 +159,9 @@ Start with [docs/architecture.md](docs/architecture.md).
 
 ## Updates & privacy
 
-Sedef checks GitHub for a new release at most once a day, when you open its window, and can
-download, verify (SHA-256) and open the installer for you. The check is a single HTTPS request
+Sedef checks GitHub for a new release at most once a day, when you open its window. **Update now**
+downloads it, verifies it (SHA-256) and installs it through your OS's own installer after your
+password or permission prompt; then you restart your DAW. The check is a single HTTPS request
 that carries only the Sedef version and your OS family, no identifiers. Switch it off in Settings
 → Updates, with `SEDEF_DISABLE_UPDATE_CHECK=1`, or at build time with `-DSEDEF_UPDATE_CHECK=OFF`.
 How it works and what it protects against: [docs/updates.md](docs/updates.md).

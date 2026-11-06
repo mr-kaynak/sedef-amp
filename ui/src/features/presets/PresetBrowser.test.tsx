@@ -103,8 +103,8 @@ describe('PresetBrowser', () => {
     const before = await editNacre();
     render(<Shell />);
     await openBrowser();
-    fireEvent.keyDown(search(), { key: 'ArrowDown' });
-    fireEvent.keyDown(search(), { key: 'ArrowDown' });
+    // Nacre, then Riptide, Sea Lantern, Silk Road.
+    for (let i = 0; i < 3; i++) fireEvent.keyDown(search(), { key: 'ArrowDown' });
     fireEvent.keyDown(search(), { key: 'Enter' });
     await settle();
     expect(dialog()).toBeNull();
@@ -474,7 +474,7 @@ describe('PresetBrowser', () => {
     const load = vi.spyOn(presetActions, 'load');
     render(<Shell />);
     await openBrowser();
-    for (let i = 0; i < 6; i++) fireEvent.keyDown(search(), { key: 'ArrowDown' });
+    for (let i = 0; i < 7; i++) fireEvent.keyDown(search(), { key: 'ArrowDown' });
     fireEvent.keyDown(search(), { key: 'Enter' });
     await settle();
     // Keys faster than the plugin answers: only the newest waiting load is sent.

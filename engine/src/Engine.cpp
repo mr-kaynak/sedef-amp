@@ -7,12 +7,17 @@
 #include "sedef/core/InputFold.h"
 #include "sedef/core/Math.h"
 #include "sedef/core/Smoothed.h"
+#include "sedef/dsp/Anemone.h"
+#include "sedef/dsp/Beacon.h"
 #include "sedef/dsp/Breaker.h"
+#include "sedef/dsp/Conch.h"
 #include "sedef/dsp/Coral.h"
 #include "sedef/dsp/Doubler.h"
 #include "sedef/dsp/Drift.h"
 #include "sedef/dsp/Fathom.h"
 #include "sedef/dsp/GraphicEq.h"
+#include "sedef/dsp/Gyre.h"
+#include "sedef/dsp/Jetty.h"
 #include "sedef/dsp/Kelp.h"
 #include "sedef/dsp/Metronome.h"
 #include "sedef/dsp/NoiseGate.h"
@@ -64,6 +69,13 @@ struct ChainSettings
     dsp::Remora::Settings remora;
     dsp::Sargasso::Settings sargasso;
     dsp::Breaker::Settings breaker;
+    // mods lane: wah, envelope filter, phaser, flanger, vibe.
+    bool conchOn = false, anemoneOn = false, gyreOn = false, jettyOn = false, beaconOn = false;
+    dsp::Conch::Settings conch;
+    dsp::Anemone::Settings anemone;
+    dsp::Gyre::Settings gyre;
+    dsp::Jetty::Settings jetty;
+    dsp::Beacon::Settings beacon;
 };
 
 dsp::CabSim::MicSettings micSettings (const ParamSnapshot& p, int mic, int cab)
@@ -144,6 +156,20 @@ ChainSettings chainSettings (const ParamSnapshot& p)
     s.sargasso = { p[P::sargassoSustain], p[P::sargassoTone], p[P::sargassoVolume] };
     s.breakerOn = p.flag (P::breakerEnabled);
     s.breaker = { p[P::breakerBoost], p.choice (P::breakerRange) };
+    // mods lane
+    s.conchOn = p.flag (P::conchEnabled);
+    s.conch = { p.choice (P::conchMode), p[P::conchPosition], p[P::conchResonance],
+                p[P::conchSensitivity] };
+    s.anemoneOn = p.flag (P::anemoneEnabled);
+    s.anemone = { p[P::anemoneSensitivity], p[P::anemoneRange], p[P::anemoneResonance],
+                  p.choice (P::anemoneMode), p.choice (P::anemoneDirection) };
+    s.gyreOn = p.flag (P::gyreEnabled);
+    s.gyre = { p[P::gyreSpeed], p[P::gyreDepth], p[P::gyreFeedback], p.choice (P::gyreStages) };
+    s.jettyOn = p.flag (P::jettyEnabled);
+    s.jetty = { p[P::jettySpeed], p[P::jettyDepth], p[P::jettyDelay],
+                p[P::jettyFeedback] / 100.0f };
+    s.beaconOn = p.flag (P::beaconEnabled);
+    s.beacon = { p[P::beaconSpeed], p[P::beaconDepth], p.choice (P::beaconMode) };
     return s;
 }
 
@@ -326,6 +352,12 @@ struct Chain
     Slot<dsp::Pearl> pearl;
     Slot<dsp::Coral> coral;
     Slot<dsp::Ripple> ripple;
+    // mods lane. Latency-free, linear modules; order in process().
+    Slot<dsp::Anemone> anemone;
+    Slot<dsp::Conch> conch;
+    Slot<dsp::Beacon> beacon;
+    Slot<dsp::Gyre> gyre;
+    Slot<dsp::Jetty> jetty;
     dsp::AmpSection amp;
     dsp::CabSim cab;
     dsp::CaptureStage capture; // the amp or a .nam capture, and the cab or not
@@ -360,6 +392,11 @@ struct Chain
         remora.prepare (mono);
         sargasso.prepare (mono);
         breaker.prepare (mono);
+        anemone.prepare (mono); // mods lane
+        conch.prepare (mono);
+        beacon.prepare (mono);
+        gyre.prepare (mono);
+        jetty.prepare (mono);
         amp.prepare (mono);
         capture.prepare (mono, amp.latencySamples());
         cab.prepare ({ sampleRate, maxBlock, 2 });
@@ -371,9 +408,9 @@ struct Chain
     {
         return pearl.latency + coral.latency + capture.latencySamples() + cab.latencySamples() +
                trench.latency + urchin.latency + kelp.latency + remora.latency + sargasso.latency +
-               breaker.latency;
+               breaker.latency + anemone.latency + conch.latency + beacon.latency + gyre.latency +
+               jetty.latency;
     }
-
     void reset() noexcept
     {
         snapGain = true;
@@ -388,6 +425,11 @@ struct Chain
         remora.reset();
         sargasso.reset();
         breaker.reset();
+        anemone.reset(); // mods lane
+        conch.reset();
+        beacon.reset();
+        gyre.reset();
+        jetty.reset();
         amp.reset();
         capture.reset();
         cab.reset();
@@ -427,10 +469,17 @@ struct Chain
         // chain" section of docs/dsp/trench.md, urchin.md and kelp.md). The order stays fixed
         // until the pedalboard makes it the player's.
         // Drives lane: Remora, Sargasso and Breaker ("Chain position" in docs/dsp/remora.md,
-        // sargasso.md and breaker.md). Remora right behind the octave divider, which needs the
-        // clean guitar more; Sargasso after the octave-up fuzz, whose rectifier wants an unclipped
-        // note; Breaker last, straight into the amp.
+        // sargasso.md and breaker.md). Remora behind the octave divider, which needs the clean
+        // guitar more (and the mods lane's two filters, below); Sargasso after the octave-up fuzz,
+        // whose rectifier wants an unclipped note; Breaker last, straight into the amp.
         trench.process (x, n, s.trenchOn, s.trench, run); // pedals lane
+        // mods lane: the envelope filter and the wah go after the octave divider, before Remora
+        // and the other drives: the filter reads picking dynamics a fuzz would flatten, a wah into
+        // a fuzz is the classic order, and nothing here buffers Remora's clean-up away (its Guitar
+        // volume models that). The vibe, phaser and flanger go after the drives (they move the
+        // drives' harmonics), before Ripple. docs/dsp/conch.md et al.
+        anemone.process (x, n, s.anemoneOn, s.anemone, run);
+        conch.process (x, n, s.conchOn, s.conch, run);
         remora.process (x, n, s.remoraOn, s.remora, run); // drives lane
         tideRan = tide.process (x, n, s.tideOn, s.tide, run);
         urchin.process (x, n, s.urchinOn, s.urchin, run);       // pedals lane
@@ -438,6 +487,9 @@ struct Chain
         pearl.process (x, n, s.pearlOn, s.pearl, run);
         kelp.process (x, n, s.kelpOn, s.kelp, run); // pedals lane
         coral.process (x, n, s.coralOn, s.coral, run);
+        beacon.process (x, n, s.beaconOn, s.beacon, run); // mods lane
+        gyre.process (x, n, s.gyreOn, s.gyre, run);
+        jetty.process (x, n, s.jettyOn, s.jetty, run);
         ripple.process (x, n, s.rippleOn, s.ripple, run);
         breaker.process (x, n, s.breakerOn, s.breaker, run); // drives lane
 

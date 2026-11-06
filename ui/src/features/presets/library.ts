@@ -105,6 +105,8 @@ export function tagFacets(items: readonly PresetInfo[]): Facet[] {
 export const BLOCK_LABELS: Record<PresetBlock, string> = {
   gate: 'Gate',
   trench: 'Trench',
+  anemone: 'Anemone',
+  conch: 'Conch',
   remora: 'Remora',
   tide: 'Tide',
   urchin: 'Urchin',
@@ -112,6 +114,9 @@ export const BLOCK_LABELS: Record<PresetBlock, string> = {
   pearl: 'Pearl',
   kelp: 'Kelp',
   coral: 'Coral',
+  beacon: 'Beacon',
+  gyre: 'Gyre',
+  jetty: 'Jetty',
   ripple: 'Ripple',
   breaker: 'Breaker',
   eq: 'EQ',
@@ -127,6 +132,8 @@ export const CAB_LABELS: readonly string[] = CAB_NAMES.map((c) => c.split(' ')[0
 
 const PRE_AMP: readonly PresetBlock[] = [
   'trench',
+  'anemone',
+  'conch',
   'remora',
   'tide',
   'urchin',
@@ -134,6 +141,9 @@ const PRE_AMP: readonly PresetBlock[] = [
   'pearl',
   'kelp',
   'coral',
+  'beacon',
+  'gyre',
+  'jetty',
   'ripple',
   'breaker',
 ];

@@ -7,6 +7,7 @@ import { Toggle } from '../../controls/Toggle';
 import { useParamValue } from '../../params/useParam';
 import { telemetry, useLiveFrame, useLiveSelector } from '../../state/live';
 import { BreakerPedal, RemoraPedal, SargassoPedal } from './DrivePedals';
+import { AnemonePedal, BeaconPedal, ConchPedal, GyrePedal, JettyPedal } from './mods';
 import { KelpPedal } from './KelpPedal';
 import { Pedal, type PedalFinish } from './Pedal';
 import styles from './PedalsSection.module.css';
@@ -108,6 +109,8 @@ export function PedalsSection() {
         onFocus={(e) => e.target.scrollIntoView({ block: 'nearest', inline: 'nearest' })}
       >
         <TrenchPedal />
+        <AnemonePedal />
+        <ConchPedal />
         <RemoraPedal />
         <Pedal
           name="Tide"
@@ -135,6 +138,9 @@ export function PedalsSection() {
           <Knob param="coralCut" label="Cut" />
           <Knob param="coralLevel" label="Level" className={styles.span2} />
         </Pedal>
+        <BeaconPedal />
+        <GyrePedal />
+        <JettyPedal />
         <Pedal
           name="Ripple"
           kind="Modulation"

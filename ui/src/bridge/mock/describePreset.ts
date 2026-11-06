@@ -35,6 +35,8 @@ export function describePreset(
   };
   add('gateEnabled', 'gate');
   add('trenchEnabled', 'trench');
+  add('anemoneEnabled', 'anemone');
+  add('conchEnabled', 'conch');
   add('remoraEnabled', 'remora');
   add('tideEnabled', 'tide');
   add('urchinEnabled', 'urchin');
@@ -42,6 +44,9 @@ export function describePreset(
   add('pearlEnabled', 'pearl');
   add('kelpEnabled', 'kelp');
   add('coralEnabled', 'coral');
+  add('beaconEnabled', 'beacon');
+  add('gyreEnabled', 'gyre');
+  add('jettyEnabled', 'jetty');
   add('rippleEnabled', 'ripple');
   add('breakerEnabled', 'breaker');
   if (eqShapes) add(`${bank}Enabled`, 'eq');

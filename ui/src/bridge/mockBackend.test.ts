@@ -12,11 +12,11 @@ describe('MockBackend', () => {
     mock = new MockBackend();
     const hello = await mock.hello();
     expect(hello.protocol).toBe(PROTOCOL_VERSION);
-    expect(hello.schema).toHaveLength(177);
-    expect(Object.keys(hello.values)).toHaveLength(177);
+    expect(hello.schema).toHaveLength(202);
+    expect(Object.keys(hello.values)).toHaveLength(202);
     expect(hello.presets.currentName).toBe('Nacre');
     expect(hello.presets.currentId).toBe('factory:nacre');
-    expect(hello.presets.items.filter((p) => p.category === 'Factory')).toHaveLength(16);
+    expect(hello.presets.items.filter((p) => p.category === 'Factory')).toHaveLength(17);
     expect(hello.presets.dirty).toBe(false);
     expect(hello.ir.slots).toHaveLength(6);
   });

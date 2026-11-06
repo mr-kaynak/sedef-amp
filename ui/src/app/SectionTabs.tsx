@@ -51,6 +51,8 @@ const STATUS: Record<Section, () => ReactNode> = {
       ids={[
         'gateEnabled',
         'trenchEnabled',
+        'anemoneEnabled',
+        'conchEnabled',
         'remoraEnabled',
         'tideEnabled',
         'urchinEnabled',
@@ -58,6 +60,9 @@ const STATUS: Record<Section, () => ReactNode> = {
         'pearlEnabled',
         'kelpEnabled',
         'coralEnabled',
+        'beaconEnabled',
+        'gyreEnabled',
+        'jettyEnabled',
         'rippleEnabled',
         'breakerEnabled',
       ]}

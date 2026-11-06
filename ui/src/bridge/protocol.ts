@@ -41,6 +41,8 @@ export type ParamValues = Record<string, number>;
 export type PresetBlock =
   | 'gate'
   | 'trench'
+  | 'anemone'
+  | 'conch'
   | 'remora'
   | 'tide'
   | 'urchin'
@@ -48,6 +50,9 @@ export type PresetBlock =
   | 'pearl'
   | 'kelp'
   | 'coral'
+  | 'beacon'
+  | 'gyre'
+  | 'jetty'
   | 'ripple'
   | 'breaker'
   | 'eq'

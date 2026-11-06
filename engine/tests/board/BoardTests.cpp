@@ -16,6 +16,28 @@
 using namespace sedef;
 using namespace sedef::test;
 
+namespace
+{
+/// Plays one hand-built slot as PedalRack::run does: a keyed pedal (the gate) also gets the key.
+/// Two overloads, the keyed one constrained, rather than `if constexpr` in a generic lambda: MSVC
+/// type-checks the discarded branch of that.
+template <typename Module, typename Settings>
+    requires requires (Module& m, const AudioView& v, const float* k) { m.process (v, k); }
+void playSlot (PedalSlot<Module>& slot, float* io, int n, bool onBoard, const Settings& settings,
+               const float* key)
+{
+    slot.process (io, n, onBoard, settings,
+                  [key] (Module& m, const AudioView& v) { m.process (v, key); });
+}
+
+template <typename Module, typename Settings>
+void playSlot (PedalSlot<Module>& slot, float* io, int n, bool onBoard, const Settings& settings,
+               const float*)
+{
+    slot.process (io, n, onBoard, settings, [] (Module& m, const AudioView& v) { m.process (v); });
+}
+} // namespace
+
 // -------------------------------------------------------------------------------------------------
 // The registry and the board
 
@@ -335,22 +357,11 @@ TEST_CASE ("The rack plays its pedals in the board's order", "[board]")
         }
         for (const auto step : rack.layout())
         {
-            const auto play = [&] (auto& slot, const auto& st) {
-                using M = std::remove_cvref_t<decltype (slot.module)>;
-                if constexpr (requires (M& m, const AudioView& v, const float* k) {
-                                  m.process (v, k);
-                              })
-                    slot.process (io, block, step.onBoard, st,
-                                  [&] (M& m, const AudioView& v) { m.process (v, key.data()); });
-                else
-                    slot.process (io, block, step.onBoard, st,
-                                  [] (M& m, const AudioView& v) { m.process (v); });
-            };
             switch (step.id)
             {
 #define SEDEF_PEDAL(pid, name, category, rank, enable, Module, unused)                             \
     case PedalId::pid:                                                                             \
-        play (hand.pid, settings.pid);                                                             \
+        playSlot (hand.pid, io, block, step.onBoard, settings.pid, key.data());                    \
         break;
 #include "sedef/board/PedalList.inc"
 #undef SEDEF_PEDAL

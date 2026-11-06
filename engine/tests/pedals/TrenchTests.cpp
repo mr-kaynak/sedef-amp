@@ -136,7 +136,8 @@ TEST_CASE ("Trench output stays finite for random settings and full-scale noise"
 {
     test::checkFiniteWithRandomSettings<Trench> (
         [] (Random& r) {
-            return Trench::Settings { r.unipolar(), r.unipolar(), r.unipolar(), r.unipolar() };
+            return Trench::Settings { r.unipolar(), r.unipolar(), r.unipolar(), r.unipolar(),
+                                      r.unipolar() < 0.5f ? Trench::Mono : Trench::Poly };
         },
         run);
 }
@@ -146,6 +147,8 @@ TEST_CASE ("Trench passes silence as silence", "[pedals][trench]")
     CHECK (test::silenceOutputPeak<Trench> (Trench::Settings {}, run) == 0.0f);
     CHECK (test::silenceOutputPeak<Trench> (Trench::Settings { 1.0f, 1.0f, 1.0f, 1.0f }, run) ==
            0.0f);
+    CHECK (test::silenceOutputPeak<Trench> (
+               Trench::Settings { 1.0f, 1.0f, 1.0f, 1.0f, Trench::Poly }, run) == 0.0f);
 }
 
 TEST_CASE ("Trench with the subs down passes the input untouched", "[pedals][trench]")
@@ -153,6 +156,7 @@ TEST_CASE ("Trench with the subs down passes the input untouched", "[pedals][tre
     // Direct at noon is unity and the subs add exactly nothing: a bit-exact copy, no latency.
     const auto in = pluck (164.814);
     CHECK (render (in, { 0.5f, 0.0f, 0.0f, 0.5f }) == in);
+    CHECK (render (in, { 0.5f, 0.0f, 0.0f, 0.5f, Trench::Poly }) == in);
     CHECK (Trench().latencySamples() == 0);
 }
 
@@ -377,6 +381,17 @@ TEST_CASE ("Trench keeps the subs silent at low input", "[pedals][trench]")
     CHECK (test::peak (render (hiss, kBothSubs)) == 0.0f);
     const auto light = render (pluck (164.814, kFs, 2.0, 0.18, 0.03f), kSub1Only);
     CHECK (std::abs (test::centsError (measuredHz (light, 0.4, 1.5, kFs), 82.407)) < 1.0);
+
+    // Poly shares the level gate.
+    const Trench::Settings polySubs { 0.0f, 1.0f, 1.0f, 1.0f, Trench::Poly };
+    CHECK (test::peak (render (pluck (164.814, kFs, 2.0, 0.18, 0.001f), polySubs)) == 0.0f);
+    CHECK (test::peak (render (hiss, polySubs)) == 0.0f);
+    const auto lightIn = pluck (164.814, kFs, 2.0, 0.18, 0.03f);
+    const auto lightPoly = render (lightIn, { 0.0f, 0.5f, 0.0f, 1.0f, Trench::Poly });
+    const auto from = static_cast<size_t> (0.4 * kFs), to = static_cast<size_t> (1.4 * kFs);
+    CHECK (std::abs (test::db (test::rms (lightPoly.data() + from, static_cast<int> (to - from)) /
+                               test::rms (lightIn.data() + from, static_cast<int> (to - from)))) <
+           3.0);
 }
 
 TEST_CASE ("Trench automation is click-free", "[pedals][trench]")
@@ -391,6 +406,40 @@ TEST_CASE ("Trench automation is click-free", "[pedals][trench]")
     check ([] (float t) { return Trench::Settings { 0.5f, 0.5f, t, 0.5f }; });
     check ([] (float t) { return Trench::Settings { 0.5f, 0.5f, 0.5f, t }; });
     check ([] (float t) { return Trench::Settings { 1.0f - t, t, 1.0f - t, t }; });
+    // Mode changes crossfade.
+    check ([] (float t) {
+        return Trench::Settings { 0.5f, 0.5f, 0.5f, 0.5f, t < 0.5f ? Trench::Mono : Trench::Poly };
+    });
+    check ([] (float t) {
+        return Trench::Settings { 0.5f, 0.5f, 0.5f, 0.5f, t < 0.5f ? Trench::Poly : Trench::Mono };
+    });
+    check ([] (float t) { return Trench::Settings { t, 0.5f, 0.0f, 0.5f, Trench::Poly }; });
+    check ([] (float t) { return Trench::Settings { 0.5f, t, 0.0f, 0.5f, Trench::Poly }; });
+    check ([] (float t) { return Trench::Settings { 0.5f, 0.5f, t, 0.5f, Trench::Poly }; });
+    check ([] (float t) { return Trench::Settings { 0.5f, 0.5f, 0.0f, t, Trench::Poly }; });
+    check ([] (float t) { return Trench::Settings { 0.5f, t, t, t, Trench::Poly }; });
+}
+
+TEST_CASE ("Trench Poly divides notes and chords at about their level", "[pedals][trench]")
+{
+    // At noon, Poly's sub is about as loud as what it divides (within 3 dB, over the second after
+    // the pick), on single notes and on an open E strum. (Mono follows the strum's root, whose
+    // harmonics the other strings are.) How well each string of a chord is divided is judged in
+    // PolySubTests.cpp.
+    const Trench::Settings polyNoon { 0.0f, 0.5f, 0.0f, 1.0f, Trench::Poly };
+    const auto from = static_cast<size_t> (0.4 * kFs), to = static_cast<size_t> (1.4 * kFs);
+    const auto levelDb = [&] (const std::vector<float>& out, const std::vector<float>& in) {
+        return test::db (test::rms (out.data() + from, static_cast<int> (to - from)) /
+                         test::rms (in.data() + from, static_cast<int> (to - from)));
+    };
+    for (double f1 : { 82.4069, 164.814, 329.628 })
+    {
+        INFO ("note " << f1 << " Hz");
+        const auto in = pluck (f1);
+        CHECK (std::abs (levelDb (render (in, polyNoon), in)) < 3.0);
+    }
+    const auto chord = strum();
+    CHECK (std::abs (levelDb (render (chord, polyNoon), chord)) < 3.0);
 }
 
 TEST_CASE ("Trench measurements", "[.report]")

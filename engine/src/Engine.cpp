@@ -130,7 +130,8 @@ ChainSettings chainSettings (const ParamSnapshot& p)
 
     // Pedals lane: Trench, Urchin and Kelp.
     s.trenchOn = p.flag (P::trenchEnabled);
-    s.trench = { p[P::trenchDirect], p[P::trenchSub1], p[P::trenchSub2], p[P::trenchTone] };
+    s.trench = { p[P::trenchDirect], p[P::trenchSub1], p[P::trenchSub2], p[P::trenchTone],
+                 p.choice (P::trenchMode) };
     s.urchinOn = p.flag (P::urchinEnabled);
     s.urchin = { p[P::urchinFuzz], p[P::urchinOctave], p[P::urchinTone], p[P::urchinLevel] };
     s.kelpOn = p.flag (P::kelpEnabled);

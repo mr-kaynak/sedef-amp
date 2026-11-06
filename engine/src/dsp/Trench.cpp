@@ -35,6 +35,7 @@ constexpr double kDcHz = 10.0;
 
 constexpr double kGainRampSeconds = 0.03;
 constexpr double kFilterSmoothingSeconds = 0.02;
+constexpr double kModeFadeSeconds = 0.02;
 
 float onePole (double seconds, double fs) noexcept
 {
@@ -55,10 +56,12 @@ void Trench::prepare (const ProcessSpec& spec)
     sub1_.reset (sampleRate_, kGainRampSeconds);
     sub2_.reset (sampleRate_, kGainRampSeconds);
     tone_.reset (sampleRate_, kFilterSmoothingSeconds);
+    polyStep_ = static_cast<float> (1.0 / (kModeFadeSeconds * sampleRate_));
 
     for (auto& t : trackers_)
     {
         t.mono.prepare (sampleRate_);
+        t.poly.prepare (sampleRate_);
         t.hp.c = design::highpass (sampleRate_, kDetectorHpHz, kDetectorHpQ);
         t.lp.c = design::lowpass (sampleRate_, kDetectorLpHz, kDetectorLpQ);
         t.dc.c = design::highpass1 (sampleRate_, kDcHz);
@@ -71,21 +74,29 @@ void Trench::reset() noexcept
 {
     for (auto& t : trackers_)
     {
-        t.mono.reset();
+        resetMono (t);
+        t.poly.reset();
+        t.polyGate = 0.0f;
         for (auto* s : { &t.hp, &t.lp, &t.tone, &t.dc })
             s->clear();
-        t.tone.c = toneCoeffs_;
         t.level = 0.0f;
-        t.halfRe = 1.0f;
-        t.halfIm = 0.0f;
-        t.previousHalf = 1.0f;
-        t.sub1 = {};
-        t.sub2 = {};
-        t.gate = 0.0f;
         t.levelOpen = false;
-        t.pendingAmp = 0.0f;
+        t.tone.c = toneCoeffs_;
     }
+    poly_ = settings_.mode == Poly ? 1.0f : 0.0f;
     primed_ = false;
+}
+
+void Trench::resetMono (Tracker& t) noexcept
+{
+    t.mono.reset();
+    t.halfRe = 1.0f;
+    t.halfIm = 0.0f;
+    t.previousHalf = 1.0f;
+    t.sub1 = {};
+    t.sub2 = {};
+    t.gate = 0.0f;
+    t.pendingAmp = 0.0f;
 }
 
 void Trench::setSettings (const Settings& s) noexcept
@@ -98,7 +109,7 @@ void Trench::setSettings (const Settings& s) noexcept
 Trench::TrackState Trench::trackState() const noexcept
 {
     const auto& t = trackers_[0];
-    return { t.mono.hz(), t.mono.clarity(), t.gate };
+    return { t.mono.hz(), t.mono.clarity(), t.gate, poly_ > 0.0f ? t.poly.partials() : 0 };
 }
 
 void Trench::applySettings (bool snap) noexcept
@@ -114,6 +125,7 @@ void Trench::applySettings (bool snap) noexcept
         sub2_.setCurrentAndTarget (sub2);
         tone_.setCurrentAndTarget (tone);
         updateTone (tone);
+        poly_ = settings_.mode == Poly ? 1.0f : 0.0f;
     }
     else
     {
@@ -136,15 +148,22 @@ void Trench::flush (Tracker& t) noexcept
     // Silence decays every state towards zero; keep it out of the denormal range.
     for (auto* section : { &t.hp, &t.lp, &t.tone, &t.dc })
         section->flush();
-    for (auto* v : { &t.level, &t.gate, &t.pendingAmp })
+    for (auto* v : { &t.level, &t.gate, &t.pendingAmp, &t.polyGate })
         *v = std::abs (*v) < 1.0e-20f ? 0.0f : *v;
 }
 
-float Trench::subSample (Tracker& t, float x, float g1, float g2) noexcept
+void Trench::updateLevel (Tracker& t, float x) noexcept
 {
-    // 1. Level: band-limited mean |x|.
+    // Band-limited mean |x|, and whether it is loud enough for the subs (with hysteresis).
     const float det = t.lp.process (t.hp.process (x));
     t.level += levelCoeff_ * (std::abs (det) - t.level);
+    if (t.levelOpen ? t.level < kCloseLevel : t.level > kOpenLevel)
+        t.levelOpen = !t.levelOpen;
+}
+
+float Trench::monoSample (Tracker& t, float x, float g1, float g2) noexcept
+{
+    // 1. Level: see updateLevel().
 
     // 2. The note and its fundamental. The fundamental's phase is halved by following it
     //    sample by sample: the half angle turns by half of each step, so it stays continuous.
@@ -213,15 +232,12 @@ float Trench::subSample (Tracker& t, float x, float g1, float g2) noexcept
     t.sub2.pending = now2;
 
     // 5. Gate and envelope: the subs speak only while there is a note and the tracker holds it.
-    if (t.levelOpen ? t.level < kCloseLevel : t.level > kOpenLevel)
-        t.levelOpen = !t.levelOpen;
     const float target = t.levelOpen && t.mono.voiced() ? 1.0f : 0.0f;
     t.gate += (target > t.gate ? gateAttack_ : gateRelease_) * (target - t.gate);
 
     const float amp = t.pendingAmp;
     t.pendingAmp = t.gate * t.level * (0.5f * kPi);
-    const float sub = amp * (g1 * out1 + g2 * out2);
-    return t.dc.process (t.tone.process (sub));
+    return amp * (g1 * out1 + g2 * out2);
 }
 
 void Trench::process (const AudioView& io) noexcept
@@ -234,8 +250,6 @@ void Trench::process (const AudioView& io) noexcept
     for (int start = 0; start < n; start += kControlBlock)
     {
         const int end = std::min (n, start + kControlBlock);
-        if (tone_.isSmoothing())
-            updateTone (tone_.skip (end - start));
         for (int ch = 0; ch < channels; ++ch)
             flush (trackers_[static_cast<size_t> (ch)]);
 
@@ -244,11 +258,44 @@ void Trench::process (const AudioView& io) noexcept
             const float gd = direct_.next();
             const float g1 = sub1_.next();
             const float g2 = sub2_.next();
+            // The tone moves every sample while it glides: Poly's subs are smooth enough to show
+            // the small steps a once-per-block update leaves.
+            if (tone_.isSmoothing())
+                updateTone (tone_.next());
+            // Mode: ramp towards the selected one. A path that has faded out is reset, so it
+            // starts clean when it is selected again.
+            const float before = poly_;
+            const float target = settings_.mode == Poly ? 1.0f : 0.0f;
+            poly_ = target > poly_ ? std::min (target, poly_ + polyStep_)
+                                   : std::max (target, poly_ - polyStep_);
+            const bool runMono = poly_ < 1.0f, runPoly = poly_ > 0.0f;
             for (int ch = 0; ch < channels; ++ch)
             {
+                auto& t = trackers_[static_cast<size_t> (ch)];
+                if (before < 1.0f && !runMono)
+                    resetMono (t);
+                if (before > 0.0f && !runPoly)
+                {
+                    t.poly.reset();
+                    t.polyGate = 0.0f;
+                }
                 float& x = io.channel (ch)[i];
-                const float sub = subSample (trackers_[static_cast<size_t> (ch)], x, g1, g2);
-                x = gd * x + sub;
+                updateLevel (t, x);
+                float sub = 0.0f;
+                if (runMono)
+                    sub += (1.0f - poly_) * monoSample (t, x, g1, g2);
+                if (runPoly)
+                {
+                    // Poly's subs carry the input's own envelope; the gate only keeps hiss and
+                    // hum below the level gate from being divided.
+                    float p1 = 0.0f, p2 = 0.0f;
+                    t.poly.process (x, p1, p2);
+                    const float open = t.levelOpen ? 1.0f : 0.0f;
+                    t.polyGate +=
+                        (open > t.polyGate ? gateAttack_ : gateRelease_) * (open - t.polyGate);
+                    sub += poly_ * t.polyGate * (g1 * p1 + g2 * p2);
+                }
+                x = gd * x + t.dc.process (t.tone.process (sub));
             }
         }
     }

@@ -177,6 +177,7 @@
     {"id": "breakerEnabled", "name": "Breaker", "group": "Breaker", "kind": "bool", "min": 0, "max": 1, "default": 0, "skew": 1, "unit": "", "automatable": true, "choices": []},
     {"id": "breakerBoost", "name": "Breaker Boost", "group": "Breaker", "kind": "float", "min": 0, "max": 1, "default": 0.5, "skew": 1, "unit": "knob", "automatable": true, "choices": []},
     {"id": "breakerRange", "name": "Breaker Range", "group": "Breaker", "kind": "choice", "min": 0, "max": 1, "default": 0, "skew": 1, "unit": "", "automatable": true, "choices": ["Treble", "Full"]},
-    {"id": "oversampling", "name": "Oversampling", "group": "Global", "kind": "choice", "min": 0, "max": 1, "default": 0, "skew": 1, "unit": "", "automatable": false, "choices": ["Low latency", "Linear phase"]}
+    {"id": "oversampling", "name": "Oversampling", "group": "Global", "kind": "choice", "min": 0, "max": 1, "default": 0, "skew": 1, "unit": "", "automatable": false, "choices": ["Low latency", "Linear phase"]},
+    {"id": "trenchMode", "name": "Trench Mode", "group": "Trench", "kind": "choice", "min": 0, "max": 1, "default": 0, "skew": 1, "unit": "", "automatable": true, "choices": ["Mono", "Poly"]}
   ]
 }

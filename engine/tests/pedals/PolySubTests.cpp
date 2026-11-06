@@ -127,7 +127,7 @@ TEST_CASE ("PolySub divides every string an octave and two octaves down",
     // One string at a time: the sub is the note's own spectrum at half its frequency, as loud as
     // the note (within 1.5 dB of an ideal octave down), and reaches half its level at most 13 ms
     // after the ideal one does. The two-octave sub sits at a quarter of the note.
-    for (double fs : { 44100.0, 48000.0, 96000.0 })
+    for (double fs : { 44100.0, 48000.0, 96000.0, 192000.0 })
         for (double f : kStrings)
         {
             INFO ("fs " << fs << ", string " << f << " Hz");
@@ -219,7 +219,7 @@ TEST_CASE ("PolySub measurements", "[.report]")
 {
     std::printf ("PolySub (Trench Poly): each string alone, against an ideal octave down\n");
     std::printf ("rate     string    level     lag      sub -1    sub -2\n");
-    for (double fs : { 44100.0, 48000.0, 96000.0 })
+    for (double fs : { 44100.0, 48000.0, 96000.0, 192000.0 })
         for (double f : kStrings)
         {
             const auto r = divideString (f, fs);

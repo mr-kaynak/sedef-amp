@@ -13,6 +13,13 @@ All notable changes to this project are documented here. The format follows
   restarts the audio for a moment and tells the host the new latency; the status bar and About
   follow it. Sessions saved with 0.4.0 open in Low latency.
 - New parameter: `oversampling` (global, not automatable, not saved in presets).
+- **Trench Poly:** a Mono/Poly switch on Trench. Poly divides every string of a chord, so open
+  chords, power chords and barres get their octave down: each note's sub lands within 1.3 cents,
+  what is neither a note nor one of its partials stays 24 dB under the rest, and a sub speaks
+  7–12 ms after the pick. Mono, the default, is the analog-style divider for single notes, so
+  sessions and presets made before keep their sound
+  ([docs/dsp/trench.md](docs/dsp/trench.md)).
+- New parameter: `trenchMode` (automatable; Mono by default).
 
 ### Changed
 
@@ -25,6 +32,12 @@ All notable changes to this project are documented here. The format follows
   −25 dB to −94 dB). Captures convert their sample rate the same way, with no look-ahead
   ([docs/dsp/oversampling.md](docs/dsp/oversampling.md),
   [ADR-0009](docs/adr/0009-minimum-phase-oversampling.md)).
+- **Trench tracks real playing.** On real guitar DI its sub chopped on and off 12–20 times a
+  second: a bright pickup's 2nd and 3rd partials, the pick and the last note still ringing threw
+  its period detector off. A new note tracker holds the note through all of them: on a recorded
+  fingerstyle piece the sub is on 97 % of the time instead of 69 %, with 1.3 flips a second
+  instead of 19.6. It locks in about two periods of the note (28 ms on the low E, 11 ms from E4
+  up), follows vibrato, bends and hammer-ons, and keeps palm-muted sixteenths at an even level.
 
 ## [0.4.0] - 2026-11-04
 

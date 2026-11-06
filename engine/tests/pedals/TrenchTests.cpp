@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 #include "../analysis/PitchTestSignals.h"
+#include "OctaverDi.h"
 #include "PedalTestUtils.h"
 #include "sedef/dsp/Trench.h"
 
@@ -268,6 +269,101 @@ TEST_CASE ("Trench re-locks when the note changes under the finger", "[pedals][t
                                            f2 / 2.0)) < 1.0);
         CHECK (peakIn (b[0], stepS, stepS + 0.2, kFs) <=
                1.1f * peakIn (b[0], stepS - 0.3, stepS, kFs));
+    }
+}
+
+TEST_CASE ("Trench Mono keeps a steady sub on real playing", "[pedals][trench]")
+{
+    // The playing that made the first tracker chop: a bridge pickup or a piezo (2nd and 3rd
+    // partials above the fundamental), a loud pick, the previous note still ringing, vibrato and
+    // a whole-step bend. After the lock, on every note: no gate flip, the sub at 90 % of its
+    // settled level (against the input it follows) for 95 % of the note, no modulation above
+    // 5 Hz deeper than 3 dB, both subs within 5 cents and every sub period in the right octave.
+    // Lock: 30 ms below A3, 15 ms from A3 up (about two periods and the gate's attack).
+    using namespace test::octaver;
+    std::vector<Scenario> all;
+    for (double f : { kE2, kA2, kE3, kA3, kE4, kE5 })
+    {
+        all.push_back (single ("bridge", bridgePluck (f), kFs));
+        all.push_back (single ("piezo", piezoPluck (f), kFs));
+        auto loud = bridgePluck (f);
+        loud.pickNoise = 0.3f;
+        all.push_back (single ("pick noise", loud, kFs));
+    }
+    for (double f : { kE2, kA2, kE3, kA3 })
+        for (double cents : { -500.0, 700.0 })
+            all.push_back (ringingNeighbour (f, cents, kFs));
+    for (double f : { kE2, kA3 })
+    {
+        all.push_back (vibrato (f, kFs));
+        all.push_back (bend (f, kFs));
+    }
+
+    for (const auto& s : all)
+    {
+        const auto band = envelopeBand (s.signal, kFs);
+        const auto r1 = runTrench (s.signal, kFs, kSub1Only);
+        const auto r2 = runTrench (s.signal, kFs, kSub2Only);
+        const auto& n = s.notes[0];
+        const double f = n.pluck.f1;
+        INFO (s.name << ", " << f << " Hz");
+        const auto st = judge (r1, band, kFs, n, 2.0);
+        const auto st2 = judge (r2, band, kFs, n, 4.0);
+        CHECK (st.flips == 0);
+        CHECK (st.held >= 0.95);
+        CHECK (st.amDb <= 3.0);
+        CHECK (std::abs (st.cents) < 5.0);
+        CHECK (std::abs (st2.cents) < 5.0);
+        CHECK (st.rightOctave > 0.99);
+        CHECK (st2.rightOctave > 0.99);
+        CHECK (st.lockMs <= (f < kA3 ? 30.0 : 15.0));
+    }
+}
+
+TEST_CASE ("Trench Mono follows palm-muted sixteenths", "[pedals][trench]")
+{
+    // 140 bpm on E2 and A2. The first note locks within the bars above; after that the gate stays
+    // open across the picks, every chug gets its sub at a steady level, and the sub's periods are
+    // in the right octave (each pick restarts the string, so the sub's phase may jump there).
+    using namespace test::octaver;
+    for (double f : { kE2, kA2 })
+    {
+        INFO (f << " Hz");
+        const auto s = palmMuted (f, kFs);
+        const auto band = envelopeBand (s.signal, kFs);
+        const auto r = runTrench (s.signal, kFs, kSub1Only);
+        const auto first = judge (r, band, kFs, s.notes[0], 2.0);
+        CHECK (first.lockMs <= 30.0);
+        const auto chugs =
+            judgeChugs (r, band, kFs, s.notes, s.notes[0].start + first.lockMs / 1000.0);
+        CHECK (chugs.flips == 0);
+        CHECK (chugs.spreadDb < 3.0);
+        auto all = s.notes[0];
+        all.end = s.notes.back().end;
+        CHECK (judge (r, band, kFs, all, 2.0).rightOctave > 0.95);
+    }
+}
+
+TEST_CASE ("Trench Mono re-locks through a legato run", "[pedals][trench]")
+{
+    // Hammer-ons a whole step apart every 150 ms: each step's sub is right within 15 ms, the gate
+    // never drops, and no step's sub peaks above the previous step's.
+    using namespace test::octaver;
+    for (double f : { kA2, kE3 })
+    {
+        const auto s = legatoRun (f, kFs);
+        const auto band = envelopeBand (s.signal, kFs);
+        const auto r = runTrench (s.signal, kFs, kSub1Only);
+        for (size_t k = 1; k < s.notes.size(); ++k)
+        {
+            INFO (f << " Hz, step " << k);
+            const auto st = judge (r, band, kFs, s.notes[k], 2.0, 0.0);
+            CHECK (st.lockMs <= 15.0);
+            CHECK (st.flips == 0);
+            CHECK (st.rightOctave > 0.99);
+            CHECK (peakIn (r.out, s.notes[k].start, s.notes[k].start + 0.05, kFs) <=
+                   1.1f * peakIn (r.out, s.notes[k - 1].start + 0.05, s.notes[k].start, kFs));
+        }
     }
 }
 

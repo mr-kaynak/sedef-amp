@@ -77,6 +77,9 @@ struct Pluck
     float pickNoise = 0.05f;
     double maxPartialHz = 7000.0;
     double fundamentalGain = 1.0; ///< e.g. a bridge pickup that barely hears the fundamental
+    /// > 0: a magnetic pickup this far from the bridge (fraction of the string length) hears
+    /// partial n in proportion to sin (n pi d), so a bridge pickup favours the upper partials.
+    double pickupPosition = 0.0;
     std::uint32_t seed = 1;
 
     // Pitch moves while the string rings (all off by default), relative to the pick:
@@ -134,8 +137,9 @@ inline void addPluck (std::vector<float>& out, double fs, size_t start, const Pl
         const double ratio = n * std::sqrt ((1.0 + b * n * n) / (1.0 + b));
         if (ratio * p.f1 > limit)
             break;
+        const double pickup = p.pickupPosition > 0.0 ? std::sin (n * kPiD * p.pickupPosition) : 1.0;
         const double amp =
-            std::sin (n * kPiD * p.pluckPosition) / n * (n == 1 ? p.fundamentalGain : 1.0);
+            std::sin (n * kPiD * p.pluckPosition) / n * pickup * (n == 1 ? p.fundamentalGain : 1.0);
         const double tau =
             p.decaySeconds / (1.0 + 0.1 * (n - 1) + std::pow (ratio * p.f1 / 2000.0, 2.0));
         partials.push_back ({ ratio, amp, std::exp (-1.0 / (tau * fs)), kTwoPiD * rng.unipolar() });

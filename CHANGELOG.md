@@ -13,6 +13,27 @@ All notable changes to this project are documented here. The format follows
   restarts the audio for a moment and tells the host the new latency; the status bar and About
   follow it. Sessions saved with 0.4.0 open in Low latency.
 - New parameter: `oversampling` (global, not automatable, not saved in presets).
+- **Five filter and modulation pedals**, each with its own enclosure on the pedalboard:
+  - **Anemone**, an envelope filter: low-, band- or high-pass that opens (or closes) with your
+    picking, with a fast attack and a slower release for funk
+    ([docs/dsp/anemone.md](docs/dsp/anemone.md)).
+  - **Conch**, an inductor wah: Position is the rocker (automatable), Resonance sets the peak, and
+    Auto rocks the pedal from your picking ([docs/dsp/conch.md](docs/dsp/conch.md)).
+  - **Beacon**, a photocell vibe: four staggered stages and a lamp that throbs rather than sways,
+    in Chorus or Vibrato ([docs/dsp/beacon.md](docs/dsp/beacon.md)).
+  - **Gyre**, a phaser with 4 or 6 stages and Feedback ([docs/dsp/gyre.md](docs/dsp/gyre.md)).
+  - **Jetty**, a bucket-brigade flanger with Feedback in either polarity
+    ([docs/dsp/jetty.md](docs/dsp/jetty.md)).
+
+  By default Anemone and Conch go between Trench and Remora, before the drives; Beacon, Gyre and
+  Jetty after the drives, before Ripple. All five are off by default and add no latency, so
+  existing sessions and presets sound the same.
+- New parameters (177 → 202): `anemoneEnabled`, `anemoneSensitivity`, `anemoneRange`,
+  `anemoneResonance`, `anemoneMode`, `anemoneDirection`, `conchEnabled`, `conchMode`,
+  `conchPosition`, `conchResonance`, `conchSensitivity`, `beaconEnabled`, `beaconSpeed`,
+  `beaconDepth`, `beaconMode`, `gyreEnabled`, `gyreSpeed`, `gyreDepth`, `gyreFeedback`,
+  `gyreStages`, `jettyEnabled`, `jettySpeed`, `jettyDepth`, `jettyDelay`, `jettyFeedback`.
+- **Sea Lantern** factory preset: Lagoon pushed by Coral into the Beacon vibe, with a plate.
 - **Pedalboard:** the Pedals page is a board. Add pedals from a picker grouped by category, take
   them off (with Undo), and drag them into any order by their handle, or move them with the
   arrow keys or the move buttons. The board is saved with the session and with presets, and
@@ -36,9 +57,10 @@ All notable changes to this project are documented here. The format follows
   ([docs/dsp/oversampling.md](docs/dsp/oversampling.md),
   [ADR-0009](docs/adr/0009-minimum-phase-oversampling.md)).
 - Sessions and user presets saved before the board (0.4.0 and earlier) open with the whole fixed
-  chain it replaces (Gate, Trench, Remora, Tide, Urchin, Sargasso, Pearl, Kelp, Coral, Ripple,
-  Breaker; 0.3.0 had Gate, Tide, Pearl, Coral and Ripple, in that order), so every pedal whose
-  settings they saved is in view, and they sound exactly as they did.
+  chain it replaces (Gate, Trench, Anemone, Conch, Remora, Tide, Urchin, Sargasso, Pearl, Kelp,
+  Coral, Beacon, Gyre, Jetty, Ripple, Breaker; 0.3.0 had Gate, Tide, Pearl, Coral and Ripple, in
+  that order), so every pedal whose settings they saved is in view, and they sound exactly as
+  they did.
 - Every factory preset carries a board with just the pedals it uses, and sounds exactly as it did
   (a test renders each one against the fixed chain). A new instance and Init open with the Gate
   alone, the only pedal on by default; add the rest from the picker.

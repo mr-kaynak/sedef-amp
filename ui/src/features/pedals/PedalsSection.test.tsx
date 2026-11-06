@@ -84,6 +84,8 @@ describe('Trench, Urchin and Kelp panels', () => {
     expect(names).toEqual([
       'Gate Noise gate',
       'Trench Octave down',
+      'Anemone Envelope filter',
+      'Conch Wah',
       'Remora Fuzz',
       'Tide Compressor',
       'Urchin Octave-up fuzz',
@@ -91,6 +93,9 @@ describe('Trench, Urchin and Kelp panels', () => {
       'Pearl Overdrive',
       'Kelp Mid overdrive',
       'Coral Distortion',
+      'Beacon Photocell vibe',
+      'Gyre Phaser',
+      'Jetty Flanger',
       'Ripple Modulation',
       'Breaker Treble booster',
     ]);

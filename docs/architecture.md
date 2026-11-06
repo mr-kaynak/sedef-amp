@@ -11,9 +11,11 @@ rig in one window:
 
 ```
 Input ─► Tuner tap ─► Input Gain ─► Pedalboard: the pedals the player puts on it, in the
-      order they choose; by default Gate ─► Trench (octave down) ─► Remora (fuzz) ─► Tide (comp)
-      ─► Urchin (octave-up fuzz) ─► Sargasso (sustain fuzz) ─► Pearl (overdrive)
-      ─► Kelp (mid overdrive) ─► Coral (distortion) ─► Ripple (modulation) ─► Breaker (treble booster)
+      order they choose; by default Gate ─► Trench (octave down) ─► Anemone (envelope filter)
+      ─► Conch (wah) ─► Remora (fuzz) ─► Tide (comp) ─► Urchin (octave-up fuzz)
+      ─► Sargasso (sustain fuzz) ─► Pearl (overdrive) ─► Kelp (mid overdrive) ─► Coral (distortion)
+      ─► Beacon (vibe) ─► Gyre (phaser) ─► Jetty (flanger) ─► Ripple (modulation)
+      ─► Breaker (treble booster)
       ─► Amp (Lagoon | Reef | Abyss) ─► Cab (2 mics + room)
       ─► 9-band EQ (one bank per amp) ─► Doubler ─► Drift (tape echo)
       ─► Fathom (plate | hall reverb) ─► Metronome ─► Output Gain ─► Output
@@ -218,9 +220,9 @@ Consumers:
 
 **The model.** `sedef::Board` (`board/Board.h`) is the ordered list of pedal ids on the board,
 in a fixed-capacity array (`kNumPedals`). It keeps each pedal at most once. `Board::legacy()`
-is the fixed chain the board replaced: Gate, Trench, Remora, Tide, Urchin, Sargasso, Pearl, Kelp,
-Coral, Ripple, Breaker (0.3.0 had Gate, Tide, Pearl, Coral and Ripple; the others joined the
-fixed chain before the board did).
+is the fixed chain the board replaced: Gate, Trench, Anemone, Conch, Remora, Tide, Urchin,
+Sargasso, Pearl, Kelp, Coral, Beacon, Gyre, Jetty, Ripple, Breaker (0.3.0 had Gate, Tide, Pearl,
+Coral and Ripple; the others joined the fixed chain before the board did).
 
 **The Gate is a board pedal**, first by default. Players put a gate in different places (first,
 to quiet the guitar; after the drives, to cut the noise they add) or leave it off, and keeping
@@ -332,10 +334,13 @@ pedal's page ("Where it goes in the chain"); the player can change it on the boa
   guitar: every drive in front of it would add harmonics for the tracker to mistake for the note,
   and the compressor would flatten the envelope that shapes the sub. The gate in front keeps
   noise from triggering it.
-- **Remora right behind Trench.** The two-transistor fuzz cleans up with the guitar's volume
-  because its low input impedance loads the pickup; anything that colours or buffers the guitar in
-  front of it spoils that, so it comes before the compressor and every drive. Trench goes ahead of
-  it because a divider can't track a fuzzed note, and its subs into a fuzz are a classic pairing.
+- **Anemone and Conch after Trench, before Remora.** The envelope filter reads the picking
+  dynamics a fuzz or compressor would flatten, and a wah into a fuzz is the classic order.
+- **Remora behind Trench and the two filters.** The two-transistor fuzz cleans up with the
+  guitar's volume because its low input impedance loads the pickup. Remora models that with its
+  own Guitar control, so the filters in front of it don't buffer the clean-up away; it still comes
+  before the compressor and every drive. Trench goes ahead of it because a divider can't track a
+  fuzzed note, and its subs into a fuzz are a classic pairing.
 - **Urchin after Tide, before the drives.** Its rectifier needs a clean signal too (a clipped
   input folds into a near-constant level, not an octave), and a compressor in front evens out the
   notes and makes them sustain into the octave.
@@ -345,6 +350,8 @@ pedal's page ("Where it goes in the chain"); the player can change it on the boa
 - **Sargasso after Urchin, before the overdrives.** The sustain fuzz doesn't need the guitar's
   impedance, and a compressor in front evens out the attack it clips. It comes after Urchin,
   whose rectifier wants an unclipped note.
+- **Beacon, Gyre and Jetty after the drives, before Ripple.** The vibe, phaser and flanger move
+  the harmonics the drives make, so they come after them.
 - **Breaker last, straight into the amp.** A treble booster shapes what a driven amp sees: it
   should get the whole board's output, and in front of a fuzz or overdrive it would be clipped
   flat.
@@ -378,6 +385,11 @@ The EQ bank always follows the amp.
 | Coral | Hard-clipping distortion with low-pass "cut" | 4× OS |
 | Ripple | Tremolo, chorus, vibrato | 0.69–7.19 Hz |
 | Breaker | Germanium treble booster, Treble / Full range | resonant input network, Ebers–Moll stage, 4× OS ([breaker.md](dsp/breaker.md)) |
+| Anemone | Envelope filter: state-variable LP/BP/HP swept by the picking envelope, up or down | 1 ms / 120 ms envelope, Q 0.7–16 ([anemone.md](dsp/anemone.md)) |
+| Conch | Inductor wah, Manual or Auto (envelope) | 350 Hz–2.2 kHz, Q 10 → 1.6 heel to toe ([conch.md](dsp/conch.md)) |
+| Beacon | Photocell vibe: four staggered stages, lopsided lamp LFO, Chorus or Vibrato | 0.3–8 Hz ([beacon.md](dsp/beacon.md)) |
+| Gyre | 4- or 6-stage all-pass phaser with feedback | 0.1–8 Hz, ±2 octaves ([gyre.md](dsp/gyre.md)) |
+| Jetty | Bucket-brigade flanger, ± feedback, clock-tracking band limit | 0.25–10 ms, 0.05–5 Hz ([jetty.md](dsp/jetty.md)) |
 | Lagoon | Clean amp, glassy and wide | two triode stages, FMV tone stack |
 | Reef | Crunch amp, three voicings | cascaded stages, British-style tone stack |
 | Abyss | High-gain lead amp, bright and shift switches | four stages, shifted mid |

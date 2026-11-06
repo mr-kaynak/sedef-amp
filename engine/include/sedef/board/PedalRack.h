@@ -8,8 +8,13 @@
 #include "sedef/params/Parameters.h"
 
 // Every module named in PedalList.inc.
+#include "sedef/dsp/Anemone.h"
+#include "sedef/dsp/Beacon.h"
 #include "sedef/dsp/Breaker.h"
+#include "sedef/dsp/Conch.h"
 #include "sedef/dsp/Coral.h"
+#include "sedef/dsp/Gyre.h"
+#include "sedef/dsp/Jetty.h"
 #include "sedef/dsp/Kelp.h"
 #include "sedef/dsp/NoiseGate.h"
 #include "sedef/dsp/Pearl.h"

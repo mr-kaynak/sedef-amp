@@ -63,9 +63,11 @@ TEST_CASE ("Every pedal is declared once, with an on/off switch", "[board]")
 TEST_CASE ("The legacy board is the fixed chain the board replaced", "[board]")
 {
     const auto legacy = Board::legacy();
-    CHECK (legacy == boardOf ({ PedalId::gate, PedalId::trench, PedalId::remora, PedalId::tide,
-                                PedalId::urchin, PedalId::sargasso, PedalId::pearl, PedalId::kelp,
-                                PedalId::coral, PedalId::ripple, PedalId::breaker }));
+    CHECK (legacy ==
+           boardOf ({ PedalId::gate, PedalId::trench, PedalId::anemone, PedalId::conch,
+                      PedalId::remora, PedalId::tide, PedalId::urchin, PedalId::sargasso,
+                      PedalId::pearl, PedalId::kelp, PedalId::coral, PedalId::beacon, PedalId::gyre,
+                      PedalId::jetty, PedalId::ripple, PedalId::breaker }));
     // 0.3.0's pedals keep their order in it.
     const auto old =
         boardOf ({ PedalId::gate, PedalId::tide, PedalId::pearl, PedalId::coral, PedalId::ripple });

@@ -39,9 +39,10 @@ Board Board::legacy() noexcept
     // The fixed chain before the board, in its order. 0.3.0 had Gate, Tide, Pearl, Coral and
     // Ripple; the pedals added after it joined the fixed chain before the board replaced it.
     Board b;
-    for (auto id : { PedalId::gate, PedalId::trench, PedalId::remora, PedalId::tide,
-                     PedalId::urchin, PedalId::sargasso, PedalId::pearl, PedalId::kelp,
-                     PedalId::coral, PedalId::ripple, PedalId::breaker })
+    for (auto id : { PedalId::gate, PedalId::trench, PedalId::anemone, PedalId::conch,
+                     PedalId::remora, PedalId::tide, PedalId::urchin, PedalId::sargasso,
+                     PedalId::pearl, PedalId::kelp, PedalId::coral, PedalId::beacon, PedalId::gyre,
+                     PedalId::jetty, PedalId::ripple, PedalId::breaker })
         b.insert (id, b.size());
     return b;
 }

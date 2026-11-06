@@ -50,3 +50,23 @@ SEDEF_PEDAL(sargasso, "Sargasso", Fuzz, 45, sargassoEnabled, dsp::Sargasso,
                                        p[P::sargassoVolume] }))
 SEDEF_PEDAL(breaker, "Breaker", Drive, 95, breakerEnabled, dsp::Breaker,
             (dsp::Breaker::Settings { p[P::breakerBoost], p.choice (P::breakerRange) }))
+// The mods lane: a wah, an envelope filter, a vibe, a phaser and a flanger. The two filters go
+// after the octave divider and in front of the fuzzes and drives (a fuzz would flatten the
+// picking the envelope filter reads, and wah into fuzz is the classic order); the three
+// modulations after the drives, before Ripple (docs/dsp/conch.md et al.).
+SEDEF_PEDAL(anemone, "Anemone", Filter, 17, anemoneEnabled, dsp::Anemone,
+            (dsp::Anemone::Settings { p[P::anemoneSensitivity], p[P::anemoneRange],
+                                      p[P::anemoneResonance], p.choice (P::anemoneMode),
+                                      p.choice (P::anemoneDirection) }))
+SEDEF_PEDAL(conch, "Conch", Filter, 18, conchEnabled, dsp::Conch,
+            (dsp::Conch::Settings { p.choice (P::conchMode), p[P::conchPosition],
+                                    p[P::conchResonance], p[P::conchSensitivity] }))
+SEDEF_PEDAL(beacon, "Beacon", Modulation, 65, beaconEnabled, dsp::Beacon,
+            (dsp::Beacon::Settings { p[P::beaconSpeed], p[P::beaconDepth],
+                                     p.choice (P::beaconMode) }))
+SEDEF_PEDAL(gyre, "Gyre", Modulation, 70, gyreEnabled, dsp::Gyre,
+            (dsp::Gyre::Settings { p[P::gyreSpeed], p[P::gyreDepth], p[P::gyreFeedback],
+                                   p.choice (P::gyreStages) }))
+SEDEF_PEDAL(jetty, "Jetty", Modulation, 75, jettyEnabled, dsp::Jetty,
+            (dsp::Jetty::Settings { p[P::jettySpeed], p[P::jettyDepth], p[P::jettyDelay],
+                                    p[P::jettyFeedback] / 100.0f }))

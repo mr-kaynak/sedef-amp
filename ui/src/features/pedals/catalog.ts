@@ -6,6 +6,7 @@
 import type { ComponentType } from 'react';
 import { BreakerPedal, RemoraPedal, SargassoPedal } from './DrivePedals';
 import { KelpPedal } from './KelpPedal';
+import { AnemonePedal, BeaconPedal, ConchPedal, GyrePedal, JettyPedal } from './mods';
 import { CoralPanel } from './panels/CoralPanel';
 import { GatePanel } from './panels/GatePanel';
 import { PearlPanel } from './panels/PearlPanel';
@@ -78,5 +79,30 @@ export const PEDAL_CATALOG: Record<string, PedalEntry> = {
     Panel: BreakerPedal,
     kind: 'Treble booster',
     description: 'Pushes the upper mids into the amp; Full widens the boost.',
+  },
+  anemone: {
+    Panel: AnemonePedal,
+    kind: 'Envelope filter',
+    description: 'Auto-wah: the filter follows how hard you pick, up or down.',
+  },
+  conch: {
+    Panel: ConchPedal,
+    kind: 'Wah',
+    description: 'Vocal wah sweep from heel to toe, or Auto, rocked by your picking.',
+  },
+  beacon: {
+    Panel: BeaconPedal,
+    kind: 'Photocell vibe',
+    description: 'Lamp-driven throb, as chorus or vibrato.',
+  },
+  gyre: {
+    Panel: GyrePedal,
+    kind: 'Phaser',
+    description: 'Sweeping notches; 6 stages cut a third notch, and feedback sharpens them.',
+  },
+  jetty: {
+    Panel: JettyPedal,
+    kind: 'Flanger',
+    description: 'Jet-plane comb sweep, with feedback for metallic ringing.',
   },
 };

@@ -188,6 +188,7 @@ describe('PedalBoard', () => {
         'Dynamics',
         'Drive',
         'Fuzz',
+        'Filter',
         'Modulation',
         'Pitch',
       ]);
@@ -205,6 +206,13 @@ describe('PedalBoard', () => {
         'Add Remora, fuzz',
         'Add Urchin, octave-up fuzz',
         'Add Sargasso, sustain fuzz',
+      ]);
+      expect(names(3)).toEqual(['Add Anemone, envelope filter', 'Add Conch, wah']);
+      expect(names(4)).toEqual([
+        'Add Beacon, photocell vibe',
+        'Add Gyre, phaser',
+        'Add Jetty, flanger',
+        'Ripple, modulation, on the board. Show it',
       ]);
       const dynamics = within(groups[0]!).getAllByRole('button');
       expect(dynamics.map((b) => b.getAttribute('aria-label'))).toEqual([

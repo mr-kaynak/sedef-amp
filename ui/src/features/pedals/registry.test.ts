@@ -22,6 +22,8 @@ describe('pedal registry', () => {
     expect(LEGACY_BOARD).toEqual([
       'gate',
       'trench',
+      'anemone',
+      'conch',
       'remora',
       'tide',
       'urchin',
@@ -29,6 +31,9 @@ describe('pedal registry', () => {
       'pearl',
       'kelp',
       'coral',
+      'beacon',
+      'gyre',
+      'jetty',
       'ripple',
       'breaker',
     ]);

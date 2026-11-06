@@ -56,6 +56,69 @@ double power (const std::vector<float>& x, size_t from, size_t to)
         acc += static_cast<double> (x[i]) * x[i];
     return acc / static_cast<double> (to - from);
 }
+
+struct StringResult
+{
+    double levelDb = 0.0; ///< sub against an ideal octave down, 0.4-0.73 s after the pick
+    double lagMs = 0.0;   ///< reaching half the settled level, behind the ideal octave down
+    double cents1 = 0.0, cents2 = 0.0; ///< the subs' fundamentals against f/2 and f/4
+};
+
+StringResult divideString (double f, double fs)
+{
+    std::vector<float> in (static_cast<size_t> (1.0 * fs), 0.0f), ideal (in.size(), 0.0f);
+    const auto p = chordString (f, 0);
+    test::addPluck (in, fs, static_cast<size_t> (0.1 * fs), p);
+    test::addPluck (ideal, fs, static_cast<size_t> (0.1 * fs), octaveDown (p));
+    const auto s = runPoly (in, fs);
+    const auto a = static_cast<size_t> (0.5 * fs), b = static_cast<size_t> (0.83 * fs);
+    return { 10.0 * std::log10 (power (s.one, a, b) / power (ideal, a, b)),
+             riseLagMs (s.one, ideal, fs, 0.1, 2.0 / f), peakCents (s.one, fs, 0.4, 0.5, f / 2.0),
+             peakCents (s.two, fs, 0.4, 0.5, f / 4.0) };
+}
+
+struct ChordResult
+{
+    ChordSub sub;
+    double worstCents = 0.0, warbleDb = 0.0;
+};
+
+ChordResult divideChord (const Chord& c)
+{
+    std::vector<float> in, ideal;
+    renderChord (c, 48000.0, 1.8, in, ideal);
+    const auto s = runPoly (in, 48000.0);
+    ChordResult r { judgeChordSub (c, s.one, 48000.0), 0.0, warbleDb (s.one, 48000.0, 0.4, 1.7) };
+    for (double x : r.sub.noteCents)
+        r.worstCents = std::max (r.worstCents, std::abs (x));
+    return r;
+}
+
+const std::vector<std::vector<double>> kMuted { { 82.4069 },
+                                                { 110.0 },
+                                                { 82.4069, 123.471, 164.814 } };
+
+/// Milliseconds from a mute (the strings damped 0.5 s after the pick) until the sub's 10 ms
+/// level is 60 dB under its level over the 350 ms before.
+double muteMs (const std::vector<double>& notes)
+{
+    constexpr double fs = 48000.0;
+    std::vector<float> in (static_cast<size_t> (1.2 * fs), 0.0f);
+    for (size_t k = 0; k < notes.size(); ++k)
+    {
+        auto p = chordString (notes[k], static_cast<int> (k));
+        p.muteAt = 0.5;
+        test::addPluck (in, fs, static_cast<size_t> (0.1 * fs), p);
+    }
+    const auto s = runPoly (in, fs);
+    const double held =
+        power (s.one, static_cast<size_t> (0.25 * fs), static_cast<size_t> (0.6 * fs));
+    for (double t = 0.6; t < 1.1; t += 0.001)
+        if (power (s.one, static_cast<size_t> (t * fs), static_cast<size_t> ((t + 0.01) * fs)) <
+            1.0e-6 * held)
+            return 1000.0 * (t + 0.01 - 0.6);
+    return 1.0e9;
+}
 } // namespace
 
 TEST_CASE ("PolySub divides every string an octave and two octaves down",
@@ -68,24 +131,11 @@ TEST_CASE ("PolySub divides every string an octave and two octaves down",
         for (double f : kStrings)
         {
             INFO ("fs " << fs << ", string " << f << " Hz");
-            std::vector<float> in (static_cast<size_t> (1.0 * fs), 0.0f), ideal (in.size(), 0.0f);
-            const auto p = chordString (f, 0);
-            test::addPluck (in, fs, static_cast<size_t> (0.1 * fs), p);
-            test::addPluck (ideal, fs, static_cast<size_t> (0.1 * fs), octaveDown (p));
-            const auto s = runPoly (in, fs);
-
-            const auto a = static_cast<size_t> (0.5 * fs), b = static_cast<size_t> (0.83 * fs);
-            const double levelDb = 10.0 * std::log10 (power (s.one, a, b) / power (ideal, a, b));
-            const double lagMs = riseLagMs (s.one, ideal, fs, 0.1, 2.0 / f);
-            const double cents1 = peakCents (s.one, fs, 0.4, 0.5, f / 2.0);
-            const double cents2 = peakCents (s.two, fs, 0.4, 0.5, f / 4.0);
-            std::printf ("PolySub fs %6.0f, %5.1f Hz: level %+5.2f dB, lag %5.2f ms, sub %+5.2f c, "
-                         "sub2 %+5.2f c\n",
-                         fs, f, levelDb, lagMs, cents1, cents2);
-            CHECK (std::abs (levelDb) < 1.5);
-            CHECK (lagMs < 13.0);
-            CHECK (std::abs (cents1) < 5.0);
-            CHECK (std::abs (cents2) < 5.0);
+            const auto r = divideString (f, fs);
+            CHECK (std::abs (r.levelDb) < 1.5);
+            CHECK (r.lagMs < 13.0);
+            CHECK (std::abs (r.cents1) < 5.0);
+            CHECK (std::abs (r.cents2) < 5.0);
         }
 }
 
@@ -98,22 +148,11 @@ TEST_CASE ("PolySub plays chords an octave down", "[pedals][trench][polysub]")
     for (const auto& c : chords())
     {
         INFO (c.name);
-        std::vector<float> in, ideal;
-        renderChord (c, 48000.0, 1.8, in, ideal);
-        const auto s = runPoly (in, 48000.0);
-        const auto r = judgeChordSub (c, s.one, 48000.0);
-        const double warble = warbleDb (s.one, 48000.0, 0.4, 1.7);
-        double worstCents = 0.0;
-        for (double x : r.noteCents)
-            worstCents = std::max (worstCents, std::abs (x));
-        std::printf ("PolySub %-14s notes within %4.2f c, off-grid %+5.1f dB, worst peak %+5.1f dB "
-                     "at %5.1f Hz (%+5.1f dB re the weakest note), warble %4.2f dB\n",
-                     c.name.c_str(), worstCents, r.offGridDb, r.worstPeakDb, r.worstPeakHz,
-                     r.worstPeakVsWeakestDb, warble);
-        CHECK (worstCents < 10.0);
-        CHECK (r.offGridDb < -20.0);
-        CHECK (r.worstPeakDb < -20.0);
-        CHECK (warble < 3.0);
+        const auto r = divideChord (c);
+        CHECK (r.worstCents < 10.0);
+        CHECK (r.sub.offGridDb < -20.0);
+        CHECK (r.sub.worstPeakDb < -20.0);
+        CHECK (r.warbleDb < 3.0);
     }
 }
 
@@ -127,36 +166,10 @@ TEST_CASE ("PolySub is silent without a note and stops after a mute", "[pedals][
         CHECK (std::all_of (s.two.begin(), s.two.end(), [] (float v) { return v == 0.0f; }));
     }
     // A note (or a chord) damped by the hand: the sub is 60 dB down within 150 ms.
-    for (const auto& notes : { std::vector<double> { 82.4069 }, std::vector<double> { 110.0 },
-                               std::vector<double> { 82.4069, 123.471, 164.814 } })
+    for (const auto& notes : kMuted)
     {
         INFO ("lowest note " << notes[0] << " Hz, " << notes.size() << " strings");
-        std::vector<float> in (static_cast<size_t> (1.2 * fs), 0.0f);
-        for (size_t k = 0; k < notes.size(); ++k)
-        {
-            auto p = chordString (notes[k], static_cast<int> (k));
-            p.muteAt = 0.5;
-            test::addPluck (in, fs, static_cast<size_t> (0.1 * fs), p);
-        }
-        const auto s = runPoly (in, fs);
-        const double before =
-            power (s.one, static_cast<size_t> (0.5 * fs), static_cast<size_t> (0.6 * fs));
-        const double held =
-            power (s.one, static_cast<size_t> (0.25 * fs), static_cast<size_t> (0.6 * fs));
-        const double after =
-            power (s.one, static_cast<size_t> (0.75 * fs), static_cast<size_t> (0.8 * fs));
-        double downMs = 1.0e9; // first 10 ms window 60 dB under the held level
-        for (double t = 0.6; t < 1.1; t += 0.001)
-            if (power (s.one, static_cast<size_t> (t * fs), static_cast<size_t> ((t + 0.01) * fs)) <
-                1.0e-6 * held)
-            {
-                downMs = 1000.0 * (t + 0.01 - 0.6);
-                break;
-            }
-        std::printf ("PolySub mute: %zu strings from %.1f Hz, 60 dB down %.0f ms after the mute\n",
-                     notes.size(), notes[0], downMs);
-        CHECK (before > 0.0);
-        CHECK (after < 1.0e-6 * held);
+        CHECK (muteMs (notes) < 150.0);
     }
 }
 
@@ -200,4 +213,32 @@ TEST_CASE ("PolySub resets to its initial state", "[pedals][trench][polysub]")
         REQUIRE (a == c);
         REQUIRE (b == d);
     }
+}
+
+TEST_CASE ("PolySub measurements", "[.report]")
+{
+    std::printf ("PolySub (Trench Poly): each string alone, against an ideal octave down\n");
+    std::printf ("rate     string    level     lag      sub -1    sub -2\n");
+    for (double fs : { 44100.0, 48000.0, 96000.0 })
+        for (double f : kStrings)
+        {
+            const auto r = divideString (f, fs);
+            std::printf ("%5.1fk  %6.1f Hz  %+5.2f dB  %5.2f ms  %+5.2f c  %+5.2f c\n", fs / 1000.0,
+                         f, r.levelDb, r.lagMs, r.cents1, r.cents2);
+        }
+    std::printf ("\nchords, 48 kHz, 0.45-1.45 s\n");
+    std::printf ("chord           notes    off-grid  worst peak (re strongest / weakest note)  "
+                 "warble\n");
+    for (const auto& c : chords())
+    {
+        const auto r = divideChord (c);
+        std::printf ("%-14s  %4.2f c  %+5.1f dB  %+5.1f / %+5.1f dB at %5.1f Hz  %4.2f dB\n",
+                     c.name.c_str(), r.worstCents, r.sub.offGridDb, r.sub.worstPeakDb,
+                     r.sub.worstPeakVsWeakestDb, r.sub.worstPeakHz, r.warbleDb);
+    }
+    std::printf ("\nmutes: 60 dB down after");
+    for (const auto& notes : kMuted)
+        std::printf ("  %.0f ms (%zu string%s from %.1f Hz)", muteMs (notes), notes.size(),
+                     notes.size() > 1 ? "s" : "", notes[0]);
+    std::printf ("\n");
 }

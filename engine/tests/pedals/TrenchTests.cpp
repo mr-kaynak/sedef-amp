@@ -472,4 +472,58 @@ TEST_CASE ("Trench measurements", "[.report]")
     const auto ref = render (steadyNote (164.814), kBothSubs);
     std::printf ("strum: sub peak %.3f vs a steady E3's sub peak %.3f\n", test::peak (chord),
                  peakIn (ref, 0.6, 1.1, kFs));
+
+    // Mono on real playing: the scenarios of "Trench Mono keeps a steady sub on real playing".
+    using namespace test::octaver;
+    std::printf ("\nMono on real playing, sub -1 (sub -2 cents in brackets)\n");
+    std::printf ("scenario                      note     lock  flips  held   AM     cents        "
+                 "right octave\n");
+    std::vector<Scenario> all;
+    for (double f : { kE2, kA2, kE3, kA3, kE4, kE5 })
+    {
+        all.push_back (single ("bridge", bridgePluck (f), kFs));
+        all.push_back (single ("piezo", piezoPluck (f), kFs));
+        auto loud = bridgePluck (f);
+        loud.pickNoise = 0.3f;
+        all.push_back (single ("pick noise", loud, kFs));
+    }
+    for (double f : { kE2, kA2, kE3, kA3 })
+        for (double cents : { -500.0, 700.0 })
+            all.push_back (ringingNeighbour (f, cents, kFs));
+    for (double f : { kE2, kA3 })
+    {
+        all.push_back (vibrato (f, kFs));
+        all.push_back (bend (f, kFs));
+    }
+    for (const auto& sc : all)
+    {
+        const auto band = envelopeBand (sc.signal, kFs);
+        const auto st = judge (runTrench (sc.signal, kFs, kSub1Only), band, kFs, sc.notes[0], 2.0);
+        const auto st2 = judge (runTrench (sc.signal, kFs, kSub2Only), band, kFs, sc.notes[0], 4.0);
+        std::printf ("%-28s %6.1f  %5.1f ms  %d  %5.1f %%  %4.1f dB  %+5.2f (%+5.2f)  %5.1f %%\n",
+                     sc.name.c_str(), sc.notes[0].pluck.f1, st.lockMs, st.flips, 100.0 * st.held,
+                     st.amDb, st.cents, st2.cents, 100.0 * st.rightOctave);
+    }
+    for (double f : { kE2, kA2 })
+    {
+        const auto sc = palmMuted (f, kFs);
+        const auto band = envelopeBand (sc.signal, kFs);
+        const auto r = runTrench (sc.signal, kFs, kSub1Only);
+        const auto first = judge (r, band, kFs, sc.notes[0], 2.0);
+        const auto chugs =
+            judgeChugs (r, band, kFs, sc.notes, sc.notes[0].start + first.lockMs / 1000.0);
+        std::printf ("palm-muted sixteenths, %5.1f Hz: first lock %.1f ms, %d flips after, chug "
+                     "levels within %.2f dB\n",
+                     f, first.lockMs, chugs.flips, chugs.spreadDb);
+    }
+    for (double f : { kA2, kE3 })
+    {
+        const auto sc = legatoRun (f, kFs);
+        const auto band = envelopeBand (sc.signal, kFs);
+        const auto r = runTrench (sc.signal, kFs, kSub1Only);
+        std::printf ("legato run from %5.1f Hz: re-lock", f);
+        for (size_t k = 1; k < sc.notes.size(); ++k)
+            std::printf (" %.1f", judge (r, band, kFs, sc.notes[k], 2.0, 0.0).lockMs);
+        std::printf (" ms\n");
+    }
 }

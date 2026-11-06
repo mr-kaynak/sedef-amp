@@ -55,7 +55,8 @@ TEST_CASE ("Pedal CPU cost", "[.bench]")
     report ("Ripple vibrato", bench<dsp::Ripple> ({ dsp::Ripple::Vibrato, 5.0f, 0.7f }));
     report ("Kelp", bench<dsp::Kelp> ({ 0.6f, 0.5f, 0.5f }));
     report ("Urchin", bench<dsp::Urchin> ({ 0.6f, 1.0f, 0.5f, 0.5f }));
-    report ("Trench", bench<dsp::Trench> ({ 0.5f, 0.6f, 0.4f, 0.5f }));
+    report ("Trench Mono", bench<dsp::Trench> ({ 0.5f, 0.6f, 0.4f, 0.5f, dsp::Trench::Mono }));
+    report ("Trench Poly", bench<dsp::Trench> ({ 0.5f, 0.6f, 0.4f, 0.5f, dsp::Trench::Poly }));
     report ("Remora germanium",
             bench<dsp::Remora> ({ 0.8f, 0.5f, 0.5f, 1.0f, dsp::Remora::Germanium }));
     report ("Remora silicon",

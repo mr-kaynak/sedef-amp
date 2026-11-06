@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MockBackend } from '../../bridge/mockBackend';
 import type { UpdateScenario } from '../../bridge/mock/updateSim';
+import type { UpdateState } from '../../bridge/protocol';
 import { flush, setupMock, type Harness } from '../../test/harness';
 import { useUiStore } from '../../state/uiStore';
 import { PresetBrowser } from '../presets/PresetBrowser';
@@ -29,10 +30,11 @@ async function step(n = 1): Promise<void> {
 }
 
 const pill = () => screen.queryByRole('button', { name: /^Update available/ });
+const restartPill = () => screen.queryByRole('button', { name: /^Restart to update/ });
 const dialog = () => screen.getByRole('dialog', { name: 'Updates' });
 
-async function openPanel(): Promise<HTMLElement> {
-  const button = pill();
+async function openPanel(which: () => HTMLElement | null = pill): Promise<HTMLElement> {
+  const button = which();
   if (!button) throw new Error('no pill');
   fireEvent.click(button);
   await act(flush);
@@ -122,9 +124,11 @@ describe('Updates panel', () => {
     const notes = within(panel).getByRole('region', { name: 'Release notes' });
     expect(within(notes).getByRole('heading', { name: 'Added' })).toBeInTheDocument();
     expect(
-      within(panel).getByText(/Quit your DAW before you run the installer/),
+      within(panel).getByText(
+        /installs it over the formats you have\. macOS asks for your password/,
+      ),
     ).toBeInTheDocument();
-    expect(within(panel).getByRole('button', { name: 'Download & install' })).toBeEnabled();
+    expect(within(panel).getByRole('button', { name: 'Update now' })).toBeEnabled();
   });
 
   it('opens release links in the system browser', async () => {
@@ -167,9 +171,9 @@ describe('Updates panel', () => {
   it('keeps Tab inside the panel', async () => {
     await start('available');
     const panel = await openPanel();
-    const download = within(panel).getByRole('button', { name: 'Download & install' });
-    download.focus();
-    fireEvent.keyDown(download, { key: 'Tab' });
+    const update = within(panel).getByRole('button', { name: 'Update now' });
+    update.focus();
+    fireEvent.keyDown(update, { key: 'Tab' });
     expect(within(panel).getByRole('button', { name: 'Close' })).toHaveFocus();
   });
 
@@ -212,11 +216,16 @@ describe('Updates panel', () => {
   });
 });
 
-describe('Download & install', () => {
-  it('shows progress, then the installer and what to do next', async () => {
-    await start('available');
+const steps = (state: UpdateState) =>
+  state.supported && state.phase === 'installing'
+    ? state.install?.step
+    : state.supported && state.phase;
+
+describe('Update now', () => {
+  it('downloads, verifies, installs and asks for a restart', async () => {
+    const harness = await start('available');
     const panel = await openPanel();
-    fireEvent.click(within(panel).getByRole('button', { name: 'Download & install' }));
+    fireEvent.click(within(panel).getByRole('button', { name: 'Update now' }));
     await act(flush);
     const bar = within(panel).getByRole('progressbar', { name: /Downloading Sedef-Amp-macOS.dmg/ });
     expect(bar).toHaveAttribute('aria-valuenow', '0');
@@ -228,9 +237,179 @@ describe('Download & install', () => {
     expect(within(panel).getByRole('progressbar', { name: /Checking/ })).not.toHaveAttribute(
       'aria-valuenow',
     );
+
+    await step(); // verified: the OS's installer takes over
+    expect(
+      within(panel).getByRole('progressbar', { name: 'Preparing Sedef Amp 0.2.0…' }),
+    ).toBeInTheDocument();
+    expect(within(panel).queryByRole('button', { name: 'Cancel' })).toBeNull();
+    // The panel can be closed meanwhile: the pill says the update is under way.
+    expect(pill()).toBeNull();
+    expect(screen.getByRole('button', { name: 'Updating to Sedef Amp 0.2.0' })).toHaveTextContent(
+      'Updating…',
+    );
     await step();
+    expect(
+      within(panel).getByRole('progressbar', { name: 'Waiting for your password…' }),
+    ).not.toHaveAttribute('aria-valuenow');
+    expect(within(panel).getByText(/Enter your password when macOS asks/)).toHaveTextContent(
+      'Keep this window open until it finishes.',
+    );
+    expect(within(panel).getByRole('status')).toHaveTextContent('Waiting for your password');
+    await step();
+    expect(
+      within(panel).getByRole('progressbar', { name: 'Checking the installed files…' }),
+    ).toBeInTheDocument();
+    await step();
+
     expect(within(panel).queryByRole('progressbar')).toBeNull();
+    expect(within(panel).getByText('Sedef Amp 0.2.0 is installed')).toBeInTheDocument();
+    expect(within(panel).getByText('Restart your DAW to use it.')).toBeInTheDocument();
+    expect(within(panel).queryByRole('button', { name: 'Update now' })).toBeNull();
+    expect(within(panel).queryByRole('button', { name: 'Restart Sedef' })).toBeNull(); // a plug-in
+    expect(within(panel).getByRole('button', { name: 'Done' })).toBeInTheDocument();
+    expect(within(panel).getByRole('status')).toHaveTextContent(
+      'Sedef Amp 0.2.0 is installed. Restart your DAW to use it.',
+    );
+    expect(pill()).toBeNull();
+    expect(restartPill()).toHaveAccessibleName(
+      'Restart to update: Sedef Amp 0.2.0 is installed. Restart your DAW to use it.',
+    );
+    const state = await harness.mock.call('sedef_update_getState');
+    expect(state.supported && state.installedVersion).toBe('0.2.0');
+  });
+
+  it('keeps focus in the panel when the button it was on goes away', async () => {
+    await start('available');
+    const panel = await openPanel();
+    const update = within(panel).getByRole('button', { name: 'Update now' });
+    update.focus();
+    fireEvent.click(update);
+    await act(flush);
+    expect(within(panel).getByRole('heading', { name: 'Updates' })).toHaveFocus();
+  });
+
+  it('can be cancelled while it downloads', async () => {
+    await start('available');
+    const panel = await openPanel();
+    fireEvent.click(within(panel).getByRole('button', { name: 'Update now' }));
+    await step(2);
+    fireEvent.click(within(panel).getByRole('button', { name: 'Cancel' }));
+    await act(flush);
+    expect(within(panel).queryByRole('progressbar')).toBeNull();
+    expect(within(panel).getByRole('button', { name: 'Update now' })).toBeInTheDocument();
+    expect(within(panel).queryByRole('alert')).toBeNull();
+  });
+
+  it('goes back to ready when the password dialog is cancelled', async () => {
+    const harness = await start('declined');
+    const panel = await openPanel();
+    fireEvent.click(within(panel).getByRole('button', { name: 'Update now' }));
+    await step(9); // downloaded and verified
+    await step(2); // preparing, then the password dialog
+    expect(steps(await harness.mock.call('sedef_update_getState'))).toBe('idle');
+    expect(within(panel).queryByRole('alert')).toBeNull();
+    expect(within(panel).getByRole('button', { name: 'Update now' })).toBeEnabled();
+    expect(pill()).toBeInTheDocument();
+  });
+
+  it('restarts the standalone app into the new version', async () => {
+    await start('standalone');
+    const panel = await openPanel();
+    fireEvent.click(within(panel).getByRole('button', { name: 'Update now' }));
+    await step(9 + 3);
+    expect(within(panel).getByText('Restart Sedef to use it.')).toBeInTheDocument();
+    expect(
+      within(panel).getByText('Your DAWs load the new version the next time they start.'),
+    ).toBeInTheDocument();
+    expect(within(panel).getByRole('button', { name: 'Later' })).toBeInTheDocument();
+    fireEvent.click(within(panel).getByRole('button', { name: 'Restart Sedef' }));
+    await act(flush);
+    expect(
+      within(panel).getByText('Sedef Amp is up to date.', { exact: false }),
+    ).toBeInTheDocument();
+    expect(within(panel).getAllByText('0.2.0', { selector: 'dd' })).toHaveLength(2); // running it
+  });
+
+  it('installs on Linux without a password step', async () => {
+    const harness = await start('linux');
+    const panel = await openPanel();
+    expect(
+      within(panel).getByText(
+        /For a copy installed for every user, your system asks for your password/,
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(within(panel).getByRole('button', { name: 'Update now' }));
+    await step(9);
+    const seen: unknown[] = [];
+    for (let i = 0; i < 3; i += 1) {
+      seen.push(steps(await harness.mock.call('sedef_update_getState')));
+      await step();
+    }
+    expect(seen).toEqual(['preparing', 'installing', 'finishing']);
+    expect(within(panel).getByText('Sedef Amp 0.2.0 is installed')).toBeInTheDocument();
+  });
+});
+
+describe('Windows', () => {
+  it('asks for permission, then installs when the DAW closes', async () => {
+    await start('windows');
+    const panel = await openPanel();
+    expect(
+      within(panel).getByText(
+        /Once Windows gives permission, it installs when you close your DAW\./,
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(within(panel).getByRole('button', { name: 'Update now' }));
+    await step(9 + 1);
+    expect(
+      within(panel).getByRole('progressbar', { name: 'Waiting for permission…' }),
+    ).toBeInTheDocument();
+    expect(within(panel).getByText(/Choose Yes when Windows asks/)).toBeInTheDocument();
+    await step();
+    expect(within(panel).getByText('Sedef Amp 0.2.0 is ready to install')).toBeInTheDocument();
+    expect(within(panel).getByText('It installs when you close your DAW.')).toBeInTheDocument();
+    expect(
+      within(panel).getByText(/Windows finishes the update when you restart your computer/),
+    ).toBeInTheDocument();
+    expect(restartPill()).toBeInTheDocument();
+  });
+
+  it('stays scheduled across a check', async () => {
+    await start('scheduled');
+    expect(restartPill()).toHaveAccessibleName(
+      'Restart to update: Sedef Amp 0.2.0 is ready to install. It installs when you close your DAW.',
+    );
+    const panel = await openPanel(restartPill);
+    fireEvent.click(within(panel).getByRole('button', { name: 'Check now' }));
+    await step();
+    expect(within(panel).getByText('Sedef Amp 0.2.0 is ready to install')).toBeInTheDocument();
+  });
+});
+
+describe('Install manually', () => {
+  it('is the way forward after a failed install', async () => {
+    await start('installfail');
+    const panel = await openPanel();
+    fireEvent.click(within(panel).getByRole('button', { name: 'Update now' }));
+    await step(9 + 2);
+    expect(within(panel).getByRole('alert')).toHaveTextContent(
+      'The installer reported a problem and stopped. Try again, or use Install manually.',
+    );
+    expect(within(panel).getByRole('button', { name: 'Try again' })).toBeInTheDocument();
+    expect(within(panel).getByRole('button', { name: 'Open releases page' })).toBeInTheDocument();
+    expect(within(panel).queryByRole('button', { name: 'Skip this version' })).toBeNull();
+    expect(
+      within(panel).getByText(
+        'Install manually saves the disk image to your Downloads folder and opens it.',
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(within(panel).getByRole('button', { name: 'Install manually' }));
+    await step(9);
     expect(within(panel).getByText('Sedef-Amp-macOS.dmg')).toBeInTheDocument();
+    expect(
+      within(panel).getByText('Downloaded to your Downloads folder and verified.'),
+    ).toBeInTheDocument();
     expect(within(panel).getByText(/The disk image is open\. Quit your DAW/)).toHaveTextContent(
       'Privacy & Security and click Open Anyway',
     );
@@ -238,58 +417,46 @@ describe('Download & install', () => {
     expect(within(panel).getByRole('status')).toHaveTextContent('Download verified');
   });
 
-  it('can be cancelled', async () => {
-    await start('available');
+  it("is the only way where the automatic install can't run", async () => {
+    const harness = await start('elsewhere');
     const panel = await openPanel();
-    fireEvent.click(within(panel).getByRole('button', { name: 'Download & install' }));
-    await step(2);
-    fireEvent.click(within(panel).getByRole('button', { name: 'Cancel' }));
-    await act(flush);
-    expect(within(panel).queryByRole('progressbar')).toBeNull();
-    expect(within(panel).getByRole('button', { name: 'Download & install' })).toBeInTheDocument();
-    expect(within(panel).queryByRole('alert')).toBeNull();
+    expect(within(panel).queryByRole('button', { name: 'Update now' })).toBeNull();
+    expect(
+      within(panel).getByText(/runs from a folder the installer doesn't update/),
+    ).toHaveTextContent(
+      'Install manually saves the disk image to your Downloads folder and opens it.',
+    );
+    fireEvent.click(within(panel).getByRole('button', { name: 'Install manually' }));
+    await step(9);
+    const state = await harness.mock.call('sedef_update_getState');
+    expect(state.supported && state.phase).toBe('done');
   });
 });
 
-describe('Errors', () => {
-  it('explains a failed check and offers the releases page', async () => {
-    const harness = await start('error');
+describe('Installed elsewhere', () => {
+  it('another window or DAW installed it: restart, no second download', async () => {
+    const harness = await start('installed');
     expect(pill()).toBeNull();
-    useUpdateStore.setState({ open: true });
-    await act(flush);
-    const panel = dialog();
-    expect(within(panel).getByRole('alert')).toHaveTextContent("Sedef couldn't reach GitHub.");
-    const spy = vi.spyOn(harness.mock, 'call');
-    fireEvent.click(within(panel).getByRole('button', { name: 'Open releases page' }));
-    expect(spy).toHaveBeenCalledWith(
-      'sedef_openUrl',
-      'https://github.com/mr-kaynak/sedef-amp/releases',
-    );
+    const panel = await openPanel(restartPill);
+    expect(within(panel).getByText('Sedef Amp 0.2.0 is installed')).toBeInTheDocument();
+    expect(
+      within(panel).getByText(
+        'Any other DAW with Sedef open keeps the old version until you restart it too.',
+      ),
+    ).toBeInTheDocument();
+    expect(within(panel).queryByRole('button', { name: 'Update now' })).toBeNull();
+    await harness.mock.call('sedef_update_install');
+    const state = await harness.mock.call('sedef_update_getState');
+    expect(state.supported && state.phase).toBe('installed');
+    fireEvent.click(within(panel).getByRole('button', { name: 'Done' }));
+    expect(screen.queryByRole('dialog', { name: 'Updates' })).toBeNull();
+    expect(restartPill()).toBeInTheDocument(); // the reminder stays
   });
 
-  it('deletes a download that fails verification and says so', async () => {
-    await start('mismatch');
-    const panel = await openPanel();
-    fireEvent.click(within(panel).getByRole('button', { name: 'Download & install' }));
-    await step(9);
-    expect(within(panel).getByRole('alert')).toHaveTextContent(
-      "didn't match its published checksum, so Sedef deleted it",
-    );
-    expect(within(panel).getByRole('button', { name: 'Open releases page' })).toBeInTheDocument();
-    expect(within(panel).getByRole('button', { name: 'Download & install' })).toBeInTheDocument();
-  });
-
-  it('falls back to the releases page when there is no installer for this OS', async () => {
-    const harness = await start('noinstaller');
-    const panel = await openPanel();
-    expect(within(panel).queryByRole('button', { name: 'Download & install' })).toBeNull();
-    expect(within(panel).getByText(/no installer for macOS/)).toBeInTheDocument();
-    const spy = vi.spyOn(harness.mock, 'call');
-    fireEvent.click(within(panel).getByRole('button', { name: 'Open releases page' }));
-    expect(spy).toHaveBeenCalledWith(
-      'sedef_openUrl',
-      'https://github.com/mr-kaynak/sedef-amp/releases/tag/v0.2.0',
-    );
+  it('says so in Settings', async () => {
+    await start('installed');
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    expect(screen.getByText('Sedef Amp 0.2.0 is installed')).toBeInTheDocument();
   });
 });
 

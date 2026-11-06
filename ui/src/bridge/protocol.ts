@@ -208,7 +208,33 @@ export interface ReleaseInfo {
   hasChecksums: boolean;
 }
 
-export type UpdatePhase = 'idle' | 'checking' | 'downloading' | 'verifying' | 'done' | 'error';
+export type UpdatePhase =
+  | 'idle'
+  | 'checking'
+  | 'downloading'
+  | 'verifying'
+  /** The OS's installer runs: `install.step` says where it is. */
+  | 'installing'
+  /** Installed (by this process or another): restart the host to use `installedVersion`. */
+  | 'installed'
+  /** Windows: Setup waits for the host to exit, then installs `installedVersion`. */
+  | 'scheduled'
+  /** "Install manually": the verified installer is in Downloads and open. */
+  | 'done'
+  | 'error';
+
+export type InstallStep =
+  /** Checking the file again, mounting or unpacking it. */
+  | 'preparing'
+  /** The OS asks for a password or permission; the install runs right after. */
+  | 'permission'
+  /** Installing with nothing to ask (Linux, in your home folder). */
+  | 'installing'
+  /** Detaching, checking the installed versions. */
+  | 'finishing';
+
+/** Why "Update now" can't install here; the panel offers Install manually instead. */
+export type ManualReason = 'elsewhere' | 'sandboxed' | 'noElevation' | 'unsupported';
 
 export type UpdateErrorCode =
   | 'network'
@@ -219,7 +245,11 @@ export type UpdateErrorCode =
   | 'checksumMismatch'
   | 'incomplete'
   | 'disk'
-  | 'openFailed';
+  | 'openFailed'
+  | 'badPackage'
+  | 'elevationFailed'
+  | 'installFailed'
+  | 'unverified';
 
 export type UpdateState =
   /** Built with SEDEF_UPDATE_CHECK=OFF: the UI shows nothing about updates. */
@@ -243,7 +273,18 @@ export type UpdateState =
       error: { code: UpdateErrorCode; detail: string } | null;
       /** Bytes, while downloading or verifying. */
       progress: { received: number; total: number } | null;
-      /** The verified installer, once downloaded. */
+      /** While installing. */
+      install: { step: InstallStep } | null;
+      /** The version that is installed (phase installed) or waits for the host to exit (scheduled). */
+      installedVersion: string | null;
+      /** What to restart: the DAW's name, "your DAW" when it isn't known, "Sedef" standalone. */
+      host: string;
+      standalone: boolean;
+      /** The standalone app can restart itself into installedVersion (sedef_update_restart). */
+      canRestart: boolean;
+      /** Whether "Update now" can install here, or only Install manually. */
+      autoInstall: { available: boolean; reason: ManualReason | null };
+      /** "Install manually": the verified installer in Downloads. */
       download: { fileName: string; opened: boolean } | null;
       releasesUrl: string;
     };
@@ -361,11 +402,20 @@ export interface NativeFunctions {
   sedef_update_setAutoCheck(enabled: boolean): UpdateState;
   /** Stops offering a version; '' offers it again. */
   sedef_update_skip(version: string): UpdateState;
-  /** Downloads this OS's installer, verifies its SHA-256, then opens it. Progress: sedef:update. */
-  sedef_update_download(): UpdateState;
+  /**
+   * "Update now": downloads this OS's installer into a private cache, verifies its SHA-256 and
+   * installs it through the OS's installer. Where that can't run, installs manually. Progress:
+   * sedef:update.
+   */
+  sedef_update_install(): UpdateState;
+  /** "Install manually": the verified installer goes to Downloads and opens, as a download would. */
+  sedef_update_installManually(): UpdateState;
+  /** Stops a download (not the OS's installer: its own prompt is where to cancel). */
   sedef_update_cancel(): UpdateState;
-  /** Shows the downloaded installer in the file manager. */
+  /** Shows the installer "Install manually" saved in the file manager. */
   sedef_update_reveal(): UpdateState;
+  /** The standalone app, when canRestart: quits and opens the new version. */
+  sedef_update_restart(): UpdateState;
 }
 
 // ---------------------------------------------------------------------------------------------

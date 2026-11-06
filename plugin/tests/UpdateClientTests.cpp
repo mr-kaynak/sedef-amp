@@ -3,6 +3,7 @@
 // server, so every failure path runs without GitHub. (tools/sedef_update_check.cpp runs the same
 // code against the real API.)
 #include "DownloadMark.h"
+#include "Installer.h"
 #include "LocalServer.h"
 #include "UpdateClient.h"
 
@@ -356,4 +357,37 @@ TEST_CASE ("A verified copy is reused, a stranger's file is left alone", "[updat
     CHECK (mine.loadFileAsString() == "my own file");
     CHECK (f.filesInFolder() ==
            juce::StringArray { "Sedef-Amp-macOS (2).dmg", "Sedef-Amp-macOS.dmg" });
+}
+
+TEST_CASE ("In the cache an old copy is replaced, and one that can't go stays", "[update][client]")
+{
+    Fixture f;
+    const auto release = localRelease (f.server, 300000);
+    DownloadOptions cache;
+    cache.mark = false;
+    cache.replace = true;
+    const auto download = [&f, &release, &cache] {
+        return f.client.downloadVerified (
+            release, release.assets[0], f.folder, [] (DownloadStage, juce::int64, juce::int64) {},
+            f.cancel, cache);
+    };
+    const auto old = f.folder.getChildFile ("Sedef-Amp-macOS.dmg");
+    REQUIRE (f.folder.createDirectory());
+    REQUIRE (old.replaceWithText ("an older installer"));
+    auto result = download();
+    REQUIRE (result.error == Error::None);
+    CHECK (result.file == old); // replaced
+    CHECK (f.filesInFolder() == juce::StringArray { "Sedef-Amp-macOS.dmg" });
+
+#if JUCE_WINDOWS
+    // A setup that is held (Setup waits with it, or this process checked it) can't be replaced:
+    // the new one takes the next name instead of failing.
+    REQUIRE (old.replaceWithText ("an older installer"));
+    HeldFile held (old);
+    REQUIRE (held.isOpen());
+    result = download();
+    REQUIRE (result.error == Error::None);
+    CHECK (result.file.getFileName() == "Sedef-Amp-macOS (2).dmg");
+    CHECK (old.loadFileAsString() == "an older installer");
+#endif
 }

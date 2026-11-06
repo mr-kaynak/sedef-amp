@@ -40,7 +40,7 @@ chromium-headless-shell`.
 | `?host=plugin\|standalone`          | present as a plugin (no metronome) or as the standalone app instead of the browser preview                          |
 | `?errors=3.6,-2.4,1.1`              | 12th-fret errors in cents that the simulated guitar produces, per string                                            |
 | `?fresh`                            | ignore UI state saved by earlier browser sessions                                                                   |
-| `?update=available`                 | what the update checker finds: `current`, `available`, `skipped`, `error`, `noinstaller`, `mismatch`, `unsupported` |
+| `?update=available`                 | what the update checker finds: `current`, `available`, `skipped`, `error`, `noinstaller`, `mismatch`, `unsupported`; how the install goes: `declined` (password dialog cancelled), `installfail`, `elsewhere` (Install manually only), `installed` (by another window), `standalone`, `windows`, `scheduled`, `linux` |
 
 ### Inside the plugin
 
@@ -205,7 +205,7 @@ browser the canvas fits the window. Everything is vector or text, so it stays cr
 | Intonation | instrument → measure each string (tune open, capture 12th fret, result with saddle diagram) → summary with copy as text                                                                                                          |
 | Metronome  | play/stop, tempo knob + tap, signature, sound, volume, step grid (off/normal/accent/soft), live beat                                                                                                                             |
 | Settings   | window size; Stereo input (sum to mono or two channels); Latency: Low latency or Linear phase, a global setting kept out of presets ([oversampling.md](dsp/oversampling.md)); updates; About with the session's rate and latency, which follow the Latency setting                                                  |
-| Updates    | header pill when a newer release is out; panel with versions, last check, Check now, the automatic-check switch, release notes, Download & install with progress and Cancel, Skip this version, Later ([updates.md](updates.md)) |
+| Updates    | header pill when a newer release is out ("Update available"), while it updates ("Updating…") or once installed ("Restart to update"); panel with versions, last check, Check now, the automatic-check switch, release notes, Update now (download with progress and Cancel, then the OS installer's steps), Restart Sedef in the standalone app, Install manually and the releases page after a failure, Skip this version, Later ([updates.md](updates.md)) |
 
 ### EQ curve
 

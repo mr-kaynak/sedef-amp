@@ -10,6 +10,8 @@ versions are on the [releases page](https://github.com/mr-kaynak/sedef-amp/relea
 | Linux x86_64 | [Sedef-Amp-Linux-x86_64.tar.gz](https://github.com/mr-kaynak/sedef-amp/releases/latest/download/Sedef-Amp-Linux-x86_64.tar.gz) | VST3, CLAP and the standalone app with an install script |
 
 After installing, rescan plugins in your DAW. Sedef shows up as **Sedef Amp** by **Sedef**.
+From the first release after 0.4.0 on you won't need this page to update: **Update now** in
+Sedef's Updates panel installs the next version through the same installer ([updates.md](updates.md)).
 Presets and settings live outside the install folders and survive updates and uninstalls:
 `~/Library/Application Support/Sedef` on macOS, `%APPDATA%\Sedef` on Windows and `~/.config/Sedef`
 on Linux.
@@ -92,7 +94,10 @@ Uninstall from **Settings → Apps → Installed apps → Sedef Amp**. For unatt
 installer takes the usual Inno Setup switches, e.g.
 `Sedef-Amp-Windows-Setup.exe /VERYSILENT /NORESTART /COMPONENTS="vst3,clap,standalone"`. Close
 DAWs first: a silent install closes programs that hold the plugin, and without `/NORESTART` it
-restarts Windows on its own if a file was still in use.
+restarts Windows on its own if a file was still in use. Sedef's updater adds
+`/WAITPID=<pid> /WAITPIDTIME=<its creation time>` (wait for that process to exit before
+installing, unless its id now belongs to a process created at another time) and, from the
+standalone app, `/RELAUNCH` (open it again afterwards).
 
 ## Linux
 

@@ -256,6 +256,40 @@ the ideal itself measures −33 dB on this grid (window leakage). Warble: peak-t
 50 ms level around its 300 ms mean (the ideal octave down: 0.5–1.6 dB, from the strings' own
 beating). A damped note or chord is 60 dB down 58–66 ms after the mute.
 
+### The 20 dB intermodulation goal
+
+The goal was every intermodulation product at least 20 dB under the chord's notes, the weakest
+note included. Against the strongest note every chord makes it, by 5–10 dB. Against the weakest,
+A5 makes it with 3.5 dB to spare, E major and E5 miss by under 1 dB, and A major and F major miss
+by 4.4 and 3.3 dB.
+
+- **E major and E5** (worst products at 144 and 103 Hz). Two partials about 41 Hz apart (329.6
+  against 370.4 Hz, 164.8 against 123.5 Hz): the stronger one leaks through the skirt of its
+  neighbour's band.
+- **A major and F major** (546 and 434 Hz). Two partials 7–9 Hz apart (a string's 10th partial
+  against another's 4th: 1100 against 1108.7 Hz, 873 against 880 Hz). Telling them apart takes a
+  window of more than 100 ms, which no playable delay allows.
+
+What we tried, on the same chords:
+
+- **Narrowing a held chord's bands.** Taking them to half their width over 150 ms, and back to
+  full width on each pick, brings E major to −22.1 dB and E5 to −24.6 dB. But a whole-step bend
+  then sweeps the partials across the narrow bands, and the sub's level warbles by 3.4–5.3 dB
+  (1.3–1.7 dB without the narrowing), over the 3 dB warble goal. At 0.6–0.7 of the width the
+  warble is 2.6–3.4 dB, and F major gets worse (−13 dB).
+- **Narrowing only while no partial changes owner.** On a chord the owners keep handing over, so
+  the bands stayed wide.
+- **Weighting owner bands by level.** This cannot help. A product's level follows the leaking
+  neighbour, so any gain on the owner band scales the product and the note together.
+
+The design stays as it is. Through a clean amp the products are real: they sit 7–60 dB above
+what a perfect octave down puts at the same frequencies. Each one also sits under a
+conservative masking threshold, taken from the perfect octave's spectrum (tonal maskers,
+Schroeder spreading, a 14.5 + z dB offset). The closest are E5's weak products near 550 Hz,
+where little else plays: 2.5 dB under. E5's loudest product, at 103 Hz, is 8 dB under. Through a
+high-gain amp they land where the amp's own intermodulation of a perfect octave down already
+puts energy: f_b − f_a/2 is the amp's 2y − x of the two subs.
+
 ### CPU (`sedef_engine_tests "Pedal CPU cost"`, one channel at 48 kHz)
 
 | | ns per sample |
@@ -330,8 +364,8 @@ until the pedalboard lets the player choose; it is also the order we recommend.
   A3 up); palm-muted sixteenths.
 - Poly: every string an octave and two octaves down within 5 cents, its level within 1.5 dB of
   an ideal octave down, its lag under 13 ms, at 44.1, 48, 96 and 192 kHz; the five chords with every
-  note within 10 cents, the off-grid power and the strongest off-grid peak 20 dB down, and warble
-  under 3 dB; silence stays exactly silent and a mute is 60 dB down within 150 ms; bounded on
+  note within 10 cents, the off-grid power 20 dB down, the strongest off-grid peak 20 dB under the
+  strongest note's sub, and warble under 3 dB; silence stays exactly silent and a mute is 60 dB down within 150 ms; bounded on
   full-scale noise and squares; reset matches a fresh instance; at noon, notes and a strum come
   out within 3 dB of their level.
 
@@ -346,5 +380,7 @@ until the pedalboard lets the player choose; it is also the order we recommend.
 - Poly's subs speak 7–12 ms behind an ideal octave down (the bank's resolution has a price), and
   only partials up to 1.2 kHz are divided, so its subs are darker than Mono's squares.
 - Poly cannot separate partials closer than about 14 Hz: two strings whose partials nearly
-  coincide beat, and their octave down beats a little differently. The strongest such sidebands
-  sit 15–24 dB under the weakest note of a chord, 25–30 dB under the strongest.
+  coincide beat, and their octave down beats a little differently. A strong partial also leaks
+  a little into the band of a neighbour about 40 Hz away. The strongest sidebands sit 25–30 dB
+  under the strongest note of a chord and 15–24 dB under the weakest, so open A and F major miss
+  the 20 dB goal (see "The 20 dB intermodulation goal").

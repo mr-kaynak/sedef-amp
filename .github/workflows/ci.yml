@@ -110,10 +110,15 @@ jobs:
       - run: pnpm format:check
       - run: pnpm test
       - run: pnpm build
+      - run: pnpm build:midi
       - uses: actions/upload-artifact@v4
         with:
           name: ui-dist
           path: ui/dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ui-dist-midi
+          path: ui/dist-midi
 
   plugin:
     name: plugin (${{ matrix.os }})
@@ -129,6 +134,10 @@ jobs:
         with:
           name: ui-dist
           path: ui/dist
+      - uses: actions/download-artifact@v4
+        with:
+          name: ui-dist-midi
+          path: ui/dist-midi
       - uses: actions/cache@v4
         with:
           path: .cpm-cache
@@ -151,13 +160,24 @@ jobs:
           -DSEDEF_BUILD_PLUGIN_TESTS=ON
           ${{ runner.os == 'macOS' && '-DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"' || '' }}
       - name: Build
-        run: cmake --build --preset release --target SedefAmp_All SedefAmp_CLAP sedef-host-smoke sedef_update_tests sedef_capture_tests
+        shell: bash
+        run: |
+          targets=(SedefAmp_All SedefAmp_CLAP sedef-host-smoke sedef_update_tests sedef_capture_tests
+                   SedefMidi_All SedefMidi_CLAP sedef_midi_tests)
+          # The instrument AU (Logic's side-chain route) exists on macOS only.
+          if [ "$RUNNER_OS" = "macOS" ]; then targets+=(SedefMidiInstrument_All); fi
+          cmake --build --preset release --target "${targets[@]}"
       - name: Update checker tests
         shell: bash
         run: build/release/plugin/sedef_update_tests_artefacts/Release/sedef_update_tests
       - name: Capture library tests
         shell: bash
         run: build/release/plugin/sedef_capture_tests_artefacts/Release/sedef_capture_tests
+      - name: Sedef MIDI tests (hosted VST3, MIDI ports)
+        shell: bash
+        run: |
+          tests=build/release/plugin/sedef_midi_tests_artefacts/Release/sedef_midi_tests
+          if [ "$RUNNER_OS" = "Linux" ]; then xvfb-run -a "$tests"; else "$tests"; fi
       - name: UI smoke test (editor in a real WebView)
         shell: bash
         env:
@@ -167,8 +187,10 @@ jobs:
         run: |
           if [ "$RUNNER_OS" = "Linux" ]; then
             xvfb-run -a tools/ci/ui-smoke.sh build/release/plugin
+            xvfb-run -a tools/ci/ui-smoke.sh build/release/plugin SedefMidi "Sedef MIDI"
           else
             tools/ci/ui-smoke.sh build/release/plugin
+            tools/ci/ui-smoke.sh build/release/plugin SedefMidi "Sedef MIDI"
           fi
       # On Linux, fetch-validators.sh builds pluginval with a JUCE fix (the script explains why).
       - name: Cache pluginval build (Linux)
@@ -193,12 +215,28 @@ jobs:
           else
             tools/ci/validate-plugins.sh "$artefacts"
           fi
+      - name: Validate Sedef MIDI
+        shell: bash
+        env:
+          VALIDATOR_OUTPUT: ${{ runner.temp }}/clap-validator-output-midi
+        run: |
+          plugin=build/release/plugin
+          validate() {
+            if [ "$RUNNER_OS" = "Linux" ]; then xvfb-run -a tools/ci/validate-plugins.sh "$@"
+            else tools/ci/validate-plugins.sh "$@"; fi
+          }
+          validate "$plugin/SedefMidi_artefacts/Release" "Sedef MIDI" aufx Sdm1
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            validate "$plugin/SedefMidiInstrument_artefacts/Release" "Sedef MIDI Instrument" aumu Sdm2
+          fi
       - name: Keep validator output on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: validator-output-${{ runner.os }}
-          path: ${{ runner.temp }}/clap-validator-output
+          path: |
+            ${{ runner.temp }}/clap-validator-output
+            ${{ runner.temp }}/clap-validator-output-midi
           if-no-files-found: ignore
       # upload-artifact drops executable bits, so ship a zip that keeps the bundles runnable.
       - name: Pack build
@@ -215,3 +253,29 @@ jobs:
         with:
           name: sedef-amp-${{ runner.os }}
           path: sedef-amp-${{ runner.os }}.zip
+      - name: Pack Sedef MIDI
+        shell: bash
+        run: |
+          cd build/release/plugin/SedefMidi_artefacts/Release
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            # The musician's test build: everything flat in one folder, with TESTING.md.
+            pack="$RUNNER_TEMP/sedef-midi-test-build"
+            mkdir -p "$pack"
+            cp -R "Standalone/Sedef MIDI.app" "AU/Sedef MIDI.component" "VST3/Sedef MIDI.vst3" \
+              "CLAP/Sedef MIDI.clap" "$pack/"
+            cp -R "../../SedefMidiInstrument_artefacts/Release/AU/Sedef MIDI Instrument.component" "$pack/"
+            cp "$GITHUB_WORKSPACE/tools/packaging/midi/TESTING.md" "$pack/"
+            ditto -c -k --sequesterRsrc --keepParent "$pack" "$GITHUB_WORKSPACE/sedef-midi-test-build-macOS.zip"
+          else
+            7z a "$GITHUB_WORKSPACE/sedef-midi-${RUNNER_OS}.zip" VST3 CLAP Standalone
+          fi
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'macOS'
+        with:
+          name: sedef-midi-test-build-macOS
+          path: sedef-midi-test-build-macOS.zip
+      - uses: actions/upload-artifact@v4
+        if: runner.os != 'macOS'
+        with:
+          name: sedef-midi-${{ runner.os }}
+          path: sedef-midi-${{ runner.os }}.zip

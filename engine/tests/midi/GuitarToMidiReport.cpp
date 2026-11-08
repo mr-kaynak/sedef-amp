@@ -26,11 +26,11 @@ const Scenario* current = nullptr;
 
 void add (Score& total, const Score& s)
 {
-    if (std::getenv ("SEDEF_MIDI_MISSES") != nullptr)
+    if (environment ("SEDEF_MIDI_MISSES") != nullptr)
         for (const auto& [r, n] : s.wrongs)
             std::printf ("    wrong: played %3d at %.3f, sent %3d at %.3f for %.1f ms\n", r.pitch,
                          r.start, n.pitch, n.on, 1000.0 * (n.off - n.on));
-    if (std::getenv ("SEDEF_MIDI_MISSES") != nullptr && current != nullptr)
+    if (environment ("SEDEF_MIDI_MISSES") != nullptr && current != nullptr)
         for (const auto& m : s.misses)
         {
             int before = -1;
@@ -45,7 +45,7 @@ void add (Score& total, const Score& s)
                          m.start, m.picked ? "pick" : "legato", static_cast<double> (m.strength),
                          before, 1000.0 * gap);
         }
-    if (std::getenv ("SEDEF_MIDI_EXTRAS") != nullptr && current != nullptr)
+    if (environment ("SEDEF_MIDI_EXTRAS") != nullptr && current != nullptr)
         for (const auto& e : s.extras)
         {
             // The played note sounding when it came, and the one before.
@@ -84,7 +84,7 @@ TEST_CASE ("Guitar-to-MIDI report", "[.midireport]")
     s.octave = 0;
     Score total;
     char name[96];
-    const bool ring = std::getenv ("SEDEF_MIDI_NO_RING") == nullptr;
+    const bool ring = environment ("SEDEF_MIDI_NO_RING") == nullptr;
     for (auto pickup : { Pickup::bridge, Pickup::neck, Pickup::piezo })
         for (std::uint32_t seed = 1; seed <= 6; ++seed)
         {

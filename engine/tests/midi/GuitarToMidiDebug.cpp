@@ -17,7 +17,7 @@ using namespace sedef::test::midi;
 
 TEST_CASE ("Guitar-to-MIDI debug dump", "[.mididebug]")
 {
-    const char* spec = std::getenv ("SEDEF_MIDI_DEBUG");
+    const char* spec = environment ("SEDEF_MIDI_DEBUG");
     if (spec == nullptr)
         return;
     std::stringstream ss (spec);
@@ -63,7 +63,7 @@ TEST_CASE ("Guitar-to-MIDI debug dump", "[.mididebug]")
     std::printf ("sent:\n");
     for (const auto& n : run.notes)
         std::printf ("  %3d  %8.3f - %8.3f  vel %3d\n", n.pitch, n.on, n.off, n.velocity);
-    if (const char* w = std::getenv ("SEDEF_MIDI_DEBUG_WINDOW"))
+    if (const char* w = environment ("SEDEF_MIDI_DEBUG_WINDOW"))
     {
         const double from = std::atof (w), to = std::atof (std::strchr (w, ':') + 1);
         analysis::MonoTracker m;

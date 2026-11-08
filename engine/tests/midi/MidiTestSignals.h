@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <cstdint>
 #include <string>
 #include <utility>
@@ -472,5 +473,20 @@ inline double percentile (std::vector<double> v, double p)
         std::clamp (p, 0.0, 1.0) * static_cast<double> (v.size() - 1) + 0.5);
     return v[k];
 }
+
+// MSVC deprecates std::getenv (C4996). The hidden report and debug cases read a variable from
+// the test thread, which is safe; MSVC applies warnings in the 4700-4999 range per function.
+#if defined(_MSC_VER)
+    #pragma warning(push)
+    #pragma warning(disable : 4996)
+#endif
+/// The environment variable `name`, or nullptr when it is not set.
+inline const char* environment (const char* name)
+{
+    return std::getenv (name);
+}
+#if defined(_MSC_VER)
+    #pragma warning(pop)
+#endif
 
 } // namespace sedef::test::midi

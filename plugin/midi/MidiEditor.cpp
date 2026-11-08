@@ -6,8 +6,10 @@
 #include "SedefMidiUiData.h"
 
 #if JucePlugin_Build_Standalone
-#include <juce_audio_plugin_client/Standalone/juce_StandaloneFilterWindow.h>
+// The standalone holder needs juce_audio_utils first; the comment keeps include sorting off.
 #include <juce_audio_utils/juce_audio_utils.h>
+//
+#include <juce_audio_plugin_client/Standalone/juce_StandaloneFilterWindow.h>
 #endif
 
 namespace sedef::midiplugin
@@ -102,7 +104,7 @@ MidiEditor::MidiEditor (MidiProcessor& p) : AudioProcessorEditor (&p), processor
                                         : juce::WebBrowserComponent::getResourceProviderRoot());
 
     setResizable (true, true);
-    setResizeLimits (MidiProcessor::kBaseWidth * 5 / 6, MidiProcessor::kBaseHeight * 5 / 6,
+    setResizeLimits (MidiProcessor::kBaseWidth, MidiProcessor::kBaseHeight,
                      MidiProcessor::kBaseWidth * 2, MidiProcessor::kBaseHeight * 2);
     setSize (MidiProcessor::kBaseWidth, MidiProcessor::kBaseHeight);
 

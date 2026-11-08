@@ -9,6 +9,7 @@
     "metal"
   ],
   "description": "Tight modern high gain with shifted mids, for palm mutes and fast riffs.",
+  "board": ["gate"],
   "parameters": {
     "ampModel": 2,
     "abyssGain": 0.6,

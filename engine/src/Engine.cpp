@@ -1,33 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 #include "sedef/Engine.h"
 
+#include "sedef/board/BoardSwitch.h"
+#include "sedef/board/PedalRack.h"
 #include "sedef/core/BypassFader.h"
-#include "sedef/core/DelayLine.h"
 #include "sedef/core/Denormals.h"
 #include "sedef/core/InputFold.h"
 #include "sedef/core/Math.h"
 #include "sedef/core/Smoothed.h"
-#include "sedef/dsp/Anemone.h"
-#include "sedef/dsp/Beacon.h"
-#include "sedef/dsp/Breaker.h"
-#include "sedef/dsp/Conch.h"
-#include "sedef/dsp/Coral.h"
 #include "sedef/dsp/Doubler.h"
 #include "sedef/dsp/Drift.h"
 #include "sedef/dsp/Fathom.h"
 #include "sedef/dsp/GraphicEq.h"
-#include "sedef/dsp/Gyre.h"
-#include "sedef/dsp/Jetty.h"
-#include "sedef/dsp/Kelp.h"
 #include "sedef/dsp/Metronome.h"
-#include "sedef/dsp/NoiseGate.h"
-#include "sedef/dsp/Pearl.h"
-#include "sedef/dsp/Remora.h"
-#include "sedef/dsp/Ripple.h"
-#include "sedef/dsp/Sargasso.h"
-#include "sedef/dsp/Tide.h"
-#include "sedef/dsp/Trench.h"
-#include "sedef/dsp/Urchin.h"
 #include "sedef/dsp/amp/AmpSection.h"
 #include "sedef/dsp/cab/CabSim.h"
 #include "sedef/dsp/capture/CaptureStage.h"
@@ -49,33 +34,10 @@ using P = ParamId;
 struct ChainSettings
 {
     float inputGain = 1.0f;
-    bool gateOn = true;
-    dsp::NoiseGate::Settings gate;
-    bool tideOn = false, pearlOn = false, coralOn = false, rippleOn = false;
-    dsp::Tide::Settings tide;
-    dsp::Pearl::Settings pearl;
-    dsp::Coral::Settings coral;
-    dsp::Ripple::Settings ripple;
+    PedalSettings pedals; // every pedal's, on the board or not (board/PedalList.inc)
     dsp::AmpSection::Settings amp;
     dsp::CabSim::Settings cab;
     dsp::CaptureStage::Settings capture;
-    // Pedals lane: Trench, Urchin and Kelp.
-    bool trenchOn = false, urchinOn = false, kelpOn = false;
-    dsp::Trench::Settings trench;
-    dsp::Urchin::Settings urchin;
-    dsp::Kelp::Settings kelp;
-    // Drives lane: Remora, Sargasso and Breaker.
-    bool remoraOn = false, sargassoOn = false, breakerOn = false;
-    dsp::Remora::Settings remora;
-    dsp::Sargasso::Settings sargasso;
-    dsp::Breaker::Settings breaker;
-    // mods lane: wah, envelope filter, phaser, flanger, vibe.
-    bool conchOn = false, anemoneOn = false, gyreOn = false, jettyOn = false, beaconOn = false;
-    dsp::Conch::Settings conch;
-    dsp::Anemone::Settings anemone;
-    dsp::Gyre::Settings gyre;
-    dsp::Jetty::Settings jetty;
-    dsp::Beacon::Settings beacon;
 };
 
 dsp::CabSim::MicSettings micSettings (const ParamSnapshot& p, int mic, int cab)
@@ -108,17 +70,7 @@ ChainSettings chainSettings (const ParamSnapshot& p)
     // P::transpose is kept for old sessions and ignored: transpose was removed in 0.3.0
     // (docs/dsp/transpose.md, "Decision").
     s.inputGain = dbToGain (p[P::inputGain]);
-    s.gateOn = p.flag (P::gateEnabled);
-    s.gate.thresholdDb = p[P::gateThreshold];
-
-    s.tideOn = p.flag (P::tideEnabled);
-    s.tide = { p[P::tideComp], p[P::tideTone], p[P::tideLevel], p[P::tideBlend] };
-    s.pearlOn = p.flag (P::pearlEnabled);
-    s.pearl = { p[P::pearlGain], p[P::pearlTone], p[P::pearlLevel], p[P::pearlMid] };
-    s.coralOn = p.flag (P::coralEnabled);
-    s.coral = { p[P::coralGain], p[P::coralCut], p[P::coralLevel] };
-    s.rippleOn = p.flag (P::rippleEnabled);
-    s.ripple = { p.choice (P::rippleMode), p[P::rippleSpeed], p[P::rippleDepth] };
+    s.pedals = PedalSettings::from (p);
 
     auto& a = s.amp;
     a.model = std::clamp (p.choice (P::ampModel), 0, 2);
@@ -139,37 +91,6 @@ ChainSettings chainSettings (const ParamSnapshot& p)
 
     s.capture = { p.choice (P::ampSource) == 1, p[P::captureInput], p[P::captureOutput],
                   p[P::captureInterfaceLevel], p.flag (P::captureCab) };
-
-    // Pedals lane: Trench, Urchin and Kelp.
-    s.trenchOn = p.flag (P::trenchEnabled);
-    s.trench = { p[P::trenchDirect], p[P::trenchSub1], p[P::trenchSub2], p[P::trenchTone],
-                 p.choice (P::trenchMode) };
-    s.urchinOn = p.flag (P::urchinEnabled);
-    s.urchin = { p[P::urchinFuzz], p[P::urchinOctave], p[P::urchinTone], p[P::urchinLevel] };
-    s.kelpOn = p.flag (P::kelpEnabled);
-    s.kelp = { p[P::kelpDrive], p[P::kelpTone], p[P::kelpLevel] };
-    // Drives lane: Remora, Sargasso and Breaker.
-    s.remoraOn = p.flag (P::remoraEnabled);
-    s.remora = { p[P::remoraFuzz], p[P::remoraVolume], p[P::remoraBias], p[P::remoraGuitarVolume],
-                 p.choice (P::remoraTransistor) };
-    s.sargassoOn = p.flag (P::sargassoEnabled);
-    s.sargasso = { p[P::sargassoSustain], p[P::sargassoTone], p[P::sargassoVolume] };
-    s.breakerOn = p.flag (P::breakerEnabled);
-    s.breaker = { p[P::breakerBoost], p.choice (P::breakerRange) };
-    // mods lane
-    s.conchOn = p.flag (P::conchEnabled);
-    s.conch = { p.choice (P::conchMode), p[P::conchPosition], p[P::conchResonance],
-                p[P::conchSensitivity] };
-    s.anemoneOn = p.flag (P::anemoneEnabled);
-    s.anemone = { p[P::anemoneSensitivity], p[P::anemoneRange], p[P::anemoneResonance],
-                  p.choice (P::anemoneMode), p.choice (P::anemoneDirection) };
-    s.gyreOn = p.flag (P::gyreEnabled);
-    s.gyre = { p[P::gyreSpeed], p[P::gyreDepth], p[P::gyreFeedback], p.choice (P::gyreStages) };
-    s.jettyOn = p.flag (P::jettyEnabled);
-    s.jetty = { p[P::jettySpeed], p[P::jettyDepth], p[P::jettyDelay],
-                p[P::jettyFeedback] / 100.0f };
-    s.beaconOn = p.flag (P::beaconEnabled);
-    s.beacon = { p[P::beaconSpeed], p[P::beaconDepth], p.choice (P::beaconMode) };
     return s;
 }
 
@@ -199,12 +120,8 @@ constexpr std::array<EqBank, 3> kEqBanks { {
 
 // ---------------------------------------------------------------------------------------------
 
-/// Hands a slot's settings to its module. Coming back from bypass, the module restarts from a
-/// clean state that lands directly on the current settings: reset() re-arms each module's
-/// "first settings snap" and the settings that follow consume it, so automation on the next block
-/// glides again. The settings also go in once before reset() for modules whose reset reads them
-/// (the gate starts open or closed depending on its threshold). Stale state is masked by the
-/// slot's fade-in.
+/// Hands a post effect's settings to its module. Coming back from bypass, the module restarts from
+/// a clean state that lands directly on the current settings (PedalSlot does the same for pedals).
 template <typename Module, typename Settings>
 void applySettings (Module& module, const Settings& settings, bool wasBypassed) noexcept
 {
@@ -216,82 +133,7 @@ void applySettings (Module& module, const Settings& settings, bool wasBypassed) 
     module.setSettings (settings);
 }
 
-/// Wraps a module with a click-free bypass. While bypassed, the dry path is delayed by the
-/// module's latency so the chain's total latency never changes when pedals are switched.
-template <typename Module>
-struct Slot
-{
-    Module module;
-    BypassFader fader;
-    DelayLine dryDelay;
-    std::vector<float> dry;
-    int latency = 0;
-    bool snapOnNextBlock = true; // first block after prepare/reset starts in its final state
-
-    void prepare (const ProcessSpec& spec)
-    {
-        module.prepare (spec);
-        if constexpr (requires { module.latencySamples(); })
-            latency = module.latencySamples();
-        dryDelay.prepare (std::max (latency, 1));
-        dry.assign (static_cast<size_t> (spec.maxBlockSize), 0.0f);
-        fader.prepare (spec.sampleRate);
-    }
-
-    void reset() noexcept
-    {
-        module.reset();
-        dryDelay.reset();
-        snapOnNextBlock = true;
-    }
-
-    /// Returns true when the module ran (so its telemetry is meaningful).
-    template <typename Settings, typename Run>
-    bool process (float* io, int n, bool enabled, const Settings& settings, Run&& run) noexcept
-    {
-        // The first block after prepare/reset counts as coming out of bypass, so modules whose
-        // reset() depends on their settings (the gate) get settings, reset, settings.
-        const bool wasBypassed = snapOnNextBlock || fader.isFullyBypassed();
-        if (snapOnNextBlock)
-        {
-            fader.snap (enabled);
-            snapOnNextBlock = false;
-        }
-        fader.setEnabled (enabled);
-
-        // The dry path is only needed while bypassed or crossfading, but a latency-bearing module
-        // keeps its delay line warm so a later bypass lines up from the first sample.
-        const bool needDry = !fader.isFullyActive();
-        if (latency > 0)
-        {
-            for (int i = 0; i < n; ++i)
-            {
-                dryDelay.push (io[i]);
-                if (needDry)
-                    dry[static_cast<size_t> (i)] = dryDelay.read (latency);
-            }
-        }
-        else if (needDry)
-        {
-            std::copy_n (io, n, dry.data());
-        }
-
-        if (fader.isFullyBypassed())
-        {
-            if (latency > 0)
-                std::copy_n (dry.data(), n, io);
-            return false; // settings wait until the module runs again
-        }
-        applySettings (module, settings, wasBypassed);
-
-        run (module, AudioView (io, n));
-        if (!fader.isFullyActive())
-            fader.mix (AudioView (dry.data(), n), AudioView (io, n));
-        return true;
-    }
-};
-
-/// Same idea for stereo post effects without latency.
+/// Wraps a stereo post effect without latency in a click-free bypass.
 template <typename Module>
 struct StereoSlot
 {
@@ -342,61 +184,25 @@ struct StereoSlot
     }
 };
 
-/// One instrument chain: input gain -> gate -> pedals -> amp -> cab. Mono in,
-/// stereo out.
+/// One instrument chain: input gain -> the pedalboard -> amp -> cab. Mono in, stereo out.
 struct Chain
 {
     LinearSmoothed inputGain;
-    Slot<dsp::NoiseGate> gate;
-    Slot<dsp::Tide> tide;
-    Slot<dsp::Pearl> pearl;
-    Slot<dsp::Coral> coral;
-    Slot<dsp::Ripple> ripple;
-    // mods lane. Latency-free, linear modules; order in process().
-    Slot<dsp::Anemone> anemone;
-    Slot<dsp::Conch> conch;
-    Slot<dsp::Beacon> beacon;
-    Slot<dsp::Gyre> gyre;
-    Slot<dsp::Jetty> jetty;
+    PedalRack rack;
     dsp::AmpSection amp;
     dsp::CabSim cab;
     dsp::CaptureStage capture; // the amp or a .nam capture, and the cab or not
-    // Pedals lane: Trench, Urchin and Kelp, each a self-contained module in a latency-aligned
-    // bypass slot.
-    Slot<dsp::Trench> trench;
-    Slot<dsp::Urchin> urchin;
-    Slot<dsp::Kelp> kelp;
-    // Drives lane: Remora, Sargasso and Breaker (their places in the chain: process()).
-    Slot<dsp::Remora> remora;
-    Slot<dsp::Sargasso> sargasso;
-    Slot<dsp::Breaker> breaker;
 
     std::vector<float> buffer;
     std::vector<float> sidechain;
     float inputPeak = 0.0f;
-    bool gateRan = false, tideRan = false;
     bool snapGain = true;
 
     void prepare (double sampleRate, int maxBlock, OversamplingMode oversampling)
     {
         const ProcessSpec mono { sampleRate, maxBlock, 1, oversampling };
         inputGain.reset (sampleRate, 0.02);
-        gate.prepare (mono);
-        tide.prepare (mono);
-        pearl.prepare (mono);
-        coral.prepare (mono);
-        ripple.prepare (mono);
-        trench.prepare (mono);
-        urchin.prepare (mono);
-        kelp.prepare (mono);
-        remora.prepare (mono);
-        sargasso.prepare (mono);
-        breaker.prepare (mono);
-        anemone.prepare (mono); // mods lane
-        conch.prepare (mono);
-        beacon.prepare (mono);
-        gyre.prepare (mono);
-        jetty.prepare (mono);
+        rack.prepare (mono);
         amp.prepare (mono);
         capture.prepare (mono, amp.latencySamples());
         cab.prepare ({ sampleRate, maxBlock, 2 });
@@ -406,36 +212,23 @@ struct Chain
 
     int latency() const noexcept
     {
-        return pearl.latency + coral.latency + capture.latencySamples() + cab.latencySamples() +
-               trench.latency + urchin.latency + kelp.latency + remora.latency + sargasso.latency +
-               breaker.latency + anemone.latency + conch.latency + beacon.latency + gyre.latency +
-               jetty.latency;
+        // Every pedal's latency, whatever is on the board (PedalRack keeps the delays).
+        return rack.latencySamples() + capture.latencySamples() + cab.latencySamples();
     }
+
     void reset() noexcept
     {
         snapGain = true;
-        gate.reset();
-        tide.reset();
-        pearl.reset();
-        coral.reset();
-        ripple.reset();
-        trench.reset();
-        urchin.reset();
-        kelp.reset();
-        remora.reset();
-        sargasso.reset();
-        breaker.reset();
-        anemone.reset(); // mods lane
-        conch.reset();
-        beacon.reset();
-        gyre.reset();
-        jetty.reset();
+        rack.reset();
         amp.reset();
         capture.reset();
         cab.reset();
     }
 
-    void process (const float* in, const AudioView& stereoOut, const ChainSettings& s) noexcept
+    /// `duck` fades the board in and out while it is rewired.
+    void process (const float* in, const AudioView& stereoOut, const ChainSettings& s,
+                  const BoardSwitch::Gains& duck,
+                  const std::array<bool, kNumPedals>& leaving) noexcept
     {
         const int n = stereoOut.numFrames();
         float* x = buffer.data();
@@ -458,40 +251,10 @@ struct Chain
         }
         inputPeak = peak;
 
-        gateRan =
-            gate.process (x, n, s.gateOn, s.gate, [this] (dsp::NoiseGate& g, const AudioView& v) {
-                g.process (v, sidechain.data());
-            });
-        const auto run = [] (auto& m, const AudioView& v) {
-            m.process (v);
-        };
-        // Pedals lane: Trench, Urchin and Kelp go where they sound best (the "Where it goes in the
-        // chain" section of docs/dsp/trench.md, urchin.md and kelp.md). The order stays fixed
-        // until the pedalboard makes it the player's.
-        // Drives lane: Remora, Sargasso and Breaker ("Chain position" in docs/dsp/remora.md,
-        // sargasso.md and breaker.md). Remora behind the octave divider, which needs the clean
-        // guitar more (and the mods lane's two filters, below); Sargasso after the octave-up fuzz,
-        // whose rectifier wants an unclipped note; Breaker last, straight into the amp.
-        trench.process (x, n, s.trenchOn, s.trench, run); // pedals lane
-        // mods lane: the envelope filter and the wah go after the octave divider, before Remora
-        // and the other drives: the filter reads picking dynamics a fuzz would flatten, a wah into
-        // a fuzz is the classic order, and nothing here buffers Remora's clean-up away (its Guitar
-        // volume models that). The vibe, phaser and flanger go after the drives (they move the
-        // drives' harmonics), before Ripple. docs/dsp/conch.md et al.
-        anemone.process (x, n, s.anemoneOn, s.anemone, run);
-        conch.process (x, n, s.conchOn, s.conch, run);
-        remora.process (x, n, s.remoraOn, s.remora, run); // drives lane
-        tideRan = tide.process (x, n, s.tideOn, s.tide, run);
-        urchin.process (x, n, s.urchinOn, s.urchin, run);       // pedals lane
-        sargasso.process (x, n, s.sargassoOn, s.sargasso, run); // drives lane
-        pearl.process (x, n, s.pearlOn, s.pearl, run);
-        kelp.process (x, n, s.kelpOn, s.kelp, run); // pedals lane
-        coral.process (x, n, s.coralOn, s.coral, run);
-        beacon.process (x, n, s.beaconOn, s.beacon, run); // mods lane
-        gyre.process (x, n, s.gyreOn, s.gyre, run);
-        jetty.process (x, n, s.jettyOn, s.jetty, run);
-        ripple.process (x, n, s.rippleOn, s.ripple, run);
-        breaker.process (x, n, s.breakerOn, s.breaker, run); // drives lane
+        // Ducked on the way in and out while the board rewires (BoardSwitch).
+        BoardSwitch::apply (x, duck.input, n);
+        rack.process (x, sidechain.data(), n, s.pedals, leaving);
+        BoardSwitch::apply (x, duck.output, n);
 
         capture.setSettings (s.capture);
         capture.process (amp, s.amp, AudioView (x, n));
@@ -544,6 +307,10 @@ struct Engine::Impl
     std::vector<float> monoIn;
     InputFold fold;         // stereo input -> the single chain (Summed mode)
     InputFold analysisFold; // stereo input -> the tuner in Dual mode
+
+    BoardSwitch board; // takes both chains' racks to the newest pedal order
+
+    std::array<PedalRack*, 2> racks() noexcept { return { &chains[0].rack, &chains[1].rack }; }
 };
 
 Engine::Engine() : impl_ (std::make_unique<Impl>()) {}
@@ -583,6 +350,7 @@ void Engine::prepare (double sampleRate, int maxBlockSize, int numInputs, int nu
     d.monoIn.assign (static_cast<size_t> (block), 0.0f);
     d.fold.prepare (sampleRate);
     d.analysisFold.prepare (sampleRate);
+    d.board.prepare (sampleRate, block, d.chains[0].rack.latencySamples());
 
     sampleRate_.store (sampleRate, std::memory_order_release);
     maxBlockSize_.store (block, std::memory_order_release);
@@ -605,6 +373,15 @@ void Engine::reset()
     d.fathom.reset();
     d.metronome.reset();
     d.snapGains = true;
+    // Audio is stopped: the newest board applies at once.
+    Board target = d.board.target();
+    board_.read (target);
+    d.board.reset (target, d.racks());
+}
+
+void Engine::setBoard (const Board& board) noexcept
+{
+    board_.write (board);
 }
 
 void Engine::setMetronomePattern (const std::array<std::uint8_t, 13>& steps) noexcept
@@ -713,6 +490,8 @@ void Engine::process (const float* const* inputs, float* const* outputs, int num
 
     float inPeaks[2] = { 0.0f, 0.0f };
     float outPeaks[2] = { 0.0f, 0.0f };
+    if (Board next; board_.read (next)) // a block boundary: the newest order, if one came
+        d.board.setTarget (next);
 
     for (int start = 0; start < numFrames;)
     {
@@ -746,6 +525,8 @@ void Engine::process (const float* const* inputs, float* const* outputs, int num
             d.modeFade.setTarget (1.0f); // switched back before the fade-out finished
             d.modeFadeLeft = 0;
         }
+        n = d.board.step (n, d.racks());
+        const auto duck = d.board.duckGains (n);
 
         const float* in0 = inputs[0] + start;
         const float* in1 = numInputs == 2 ? inputs[1] + start : nullptr;
@@ -777,13 +558,13 @@ void Engine::process (const float* const* inputs, float* const* outputs, int num
         std::array<float*, 2> postPtrs { d.post[0].data(), d.post[1].data() };
         const AudioView post (postPtrs.data(), 2, n);
 
-        d.chains[0].process (chainIn, post, chain);
+        d.chains[0].process (chainIn, post, chain, duck, d.board.leaving());
         inPeaks[0] = std::max (inPeaks[0], d.chains[0].inputPeak);
         if (d.dual && in1 != nullptr)
         {
             std::array<float*, 2> rPtrs { d.chainR[0].data(), d.chainR[1].data() };
             const AudioView right (rPtrs.data(), 2, n);
-            d.chains[1].process (in1, right, chain);
+            d.chains[1].process (in1, right, chain, duck, d.board.leaving());
             inPeaks[1] = std::max (inPeaks[1], d.chains[1].inputPeak);
             // Each chain feeds its own side.
             for (int i = 0; i < n; ++i)
@@ -853,13 +634,20 @@ void Engine::process (const float* const* inputs, float* const* outputs, int num
         telemetry_.outputClip.store (true, std::memory_order_relaxed);
 
     // A bypassed module's last reading would freeze on the meters; report neutral values instead.
-    const auto& chain0 = d.chains[0];
-    telemetry_.gateOpen.store (!chain0.gateRan || chain0.gate.module.isOpen(),
-                               std::memory_order_relaxed);
-    telemetry_.gateReductionDb.store (chain0.gateRan ? chain0.gate.module.gainReductionDb() : 0.0f,
+    // (A pedal off the board doesn't run either.)
+    const auto& rack0 = d.chains[0].rack;
+    const auto& pedals = rack0.slots();
+    const bool gateRan = rack0.ran (PedalId::gate);
+    const bool tideRan = rack0.ran (PedalId::tide);
+    telemetry_.gateOpen.store (!gateRan || pedals.gate.module.isOpen(), std::memory_order_relaxed);
+    telemetry_.gateReductionDb.store (gateRan ? pedals.gate.module.gainReductionDb() : 0.0f,
                                       std::memory_order_relaxed);
-    telemetry_.tideReductionDb.store (chain0.tideRan ? chain0.tide.module.gainReductionDb() : 0.0f,
+    telemetry_.tideReductionDb.store (tideRan ? pedals.tide.module.gainReductionDb() : 0.0f,
                                       std::memory_order_relaxed);
+    for (std::size_t i = 0; i < kNumPedals; ++i)
+        telemetry_.pedalRan[i].store (rack0.ran (static_cast<PedalId> (i)),
+                                      std::memory_order_relaxed);
+    telemetry_.boardChanging.store (d.board.changing (rack0), std::memory_order_relaxed);
     telemetry_.metronomeStep.store (d.metronome.currentStep(), std::memory_order_relaxed);
     telemetry_.driftTimeMs.store (d.drift.effectiveTimeMs(), std::memory_order_relaxed);
 }

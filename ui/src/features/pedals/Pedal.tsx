@@ -27,6 +27,8 @@ export interface PedalProps {
   /** Optional engraved instruction in the status area ("One note at a time"). */
   hint?: string;
   led?: ReactNode;
+  /** A narrower enclosure for a pedal with one column of controls. */
+  variant?: 'narrow';
 }
 
 /** A stompbox enclosure: knobs on top, the name, an LED, and the footswitch. */
@@ -39,6 +41,7 @@ export function Pedal({
   status,
   hint,
   led,
+  variant,
 }: PedalProps) {
   const on = useParamValue(enableParam) >= 0.5;
   const hintId = useId();
@@ -53,7 +56,7 @@ export function Pedal({
 
   return (
     <section
-      className={styles.pedal}
+      className={[styles.pedal, variant && styles[variant]].filter(Boolean).join(' ')}
       style={style}
       aria-label={`${name} ${kind}`}
       data-on={on || undefined}

@@ -10,6 +10,7 @@
     "solo"
   ],
   "description": "Octave-up fuzz lead that rings an octave higher on the neck pickup, above the 12th fret.",
+  "board": ["gate", "tide", "urchin"],
   "parameters": {
     "ampModel": 0,
     "lagoonVolume": 0.45,

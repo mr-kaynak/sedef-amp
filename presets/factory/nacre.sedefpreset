@@ -10,6 +10,7 @@
     "plate"
   ],
   "description": "Glassy, lightly squeezed clean with slow chorus and a short plate.",
+  "board": ["gate", "tide", "ripple"],
   "parameters": {
     "ampModel": 0,
     "micAPosition": 0.4,

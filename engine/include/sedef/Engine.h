@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 #pragma once
 
+#include "sedef/board/Board.h"
 #include "sedef/core/AudioView.h"
+#include "sedef/core/RtMailbox.h"
 #include "sedef/core/SpscRing.h"
 #include "sedef/core/Transport.h"
 #include "sedef/params/Parameters.h"
@@ -39,6 +41,11 @@ public:
         std::atomic<float> tideReductionDb { 0.0f };
         std::atomic<int> metronomeStep { -1 };
         std::atomic<float> driftTimeMs { 0.0f };
+        /// Per pedal: its module processed audio in the last block (on the board and not
+        /// bypassed).
+        std::array<std::atomic<bool>, kNumPedals> pedalRan {};
+        /// A board change is still on its way in (bypass fades or the duck).
+        std::atomic<bool> boardChanging { false };
     };
 
     Engine();
@@ -76,6 +83,13 @@ public:
     void setAnalysisEnabled (bool enabled) noexcept { analysisEnabled_.store (enabled); }
     /// While analysis is enabled and the tunerMute parameter is on, the output is muted.
 
+    /// The pedalboard: which pedals play, in what order (board/Board.h). Any non-real-time thread;
+    /// callers serialise their calls. The newest board applies at the next block boundary: pedals
+    /// without latency join and leave through their bypass fades, anything else (a new order, a
+    /// pedal with latency) under a short duck. The latency never changes. Before the first
+    /// prepare() or reset() the board is Board::legacy().
+    void setBoard (const Board& board) noexcept;
+
     /// The metronome only sounds when allowed (standalone builds).
     void setMetronomeAllowed (bool allowed) noexcept { metronomeAllowed_.store (allowed); }
     void setMetronomePattern (const std::array<std::uint8_t, 13>& steps) noexcept;
@@ -93,6 +107,7 @@ private:
     Telemetry telemetry_;
     SpscRing<float> analysisRing_ { 1 << 16 };
     std::atomic<bool> analysisEnabled_ { false };
+    RtMailbox<Board> board_;
     std::atomic<bool> metronomeAllowed_ { false };
     // 13 steps x 2 bits in one atomic word. Default: accented downbeat, every other step normal
     // (Metronome::StepState 2 and 1), the same as the plugin's default pattern.

@@ -9,6 +9,7 @@ import { applyHello, applySession, useAppStore } from '../state/appStore';
 import { invoke, setBackend } from '../state/backendRef';
 import { pitch, telemetry } from '../state/live';
 import { applyPresetState } from '../state/presetStore';
+import { applyBoardState } from '../state/boardStore';
 import { connectUpdates } from '../features/updates/updateStore';
 import { useUiStore } from '../state/uiStore';
 import type { DemoFlags } from './demo';
@@ -26,6 +27,7 @@ export async function createBackend(flags: DemoFlags): Promise<Backend> {
     ...(flags.preset ? { initialPresetId: `factory:${flags.preset}` } : {}),
     overrides: flags.overrides,
     ...(flags.update ? { update: flags.update } : {}),
+    ...(flags.board ? { board: flags.board } : {}),
   });
 }
 
@@ -39,6 +41,7 @@ export async function connect(backend: Backend): Promise<() => void> {
     backend.on('sedef:presets', (s) => applyPresetState(s)),
     backend.on('sedef:ir', (ir) => useAppStore.setState({ ir })),
     backend.on('sedef:capture', (capture) => useAppStore.setState({ capture })),
+    backend.on('sedef:board', (board) => applyBoardState(board)),
     backend.on('sedef:session', (e) => applySession(e)),
   ];
 
@@ -46,6 +49,7 @@ export async function connect(backend: Backend): Promise<() => void> {
     const hello = await backend.hello();
     initParams(hello.schema, hello.values);
     applyPresetState(hello.presets);
+    applyBoardState(hello.board);
     applyHello(hello, backend.kind);
     hydrateUiState(hello.uiState);
     // The engine keeps no copy of the beat pattern outside the UI state; restore it.

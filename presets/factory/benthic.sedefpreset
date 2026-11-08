@@ -10,6 +10,7 @@
     "rock"
   ],
   "description": "Single-note riffs doubled an octave below, like a baritone. Play one note at a time.",
+  "board": ["gate", "trench", "kelp"],
   "parameters": {
     "ampModel": 1,
     "reefGain": 0.45,

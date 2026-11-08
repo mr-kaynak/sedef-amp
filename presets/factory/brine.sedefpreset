@@ -9,6 +9,7 @@
     "rock"
   ],
   "description": "Thick, mid-forward crunch for chords and riffs.",
+  "board": ["gate"],
   "parameters": {
     "ampModel": 1,
     "reefVoice": 2,

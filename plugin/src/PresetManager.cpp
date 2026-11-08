@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 #include "PresetManager.h"
 
+#include "BoardText.h"
 #include "ParameterLayout.h"
 #include "SedefPresetData.h"
 
@@ -12,6 +13,11 @@ namespace
 {
 juce::File sedefFolder()
 {
+#if SEDEF_PLUGIN_TESTS
+    // plugin/tests keep their presets and settings out of the user's folder.
+    if (const auto root = PresetManager::testRoot(); root != juce::File())
+        return root;
+#endif
 #if JUCE_MAC
     return juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
         .getChildFile ("Application Support/Sedef");
@@ -141,7 +147,7 @@ void PresetManager::scan()
         if (auto* tags = parsed["tags"].getArray())
             for (const auto& t : *tags)
                 e.tags.add (t.toString());
-        describe (e, parsed["parameters"]);
+        describe (e, parsed);
         e.factoryJson = json;
         entries_.push_back (std::move (e));
     }
@@ -166,7 +172,7 @@ void PresetManager::scan()
         if (auto* tags = parsed["tags"].getArray())
             for (const auto& t : *tags)
                 e.tags.add (t.toString());
-        describe (e, parsed["parameters"]);
+        describe (e, parsed);
         entries_.push_back (std::move (e));
     }
 
@@ -187,8 +193,9 @@ const PresetManager::Entry* PresetManager::find (const juce::String& id) const
     return nullptr;
 }
 
-void PresetManager::describe (Entry& e, const juce::var& parameters)
+void PresetManager::describe (Entry& e, const juce::var& preset)
 {
+    const auto& parameters = preset["parameters"];
     const auto value = [&parameters] (ParamId id) {
         const auto& spec = sedef::spec (id);
         const juce::Identifier key (toJuce (spec.id));
@@ -222,22 +229,11 @@ void PresetManager::describe (Entry& e, const juce::var& parameters)
         if (on (id))
             e.blocks.add (name);
     };
-    add (ParamId::gateEnabled, "gate");
-    add (ParamId::trenchEnabled, "trench");
-    add (ParamId::anemoneEnabled, "anemone");
-    add (ParamId::conchEnabled, "conch");
-    add (ParamId::remoraEnabled, "remora");
-    add (ParamId::tideEnabled, "tide");
-    add (ParamId::urchinEnabled, "urchin");
-    add (ParamId::sargassoEnabled, "sargasso");
-    add (ParamId::pearlEnabled, "pearl");
-    add (ParamId::kelpEnabled, "kelp");
-    add (ParamId::coralEnabled, "coral");
-    add (ParamId::beaconEnabled, "beacon");
-    add (ParamId::gyreEnabled, "gyre");
-    add (ParamId::jettyEnabled, "jetty");
-    add (ParamId::rippleEnabled, "ripple");
-    add (ParamId::breakerEnabled, "breaker");
+    // The pedals on its board that it switches on, in the board's order.
+    const auto board = boardFromVar (preset["board"]).value_or (legacyBoardFor (parameters));
+    for (const auto id : board)
+        if (on (pedalInfo (id).enable))
+            e.blocks.add (toJuce (pedalInfo (id).id));
     if (eqShapes)
         add (eq (0), "eq");
     add (ParamId::doublerEnabled, "doubler");
@@ -304,10 +300,12 @@ bool PresetManager::load (const juce::String& id, bool audition)
     apply ((*parsed)["parameters"]);
     currentId_ = e->id;
     currentName_ = e->name;
-    loadedAttachment_ =
-        attachment_.key.isNotEmpty() ? (*parsed)[attachment_.key.toRawUTF8()] : juce::var();
-    if (attachment_.select)
-        attachment_.select (loadedAttachment_, false);
+    for (std::size_t i = 0; i < attachments_.size(); ++i)
+    {
+        loadedAttachments_[i] = resolved (attachments_[i], *parsed);
+        if (attachments_[i].select)
+            attachments_[i].select (loadedAttachments_[i], false);
+    }
     if (!audition)
         markRecent (currentId_);
     return true;
@@ -330,7 +328,28 @@ void PresetManager::loadInit()
     apply (juce::var (new juce::DynamicObject()));
     currentId_ = {};
     currentName_ = "Init";
-    loadedAttachment_ = juce::var();
+    const juce::var empty (new juce::DynamicObject());
+    for (std::size_t i = 0; i < attachments_.size(); ++i)
+    {
+        const auto& a = attachments_[i];
+        loadedAttachments_[i] = a.selectOnInit ? resolved (a, empty) : juce::var();
+        if (a.selectOnInit && a.select)
+            a.select (loadedAttachments_[i], false);
+    }
+}
+
+void PresetManager::addAttachment (Attachment a)
+{
+    // Until a preset loads, the current one is Init.
+    const juce::var empty (new juce::DynamicObject());
+    loadedAttachments_.push_back (a.selectOnInit ? resolved (a, empty) : juce::var());
+    attachments_.push_back (std::move (a));
+}
+
+juce::var PresetManager::resolved (const Attachment& a, const juce::var& file) const
+{
+    const auto stored = a.key.isNotEmpty() ? file[a.key.toRawUTF8()] : juce::var();
+    return a.resolve ? a.resolve (stored, file["parameters"]) : stored;
 }
 
 juce::var PresetManager::captureParameters() const
@@ -403,12 +422,16 @@ juce::String PresetManager::save (const juce::String& name, const juce::String& 
     if (description.isNotEmpty())
         root->setProperty ("description", description);
     root->setProperty ("parameters", captureParameters());
-    const auto attached = attachment_.reference ? attachment_.reference (true) : juce::var();
-    if (!attached.isVoid())
-        root->setProperty (attachment_.key, attached);
+    std::vector<juce::var> attached;
+    for (const auto& a : attachments_)
+    {
+        attached.push_back (a.reference ? a.reference (true) : juce::var());
+        if (!attached.back().isVoid())
+            root->setProperty (a.key, attached.back());
+    }
     if (!file.replaceWithText (juce::JSON::toString (juce::var (root))))
         return {};
-    loadedAttachment_ = attached;
+    loadedAttachments_ = attached;
 
     scan();
     currentId_ = userId (file);
@@ -619,8 +642,9 @@ PresetManager::Snapshot PresetManager::capture() const
     s.id = currentId_;
     s.name = currentName_;
     s.dirty = isDirty();
-    s.attachment = attachment_.reference ? attachment_.reference (false) : juce::var();
-    s.loadedAttachment = loadedAttachment_;
+    for (const auto& a : attachments_)
+        s.attachments.push_back (a.reference ? a.reference (false) : juce::var());
+    s.loadedAttachments = loadedAttachments_;
     return s;
 }
 
@@ -648,9 +672,10 @@ bool PresetManager::restore (const Snapshot& s)
     currentId_ = find (s.id) != nullptr ? s.id : juce::String();
     currentName_ = s.name;
     loadedValues_ = s.loadedValues;
-    loadedAttachment_ = s.loadedAttachment;
-    if (attachment_.select)
-        attachment_.select (s.attachment, true);
+    loadedAttachments_ = s.loadedAttachments;
+    for (std::size_t i = 0; i < attachments_.size() && i < s.attachments.size(); ++i)
+        if (attachments_[i].select)
+            attachments_[i].select (s.attachments[i], true);
     return true;
 }
 
@@ -703,7 +728,10 @@ bool PresetManager::isDirty() const
         if (!sameValue (raw->load(), reference, spec))
             return true;
     }
-    return attachment_.differs && attachment_.differs (loadedAttachment_);
+    for (std::size_t i = 0; i < attachments_.size(); ++i)
+        if (attachments_[i].differs && attachments_[i].differs (loadedAttachments_[i]))
+            return true;
+    return false;
 }
 
 void PresetManager::applyCurrent (const juce::String& id, const juce::String& name)
@@ -713,7 +741,10 @@ void PresetManager::applyCurrent (const juce::String& id, const juce::String& na
     // "Dirty" compares against the preset as a load would apply it; Init (or a preset this
     // machine doesn't have) against the defaults.
     loadedValues_.clear();
-    loadedAttachment_ = juce::var();
+    const juce::var empty (new juce::DynamicObject());
+    for (std::size_t i = 0; i < attachments_.size(); ++i)
+        loadedAttachments_[i] =
+            attachments_[i].selectOnInit ? resolved (attachments_[i], empty) : juce::var();
     if (const auto* e = find (id))
         if (const auto parsed = read (*e))
         {
@@ -721,8 +752,8 @@ void PresetManager::applyCurrent (const juce::String& id, const juce::String& na
                 if (!isGlobal (static_cast<ParamId> (i)))
                     loadedValues_[static_cast<ParamId> (i)] =
                         storedValue ((*parsed)["parameters"], i);
-            if (attachment_.key.isNotEmpty())
-                loadedAttachment_ = (*parsed)[attachment_.key.toRawUTF8()];
+            for (std::size_t i = 0; i < attachments_.size(); ++i)
+                loadedAttachments_[i] = resolved (attachments_[i], *parsed);
         }
 }
 

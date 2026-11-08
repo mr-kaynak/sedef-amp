@@ -98,7 +98,7 @@ export async function connectMidi(backend: MidiBackend): Promise<() => void> {
   } catch (error) {
     useMidiStore.setState({
       status: 'error',
-      message: `Could not reach Sedef MIDI's engine: ${error instanceof Error ? error.message : String(error)}`,
+      message: `Could not reach Sedef MIDI's engine (${error instanceof Error ? error.message : String(error)}). Close this window and open it again; if that doesn't help, reload the plug-in.`,
     });
   }
   return () => {

@@ -54,8 +54,10 @@ describe('Sedef MIDI app', () => {
     await setup();
     const range = screen.getByRole('combobox', { name: 'Bend range' });
     expect(range).toBeDisabled();
+    expect(screen.getByText('Used in Notes + Bend.')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('radio', { name: 'Notes + Bend' }));
     expect(range).toBeEnabled();
+    expect(screen.queryByText('Used in Notes + Bend.')).not.toBeInTheDocument();
   });
 
   it('explains Steady with its lag', async () => {
@@ -66,18 +68,29 @@ describe('Sedef MIDI app', () => {
 
   it('sends the notes to a picked port and says where they go', async () => {
     const b = await setup();
-    const picker = screen.getByRole('combobox', { name: 'Also send notes to' });
+    const picker = screen.getByRole('combobox', { name: 'Also send to' });
     expect(screen.getByText('Notes go to the host only.')).toBeInTheDocument();
     await userEvent.selectOptions(picker, 'device:iac-1');
     expect(
       b.calls.some((c) => c.name === 'sedef_midi_setPort' && c.args[0] === 'device:iac-1'),
     ).toBe(true);
     expect(await screen.findByText('Sending to IAC Driver Bus 1.')).toBeInTheDocument();
+    expect(picker).not.toHaveAttribute('aria-invalid');
+  });
+
+  it('says how to recover when an output cannot open', async () => {
+    await setup({ unavailable: ['device:usb-1'] });
+    const picker = screen.getByRole('combobox', { name: 'Also send to' });
+    await userEvent.selectOptions(picker, 'device:usb-1');
+    const status = await screen.findByRole('status');
+    expect(status).toHaveTextContent('Connect it, or pick another output.');
+    expect(picker).toHaveAttribute('aria-invalid', 'true');
+    expect(picker).toHaveAccessibleDescription(/pick another output/);
   });
 
   it('opens the standalone app on its virtual port, with the audio input button', async () => {
     await setup({ isStandalone: true });
-    const picker = screen.getByRole('combobox', { name: 'Send notes to' });
+    const picker = screen.getByRole('combobox', { name: 'Send to' });
     expect(picker).toHaveValue('virtual');
     expect(screen.getByText(/Other apps list “Sedef MIDI” as a MIDI input/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Audio input…' })).toBeInTheDocument();
@@ -89,6 +102,7 @@ describe('Sedef MIDI app', () => {
     await setup({ isInstrument: true, wrapperType: 'AudioUnit' });
     expect(screen.getByText('Instrument · guitar on the side chain')).toBeInTheDocument();
     expect(screen.getByText('Side chain')).toBeInTheDocument();
+    expect(screen.getByRole('radiogroup', { name: 'Side chain' })).toBeInTheDocument();
   });
 
   it('follows the host when it changes a parameter', async () => {

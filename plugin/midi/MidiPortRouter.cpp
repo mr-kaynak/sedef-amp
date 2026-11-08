@@ -147,13 +147,14 @@ void MidiPortRouter::open (const juce::String& wanted)
         if (!virtualSupported())
             status = "This system has no virtual MIDI ports: pick an output instead.";
         else if ((output = Output::openVirtual (virtualName_)) == nullptr)
-            status = "The virtual port \"" + virtualName_ + "\" could not be created.";
+            status = "The virtual port \"" + virtualName_ +
+                     "\" could not be created: pick an output instead.";
     }
     else if (wanted.startsWith (kDevicePrefix))
     {
         const auto id = wanted.fromFirstOccurrenceOf (kDevicePrefix, false, false);
         if ((output = Output::openDevice (id)) == nullptr)
-            status = "That MIDI output is not available. Is the device connected?";
+            status = "That MIDI output is not available. Connect it, or pick another output.";
     }
     {
         const std::scoped_lock lock (lock_);

@@ -30,8 +30,8 @@
   font-weight: 500;
   font-variation-settings: 'opsz' 96;
   line-height: 1;
-  color: var(--bone-4);
-  transition: color var(--dur-2) var(--ease-out);
+  color: var(--bone-3);
+  transition: color var(--dur-1) var(--ease-out);
 }
 
 .name {
@@ -117,7 +117,7 @@
   display: flex;
   justify-content: space-between;
   margin-top: 4px;
-  color: var(--bone-4);
+  color: var(--bone-3);
   font-size: var(--t-10);
   font-stretch: var(--legend-stretch);
 }

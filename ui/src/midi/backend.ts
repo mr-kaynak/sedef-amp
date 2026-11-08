@@ -112,6 +112,8 @@ export interface MockOptions {
   autoPlay?: boolean;
   /** Start with this port selected. */
   destination?: string;
+  /** Outputs that fail to open, as an unplugged device does. */
+  unavailable?: readonly string[];
 }
 
 /** A bass line in E: MIDI notes and their lengths in beats. */
@@ -212,11 +214,14 @@ export class MockMidiBackend implements MidiBackend {
           return { ...this.ports };
         case 'sedef_midi_setPort': {
           const [destination] = args as Args<'sedef_midi_setPort'>;
+          const fails = this.options.unavailable?.includes(destination) ?? false;
           this.ports = {
             ...this.ports,
             selected: destination,
-            openName: this.nameOf(destination),
-            status: '',
+            openName: fails ? '' : this.nameOf(destination),
+            status: fails
+              ? 'That MIDI output is not available. Connect it, or pick another output.'
+              : '',
           };
           this.emitter.emit('sedef:midi:ports', this.ports);
           return { ...this.ports };

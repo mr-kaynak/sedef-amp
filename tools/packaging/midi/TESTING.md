@@ -41,8 +41,8 @@ paste the path.
 
 ## Before you play
 
-- **Gate.** Drag the gate handle on the input meter until the meter's light comes on when you play
-  and goes off when you're silent. Picks only start notes above it.
+- **Gate.** Drag the gate handle on the input meter until the **Signal** ring over the meter fills
+  when you play and empties when you're silent. Picks only start notes above it.
 - **Octave.** −1 by default (a bass sounds an octave under a guitar). For a bass part, playing
   higher on the neck with −2 often tracks faster and cleaner than playing on the low strings with −1.
 - **Timing.** *Fastest* sends each note as soon as it is sure (the low E takes longest). *Steady*

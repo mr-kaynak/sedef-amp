@@ -161,7 +161,7 @@
 .hint {
   grid-column: 2;
   margin: 0;
-  color: var(--bone-4);
+  color: var(--bone-3);
   font-size: var(--t-11);
   line-height: 1.35;
   text-wrap: pretty;
@@ -195,7 +195,7 @@
   height: 30px;
   padding: 0 20px;
   border-top: 1px solid var(--line);
-  color: var(--bone-4);
+  color: var(--bone-3);
   font-size: var(--t-11);
 }
 
@@ -208,6 +208,7 @@
 
 .link {
   margin-left: auto;
+  min-height: 24px;
   padding: 2px 4px;
   border: none;
   border-radius: var(--r-hw);

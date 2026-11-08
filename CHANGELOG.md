@@ -8,6 +8,15 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **Sedef MIDI (preview):** a companion that turns a guitar's DI into MIDI notes in real time,
+  one note at a time, to play and record MIDI instruments from the guitar. A standalone app with
+  its own MIDI port ("Sedef MIDI"), a plug-in (AU, VST3, CLAP) for the guitar track, and an
+  instrument AU that takes the guitar through Logic's side chain. Octave −2 to +1, Notes or
+  Notes + Bend, Fastest or Steady timing, velocity sensitivity and curve, MIDI channel, Panic; no
+  stuck notes on stop, bypass, port change or quit. Its own parameter list, separate from Sedef
+  Amp's. Not in the installers yet: CI builds a macOS test build
+  ([docs/midi.md](docs/midi.md), [design](docs/design/guitar-to-midi.md)).
+
 - **Settings > Latency:** Low latency, the default, or **Linear phase**, the 0.4.0 filters, which
   keep every frequency in time for mixing and re-amping and add about 5 ms at 48 kHz. Switching
   restarts the audio for a moment and tells the host the new latency; the status bar and About

@@ -76,6 +76,24 @@ each string's saddle, and Sedef tells you exactly which way and how far:
 The estimate uses `Δs ≈ L · (2^(c/1200) − 1)` for scale length `L` and octave error `c` cents.
 See [docs/intonation.md](docs/intonation.md) for the method and its limits.
 
+## Sedef MIDI (preview)
+
+A small companion that plays MIDI instruments from your guitar: play a bass line on the guitar,
+hear it on a bass instrument, and record it as MIDI to edit afterwards. It follows one note at a
+time, with an octave switch (−1 by default, a bass's register), velocity from your picking, and
+note-offs that follow your muting.
+
+- **Standalone app** with its own MIDI port, "Sedef MIDI", which other programs list as a MIDI
+  input.
+- **Plug-in** (AU, VST3, CLAP) for the guitar track, and an **instrument AU** that takes the guitar
+  through its side chain, so Logic's instrument tracks can record its notes.
+- **Fastest** timing (28 ms on the low E, 16 ms from the G string up) or **Steady** (every note 38 ms
+  after its pick, for one fixed track delay).
+
+It's a preview: a macOS test build comes from CI, and it isn't in the installers yet. See
+[docs/midi.md](docs/midi.md) for setup in Logic and other hosts, playing tips and the checklist,
+and [the design](docs/design/guitar-to-midi.md) for how it works and what was measured.
+
 ## Install
 
 ### [Download for macOS](https://github.com/mr-kaynak/sedef-amp/releases/latest/download/Sedef-Amp-macOS.dmg)

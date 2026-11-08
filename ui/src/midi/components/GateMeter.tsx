@@ -80,7 +80,7 @@ export function GateMeter({ height = 280 }: { height?: number }) {
         </div>
       </div>
       <div className={styles.value} data-active={active || undefined}>
-        {gate.display.replace('-', '−')}
+        {gate.display}
       </div>
     </div>
   );

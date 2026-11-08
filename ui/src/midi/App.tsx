@@ -69,12 +69,14 @@ export function MidiApp() {
   if (status === 'error' || !session)
     return (
       <div className={styles.failed} role="alert">
-        {message ?? 'Sedef MIDI could not start its interface.'}
+        {message ??
+          'Sedef MIDI could not start its interface. Close this window and open it again; if it stays empty, reinstall Sedef MIDI.'}
       </div>
     );
 
   const bend = Math.round(mode) === 1;
   const steady = Math.round(timing) === 1;
+  const audioLabel = session.isInstrument ? 'Side chain' : 'Guitar audio';
   return (
     <div className={styles.app}>
       <header className={styles.header}>
@@ -113,8 +115,11 @@ export function MidiApp() {
           </h2>
           <div className={styles.velocityRow}>
             <Knob param="dynamics" size="md" label="Sensitivity" />
-            <Field label="Curve" hint="Soft: a light pick already plays loud.">
-              <Segmented param="curve" size="sm" />
+            <Field
+              label="Curve"
+              hint="Soft: a light pick already plays loud. Hard: loud notes need a hard pick."
+            >
+              <Segmented param="curve" size="md" />
             </Field>
           </div>
         </section>
@@ -125,12 +130,12 @@ export function MidiApp() {
               Notes
             </h2>
             <Field label="Octave">
-              <Segmented param="octave" size="sm" labels={['−2', '−1', '0', '+1']} />
+              <Segmented param="octave" size="md" labels={['−2', '−1', '0', '+1']} />
             </Field>
             <Field label="Mode">
-              <Segmented param="mode" size="sm" labels={['Notes', 'Notes + Bend']} />
+              <Segmented param="mode" size="md" labels={['Notes', 'Notes + Bend']} />
             </Field>
-            <Field label="Bend range">
+            <Field label="Bend range" hint={bend ? undefined : 'Used in Notes + Bend.'}>
               <IntSelect
                 param="bendRange"
                 ariaLabel="Bend range"
@@ -147,7 +152,7 @@ export function MidiApp() {
                   : 'Each note as soon as it is sure. Low strings take longer.'
               }
             >
-              <Segmented param="timing" size="sm" />
+              <Segmented param="timing" size="md" />
             </Field>
           </section>
 
@@ -158,8 +163,8 @@ export function MidiApp() {
             <Field label="Channel">
               <IntSelect param="channel" ariaLabel="MIDI channel" className={styles.narrow} />
             </Field>
-            <Field label={session.isInstrument ? 'Side chain' : 'Guitar audio'}>
-              <Segmented param="audio" size="sm" />
+            <Field label={audioLabel}>
+              <Segmented param="audio" size="md" ariaLabel={audioLabel} />
             </Field>
             <Field label={session.isStandalone ? 'Send to' : 'Also send to'}>
               <PortPicker standalone={session.isStandalone} />

@@ -20,7 +20,7 @@ export function PortPicker({ standalone }: { standalone: boolean }) {
     ? ports.status
     : ports.selected === 'off'
       ? standalone
-        ? 'Notes go nowhere: pick a port.'
+        ? 'Notes go nowhere yet. Pick where to send them.'
         : 'Notes go to the host only.'
       : ports.selected === 'virtual'
         ? `Other apps list “${ports.virtualName}” as a MIDI input.`
@@ -33,8 +33,9 @@ export function PortPicker({ standalone }: { standalone: boolean }) {
       <span className={select.wrap}>
         <select
           className={`${select.select} ${styles.select}`}
-          aria-label={standalone ? 'Send notes to' : 'Also send notes to'}
+          aria-label={standalone ? 'Send to' : 'Also send to'}
           aria-describedby={hintId}
+          aria-invalid={ports.status ? true : undefined}
           value={ports.selected}
           onChange={(e) => void setDestination(e.target.value)}
         >
@@ -55,11 +56,12 @@ export function PortPicker({ standalone }: { standalone: boolean }) {
         </select>
         <Icon name="down" size={14} className={select.chevron} />
       </span>
+      {/* Always rendered, so a port that fails to open after the choice is announced. */}
       <p
         id={hintId}
         className={styles.hint}
         data-error={ports.status ? '' : undefined}
-        role={ports.status ? 'alert' : undefined}
+        role="status"
       >
         {hint}
       </p>

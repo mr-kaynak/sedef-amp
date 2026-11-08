@@ -2,7 +2,9 @@
 #include "PluginProcessor.h"
 
 #include "ParameterLayout.h"
+#if !SEDEF_PLUGIN_TESTS
 #include "PluginEditor.h"
+#endif
 
 namespace sedef::plugin
 {
@@ -23,19 +25,42 @@ SedefProcessor::SedefProcessor()
         jassert (raw_[i] != nullptr);
     }
     engine_.setMetronomePattern (metronomePattern_);
+    engine_.setBoard (board_);
     // The saved-state snapshot must match the preset manager from the start, or the first save
     // and a save after the timer has run would differ (clap-validator checks state byte for byte).
     savedPresetId_ = presets_.currentId();
     savedPresetName_ = presets_.currentName();
     // User presets keep a reference to their capture (docs/dsp/nam.md), only when it plays.
-    presets_.setAttachment (
+    presets_.addAttachment (
         { "capture",
           [this] (bool forPreset) {
               return forPreset && paramValue (ParamId::ampSource) < 0.5f ? juce::var()
                                                                          : captures_.reference();
           },
           [this] (const juce::var& ref, bool exact) { captures_.select (ref, exact); },
-          [this] (const juce::var& ref) { return captures_.differs (ref); } });
+          [this] (const juce::var& ref) { return captures_.differs (ref); },
+          {},
+          false });
+    // Presets carry the pedalboard. One saved before it existed loads the board that matches its
+    // parameters (Board::legacyFor). Init, which has no file and so no parameters, gets only the
+    // pedals the defaults switch on, as a fresh instance does (board_).
+    presets_.addAttachment ({ "board", [this] (bool) { return boardToVar (board()); },
+                              [this] (const juce::var& ref, bool) {
+                                  if (const auto b = boardFromVar (ref))
+                                      setBoard (*b);
+                              },
+                              [this] (const juce::var& ref) {
+                                  const auto b = boardFromVar (ref);
+                                  return !b || *b != board();
+                              },
+                              [] (const juce::var& stored, const juce::var& parameters) {
+                                  if (const auto b = boardFromVar (stored))
+                                      return boardToVar (*b);
+                                  return boardToVar (parameters.isObject()
+                                                         ? legacyBoardFor (parameters)
+                                                         : switchedOnBoardFor (parameters));
+                              },
+                              true });
     startTimerHz (20);
 }
 
@@ -188,6 +213,24 @@ void SedefProcessor::mirrorPreset()
     }
 }
 
+Board SedefProcessor::board() const
+{
+    const std::scoped_lock lock (extraLock_);
+    return board_;
+}
+
+void SedefProcessor::setBoard (const Board& board)
+{
+    {
+        const std::scoped_lock lock (extraLock_);
+        if (board == board_)
+            return;
+        board_ = board;
+        engine_.setBoard (board);
+    }
+    ++boardRevision;
+}
+
 void SedefProcessor::setMetronomePattern (const std::array<std::uint8_t, 13>& steps)
 {
     {
@@ -312,7 +355,11 @@ void SedefProcessor::captureLoaded()
 
 juce::AudioProcessorEditor* SedefProcessor::createEditor()
 {
+#if SEDEF_PLUGIN_TESTS
+    return nullptr; // plugin/tests: the processor without its web UI
+#else
     return new SedefEditor (*this);
+#endif
 }
 
 // State -------------------------------------------------------------------------------------------
@@ -348,6 +395,7 @@ void SedefProcessor::getStateInformation (juce::MemoryBlock& dest)
         for (auto s : metronomePattern_)
             steps.add (juce::String (static_cast<int> (s)));
         extra.setProperty ("metronomePattern", steps.joinIntoString (","), nullptr);
+        extra.setProperty ("board", boardToText (board_), nullptr);
     }
     extra.setProperty ("uiScale", uiScale(), nullptr);
     root.appendChild (extra, nullptr);
@@ -415,9 +463,20 @@ void SedefProcessor::setStateInformation (const void* data, int size)
             for (std::size_t i = 0; i < kNumParams; ++i)
                 loaded[i].applied = paramValue (static_cast<ParamId> (i));
         }
+        // The board: a session from before it had none, and gets the one its parameters played.
+        const auto restoredBoard =
+            extra.hasProperty ("board")
+                ? boardFromText (extra.getProperty ("board").toString())
+                : Board::legacyFor ([this] (ParamId id) { return paramValue (id) >= 0.5f; });
         const std::scoped_lock lock (extraLock_);
         if (params.isValid())
             loaded_ = loaded;
+        if (restoredBoard != board_)
+        {
+            board_ = restoredBoard;
+            engine_.setBoard (restoredBoard);
+            ++boardRevision;
+        }
         uiStateJson_ = extra.getProperty ("uiState").toString();
         savedPresetId_ = presetId;
         savedPresetName_ = presetName;

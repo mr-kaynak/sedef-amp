@@ -13,7 +13,18 @@ mkdirSync(outDir, { recursive: true });
 
 const SHOTS = {
   amp: { query: 'section=amp' },
-  pedals: { query: 'section=pedals&set=pearlEnabled:1' },
+  // 0.3.0's five pedals with Pearl on (Nacre, the start-up preset, has only the three it uses).
+  pedals: { query: 'section=pedals&board=gate,tide,pearl,coral,ripple&set=pearlEnabled:1' },
+  // Add pedal's picker over a board with room on it.
+  'pedal-picker': {
+    query: 'section=pedals&board=gate,pearl,ripple&set=pearlEnabled:1',
+    async prepare(page) {
+      await page.getByRole('button', { name: 'Add pedal' }).click();
+      await page.getByRole('dialog', { name: 'Add a pedal' }).waitFor();
+      await page.mouse.move(1199, 759);
+      await page.waitForTimeout(300);
+    },
+  },
   eq: {
     query:
       'section=eq&set=eqLagoonBand2:-2,eqLagoonBand3:-1,eqLagoonBand5:1.5,eqLagoonBand7:2.5,eqLagoonBand8:1,eqLagoonLowCut:70,eqLagoonHighCut:11000',

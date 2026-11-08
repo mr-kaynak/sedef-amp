@@ -38,6 +38,8 @@ private:
     void emitIrs();
     void loadIr (int mic, int cab, juce::WebBrowserComponent::NativeFunctionCompletion completion);
     void emitCapture();
+    juce::var boardState();
+    void emitBoard();
     void loadCapture (juce::WebBrowserComponent::NativeFunctionCompletion completion);
     /// The session facts of hello() that can change while the editor is open (sample rate,
     /// latency), when they do.
@@ -64,6 +66,8 @@ private:
     int lastPresetRevision_ = -1;
     int lastIrRevision_ = -1;
     int lastCaptureRevision_ = -1;
+    int lastBoardRevision_ = -1;
+    juce::int64 boardStateRevision_ = 0; ///< BoardState.revision: counts every board state sent
     bool lastDirty_ = false;
     double lastSampleRate_ = 0.0;
     int lastLatency_ = -1;

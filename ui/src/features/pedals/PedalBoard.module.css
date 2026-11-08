@@ -1,0 +1,190 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+.section {
+  --gap: 24px; /* between pedals; PedalBoard.tsx GAP */
+  --row-gap: 20px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.toolbar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 46px;
+  padding: 8px 24px 0;
+}
+
+.flow {
+  flex: 1;
+  margin: 0;
+  color: var(--bone-3);
+  font-size: var(--t-11);
+}
+
+.count {
+  color: var(--bone-3);
+  font-size: var(--t-11);
+}
+
+.scroller {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 10px 24px 28px;
+  /* A row below the fold shows its strip and the top of its pedals, fading out at the edge. */
+  mask-image: linear-gradient(180deg, #000 calc(100% - 28px), transparent);
+  scrollbar-width: thin;
+  scrollbar-color: var(--ink-4) transparent;
+}
+
+.scroller[data-dragging] {
+  cursor: grabbing;
+}
+
+.board {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--row-gap) var(--gap);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.slot {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* The pedal being dragged rides above the others and follows the pointer (translate, set inline). */
+.slot[data-dragging] {
+  z-index: 3;
+  pointer-events: none;
+}
+
+.slot[data-dragging] > section {
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.22),
+    inset 0 -2px 0 rgb(0 0 0 / 0.25),
+    0 30px 50px -16px rgb(0 0 0 / 0.9);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .slot[data-dragging] > section {
+    scale: 1.02;
+  }
+}
+
+/* The strip above each pedal: its handle, then move and remove. Quiet until it is used. */
+.strip {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 28px;
+}
+
+.stripGap {
+  flex: 1;
+}
+
+.handle {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--r-ctl);
+  background: transparent;
+  color: var(--bone-3);
+  cursor: grab;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    color var(--dur-1) var(--ease-out),
+    background-color var(--dur-1) var(--ease-out);
+}
+
+@media (hover: hover) {
+  .handle:hover {
+    color: var(--bone);
+    background: rgb(237 230 214 / 0.06);
+  }
+}
+
+.slot[data-dragging] .handle {
+  color: var(--bone);
+  background: var(--on-fill);
+  border-color: var(--on-line);
+}
+
+.tool {
+  color: var(--bone-3);
+}
+
+/* While it rides, only the handle stays: its move and remove buttons would float over a neighbour. */
+.slot[data-dragging] .tool {
+  visibility: hidden;
+}
+
+/* Where the dragged pedal would land: a nacre bar in the gap. */
+.bar {
+  position: absolute;
+  z-index: 2;
+  width: 3px;
+  margin-left: -1.5px;
+  border-radius: 2px;
+  background: linear-gradient(
+    180deg,
+    var(--nacre-aqua),
+    var(--nacre-lilac),
+    var(--nacre-rose),
+    var(--nacre-gold)
+  );
+  box-shadow: var(--shadow-nacre-sel);
+  pointer-events: none;
+}
+
+@media (forced-colors: active) {
+  .bar {
+    background: Highlight;
+  }
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 100%;
+  padding-bottom: 40px;
+  text-align: center;
+}
+
+.emptyTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: var(--t-24);
+  font-weight: 500;
+}
+
+.emptyText {
+  max-width: 44ch;
+  margin: 0;
+  color: var(--bone-2);
+  font-size: var(--t-12);
+}
+
+.emptyAction {
+  position: relative;
+  margin-top: 12px;
+}

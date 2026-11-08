@@ -6,7 +6,7 @@ import { CabSection } from '../features/cab/CabSection';
 import { EqSection } from '../features/eq/EqSection';
 import { FxSection } from '../features/fx/FxSection';
 import { IntonationWorkbench } from '../features/intonation/IntonationWorkbench';
-import { PedalsSection } from '../features/pedals/PedalsSection';
+import { PedalBoard } from '../features/pedals/PedalBoard';
 import { PresetBrowser } from '../features/presets/PresetBrowser';
 import { presetBrowser, useBrowserStore } from '../features/presets/session';
 import { TunerOverlay } from '../features/tuner/TunerOverlay';
@@ -21,7 +21,7 @@ import { useShortcuts } from './useShortcuts';
 import styles from './App.module.css';
 
 const SECTION_VIEWS: Record<Section, ComponentType> = {
-  pedals: PedalsSection,
+  pedals: PedalBoard,
   amp: AmpSection,
   eq: EqSection,
   cab: CabSection,

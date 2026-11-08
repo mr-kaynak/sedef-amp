@@ -23,6 +23,8 @@ mkdirSync(outDir, { recursive: true });
 
 const BASE = 'fresh&freeze&demo&grain=0&host=standalone';
 const PEDALS_OFF = 'tideEnabled:0,pearlEnabled:0,coralEnabled:0,rippleEnabled:0';
+// The film's pedal shots show 0.3.0's five pedals, so Pearl sits in the board's first row.
+const FIVE = 'board=gate,tide,pearl,coral,ripple';
 // The 4x12 with Mic A at 9 o'clock (azimuth -90°): its five positions lie on one horizontal line
 // from the dust cap to the cone's edge, so the film's drag is a straight sweep across the cone.
 const CAB = 'section=cab&set=ampCabLink:0,cabModel:2,micAAzimuth:-90,micADistance:0.15';
@@ -49,12 +51,21 @@ const result = (cents) => ({
 
 /** name -> [query, prepare?, screenshot options?] */
 const SHOTS = {
-  'pedals-off': [`section=pedals&set=${PEDALS_OFF}`],
-  'pedals-pearl-on': [`section=pedals&set=${PEDALS_OFF},pearlEnabled:1`],
+  'pedals-off': [`section=pedals&${FIVE}&set=${PEDALS_OFF}`],
+  'pedals-pearl-on': [`section=pedals&${FIVE}&set=${PEDALS_OFF},pearlEnabled:1`],
+  // The pedalboard: Add pedal's picker open over a short board (?board= sets the mock's board).
+  'pedals-picker': [
+    `section=pedals&board=gate,tide,ripple&set=${PEDALS_OFF}`,
+    async (page) => {
+      await page.getByRole('button', { name: 'Add pedal' }).click();
+      await page.getByRole('dialog', { name: 'Add a pedal' }).waitFor();
+      await settle(400)(page);
+    },
+  ],
   ...Object.fromEntries(
     [0.2, 0.4, 0.6, 0.8].map((gain, i) => [
       `pearl-gain-${i + 1}`,
-      [`section=pedals&set=${PEDALS_OFF},pearlEnabled:1,pearlGain:${gain}`],
+      [`section=pedals&${FIVE}&set=${PEDALS_OFF},pearlEnabled:1,pearlGain:${gain}`],
     ]),
   ),
   'amp-lagoon': ['section=amp&set=ampModel:0'],

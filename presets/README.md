@@ -12,12 +12,17 @@ Each file is JSON:
   "author": "Sedef",
   "tags": ["chorus", "compressor", "plate"],
   "description": "Glassy, lightly squeezed clean with slow chorus and a short plate.",
+  "board": ["gate", "tide", "ripple"],
   "parameters": { "ampModel": 0, "lagoonVolume": 0.45 }
 }
 ```
 
 - `parameters` uses the ids from `engine/include/sedef/params/ParameterList.inc`, in real units.
   Anything left out takes its default, so a preset only lists what it changes.
+- `board` is the pedalboard: pedal ids from `engine/include/sedef/board/PedalList.inc`, in signal
+  order. A factory preset's board holds exactly the pedals it switches on, in default order; the
+  `factory-preset-boards` test checks that and that each preset sounds the same as on the fixed
+  chain. A file without a board (one saved before the pedalboard) gets the whole fixed chain.
 - Global parameters (input and output gain, tuner, metronome, tempo, stereo mode and the like) are
   never stored in a preset; switching presets must not change how the plugin sits in a session.
 - `folder` is the preset's category in the browser. `tags` are lower case, at most 8 of up to 24

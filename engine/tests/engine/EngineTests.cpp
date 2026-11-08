@@ -646,6 +646,49 @@ TEST_CASE ("Engine::process never allocates while captures play, switch and swap
         CHECK (test::allFinite (rig.out[c]));
 }
 
+TEST_CASE ("Engine::process never allocates while the pedalboard changes", "[engine][board]")
+{
+    // New orders, pedals joining and leaving with and without latency, changes of mind half way
+    // through a duck, at every block size and rate the engine supports.
+    const double fs = GENERATE (44100.0, 96000.0, 192000.0);
+    const int block = GENERATE (1, 37, 512, 4096);
+    CAPTURE (fs, block);
+    Rig rig (fs, block, 2, 2);
+    test::fillNoise (rig.in[0], 0.3f, 1);
+    test::fillNoise (rig.in[1], 0.3f, 2);
+
+    Random r (11);
+    auto p = randomSnapshot (r);
+    for (std::size_t i = 0; i < kNumPedals; ++i)
+        p[kPedals[i].enable] = 1.0f;
+    const auto randomBoard = [&r] {
+        Board b;
+        for (std::size_t i = 0; i < kNumPedals; ++i)
+            if (r.unipolar() < 0.6f)
+                b.insert (static_cast<PedalId> (i),
+                          static_cast<std::size_t> (r.unipolar() * static_cast<float> (b.size())));
+        return b;
+    };
+    rig.run (p, 4096); // warm-up (first-use paths)
+
+    const int frames = std::max (8192, 16 * block);
+    gAllocations = 0;
+    {
+        TrackAllocations track;
+        for (int round = 0; round < 24; ++round)
+        {
+            rig.engine.setBoard (randomBoard()); // the producer side doesn't allocate either
+            p[ParamId::stereoMode] = static_cast<float> (round / 8 % 2);
+            // Some changes land in the middle of the last one's duck.
+            const int length = round % 3 == 0 ? std::max (block, 64) : frames / 4;
+            rig.run (p, std::min (length, 60000), (round * 4096) % 32768);
+        }
+    }
+    CHECK (gAllocations.load() == 0);
+    for (int c = 0; c < 2; ++c)
+        CHECK (test::allFinite (rig.out[c]));
+}
+
 // -------------------------------------------------------------------------------------------------
 // Fuzzes and booster: Remora, Sargasso, Breaker.
 

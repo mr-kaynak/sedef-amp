@@ -10,6 +10,7 @@
     "garage"
   ],
   "description": "Hard-clipped distortion into a gritty amp. Raw, compressed garage riffs.",
+  "board": ["gate", "coral"],
   "parameters": {
     "ampModel": 1,
     "reefGain": 0.24,

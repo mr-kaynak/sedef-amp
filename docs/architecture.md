@@ -10,11 +10,12 @@ VST3 / AU / CLAP plugin and as a standalone application. It ships a complete
 rig in one window:
 
 ```
-Input ─► Tuner tap ─► Input Gain ─► Gate ─► Trench (octave down)
-      ─► Anemone (envelope filter) ─► Conch (wah) ─► Remora (fuzz) ─► Tide (comp)
-      ─► Urchin (octave-up fuzz) ─► Sargasso (sustain fuzz) ─► Pearl (overdrive)
-      ─► Kelp (mid overdrive) ─► Coral (distortion) ─► Beacon (vibe) ─► Gyre (phaser)
-      ─► Jetty (flanger) ─► Ripple (modulation) ─► Breaker (treble booster)
+Input ─► Tuner tap ─► Input Gain ─► Pedalboard: the pedals the player puts on it, in the
+      order they choose; by default Gate ─► Trench (octave down) ─► Anemone (envelope filter)
+      ─► Conch (wah) ─► Remora (fuzz) ─► Tide (comp) ─► Urchin (octave-up fuzz)
+      ─► Sargasso (sustain fuzz) ─► Pearl (overdrive) ─► Kelp (mid overdrive) ─► Coral (distortion)
+      ─► Beacon (vibe) ─► Gyre (phaser) ─► Jetty (flanger) ─► Ripple (modulation)
+      ─► Breaker (treble booster)
       ─► Amp (Lagoon | Reef | Abyss) ─► Cab (2 mics + room)
       ─► 9-band EQ (one bank per amp) ─► Doubler ─► Drift (tape echo)
       ─► Fathom (plate | hall reverb) ─► Metronome ─► Output Gain ─► Output
@@ -92,6 +93,9 @@ Communication:
   lock-free SPSC ring (`core/SpscRing.h`). The analysis thread drains it.
 - **Audio → UI telemetry:** meters, gain reduction, gate state are atomics in
   `Engine::Telemetry`, sampled by a 30 Hz timer on the message thread.
+- **Pedalboard → audio:** the board (an ordered, fixed-capacity list of pedal ids) goes
+  through `core/RtMailbox.h`, a wait-free triple buffer in which the newest board wins. The
+  engine picks it up at the start of a block ([The pedalboard](#the-pedalboard)).
 - **Heavy objects → audio (IRs, captures):** built on the loader thread, published through
   `core/RtHandoff.h` (atomic pointer swap; the old object is reclaimed on the
   message thread, never freed on the audio thread). Captures use the same scheme with room for
@@ -167,9 +171,8 @@ own instead, so their tails ring out ("spillover") after being switched off.
 
 `Engine` builds the chain from two reusable halves:
 
-- `Channel`: Input Gain → Gate → Trench → Anemone → Conch → Remora → Tide → Urchin → Sargasso →
-  Pearl → Kelp → Coral → Beacon → Gyre → Jetty → Ripple → Breaker → Amp → Cab. Mono in, mono or
-  stereo out.
+- `Channel`: Input Gain → pedalboard (`PedalRack`) → Amp → Cab. Mono in, mono or stereo
+  out.
 - `PostChain`: EQ → Doubler → Drift → Fathom → Metronome → Output Gain. Stereo.
 
 | Host layout | Mode | Graph |
@@ -180,19 +183,164 @@ own instead, so their tails ring out ("spillover") after being switched off.
 | 2 in / 2 out, `stereoMode = Dual` | Dual | two `Channel`s (L, R) → `PostChain` |
 
 The gate detector always listens to the raw input before input gain, so gating
-follows the guitar's DI level regardless of input gain.
+follows the guitar's DI level regardless of input gain. On the board, that key is delayed by
+the latency of the pedals in front of the Gate, so the detector and the audio stay lined up
+wherever the Gate sits.
 
-The pedal order is fixed for now; a pedalboard that lets the player reorder the pedals is
-planned. Each pedal's page explains its place ("Where it goes in the chain"), in short:
+### The pedalboard
+
+The player puts pedals on the board, takes them off and drags them into any order. The board
+is state, not a parameter: it isn't automatable and has nothing in `ParameterList.inc`. Every
+pedal keeps its own parameters (on/off and knobs) whether or not it is on the board.
+
+**The registry.** `engine/include/sedef/board/PedalList.inc` is an X-macro list and the only
+place a pedal is declared:
+
+```cpp
+SEDEF_PEDAL(id, name, category, rank, enable, Module, settings)
+```
+
+| Field | Meaning |
+|---|---|
+| `id` | Stable id, saved in sessions and presets. Never renamed. |
+| `name` | Display name. |
+| `category` | Dynamics, Drive, Fuzz, Filter, Modulation or Pitch. The picker groups by it. |
+| `rank` | Default position. Add pedal puts a pedal after the last one on the board ranked at or below it. |
+| `enable` | The pedal's on/off parameter. |
+| `Module` | Its engine module, shaped like every other ([§5](#5-engine-contract)). |
+| `settings` | An expression that builds `Module::Settings` from the snapshot. |
+
+Consumers:
+
+| Consumer | How |
+|---|---|
+| Engine | `PedalId` enum; `PedalRack` holds one `PedalSlot<Module>` per entry |
+| Plugin | board ids in the session and presets (`plugin/src/BoardText.*`) |
+| UI | `tools/sedef-params --pedals` dumps the list to `ui/src/generated/pedals.json`; a ctest (`ui-pedals-in-sync`) fails when it is stale. `ui/src/features/pedals/catalog.ts` adds each pedal's panel and its line for the picker. |
+
+**The model.** `sedef::Board` (`board/Board.h`) is the ordered list of pedal ids on the board,
+in a fixed-capacity array (`kNumPedals`). It keeps each pedal at most once. `Board::legacy()`
+is the fixed chain the board replaced: Gate, Trench, Anemone, Conch, Remora, Tide, Urchin,
+Sargasso, Pearl, Kelp, Coral, Beacon, Gyre, Jetty, Ripple, Breaker (0.3.0 had Gate, Tide, Pearl,
+Coral and Ripple; the others joined the fixed chain before the board did).
+
+**The Gate is a board pedal**, first by default. Players put a gate in different places (first,
+to quiet the guitar; after the drives, to cut the noise they add) or leave it off, and keeping
+it on the board costs nothing: its detector listens to the raw instrument wherever it sits, so
+it closes on the guitar, not on the hiss in front of it.
+
+**Saving.** The plug-in saves the board as a comma-separated id list (`board="gate,tide,…"`)
+in its state's `Extra` element and in each preset. Snapshots (preset Undo, the browser's
+audition) and A/B carry it too. A preset whose board differs from the loaded one counts as
+edited.
+
+- **Factory presets** each carry a board of only the pedals they switch on, in default order
+  (`Board::switchedOn`), so the board shows what the preset uses.
+- **A new instance and Init** have no file to carry a board: they open on the pedals the default
+  parameters switch on, the Gate alone.
+- **A session or user preset saved before the board** has none and gets `Board::legacyFor`: the
+  whole legacy board, plus any newer pedal its parameters switch on, at its default position.
+  Every pedal whose settings it saved is in view, whether it is on or off.
+
+Both kinds of board play exactly what the fixed chain played. A board in default order with the
+other pedals off sounds the same as the legacy board with those pedals switched off, because the
+rack keeps the latency of the pedals left off where the fixed chain had it (below). The
+`factory-preset-boards` ctest (`sedef-render --check-boards`) renders every factory preset on
+its board and on the legacy board, in both oversampling modes, and requires each board to be the
+pedals the preset switches on and the two renders to match sample for sample. Against main
+before the board, every factory preset and a session with every pedal on render bit-identical at
+44.1, 48, 96 and 192 kHz in both modes.
+
+**The engine.** Each `Channel` has a `PedalRack`. It holds every pedal's module, prepared up
+front, and processes them in its board's order. Pedals that aren't on the board are not
+processed. A new board arrives from the message thread through the mailbox and is picked up at
+the start of a block. `BoardSwitch` takes every chain's rack to it without clicks:
+
+- **A pedal without latency joins or leaves** through its own 10 ms bypass fade. A leaving
+  pedal is switched off and stays in the order until its fade has ended. A joining one comes in
+  bypassed and fades in if it is on.
+- **Anything else** (pedals that stay change their order, or a pedal with latency joins or
+  leaves) happens under a duck. The board's input fades to silence over 6 ms (raised cosine).
+  Its output gain is the input's gain the rack's latency earlier, the gain the signal leaving
+  the pedals had when it went in: it reaches silence once the signal has left the pedals, the
+  racks rewire there, and on the way back it opens only as the new signal arrives, so whatever
+  the rewired pedals still held (filter tails, rerouted by the rewire) never gets out. Pedals
+  that stay keep their state. A change of mind on the way down turns round smoothly, without a
+  rewire.
+
+**Latency** is constant whatever is on the board, so the host's delay compensation never
+changes mid-session. The rig reports the latency of every pedal together (the oversampled
+drives). A pedal with latency that isn't on the board still leaves its delay in the signal, as a
+bypassed pedal would: in front of the first pedal on the board that comes after it in default
+order, or at the end. A board in default order therefore delays every pedal's input exactly as
+the fixed chain did with the other pedals off, which is what keeps the renders bit-identical. In
+any other order the delays still add up to the same total, so the latency equals what the fixed
+chain reported and sessions saved before the board keep their timing.
+
+Measured by `[.board-measure]` (`engine/tests/board/BoardMeasure.cpp`): the legacy board turned
+into Gate, Pearl, Tide, Coral, Ripple (Pearl moves in front of Tide, the six pedals that are off
+leave) while a sine or a guitar plays, at 44.1–192 kHz, blocks of 1–4096 frames and in both
+oversampling modes. "Excess" is the largest sample-to-sample step beyond what the signal itself
+has, against its peak:
+
+| Where | Mode | Dip | Below −1 dB | Swell | Excess step |
+|---|---|---|---|---|---|
+| The board's output | Low latency | −43 to −92 dB | 8–13 ms | ≤ +4.1 dB | −59 to −101 dB |
+| | Linear phase | −43 dB to silence | 8–17 ms | ≤ +4.2 dB | −55 to −101 dB |
+| The whole rig's output | Low latency | −9 to −28 dB | 9–21 ms | ≤ +4.7 dB | −53 to −105 dB |
+| | Linear phase | −13 to −35 dB | 9–26 ms | ≤ +4.4 dB | −49 to −105 dB |
+| A hard swap without the duck (for scale) | Low latency | −3 dB | | 0 dB | −15 dB |
+
+The duck waits for the rack's latency, so in Low latency, where that is a few samples, it is
+shorter, and the amp, cab and effects after the board fill more of it: the rig dips less. The
+tests bound them: a dip of at most two fades plus the latency (and 2 ms), an excess step under
+−50 dB at the board's output, and through the rig a slope at most 1.2× (guitar) or 1.6× (sine)
+the signal's own (measured: up to 1.14× and 1.49×). CPU at 48 kHz, in ns per sample: every pedal
+on the board and on, about 1010; Tide alone, 19; nothing on the board, 6 (the delays of the
+pedals left off); every pedal on the board but switched off, 6.
+
+**Later: a live mode.** A preset load sets the parameters and the board from the message
+thread in one call; the audio thread can pick them up a block apart, which the duck and the
+parameter smoothing cover. A live mode that must switch both on the same block can publish
+them through one mailbox: `Board` is a small, trivially copyable value, so a board and a
+parameter snapshot fit in one `RtMailbox` slot without allocating, and the engine already
+applies a board only at a block boundary.
+
+### Adding a pedal
+
+1. **Engine.** Write the module in `engine/include/sedef/dsp/` and `engine/src/dsp/`, shaped
+   like Pearl and Coral ([§5](#5-engine-contract)), with a `docs/dsp/<name>.md` page. If it
+   needs the raw instrument as a key, give it a `process (io, key)` overload, as the Gate has.
+2. **Parameters.** Append its parameters, an `<id>Enabled` switch first, to the end of
+   `ParameterList.inc` (append only, [ADR-0004](adr/0004-single-parameter-schema.md)).
+3. **Registry.** Append one `SEDEF_PEDAL(…)` line to `PedalList.inc` with a rank that puts it
+   where it belongs by default (leave gaps). If it adds latency, the rig's reported latency
+   grows by it for every board. `Board::legacy()` stays as it is: it is the fixed chain that
+   sessions saved before the board played, and a new pedal was never in it.
+4. **Generated tables.** Rebuild, then run `build/engine/tools/sedef-params` to regenerate
+   `ui/src/generated/parameters.json` and `sedef-params --pedals` for
+   `ui/src/generated/pedals.json`.
+5. **UI.** Add its panel next to the others in `ui/src/features/pedals/` (a `<Pedal>` with its
+   knobs and switch; it renders on its own in any container), and one entry in
+   `ui/src/features/pedals/catalog.ts`: the panel, the kind of pedal and a one-line
+   description for the picker.
+6. **Tests and docs.** The registry tests check every pedal has a switch, a panel and a
+   description. Add the pedal to the README Pedals row, `docs/ui.md` and the CHANGELOG.
+
+The default order (the ranks in `PedalList.inc`, which also give the legacy board) follows each
+pedal's page ("Where it goes in the chain"); the player can change it on the board. In short:
 
 - **Trench right after the gate.** An octave divider tracks best on the clean, uncompressed
   guitar: every drive in front of it would add harmonics for the tracker to mistake for the note,
   and the compressor would flatten the envelope that shapes the sub. The gate in front keeps
   noise from triggering it.
-- **Remora right behind Trench.** The two-transistor fuzz cleans up with the guitar's volume
-  because its low input impedance loads the pickup; anything that colours or buffers the guitar in
-  front of it spoils that, so it comes before the compressor and every drive. Trench goes ahead of
-  it because a divider can't track a fuzzed note, and its subs into a fuzz are a classic pairing.
+- **Anemone and Conch after Trench, before Remora.** The envelope filter reads the picking
+  dynamics a fuzz or compressor would flatten, and a wah into a fuzz is the classic order.
+- **Remora behind Trench and the two filters.** The two-transistor fuzz cleans up with the
+  guitar's volume because its low input impedance loads the pickup. Remora models that with its
+  own Guitar control, so the filters in front of it don't buffer the clean-up away; it still comes
+  before the compressor and every drive. Trench goes ahead of it because a divider can't track a
+  fuzzed note, and its subs into a fuzz are a classic pairing.
 - **Urchin after Tide, before the drives.** Its rectifier needs a clean signal too (a clipped
   input folds into a near-constant level, not an octave), and a compressor in front evens out the
   notes and makes them sustain into the octave.
@@ -202,13 +350,16 @@ planned. Each pedal's page explains its place ("Where it goes in the chain"), in
 - **Sargasso after Urchin, before the overdrives.** The sustain fuzz doesn't need the guitar's
   impedance, and a compressor in front evens out the attack it clips. It comes after Urchin,
   whose rectifier wants an unclipped note.
+- **Beacon, Gyre and Jetty after the drives, before Ripple.** The vibe, phaser and flanger move
+  the harmonics the drives make, so they come after them.
 - **Breaker last, straight into the amp.** A treble booster shapes what a driven amp sees: it
   should get the whole board's output, and in front of a fuzz or overdrive it would be clipped
   flat.
 
 Each oversampled pedal (Remora, Urchin, Sargasso, Pearl, Kelp, Coral, Breaker) adds its
-oversampler's latency to the chain whether it is on or off, so switching pedals never changes the
-latency reported to the host. With the default minimum-phase oversampling that is 5 samples per
+oversampler's latency to the chain whether it is on or off, on the board or not (the rack keeps
+the delay of the ones that aren't), so switching or moving pedals never changes the latency reported to the
+host. With the default minimum-phase oversampling that is 5 samples per
 stage at 44.1/48 kHz: 41 samples (0.85 ms) for the whole rig at 48 kHz, including the amp and the
 capture stage. Settings > Latency > Linear phase brings back 0.4.0's linear-phase filters,
 298 samples (6.2 ms). The setting is the `oversampling` parameter; changing it prepares the engine

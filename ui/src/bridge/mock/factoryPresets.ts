@@ -5,11 +5,14 @@ import type { PresetInfo } from '../protocol';
 import { isGlobalParam, slugify } from '../../params/presetScope';
 import { bundledSchema, indexSchema } from '../../params/schema';
 import { describePreset } from './describePreset';
+import { sanitiseBoard } from '../../features/pedals/registry';
 
 export interface MockPreset {
   info: PresetInfo;
   /** Stored parameters in real units; anything missing is the schema default. */
   values: Record<string, number>;
+  /** Its pedalboard; absent in presets saved before the board (they get legacyBoardFor). */
+  board?: string[];
 }
 
 interface PresetFile {
@@ -20,6 +23,7 @@ interface PresetFile {
   tags?: unknown;
   description?: unknown;
   parameters?: unknown;
+  board?: unknown;
 }
 
 const SPECS = indexSchema(bundledSchema);
@@ -28,8 +32,9 @@ const SPECS = indexSchema(bundledSchema);
 export function presetInfo(
   base: Omit<PresetInfo, 'amp' | 'cab' | 'blocks'>,
   values: Record<string, number>,
+  board?: readonly string[],
 ): PresetInfo {
-  return { ...base, ...describePreset(values, SPECS) };
+  return { ...base, ...describePreset(values, SPECS, board) };
 }
 
 /** Parses a .sedefpreset file; null when it is not a valid preset. */
@@ -47,6 +52,7 @@ export function parsePresetFile(json: string): MockPreset | null {
     if (typeof value === 'number' && Number.isFinite(value) && !isGlobalParam(id))
       values[id] = value;
   }
+  const board = Array.isArray(file.board) ? sanitiseBoard(file.board) : undefined;
   return {
     info: presetInfo(
       {
@@ -62,8 +68,10 @@ export function parsePresetFile(json: string): MockPreset | null {
         description: typeof file.description === 'string' ? file.description : '',
       },
       values,
+      board,
     ),
     values,
+    ...(board ? { board } : {}),
   };
 }
 

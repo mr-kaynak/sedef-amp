@@ -10,6 +10,7 @@
     "surf"
   ],
   "description": "Round clean with a pulsing tremolo. Surf, country and vintage soul.",
+  "board": ["gate", "ripple"],
   "parameters": {
     "ampModel": 0,
     "micAPosition": 0.4,

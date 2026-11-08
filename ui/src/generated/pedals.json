@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "pedals": [
+    {"id": "gate", "name": "Gate", "category": "Dynamics", "rank": 10, "enable": "gateEnabled"},
+    {"id": "tide", "name": "Tide", "category": "Dynamics", "rank": 30, "enable": "tideEnabled"},
+    {"id": "pearl", "name": "Pearl", "category": "Drive", "rank": 50, "enable": "pearlEnabled"},
+    {"id": "coral", "name": "Coral", "category": "Drive", "rank": 60, "enable": "coralEnabled"},
+    {"id": "ripple", "name": "Ripple", "category": "Modulation", "rank": 80, "enable": "rippleEnabled"},
+    {"id": "trench", "name": "Trench", "category": "Pitch", "rank": 15, "enable": "trenchEnabled"},
+    {"id": "urchin", "name": "Urchin", "category": "Fuzz", "rank": 40, "enable": "urchinEnabled"},
+    {"id": "kelp", "name": "Kelp", "category": "Drive", "rank": 55, "enable": "kelpEnabled"},
+    {"id": "remora", "name": "Remora", "category": "Fuzz", "rank": 20, "enable": "remoraEnabled"},
+    {"id": "sargasso", "name": "Sargasso", "category": "Fuzz", "rank": 45, "enable": "sargassoEnabled"},
+    {"id": "breaker", "name": "Breaker", "category": "Drive", "rank": 95, "enable": "breakerEnabled"},
+    {"id": "anemone", "name": "Anemone", "category": "Filter", "rank": 17, "enable": "anemoneEnabled"},
+    {"id": "conch", "name": "Conch", "category": "Filter", "rank": 18, "enable": "conchEnabled"},
+    {"id": "beacon", "name": "Beacon", "category": "Modulation", "rank": 65, "enable": "beaconEnabled"},
+    {"id": "gyre", "name": "Gyre", "category": "Modulation", "rank": 70, "enable": "gyreEnabled"},
+    {"id": "jetty", "name": "Jetty", "category": "Modulation", "rank": 75, "enable": "jettyEnabled"}
+  ],
+  "legacy": ["gate", "trench", "anemone", "conch", "remora", "tide", "urchin", "sargasso", "pearl", "kelp", "coral", "beacon", "gyre", "jetty", "ripple", "breaker"]
+}

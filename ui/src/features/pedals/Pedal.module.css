@@ -4,7 +4,7 @@
   display: grid;
   grid-template-rows: 196px auto 1fr auto auto;
   justify-items: center;
-  width: 236px;
+  width: 220px;
   height: 452px;
   padding: 26px 18px 22px;
   border-radius: 16px;
@@ -28,6 +28,15 @@
   justify-items: center;
   row-gap: 14px;
   width: 100%;
+}
+
+/* One column of controls (the gate). */
+.narrow {
+  width: 160px;
+}
+
+.narrow .controls {
+  grid-template-columns: 1fr;
 }
 
 .identity {

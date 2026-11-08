@@ -1,0 +1,42 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+.span2 {
+  grid-column: span 2;
+}
+
+/* Tide's gain-reduction ladder. */
+.gr {
+  width: 96px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgb(0 0 0 / 0.3);
+  overflow: hidden;
+}
+
+.grFill {
+  width: 100%;
+  height: 100%;
+  background: var(--amber);
+  transform-origin: 0 50%;
+  transform: scaleX(var(--gr, 0));
+}
+
+/* The gate's state, under its name. */
+.gateState {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--legend-dim);
+  font-size: var(--t-11);
+}
+
+/* The blink's brightness is written every frame from the Speed knob (--blink, RipplePanel.tsx).
+   A looping blink is decoration on top of the lit LED: it stands still with reduced motion. */
+.rate[data-on] {
+  display: inline-flex;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .rate[data-on] {
+    opacity: var(--blink, 1);
+  }
+}

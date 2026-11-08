@@ -47,3 +47,11 @@ if(SEDEF_BUILD_TESTS)
         target_compile_definitions(sedef-transpose-bench PRIVATE SEDEF_HAVE_STRETCH=1)
     endif()
 endif()
+
+if(SEDEF_BUILD_TESTS)
+    # Guitar-to-MIDI renders, scenario dumps and CPU bench (docs/design/guitar-to-midi.md). Not
+    # shipped.
+    add_executable(sedef-midi-render midi/sedef_midi_render.cpp)
+    target_include_directories(sedef-midi-render PRIVATE ${PROJECT_SOURCE_DIR}/engine/tests)
+    target_link_libraries(sedef-midi-render PRIVATE sedef::engine sedef::compiler_settings Catch2::Catch2)
+endif()

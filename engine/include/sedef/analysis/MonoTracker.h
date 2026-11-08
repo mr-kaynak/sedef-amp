@@ -81,6 +81,9 @@ public:
     /// Level of the latest pick, for velocity: the highest 2 ms RMS of the band-limited input
     /// (40 Hz to 1.5 kHz) over the 10 ms after it, as a linear amplitude. 0 before any pick.
     float pickLevel() const noexcept;
+    /// Increments on every pick (reset() starts it again from 0): a layer that compares it from
+    /// one sample to the next sees each pick once, on the push that detected it.
+    std::uint32_t pickCount() const noexcept { return pickCount_; }
 
 private:
     struct KeyMax
@@ -138,7 +141,8 @@ private:
     int onsetHops_ = 0, onsetWindowHops_ = 0;
     int samplesSinceOnset_ = 0; ///< decimated samples since the last pick
     bool picked_ = false;       ///< a pick has been seen since the last reset
-    float pickPeak_ = 0.0f;     ///< highest fast power since the last pick, within its window
+    std::uint32_t pickCount_ = 0;
+    float pickPeak_ = 0.0f; ///< highest fast power since the last pick, within its window
     int pickWindow_ = 0, pickWindowSamples_ = 0; ///< decimated samples left / in the window
     Event event_ = Event::none;
     int rising_ = 0; ///< decimated samples the power has been rising

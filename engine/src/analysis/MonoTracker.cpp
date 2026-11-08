@@ -141,6 +141,7 @@ void MonoTracker::reset() noexcept
     rising_ = 0;
     samplesSinceOnset_ = 1 << 24;
     picked_ = false;
+    pickCount_ = 0;
     pickPeak_ = 0.0f;
     pickWindow_ = 0;
     event_ = Event::none;
@@ -273,6 +274,7 @@ void MonoTracker::updateLags (float x) noexcept
         refractory_ = refractorySamples_;
         samplesSinceOnset_ = rising_;
         picked_ = true;
+        ++pickCount_;
         pickPeak_ = 0.0f;
         pickWindow_ = pickWindowSamples_;
     }

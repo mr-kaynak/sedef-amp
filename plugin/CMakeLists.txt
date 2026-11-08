@@ -228,7 +228,10 @@ if(SEDEF_UPDATE_CHECK AND SEDEF_BUILD_PLUGIN_TESTS)
 
     list(APPEND CMAKE_MODULE_PATH ${Catch2_SOURCE_DIR}/extras)
     include(Catch)
-    catch_discover_tests(sedef_update_tests DISCOVERY_MODE PRE_TEST TEST_PREFIX "update: ")
+    # The install tests compare the system-wide temporary install folders before and after a run,
+    # so they must not overlap under ctest -j.
+    catch_discover_tests(sedef_update_tests DISCOVERY_MODE PRE_TEST TEST_PREFIX "update: "
+        PROPERTIES RESOURCE_LOCK sedef_update_install_folders)
 endif()
 
 # sedef-update-check: what the plug-in's checker sees, against the real GitHub API.

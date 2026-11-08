@@ -2,9 +2,11 @@
 #include "OctaverChords.h"
 #include "sedef/dsp/detail/PolySub.h"
 
+#include <algorithm>
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include <cstdio>
+#include <vector>
 
 using namespace sedef;
 using dsp::detail::PolySub;

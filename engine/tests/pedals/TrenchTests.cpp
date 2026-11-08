@@ -4,8 +4,13 @@
 #include "PedalTestUtils.h"
 #include "sedef/dsp/Trench.h"
 
+#include <algorithm>
 #include <catch2/catch_test_macros.hpp>
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
 #include <cstdio>
+#include <vector>
 
 using namespace sedef;
 using dsp::Trench;

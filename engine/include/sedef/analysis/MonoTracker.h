@@ -63,6 +63,25 @@ public:
     float fundamentalRe() const noexcept { return zRe2_; }
     float fundamentalIm() const noexcept { return zIm2_; }
 
+    /// What the latest push() changed. A note-to-MIDI layer places the event at the sample whose
+    /// push() returned it (its offset in the block) and reads the pick from samplesSincePick().
+    enum class Event : std::uint8_t
+    {
+        none,
+        noteOn,     ///< a note locked while none was held
+        noteChange, ///< a different note took over: the old one ends and the new one starts here.
+                    ///< A legato step may instead be followed like a bend (hz() moves to it
+                    ///< either way); a layer that wants one note per semitone quantises hz().
+        noteOff,    ///< the held note was let go (it faded, or stopped being periodic)
+    };
+    Event event() const noexcept { return event_; }
+    /// Input samples since the latest pick (dated back to where its rise began), -1 before any:
+    /// how far before a note-on its pick was.
+    int samplesSincePick() const noexcept;
+    /// Level of the latest pick, for velocity: the highest 2 ms RMS of the band-limited input
+    /// (40 Hz to 1.5 kHz) over the 10 ms after it, as a linear amplitude. 0 before any pick.
+    float pickLevel() const noexcept;
+
 private:
     struct KeyMax
     {
@@ -118,7 +137,11 @@ private:
     int refractory_ = 0, refractorySamples_ = 0;
     int onsetHops_ = 0, onsetWindowHops_ = 0;
     int samplesSinceOnset_ = 0; ///< decimated samples since the last pick
-    int rising_ = 0;            ///< decimated samples the power has been rising
+    bool picked_ = false;       ///< a pick has been seen since the last reset
+    float pickPeak_ = 0.0f;     ///< highest fast power since the last pick, within its window
+    int pickWindow_ = 0, pickWindowSamples_ = 0; ///< decimated samples left / in the window
+    Event event_ = Event::none;
+    int rising_ = 0; ///< decimated samples the power has been rising
     float candidateHz_ = 0.0f;
     int candidateHops_ = 0;
     bool locked_ = false;

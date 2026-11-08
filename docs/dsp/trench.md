@@ -71,6 +71,12 @@ what is its fundamental as an analytic (complex) signal.
   frequency is measured on the resonator output (its phase turn per sample, smoothed over four
   periods) and reported, but never fed back: a frequency-locked loop around a narrow resonator
   was unstable.
+- **For a note-to-MIDI layer** (nothing MIDI is built yet), every push() also says what changed:
+  `event()` is a note-on (a note locked), a note change (a different note took over) or a
+  note-off, at the sample that returns it; `samplesSincePick()` dates the pick behind it (the
+  rise of its onset); `pickLevel()` is the pick's peak 2 ms RMS over its first 10 ms, a velocity
+  source; `hz()` is the continuous pitch (for bends and vibrato) and `clarity()` the confidence. A
+  legato step may come as a glide of `hz()` rather than a note change.
 
 ### Why the first tracker chopped
 

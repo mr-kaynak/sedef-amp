@@ -3,9 +3,13 @@
 #include "PitchTestSignals.h"
 #include "sedef/analysis/MonoTracker.h"
 
+#include <algorithm>
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
+#include <cstddef>
+#include <cstdint>
 #include <cstdio>
+#include <vector>
 
 using namespace sedef;
 using analysis::MonoTracker;
@@ -242,5 +246,95 @@ TEST_CASE ("MonoTracker resets to its initial state", "[analysis][monotracker]")
         fresh.push (x);
         REQUIRE (m.fundamentalRe() == fresh.fundamentalRe());
         REQUIRE (m.hz() == fresh.hz());
+    }
+}
+
+TEST_CASE ("MonoTracker reports what a note-to-MIDI layer needs", "[analysis][monotracker]")
+{
+    // One note-on per note, at the push where the note locks, with the pick a lock time before it;
+    // a pick level that follows how hard the string was picked; a note change for every legato
+    // step; a note-off once the note stops; and the pitch and confidence on every sample.
+    for (double f : { kE2, kA3 })
+    {
+        INFO ("note " << f << " Hz");
+        for (float peak : { 0.3f, 0.03f })
+        {
+            INFO ("peak " << peak);
+            auto p = bridgePluck (f);
+            p.peak = peak;
+            p.pickNoise = 0.1f * peak;
+            p.muteAt = 0.6;
+            const auto s = single ("note", p, kFs, 1.2);
+            MonoTracker m;
+            m.prepare (kFs);
+            int ons = 0, offs = 0, changes = 0;
+            size_t onAt = 0, offAt = 0;
+            int pickAgo = -1;
+            float level = 0.0f;
+            for (size_t i = 0; i < s.signal.size(); ++i)
+            {
+                m.push (s.signal[i]);
+                switch (m.event())
+                {
+                case MonoTracker::Event::noteOn:
+                    ++ons;
+                    onAt = i;
+                    pickAgo = m.samplesSincePick();
+                    level = m.pickLevel();
+                    CHECK (m.voiced());
+                    CHECK (std::abs (test::centsError (m.hz(), f)) < 20.0);
+                    CHECK (m.clarity() > 0.0f);
+                    break;
+                case MonoTracker::Event::noteOff:
+                    ++offs;
+                    offAt = i;
+                    CHECK_FALSE (m.voiced());
+                    break;
+                case MonoTracker::Event::noteChange:
+                    ++changes;
+                    break;
+                case MonoTracker::Event::none:
+                    break;
+                }
+            }
+            CHECK (ons == 1);
+            CHECK (changes == 0);
+            CHECK (offs == 1);
+            // The pick was at 0.1 s: samplesSincePick() points back to it within 2 ms.
+            const double pickAt = static_cast<double> (onAt - static_cast<size_t> (pickAgo)) / kFs;
+            CHECK (std::abs (pickAt - 0.1) < 0.002);
+            // The note-off comes after the mute (0.7 s): within the string's 5 ms damping, the
+            // estimator's window, the 30 ms hold and a hop.
+            const double offSeconds = static_cast<double> (offAt) / kFs;
+            CHECK (offSeconds > 0.7);
+            CHECK (offSeconds < 0.7 + 0.08);
+            CHECK (level > 0.0f);
+            INFO ("pick level " << level);
+            CHECK (level > 0.1f * peak);
+            CHECK (level < 1.0f * peak);
+        }
+    }
+
+    // Hammer-ons a whole step apart: one note-on, no note-off until the run ends, and the pitch
+    // on every step (a step is reported as a note change, or followed like a bend; see
+    // "MonoTracker follows vibrato, bends and legato runs" for its timing).
+    for (double f : { kA2, kE3 })
+    {
+        INFO ("legato run from " << f << " Hz");
+        const auto s = legatoRun (f, kFs);
+        MonoTracker m;
+        m.prepare (kFs);
+        int ons = 0, changes = 0, offsBeforeEnd = 0;
+        const auto end = static_cast<size_t> (s.notes.back().end * kFs);
+        for (size_t i = 0; i < s.signal.size(); ++i)
+        {
+            m.push (s.signal[i]);
+            ons += m.event() == MonoTracker::Event::noteOn ? 1 : 0;
+            changes += m.event() == MonoTracker::Event::noteChange ? 1 : 0;
+            offsBeforeEnd += m.event() == MonoTracker::Event::noteOff && i < end ? 1 : 0;
+        }
+        CHECK (ons == 1);
+        CHECK (changes <= static_cast<int> (s.notes.size()) - 1);
+        CHECK (offsBeforeEnd == 0);
     }
 }

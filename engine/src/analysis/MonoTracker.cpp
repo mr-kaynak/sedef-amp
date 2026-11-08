@@ -30,6 +30,7 @@ constexpr float kClickFloor = 1.0e-8f; // -80 dBFS
 constexpr float kOnsetFloor = 1.0e-7f; // -70 dBFS
 constexpr double kRefractorySeconds = 0.025;
 constexpr double kOnsetWindowSeconds = 0.04;
+constexpr double kPickLevelSeconds = 0.01;     // a pick's level is its peak over this long
 constexpr double kCleanMarginSeconds = 0.0005; // the detector fires just after the pick starts
 constexpr double kAttackSeconds = 0.008;       // and nothing is judged inside the attack itself
 // A period whose own frequency carries less than this share of the energy (-30 dB) is a virtual
@@ -92,6 +93,7 @@ void MonoTracker::prepare (double sampleRate, float minHz, float maxHz)
     slowCoeff_ = static_cast<float> (1.0 - std::exp (-1.0 / (kSlowPowerSeconds * rate_)));
     refractorySamples_ = static_cast<int> (std::lround (kRefractorySeconds * rate_));
     onsetWindowHops_ = static_cast<int> (std::lround (kOnsetWindowSeconds / hopSeconds));
+    pickWindowSamples_ = static_cast<int> (std::lround (kPickLevelSeconds * rate_));
     lockHops_ = 2;
     switchHops_ = std::max (2, static_cast<int> (std::lround (kSwitchSeconds / hopSeconds)));
 
@@ -138,6 +140,10 @@ void MonoTracker::reset() noexcept
     onsetHops_ = 0;
     rising_ = 0;
     samplesSinceOnset_ = 1 << 24;
+    picked_ = false;
+    pickPeak_ = 0.0f;
+    pickWindow_ = 0;
+    event_ = Event::none;
     zRe1_ = zIm1_ = zRe2_ = zIm2_ = 0.0f;
     steer (200.0f);
 }
@@ -162,8 +168,19 @@ void MonoTracker::steer (float hz) noexcept
     gain_ = static_cast<float> (1.0 - r);
 }
 
+int MonoTracker::samplesSincePick() const noexcept
+{
+    return picked_ ? samplesSinceOnset_ * factor_ + phase_ : -1;
+}
+
+float MonoTracker::pickLevel() const noexcept
+{
+    return std::sqrt (pickPeak_);
+}
+
 void MonoTracker::push (float x) noexcept
 {
+    event_ = Event::none;
     const float band = aa2_.process (aa1_.process (hp_.process (x)));
     // The pick's click, above the strings' strongest partials: it shows a new pick even when the
     // low band hardly rises (a note picked over a louder ringing string).
@@ -255,6 +272,14 @@ void MonoTracker::updateLags (float x) noexcept
         onsetHops_ = onsetWindowHops_;
         refractory_ = refractorySamples_;
         samplesSinceOnset_ = rising_;
+        picked_ = true;
+        pickPeak_ = 0.0f;
+        pickWindow_ = pickWindowSamples_;
+    }
+    if (pickWindow_ > 0)
+    {
+        --pickWindow_;
+        pickPeak_ = std::max (pickPeak_, fastPower_);
     }
 
     const double x0 = x;
@@ -488,6 +513,7 @@ void MonoTracker::track() noexcept
         if (candidateHops_ >= lockHops_)
         {
             locked_ = true;
+            event_ = Event::noteOn;
             lockedHz_ = estimateHz_;
             holdHops_ = 0;
             candidateHops_ = 0;
@@ -530,6 +556,7 @@ void MonoTracker::track() noexcept
             partialHz_ = lockedHz_;
             partialSettled_ = false;
             ++noteId_;
+            event_ = Event::noteChange;
             steer (lockedHz_);
             return;
         }
@@ -549,6 +576,7 @@ void MonoTracker::track() noexcept
     {
         locked_ = false;
         candidateHops_ = 0;
+        event_ = Event::noteOff;
     }
     // While the resonators narrow onto a new note they follow the estimate; then they stay put
     // unless the note moves away by more than the dead band.

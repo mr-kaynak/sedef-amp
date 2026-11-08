@@ -35,7 +35,7 @@ SEDEF_PEDAL(ripple, "Ripple", Modulation, 80, rippleEnabled, dsp::Ripple,
 // The pedals lane: an octave divider, an octave-up fuzz and a mid-hump overdrive.
 SEDEF_PEDAL(trench, "Trench", Pitch, 15, trenchEnabled, dsp::Trench,
             (dsp::Trench::Settings { p[P::trenchDirect], p[P::trenchSub1], p[P::trenchSub2],
-                                     p[P::trenchTone] }))
+                                     p[P::trenchTone], p.choice (P::trenchMode) }))
 SEDEF_PEDAL(urchin, "Urchin", Fuzz, 40, urchinEnabled, dsp::Urchin,
             (dsp::Urchin::Settings { p[P::urchinFuzz], p[P::urchinOctave], p[P::urchinTone],
                                      p[P::urchinLevel] }))

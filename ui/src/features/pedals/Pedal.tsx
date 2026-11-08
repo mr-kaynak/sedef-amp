@@ -70,7 +70,7 @@ export function Pedal({
         <h2 className={styles.name}>{name}</h2>
         <p className={styles.kind}>{kind}</p>
       </div>
-      <div className={styles.status}>
+      <div className={[styles.status, status && hint && styles.stacked].filter(Boolean).join(' ')}>
         {status}
         {hint && (
           <p id={hintId} className={styles.hint}>

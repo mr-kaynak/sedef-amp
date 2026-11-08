@@ -53,7 +53,7 @@ export const PEDAL_CATALOG: Record<string, PedalEntry> = {
   trench: {
     Panel: TrenchPedal,
     kind: 'Octave down',
-    description: 'One and two octaves below single notes, like a baritone.',
+    description: 'One and two octaves below single notes or whole chords.',
   },
   urchin: {
     Panel: UrchinPedal,

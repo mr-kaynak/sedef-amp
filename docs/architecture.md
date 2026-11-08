@@ -375,7 +375,7 @@ The EQ bank always follows the amp.
 | Module | Character | Notes |
 |---|---|---|
 | Gate | Sidechained downward expander with hysteresis and hold | detector on raw input |
-| Trench | Analog-style octave divider, −1 and −2 octaves | tracking low-pass, Schmitt trigger, flip-flops, polyBLEP; no OS ([trench.md](dsp/trench.md)) |
+| Trench | Octave down, −1 and −2 octaves: Mono (analog-style divider) or Poly (chords) | Mono: NSDF note tracker, steered resonators, half-phase Schmitt trigger, flip-flops, polyBLEP; Poly: decimated complex filter bank, one voice per spectral peak, halved phase steps; no OS ([trench.md](dsp/trench.md)) |
 | Remora | Two-transistor feedback fuzz, germanium / silicon | Ebers–Moll pair, guitar-volume clean-up, bias servo, 4× OS ([remora.md](dsp/remora.md)) |
 | Tide | Fixed-threshold 3:1 compressor, tilt EQ, parallel blend | soft knee, program-dependent release |
 | Urchin | Transformer-and-diodes octave-up fuzz | full-wave rectifier into an asymmetric clipper, 4× OS, ADAA ([urchin.md](dsp/urchin.md)) |

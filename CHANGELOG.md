@@ -44,6 +44,13 @@ All notable changes to this project are documented here. The format follows
 - The Gate is a board pedal, first by default; it still listens to the guitar wherever it sits.
 - `sedef-render --board gate,tide,…` renders through a given board (without it, a preset's own
   board), and `--switch 2.5=ripple,gate,…` changes the board mid-render.
+- **Trench Poly:** a Mono/Poly switch on Trench. Poly divides every string of a chord, so open
+  chords, power chords and barres get their octave down: each note's sub lands within 1.3 cents,
+  what is neither a note nor one of its partials stays 24 dB under the rest, and a sub speaks
+  7–12 ms after the pick. Mono, the default, is the analog-style divider for single notes, so
+  sessions and presets made before keep their sound
+  ([docs/dsp/trench.md](docs/dsp/trench.md)).
+- New parameter (202 → 203): `trenchMode` (automatable; Mono by default).
 
 ### Changed
 
@@ -83,6 +90,12 @@ All notable changes to this project are documented here. The format follows
   (a test renders each one against the fixed chain). A new instance and Init open with the Gate
   alone, the only pedal on by default; add the rest from the picker.
 - The Pedals tab shows a lamp for each pedal on the board, in its order.
+- **Trench tracks real playing.** On real guitar DI its sub chopped on and off 12–20 times a
+  second: a bright pickup's 2nd and 3rd partials, the pick and the last note still ringing threw
+  its period detector off. A new note tracker holds the note through all of them: on a recorded
+  fingerstyle piece the sub is on 97 % of the time instead of 69 %, with 1.3 flips a second
+  instead of 19.6. It locks in about two periods of the note (28 ms on the low E, 11 ms from E4
+  up), follows vibrato, bends and hammer-ons, and keeps palm-muted sixteenths at an even level.
 
 ## [0.4.0] - 2026-11-04
 

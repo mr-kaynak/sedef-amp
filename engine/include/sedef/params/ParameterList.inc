@@ -209,3 +209,4 @@ SEDEF_PARAM(beaconEnabled, "Beacon", "Beacon", Bool, 0.0f, 1.0f, 0.0f, 1.0f, "",
 SEDEF_PARAM(beaconSpeed, "Beacon Speed", "Beacon", Float, 0.3f, 8.0f, 2.0f, 0.381f, "Hz", "", true)
 SEDEF_PARAM(beaconDepth, "Beacon Depth", "Beacon", Float, 0.0f, 1.0f, 0.7f, 1.0f, "knob", "", true)
 SEDEF_PARAM(beaconMode, "Beacon Mode", "Beacon", Choice, 0.0f, 1.0f, 0.0f, 1.0f, "", "Chorus|Vibrato", true)
+SEDEF_PARAM(trenchMode, "Trench Mode", "Trench", Choice, 0.0f, 1.0f, 0.0f, 1.0f, "", "Mono|Poly", true)

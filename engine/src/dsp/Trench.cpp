@@ -10,26 +10,15 @@ namespace sedef::dsp
 {
 namespace
 {
-// Detector: rumble and pick noise out, then the tracking low-pass (two Butterworth sections whose
-// corner sits kTrackRatio above the note being divided). While it has no note, the corner rests
-// low, where every guitar fundamental's harmonics are attenuated more than the fundamental.
+// Level detector: rumble and pick noise out, then mean |x|.
 constexpr double kDetectorHpHz = 45.0;
 constexpr double kDetectorHpQ = 0.5;
 constexpr double kDetectorLpHz = 1100.0;
 constexpr double kDetectorLpQ = 0.7071;
-constexpr float kTrackRatio = 1.5f;
-constexpr float kSearchHz = 200.0f;
-constexpr float kMinTrackHz = 60.0f;
-constexpr float kMaxTrackHz = 1100.0f;
-constexpr float kCornerDeadband = 0.12f;
-constexpr double kTrackGlideSeconds = 0.008;
-constexpr double kSearchGlideSeconds = 0.02;
 
-// Schmitt trigger: thresholds at +-kHysteresis of the filtered signal's recent peak.
-constexpr float kHysteresis = 0.3f;
-constexpr double kLowestHz = 40.0;    // longer periods mean the tracker has lost the note
-constexpr double kHighestHz = 1400.0; // shorter ones are noise, not a note
-constexpr double kAgreement = 0.08;   // consecutive periods within 8 % count as the same note
+// Divider: a Schmitt trigger on the cosine of the half phase, so phase wiggles of up to
+// asin (0.25) around a crossing cannot toggle the flip-flop twice.
+constexpr float kHalfHysteresis = 0.25f;
 
 // Envelope and gate.
 constexpr double kLevelSeconds = 0.010; // mean |x|
@@ -37,7 +26,6 @@ constexpr float kOpenLevel = 0.0025f;   // -52 dBFS mean |x|
 constexpr float kCloseLevel = 0.0012f;  // -58 dBFS
 constexpr double kGateAttackSeconds = 0.004;
 constexpr double kGateReleaseSeconds = 0.015;
-constexpr double kConfidenceSeconds = 0.006;
 constexpr float kSubScale = 0.95f; // at noon the sub is within ~2 dB of the note's level
 
 constexpr float kToneDarkHz = 150.0f;
@@ -47,6 +35,7 @@ constexpr double kDcHz = 10.0;
 
 constexpr double kGainRampSeconds = 0.03;
 constexpr double kFilterSmoothingSeconds = 0.02;
+constexpr double kModeFadeSeconds = 0.02;
 
 float onePole (double seconds, double fs) noexcept
 {
@@ -62,15 +51,21 @@ void Trench::prepare (const ProcessSpec& spec)
     levelCoeff_ = onePole (kLevelSeconds, sampleRate_);
     gateAttack_ = onePole (kGateAttackSeconds, sampleRate_);
     gateRelease_ = onePole (kGateReleaseSeconds, sampleRate_);
-    confidenceCoeff_ = onePole (kConfidenceSeconds, sampleRate_);
-    minPeriod_ = sampleRate_ / kHighestHz;
-    maxPeriod_ = sampleRate_ / kLowestHz;
 
     direct_.reset (sampleRate_, kGainRampSeconds);
     sub1_.reset (sampleRate_, kGainRampSeconds);
     sub2_.reset (sampleRate_, kGainRampSeconds);
     tone_.reset (sampleRate_, kFilterSmoothingSeconds);
+    polyStep_ = static_cast<float> (1.0 / (kModeFadeSeconds * sampleRate_));
 
+    for (auto& t : trackers_)
+    {
+        t.mono.prepare (sampleRate_);
+        t.poly.prepare (sampleRate_);
+        t.hp.c = design::highpass (sampleRate_, kDetectorHpHz, kDetectorHpQ);
+        t.lp.c = design::lowpass (sampleRate_, kDetectorLpHz, kDetectorLpQ);
+        t.dc.c = design::highpass1 (sampleRate_, kDcHz);
+    }
     applySettings (true);
     reset();
 }
@@ -79,15 +74,29 @@ void Trench::reset() noexcept
 {
     for (auto& t : trackers_)
     {
-        t = Tracker {};
-        t.hp.c = design::highpass (sampleRate_, kDetectorHpHz, kDetectorHpQ);
-        t.lp.c = design::lowpass (sampleRate_, kDetectorLpHz, kDetectorLpQ);
-        t.dc.c = design::highpass1 (sampleRate_, kDcHz);
+        resetMono (t);
+        t.poly.reset();
+        t.polyGate = 0.0f;
+        for (auto* s : { &t.hp, &t.lp, &t.tone, &t.dc })
+            s->clear();
+        t.level = 0.0f;
+        t.levelOpen = false;
         t.tone.c = toneCoeffs_;
-        t.trackHz = t.targetHz = kSearchHz;
-        updateTracking (t);
     }
+    poly_ = settings_.mode == Poly ? 1.0f : 0.0f;
     primed_ = false;
+}
+
+void Trench::resetMono (Tracker& t) noexcept
+{
+    t.mono.reset();
+    t.halfRe = 1.0f;
+    t.halfIm = 0.0f;
+    t.previousHalf = 1.0f;
+    t.sub1 = {};
+    t.sub2 = {};
+    t.gate = 0.0f;
+    t.pendingAmp = 0.0f;
 }
 
 void Trench::setSettings (const Settings& s) noexcept
@@ -100,8 +109,7 @@ void Trench::setSettings (const Settings& s) noexcept
 Trench::TrackState Trench::trackState() const noexcept
 {
     const auto& t = trackers_[0];
-    return { t.period > 0.0 ? static_cast<float> (sampleRate_ / t.period) : 0.0f, t.confidence,
-             t.gate };
+    return { t.mono.hz(), t.mono.clarity(), t.gate, poly_ > 0.0f ? t.poly.partials() : 0 };
 }
 
 void Trench::applySettings (bool snap) noexcept
@@ -117,6 +125,7 @@ void Trench::applySettings (bool snap) noexcept
         sub2_.setCurrentAndTarget (sub2);
         tone_.setCurrentAndTarget (tone);
         updateTone (tone);
+        poly_ = settings_.mode == Poly ? 1.0f : 0.0f;
     }
     else
     {
@@ -134,140 +143,101 @@ void Trench::updateTone (float tone) noexcept
         t.tone.c = toneCoeffs_;
 }
 
-void Trench::updateTracking (Tracker& t) noexcept
-{
-    // Once per control block: the tracking corner glides to the note (or back to rest). It follows
-    // the median of the last three agreeing periods and only moves for a real change of note:
-    // a corner that chased every period would shift the filter's delay, and with it the next edge,
-    // and the tracker would start to wobble around the note.
-    const bool tracking = t.period > 0.0 && t.recentCount >= 3;
-    if (tracking)
-    {
-        auto r = t.recent;
-        std::sort (r.begin(), r.end());
-        const float hz = std::clamp (kTrackRatio * static_cast<float> (sampleRate_ / r[1]),
-                                     kMinTrackHz, kMaxTrackHz);
-        if (std::abs (hz - t.targetHz) > kCornerDeadband * t.targetHz)
-            t.targetHz = hz;
-    }
-    else
-    {
-        t.targetHz = kSearchHz;
-    }
-    const double glide = tracking ? kTrackGlideSeconds : kSearchGlideSeconds;
-    const auto k = static_cast<float> (1.0 - std::exp (-kControlBlock / (glide * sampleRate_)));
-    t.trackHz += k * (t.targetHz - t.trackHz);
-    t.track1.c = design::lowpass (sampleRate_, t.trackHz, 0.7071);
-    t.track2.c = t.track1.c;
-}
-
 void Trench::flush (Tracker& t) noexcept
 {
     // Silence decays every state towards zero; keep it out of the denormal range.
-    for (auto* section : { &t.hp, &t.lp, &t.track1, &t.track2, &t.tone, &t.dc })
+    for (auto* section : { &t.hp, &t.lp, &t.tone, &t.dc })
         section->flush();
-    for (auto* v : { &t.level, &t.peak, &t.gate, &t.pendingAmp })
+    for (auto* v : { &t.level, &t.gate, &t.pendingAmp, &t.polyGate })
         *v = std::abs (*v) < 1.0e-20f ? 0.0f : *v;
 }
 
-float Trench::subSample (Tracker& t, float x, float g1, float g2) noexcept
+void Trench::updateLevel (Tracker& t, float x) noexcept
 {
-    // 1. Detector: band-limit, envelope, tracking low-pass, Schmitt trigger.
+    // Band-limited mean |x|, and whether it is loud enough for the subs (with hysteresis).
     const float det = t.lp.process (t.hp.process (x));
     t.level += levelCoeff_ * (std::abs (det) - t.level);
-    const float d = t.track2.process (t.track1.process (det));
+    if (t.levelOpen ? t.level < kCloseLevel : t.level > kOpenLevel)
+        t.levelOpen = !t.levelOpen;
+}
 
-    // The peak decays over about a period and a half of the note, so the thresholds follow a
-    // fading string without dropping below the harmonics' wiggles.
-    const double releaseSamples = std::clamp (t.period > 0.0 ? 1.5 * t.period : 0.01 * sampleRate_,
-                                              0.003 * sampleRate_, 0.03 * sampleRate_);
-    const auto release = static_cast<float> (std::exp (-1.0 / releaseSamples));
-    t.peak = std::max (std::abs (d), t.peak * release);
-    const float threshold = kHysteresis * t.peak;
+float Trench::monoSample (Tracker& t, float x, float g1, float g2) noexcept
+{
+    // 1. Level: see updateLevel().
 
-    t.sinceEdge += 1.0;
+    // 2. The note and its fundamental. The fundamental's phase is halved by following it
+    //    sample by sample: the half angle turns by half of each step, so it stays continuous.
+    t.mono.push (x);
+    const float zr = t.mono.fundamentalRe();
+    const float zi = t.mono.fundamentalIm();
+    const float mag2 = zr * zr + zi * zi;
+    if (mag2 > 1.0e-24f)
+    {
+        const float inv = 1.0f / std::sqrt (mag2);
+        const float ur = zr * inv, ui = zi * inv;
+        // v = u * conj (half)^2: the step from the doubled half angle to the new phase.
+        const float cr = t.halfRe * t.halfRe - t.halfIm * t.halfIm;
+        const float ci = -2.0f * t.halfRe * t.halfIm;
+        const float vr = ur * cr - ui * ci;
+        const float vi = ur * ci + ui * cr;
+        const float sr = std::sqrt (std::max (0.0f, 0.5f * (1.0f + vr)));
+        const float si = std::copysign (std::sqrt (std::max (0.0f, 0.5f * (1.0f - vr))), vi);
+        const float nr = t.halfRe * sr - t.halfIm * si;
+        const float ni = t.halfRe * si + t.halfIm * sr;
+        const float norm = 1.0f / std::sqrt (nr * nr + ni * ni);
+        t.halfRe = nr * norm;
+        t.halfIm = ni * norm;
+    }
+
+    // 3. Schmitt trigger on cos (phase / 2): one edge per period of the note.
     bool edge = false;
     double ago = 0.0; // how long before this sample the edge happened, 0..1 samples
-    if (!t.high)
     {
-        if (d > threshold && t.peak > 1.0e-6f)
+        const float c = t.halfRe;
+        const float threshold = t.sub1.value > 0.0f ? -kHalfHysteresis : kHalfHysteresis;
+        if (t.sub1.value > 0.0f ? c < threshold : c > threshold)
         {
-            t.high = true;
-            const float before = t.previous - t.previousThreshold;
-            const float after = d - threshold;
-            const float frac = before < 0.0f ? before / (before - after) : 0.0f;
+            const float before = t.previousHalf - threshold;
+            const float after = c - threshold;
+            const float frac = before != after ? before / (before - after) : 1.0f;
             ago = 1.0 - static_cast<double> (std::clamp (frac, 0.0f, 1.0f));
             edge = true;
         }
+        t.previousHalf = c;
     }
-    else if (d < -threshold)
-    {
-        t.high = false;
-    }
-    t.previous = d;
-    t.previousThreshold = threshold;
 
-    // 2. Flip-flops, with polyBLEP corrections split between the previous sample (still pending,
-    //    output now) and this one.
+    // 4. Flip-flops, with polyBLEP corrections split between the previous sample (still pending,
+    //    output now) and this one. Sub -1 follows the trigger; sub -2 toggles on its falling edges.
     float out1 = t.sub1.pending;
     float out2 = t.sub2.pending;
     float now1 = t.sub1.value;
     float now2 = t.sub2.value;
     if (edge)
     {
-        const double interval = t.sinceEdge - ago;
-        if (interval >= minPeriod_)
+        const auto before = static_cast<float> (ago * ago);
+        const auto after = static_cast<float> ((1.0 - ago) * (1.0 - ago));
+        const float h1 = -2.0f * t.sub1.value;
+        t.sub1.value = -t.sub1.value;
+        out1 += 0.5f * h1 * before;
+        now1 = t.sub1.value - 0.5f * h1 * after;
+        if (t.sub1.value < 0.0f)
         {
-            const bool agrees =
-                t.period > 0.0 && std::abs (interval - t.period) < kAgreement * t.period;
-            t.agreeing = agrees ? t.agreeing + 1 : 0;
-            if (agrees)
-            {
-                t.recent[static_cast<size_t> (t.recentCount % 3)] = interval;
-                ++t.recentCount;
-            }
-            t.confidence =
-                agrees ? t.confidence + 0.5f * (1.0f - t.confidence) : 0.5f * t.confidence;
-            t.period = interval <= maxPeriod_ ? interval : 0.0;
-            t.sinceEdge = ago;
-
-            const auto before = static_cast<float> (ago * ago);
-            const auto after = static_cast<float> ((1.0 - ago) * (1.0 - ago));
-            const float h1 = -2.0f * t.sub1.value;
-            t.sub1.value = -t.sub1.value;
-            out1 += 0.5f * h1 * before;
-            now1 = t.sub1.value - 0.5f * h1 * after;
-            if (t.sub1.value < 0.0f)
-            {
-                const float h2 = -2.0f * t.sub2.value;
-                t.sub2.value = -t.sub2.value;
-                out2 += 0.5f * h2 * before;
-                now2 = t.sub2.value - 0.5f * h2 * after;
-            }
+            const float h2 = -2.0f * t.sub2.value;
+            t.sub2.value = -t.sub2.value;
+            out2 += 0.5f * h2 * before;
+            now2 = t.sub2.value - 0.5f * h2 * after;
         }
-    }
-    if (t.sinceEdge > maxPeriod_)
-    {
-        // Lost: no edge for longer than the lowest note's period.
-        t.period = 0.0;
-        t.agreeing = 0;
-        t.recentCount = 0;
-        t.confidence = 0.0f;
-        t.sinceEdge = maxPeriod_;
     }
     t.sub1.pending = now1;
     t.sub2.pending = now2;
 
-    // 3. Gate and envelope: the subs speak only while there is a note and the tracker follows it.
-    if (t.levelOpen ? t.level < kCloseLevel : t.level > kOpenLevel)
-        t.levelOpen = !t.levelOpen;
-    const float target = t.levelOpen ? t.confidence : 0.0f;
+    // 5. Gate and envelope: the subs speak only while there is a note and the tracker holds it.
+    const float target = t.levelOpen && t.mono.voiced() ? 1.0f : 0.0f;
     t.gate += (target > t.gate ? gateAttack_ : gateRelease_) * (target - t.gate);
 
     const float amp = t.pendingAmp;
     t.pendingAmp = t.gate * t.level * (0.5f * kPi);
-    const float sub = amp * (g1 * out1 + g2 * out2);
-    return t.dc.process (t.tone.process (sub));
+    return amp * (g1 * out1 + g2 * out2);
 }
 
 void Trench::process (const AudioView& io) noexcept
@@ -280,25 +250,56 @@ void Trench::process (const AudioView& io) noexcept
     for (int start = 0; start < n; start += kControlBlock)
     {
         const int end = std::min (n, start + kControlBlock);
-        if (tone_.isSmoothing())
-            updateTone (tone_.skip (end - start));
         for (int ch = 0; ch < channels; ++ch)
-        {
-            auto& t = trackers_[static_cast<size_t> (ch)];
-            flush (t);
-            updateTracking (t);
-        }
+            flush (trackers_[static_cast<size_t> (ch)]);
 
         for (int i = start; i < end; ++i)
         {
             const float gd = direct_.next();
             const float g1 = sub1_.next();
             const float g2 = sub2_.next();
+            // The tone moves every sample while it glides: Poly's subs are smooth enough to show
+            // the small steps a once-per-block update leaves.
+            if (tone_.isSmoothing())
+                updateTone (tone_.next());
+            // Mode: ramp towards the selected one. A path that has faded out is reset, so it
+            // starts clean when it is selected again.
+            const float before = poly_;
+            const float target = settings_.mode == Poly ? 1.0f : 0.0f;
+            poly_ = target > poly_ ? std::min (target, poly_ + polyStep_)
+                                   : std::max (target, poly_ - polyStep_);
+            const bool runMono = poly_ < 1.0f, runPoly = poly_ > 0.0f;
+            for (int ch = 0; ch < numChannels_; ++ch)
+            {
+                auto& t = trackers_[static_cast<size_t> (ch)];
+                if (before < 1.0f && !runMono)
+                    resetMono (t);
+                if (before > 0.0f && !runPoly)
+                {
+                    t.poly.reset();
+                    t.polyGate = 0.0f;
+                }
+            }
             for (int ch = 0; ch < channels; ++ch)
             {
+                auto& t = trackers_[static_cast<size_t> (ch)];
                 float& x = io.channel (ch)[i];
-                const float sub = subSample (trackers_[static_cast<size_t> (ch)], x, g1, g2);
-                x = gd * x + sub;
+                updateLevel (t, x);
+                float sub = 0.0f;
+                if (runMono)
+                    sub += (1.0f - poly_) * monoSample (t, x, g1, g2);
+                if (runPoly)
+                {
+                    // Poly's subs carry the input's own envelope; the gate only keeps hiss and
+                    // hum below the level gate from being divided.
+                    float p1 = 0.0f, p2 = 0.0f;
+                    t.poly.process (x, p1, p2);
+                    const float open = t.levelOpen ? 1.0f : 0.0f;
+                    t.polyGate +=
+                        (open > t.polyGate ? gateAttack_ : gateRelease_) * (open - t.polyGate);
+                    sub += poly_ * t.polyGate * (g1 * p1 + g2 * p2);
+                }
+                x = gd * x + t.dc.process (t.tone.process (sub));
             }
         }
     }

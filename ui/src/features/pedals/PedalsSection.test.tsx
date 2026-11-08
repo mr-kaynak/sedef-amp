@@ -2,7 +2,7 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { getValue } from '../../params/paramStore';
-import { setupMock, type Harness } from '../../test/harness';
+import { flush, setupMock, type Harness } from '../../test/harness';
 import { KelpPedal } from './KelpPedal';
 import { PedalBoard } from './PedalBoard';
 import { switchedOnBoardFor } from './registry';
@@ -74,6 +74,32 @@ describe('Trench, Urchin and Kelp panels', () => {
       }
     });
   }
+
+  it('Trench switches between Mono and Poly, and its hint follows the mode', async () => {
+    render(<TrenchPedal />);
+    const pedal = screen.getByRole('region', { name: 'Trench Octave down' });
+    const mode = within(pedal).getByRole('radiogroup', { name: 'Trench Mode' });
+    const mono = within(mode).getByRole('radio', { name: 'Mono' });
+    const toggle = within(pedal).getByRole('switch', { name: 'Trench on/off' });
+    // Mono is the default, so sessions and presets from before the switch keep their sound.
+    expect(mono).toHaveAttribute('aria-checked', 'true');
+    expect(toggle).toHaveAccessibleDescription('One note at a time');
+
+    fireEvent.keyDown(mono, { key: 'ArrowRight' });
+    expect(getValue('trenchMode')).toBe(1);
+    expect(within(mode).getByRole('radio', { name: 'Poly' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
+    expect(within(pedal).getByText('Chords and single notes')).toBeVisible();
+    expect(toggle).toHaveAccessibleDescription('Chords and single notes');
+    await flush();
+    expect(h.mock.value('trenchMode')).toBe(1);
+
+    fireEvent.click(within(mode).getByRole('radio', { name: 'Mono' }));
+    expect(getValue('trenchMode')).toBe(0);
+    expect(toggle).toHaveAccessibleDescription('One note at a time');
+  });
 
   it('sit in signal order on a board with every pedal', async () => {
     // Init's board holds the Gate alone; switch every pedal on to see where each one sits.

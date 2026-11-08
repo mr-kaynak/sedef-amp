@@ -152,7 +152,7 @@ validates everything, because state may come from an older build.
 
 ## The mock backend
 
-`MockBackend` holds values for all 202 parameters (from `src/generated/parameters.json`), the real
+`MockBackend` holds values for all 203 parameters (from `src/generated/parameters.json`), the real
 factory presets (`presets/factory/*.sedefpreset`, bundled at build time with `import.meta.glob`)
 plus one user preset, IR slots, UI state (in `localStorage` when running in a browser), tap tempo,
 and simulators. Preset handling mirrors `plugin/src/PresetManager.cpp`: ids are
@@ -201,7 +201,7 @@ browser the canvas fits the window. Everything is vector or text, so it stays cr
 | Header     | logo, preset bar (prev/next, category chip, name with dirty dot, A/B with copy, Save), input/output gain with peak meters, clip latches and the Doubler switch, Tuner, Intonation, Metronome (standalone only), Settings         |
 | Presets    | browser over the rig ([details](ui/presets.md)): rail, list with tag chips and search, detail pane with the chain by stage; click or arrows audition, Enter keeps, Esc goes back exactly; `[` `]` `P` `A` `B`                    |
 | Tabs       | Pedals · Amp · EQ · Cab · FX, keys 1–5 and arrow keys; each tab shows what is switched on inside it                                                                                                                              |
-| Pedals     | the pedalboard ([below](#pedalboard)): pedals in signal order, left to right and row by row; drag, arrow keys or move buttons to reorder; Remove with Undo; Add pedal picker by category. Gate (threshold, open/closed lamp); Remora Germanium/Silicon, Breaker Treble/Full, Conch Manual/Auto, Anemone mode and direction, Gyre stages and Beacon Chorus/Vibrato switches; Tide gain reduction, Ripple rate lamp, Beacon lamp and Gyre/Jetty sweep LEDs; playing hints on Trench and Urchin, read with their footswitch |
+| Pedals     | the pedalboard ([below](#pedalboard)): pedals in signal order, left to right and row by row; drag, arrow keys or move buttons to reorder; Remove with Undo; Add pedal picker by category. Gate (threshold, open/closed lamp); Trench Mono/Poly, Remora Germanium/Silicon, Breaker Treble/Full, Conch Manual/Auto, Anemone mode and direction, Gyre stages and Beacon Chorus/Vibrato switches; Tide gain reduction, Ripple rate lamp, Beacon lamp and Gyre/Jetty sweep LEDs; playing hints on Trench (it follows the mode: "One note at a time" in Mono, "Chords and single notes" in Poly) and Urchin, read with their footswitch |
 | Amp        | Lagoon/Reef/Abyss faceplates; Reef voice lever; Abyss bright/shift levers; amp/cab link; Capture: load or drop a .nam file, gear/author/model, trims, through-cab, interface level, recent, missing file                         |
 | EQ         | the current amp's bank: 9 faders on a log axis under a live response curve, low/high cut, on/off, flatten                                                                                                                        |
 | Cab        | cab picker; Mic A/B markers anywhere over the cone (drag or click to place, wheel or Alt-drag for distance, keys), off-axis stem, other speakers' map; type, position, distance, off-axis, level, pan, phase, room, custom IR    |

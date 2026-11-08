@@ -67,6 +67,14 @@
   min-height: 12px;
 }
 
+/* A switch with its hint under it: one group, tighter inside (4px) than to the name above and
+   the lamp below (about 8px each in the status row's 58px). */
+.stacked {
+  display: grid;
+  justify-items: center;
+  row-gap: 4px;
+}
+
 /* A short engraved instruction where playing it wrong makes the effect fail. */
 .hint {
   margin: 0;

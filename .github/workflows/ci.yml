@@ -177,7 +177,8 @@ jobs:
         shell: bash
         run: |
           tests=build/release/plugin/sedef_midi_tests_artefacts/Release/sedef_midi_tests
-          if [ "$RUNNER_OS" = "Linux" ]; then xvfb-run -a "$tests"; else "$tests"; fi
+          # Durations name each test as it finishes, so a crash shows where it happened.
+          if [ "$RUNNER_OS" = "Linux" ]; then xvfb-run -a "$tests" --durations yes; else "$tests" --durations yes; fi
       - name: UI smoke test (editor in a real WebView)
         shell: bash
         env:

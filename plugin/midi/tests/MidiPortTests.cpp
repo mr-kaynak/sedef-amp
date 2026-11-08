@@ -14,12 +14,6 @@ using sedef::midiplugin::MidiPortRouter;
 
 namespace
 {
-juce::ScopedJuceInitialiser_GUI& juceRuntime()
-{
-    static juce::ScopedJuceInitialiser_GUI runtime;
-    return runtime;
-}
-
 struct Received final : juce::MidiInputCallback
 {
     std::mutex lock;
@@ -60,7 +54,6 @@ sedef::midi::EventList eventsOf (std::initializer_list<sedef::midi::Event> list)
 
 TEST_CASE ("The virtual port carries the notes, spaced as played, and ends them", "[midi][ports]")
 {
-    juceRuntime();
     const juce::String name =
         "Sedef MIDI test " + juce::String (juce::Random::getSystemRandom().nextInt (100000));
     Received received;
@@ -121,7 +114,6 @@ TEST_CASE ("The virtual port carries the notes, spaced as played, and ends them"
 
 TEST_CASE ("A destination that cannot open says why", "[midi][ports]")
 {
-    juceRuntime();
     MidiPortRouter router ("Sedef MIDI test");
     router.setDestination (juce::String (MidiPortRouter::kDevicePrefix) + "no-such-device");
     REQUIRE (waitFor ([&router] { return router.status().isNotEmpty(); }));

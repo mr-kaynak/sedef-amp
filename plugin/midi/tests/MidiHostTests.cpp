@@ -37,25 +37,20 @@ std::string describe (const std::vector<Sent>& v, std::size_t i)
            std::to_string (s.bytes[1]) + " " + std::to_string (s.bytes[2]);
 }
 
-juce::ScopedJuceInitialiser_GUI& juceRuntime()
+/// Loads the VST3 prepared for blocks of up to `maxBlock` samples. A host never sends more than
+/// it prepared for: the wrappers size their buffers by it.
+std::unique_ptr<juce::AudioPluginInstance> load (int maxBlock = 256)
 {
-    static juce::ScopedJuceInitialiser_GUI runtime;
-    return runtime;
-}
-
-std::unique_ptr<juce::AudioPluginInstance> load()
-{
-    juceRuntime();
     juce::VST3PluginFormat format;
     juce::OwnedArray<juce::PluginDescription> types;
     format.findAllTypesForFile (types, SEDEF_MIDI_VST3_PATH);
     REQUIRE (!types.isEmpty());
     juce::String error;
-    auto plugin = format.createInstanceFromDescription (*types[0], kFs, 256, error);
+    auto plugin = format.createInstanceFromDescription (*types[0], kFs, maxBlock, error);
     INFO (error);
     REQUIRE (plugin != nullptr);
-    plugin->setPlayConfigDetails (1, 2, kFs, 256);
-    plugin->prepareToPlay (kFs, 256);
+    plugin->setPlayConfigDetails (1, 2, kFs, maxBlock);
+    plugin->prepareToPlay (kFs, maxBlock);
     return plugin;
 }
 
@@ -143,7 +138,7 @@ TEST_CASE ("The Sedef MIDI VST3 sends the engine's notes at their samples", "[mi
     for (int block : { 64, 256, 333 })
     {
         INFO ("block " << block);
-        auto plugin = load();
+        auto plugin = load (block);
         CHECK (plugin->getName() == "Sedef MIDI");
         CHECK (plugin->producesMidi());
         CHECK (plugin->getParameters().size() == static_cast<int> (sedef::midi::kNumParams) + 1);

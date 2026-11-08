@@ -145,6 +145,7 @@ if(SEDEF_BUILD_PLUGIN_TESTS)
     target_sources(sedef_midi_tests PRIVATE
         midi/tests/MidiHostTests.cpp
         midi/tests/MidiPortTests.cpp
+        midi/tests/MidiTestMain.cpp
         midi/MidiPortRouter.cpp
         src/ParameterLayout.cpp)
     target_include_directories(sedef_midi_tests PRIVATE
@@ -161,7 +162,7 @@ if(SEDEF_BUILD_PLUGIN_TESTS)
             juce::juce_audio_devices
             juce::juce_audio_processors
             juce::juce_gui_basics
-            Catch2::Catch2WithMain
+            Catch2::Catch2
         PUBLIC
             juce::juce_recommended_config_flags
             juce::juce_recommended_warning_flags)

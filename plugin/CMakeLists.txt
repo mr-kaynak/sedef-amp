@@ -284,3 +284,7 @@ if(SEDEF_BUILD_PLUGIN_TESTS)
     include(Catch)
     catch_discover_tests(sedef_capture_tests DISCOVERY_MODE PRE_TEST TEST_PREFIX "capture library: ")
 endif()
+
+# --- Sedef MIDI ------------------------------------------------------------------------------------
+
+include(${CMAKE_CURRENT_SOURCE_DIR}/midi/SedefMidi.cmake)

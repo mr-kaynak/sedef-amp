@@ -1,0 +1,244 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+.app {
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  height: 100%;
+  background:
+    radial-gradient(90% 60% at 30% 0%, rgb(34 70 92 / 0.35), transparent 70%), var(--ink-1);
+}
+
+/* Header ---------------------------------------------------------------------------------------- */
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 52px;
+  padding: 0 16px 0 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.wordmark {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 25px;
+  font-weight: 500;
+  font-variation-settings: 'opsz' 28;
+  letter-spacing: -0.01em;
+  line-height: 1;
+  color: var(--bone);
+}
+
+.product {
+  align-self: baseline;
+  margin-left: -3px;
+  color: var(--bone-3);
+  font-size: var(--t-11);
+  font-stretch: 125%;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+}
+
+.context {
+  margin-right: auto;
+  padding-left: 12px;
+  border-left: 1px solid var(--line);
+  color: var(--bone-3);
+  font-size: var(--t-11);
+  font-stretch: var(--legend-stretch);
+}
+
+.panic {
+  color: var(--coral);
+}
+
+@media (hover: hover) {
+  .panic:where(:not(:disabled)):hover {
+    color: var(--coral);
+    background: rgb(240 123 128 / 0.1);
+  }
+}
+
+.panic[data-flash] {
+  background: rgb(240 123 128 / 0.18);
+  border-color: rgb(240 123 128 / 0.4);
+}
+
+.alert {
+  margin: 0;
+  padding: 8px 20px;
+  border-bottom: 1px solid rgb(240 123 128 / 0.3);
+  background: rgb(240 123 128 / 0.1);
+  color: var(--bone);
+  font-size: var(--t-12);
+}
+
+/* Main ------------------------------------------------------------------------------------------ */
+
+.main {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr) 292px;
+  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'meter note controls'
+    'meter velocity controls';
+  gap: 14px 18px;
+  min-height: 0;
+  padding: 16px 20px 14px;
+}
+
+.meter {
+  grid-area: meter;
+  display: flex;
+  justify-content: center;
+  padding-top: 4px;
+}
+
+.note {
+  grid-area: note;
+}
+
+.velocity {
+  grid-area: velocity;
+}
+
+.controls {
+  grid-area: controls;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  min-width: 0;
+  margin: 0;
+}
+
+.legend {
+  margin: 0 0 2px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+  color: var(--bone-2);
+  font-size: var(--t-11);
+  font-stretch: var(--legend-stretch);
+  font-weight: 560;
+  letter-spacing: 0.02em;
+}
+
+.field {
+  display: grid;
+  grid-template-columns: 82px minmax(0, 1fr);
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 4px;
+}
+
+.label {
+  color: var(--bone-3);
+  font-size: var(--t-11);
+}
+
+.control {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.control > * {
+  min-width: 0;
+}
+
+.hint {
+  grid-column: 2;
+  margin: 0;
+  color: var(--bone-4);
+  font-size: var(--t-11);
+  line-height: 1.35;
+  text-wrap: pretty;
+}
+
+.narrow {
+  width: 92px;
+}
+
+.velocityRow {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.velocityRow > :last-child {
+  flex: 1;
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.velocityRow .hint {
+  grid-column: 1 / -1;
+}
+
+/* Footer ---------------------------------------------------------------------------------------- */
+
+.footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 30px;
+  padding: 0 20px;
+  border-top: 1px solid var(--line);
+  color: var(--bone-4);
+  font-size: var(--t-11);
+}
+
+.dotSep {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--bone-4);
+}
+
+.link {
+  margin-left: auto;
+  padding: 2px 4px;
+  border: none;
+  border-radius: var(--r-hw);
+  background: none;
+  color: var(--bone-3);
+  font-size: var(--t-11);
+  text-decoration: underline;
+  text-decoration-color: var(--line-strong);
+  text-underline-offset: 3px;
+}
+
+@media (hover: hover) {
+  .link:hover {
+    color: var(--bone);
+    text-decoration-color: currentColor;
+  }
+}
+
+/* States ---------------------------------------------------------------------------------------- */
+
+.loading {
+  height: 100%;
+  background: var(--ink-1);
+}
+
+.failed {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  padding: 40px;
+  color: var(--bone);
+  font-size: var(--t-14);
+  text-align: center;
+}

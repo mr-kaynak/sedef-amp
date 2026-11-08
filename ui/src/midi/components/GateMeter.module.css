@@ -1,0 +1,144 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+.wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 92px;
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.legend {
+  color: var(--bone-2);
+  font-size: var(--t-11);
+  font-stretch: var(--legend-stretch);
+  font-weight: 540;
+}
+
+.open {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--bone-4);
+  font-size: var(--t-10);
+  transition: color var(--dur-1) var(--ease-out);
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ink-4);
+  transition:
+    background-color var(--dur-1) var(--ease-out),
+    box-shadow var(--dur-1) var(--ease-out);
+}
+
+.open[data-on] {
+  color: var(--bone-2);
+}
+
+.open[data-on] .dot {
+  background: var(--glow);
+  box-shadow: 0 0 6px rgb(200 241 234 / 0.7);
+}
+
+.track {
+  position: relative;
+  width: 64px;
+  height: var(--h);
+  cursor: ns-resize;
+  touch-action: none;
+  border-radius: var(--r-ctl);
+}
+
+.groove {
+  position: absolute;
+  left: 22px;
+  top: 0;
+  bottom: 0;
+  width: 10px;
+  overflow: hidden;
+  border-radius: 5px;
+  background: var(--ink-0);
+  box-shadow:
+    0 1px 0 rgb(255 255 255 / 0.06),
+    inset 0 1px 2px rgb(0 0 0 / 0.6);
+}
+
+.fill {
+  position: absolute;
+  inset: 0;
+  transform: scaleY(0);
+  transform-origin: bottom;
+  background: linear-gradient(0deg, var(--nacre-aqua), var(--nacre-lilac) 70%, var(--nacre-rose));
+  opacity: 0.85;
+}
+
+/* What lies under the gate never starts a note: shaded. */
+.below {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: calc(var(--gate) * 100%);
+  background: rgb(6 17 25 / 0.62);
+}
+
+.ticks {
+  position: absolute;
+  left: 36px;
+  top: 0;
+  bottom: 0;
+  width: 28px;
+}
+
+.ticks span {
+  position: absolute;
+  left: 0;
+  transform: translateY(50%);
+  color: var(--bone-4);
+  font-size: var(--t-10);
+  line-height: 1;
+}
+
+.handle {
+  position: absolute;
+  left: 4px;
+  width: 46px;
+  height: 0;
+  bottom: calc(var(--gate) * 100%);
+  border-top: 2px solid var(--bone);
+  transition: border-color var(--dur-1) var(--ease-out);
+}
+
+.handleLabel {
+  position: absolute;
+  left: -2px;
+  top: -16px;
+  color: var(--bone-2);
+  font-size: var(--t-10);
+  font-stretch: var(--legend-stretch);
+}
+
+.track:focus-visible .handle,
+.track[data-active] .handle {
+  border-top-color: var(--nacre-aqua);
+}
+
+.value {
+  color: var(--bone-3);
+  font-size: var(--t-11);
+  font-weight: 500;
+  transition: color var(--dur-1) var(--ease-out);
+}
+
+.value[data-active] {
+  color: var(--bone);
+}

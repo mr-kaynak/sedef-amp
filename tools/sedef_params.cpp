@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
-// Dumps the parameter schema as JSON. The UI's browser mock consumes this file:
+// Dumps the parameter schema as JSON. The UI's browser mock consumes these files:
 //   sedef-params > ui/src/generated/parameters.json
+//   sedef-params --midi > ui/src/generated/midi-parameters.json   (Sedef MIDI)
 
+#include "sedef/midi/MidiParameters.h"
 #include "sedef/params/Parameters.h"
 
 #include <cstdio>
+#include <span>
 #include <string>
 #include <string_view>
 
@@ -47,12 +50,12 @@ std::string number (float v)
 }
 } // namespace
 
-int main()
+std::string schema (std::span<const sedef::ParamSpec> specs)
 {
     std::string json = "{\n  \"version\": 1,\n  \"parameters\": [\n";
-    for (std::size_t i = 0; i < sedef::kNumParams; ++i)
+    for (std::size_t i = 0; i < specs.size(); ++i)
     {
-        const auto& s = sedef::kParamSpecs[i];
+        const auto& s = specs[i];
         json += "    {\"id\": " + quote (s.id) + ", \"name\": " + quote (s.name) +
                 ", \"group\": " + quote (s.group) + ", \"kind\": \"" + kindName (s.kind) +
                 "\", \"min\": " + number (s.min) + ", \"max\": " + number (s.max) +
@@ -62,9 +65,15 @@ int main()
         for (int c = 0; c < s.numChoices(); ++c)
             json += (c > 0 ? ", " : "") + quote (s.choiceLabel (c));
         json += "]}";
-        json += i + 1 < sedef::kNumParams ? ",\n" : "\n";
+        json += i + 1 < specs.size() ? ",\n" : "\n";
     }
-    json += "  ]\n}\n";
+    return json + "  ]\n}\n";
+}
+
+int main (int argc, char** argv)
+{
+    const bool midi = argc > 1 && std::string_view (argv[1]) == "--midi";
+    const auto json = midi ? schema (sedef::midi::kParamSpecs) : schema (sedef::kParamSpecs);
     std::fputs (json.c_str(), stdout);
     return 0;
 }

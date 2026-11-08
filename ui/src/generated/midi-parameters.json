@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "parameters": [
+    {"id": "octave", "name": "Octave", "group": "MIDI", "kind": "choice", "min": 0, "max": 3, "default": 1, "skew": 1, "unit": "", "automatable": true, "choices": ["-2", "-1", "0", "+1"]},
+    {"id": "mode", "name": "Mode", "group": "MIDI", "kind": "choice", "min": 0, "max": 1, "default": 0, "skew": 1, "unit": "", "automatable": true, "choices": ["Notes", "Notes + Bend"]},
+    {"id": "bendRange", "name": "Bend Range", "group": "MIDI", "kind": "int", "min": 1, "max": 24, "default": 2, "skew": 1, "unit": "st", "automatable": false, "choices": []},
+    {"id": "timing", "name": "Timing", "group": "MIDI", "kind": "choice", "min": 0, "max": 1, "default": 0, "skew": 1, "unit": "", "automatable": false, "choices": ["Fastest", "Steady"]},
+    {"id": "channel", "name": "MIDI Channel", "group": "MIDI", "kind": "int", "min": 1, "max": 16, "default": 1, "skew": 1, "unit": "", "automatable": false, "choices": []},
+    {"id": "gate", "name": "Gate", "group": "MIDI", "kind": "float", "min": -80, "max": -20, "default": -54, "skew": 1, "unit": "dB", "automatable": true, "choices": []},
+    {"id": "dynamics", "name": "Velocity Sensitivity", "group": "MIDI", "kind": "float", "min": 0, "max": 100, "default": 75, "skew": 1, "unit": "%", "automatable": true, "choices": []},
+    {"id": "curve", "name": "Velocity Curve", "group": "MIDI", "kind": "choice", "min": 0, "max": 2, "default": 1, "skew": 1, "unit": "", "automatable": false, "choices": ["Soft", "Linear", "Hard"]},
+    {"id": "audio", "name": "Audio", "group": "MIDI", "kind": "choice", "min": 0, "max": 1, "default": 0, "skew": 1, "unit": "", "automatable": false, "choices": ["Through", "Mute"]}
+  ]
+}

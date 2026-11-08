@@ -16,6 +16,10 @@ if(SEDEF_BUILD_TESTS)
         COMMAND ${CMAKE_COMMAND} -DTOOL=$<TARGET_FILE:sedef-params>
                 -DEXPECTED=${PROJECT_SOURCE_DIR}/ui/src/generated/parameters.json
                 -P ${CMAKE_CURRENT_SOURCE_DIR}/CheckSchema.cmake)
+    add_test(NAME ui-midi-schema-in-sync
+        COMMAND ${CMAKE_COMMAND} -DTOOL=$<TARGET_FILE:sedef-params> -DARGS=--midi
+                -DEXPECTED=${PROJECT_SOURCE_DIR}/ui/src/generated/midi-parameters.json
+                -P ${CMAKE_CURRENT_SOURCE_DIR}/CheckSchema.cmake)
 endif()
 
 if(SEDEF_BUILD_TESTS)

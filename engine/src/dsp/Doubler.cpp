@@ -51,8 +51,24 @@ constexpr double kFastSeconds = 1.0e-3;
 constexpr double kSlowSeconds = 40.0e-3;
 constexpr float kOnsetRatio = 2.5f;
 constexpr float kRiseRatio = 1.3f;
-constexpr float kPowerFloor = 1.0e-7f; // about -70 dBFS
 constexpr double kRefractorySeconds = 0.07;
+// The rise must also stand 1.5 times over the input's own background, not over a fixed level that
+// a quiet player's attacks never clear. The background is the peak its hiss, hum and buzz reach
+// between notes: the fast envelope's peaks, held over 100 ms (longer than a mains period, so a
+// buzz's spikes count at their height, not their mean). As in the Trench's level gate, it falls at
+// once, rises only while the input holds still (the held peaks within 1.5 dB of their 0.3 s mean
+// for 0.2 s: hiss, hum and buzz do, ringing and decaying notes do not), here by 60 dB a second so
+// a buzz that starts between notes is learnt within a second, and is first set as the detector
+// warms up after a reset. It stays under what used to be the fixed floor (1e-7, about -70 dB), so
+// the detector is never less sensitive than before, and over the level envelopes flush to zero at.
+constexpr float kFloorOverBackground = 1.5f;
+constexpr double kPeakHoldSeconds = 0.1;
+constexpr double kBackgroundRiseDbPerSecond = 60.0;
+constexpr double kSteadyAverageSeconds = 0.3;
+constexpr float kSteadyRatio = 1.4f; // +-1.5 dB
+constexpr double kSteadySeconds = 0.2;
+constexpr float kMinBackground = 1.0e-15f;
+constexpr float kMaxBackground = 1.0e-7f / kFloorOverBackground;
 
 // The crossfade to a new offset must finish before the note reaches either read position.
 constexpr double kMarginSeconds = 0.5e-3;
@@ -104,6 +120,11 @@ void Doubler::prepare (const ProcessSpec& spec)
     minFade_ = static_cast<float> (kMinFadeSeconds * fs);
     minMove_ = static_cast<float> (kMinMoveSeconds * fs);
     holdoffLength_ = static_cast<int> (kSlowSeconds * fs);
+    peakDecay_ = static_cast<float> (std::exp (-1.0 / (kPeakHoldSeconds * fs)));
+    backgroundRise_ =
+        static_cast<float> (std::pow (10.0, kBackgroundRiseDbPerSecond / (10.0 * fs)));
+    holdAverageCoeff_ = static_cast<float> (1.0 - std::exp (-1.0 / (kSteadyAverageSeconds * fs)));
+    steadySamples_ = std::max (1, static_cast<int> (kSteadySeconds * fs));
     // An onset seen further ahead than this waits until this long before its note arrives.
     lookahead_ = static_cast<int> (std::ceil (maxFade_ + marginSamples_));
     attackGuard_ = static_cast<float> (kAttackGuardSeconds * fs);
@@ -139,11 +160,16 @@ void Doubler::reset() noexcept
     fadeLength_ = fadePos_ = 0;
     spread1_ = spread2_ = targetSpread_;
     fast_ = slow_ = 0.0f;
+    peakHold_ = holdAverage_ = 0.0f;
+    background_ = kMaxBackground; // until the warm-up has heard the input
+    steadyFor_ = 0;
     sinceRise_ = refractory_ = 0;
     holdoff_ = holdoffLength_;
     above_ = false;
     clock_ = 0;
     lastAttackRise_ = kLongAgo;
+    lastOnset_ = -1;
+    onsets_ = 0;
     pendingCount_ = 0;
     rng_.seed (kSeed);
     phrase_ = 0.0f;
@@ -213,6 +239,8 @@ float Doubler::voiceDelay (const Voice& v) const noexcept
 void Doubler::detectOnset() noexcept
 {
     refractory_ = refractoryLength_;
+    ++onsets_;
+    lastOnset_ = clock_;
     const std::int64_t rise = clock_ - sinceRise_;
     const std::int64_t previous = lastAttackRise_;
     lastAttackRise_ = rise;
@@ -325,24 +353,41 @@ void Doubler::processSamples (float* left, float* right, const float* source, in
         const float power = h * h;
         fast_ += fastCoeff_ * (power - fast_);
         slow_ += slowCoeff_ * (power - slow_);
-        sinceRise_ =
-            fast_ <= kRiseRatio * slow_ + kPowerFloor ? 0 : std::min (sinceRise_ + 1, 1 << 20);
-        const bool above = fast_ > kOnsetRatio * slow_ + kPowerFloor;
+        peakHold_ = std::max (fast_, peakHold_ * peakDecay_);
+        holdAverage_ += holdAverageCoeff_ * (peakHold_ - holdAverage_);
+        steadyFor_ =
+            peakHold_ < kSteadyRatio * holdAverage_ && holdAverage_ < kSteadyRatio * peakHold_
+                ? std::min (steadyFor_ + 1, steadySamples_)
+                : 0;
+        const float floor = kFloorOverBackground * background_;
+        sinceRise_ = fast_ <= kRiseRatio * slow_ + floor ? 0 : std::min (sinceRise_ + 1, 1 << 20);
+        const bool above = fast_ > kOnsetRatio * slow_ + floor;
         if (holdoff_ > 0)
         {
             // Just after a reset the detector has not heard what was already sounding: the slow
-            // envelope catches up with it instead of that counting as an onset.
+            // envelope catches up with it instead of that counting as an onset, and what it heard
+            // sets the background.
             --holdoff_;
             slow_ = std::max (slow_, fast_);
+            if (holdoff_ == 0)
+                background_ = std::clamp (peakHold_, kMinBackground, kMaxBackground);
         }
-        else if (refractory_ > 0)
+        else
         {
-            --refractory_;
-            if (above && !above_)
-                lastAttackRise_ = clock_ - sinceRise_; // not an onset, but still an attack
+            if (peakHold_ < background_)
+                background_ = std::max (peakHold_, kMinBackground);
+            else if (steadyFor_ >= steadySamples_)
+                background_ =
+                    std::min ({ background_ * backgroundRise_, peakHold_, kMaxBackground });
+            if (refractory_ > 0)
+            {
+                --refractory_;
+                if (above && !above_)
+                    lastAttackRise_ = clock_ - sinceRise_; // not an onset, but still an attack
+            }
+            else if (above)
+                detectOnset();
         }
-        else if (above)
-            detectOnset();
         above_ = above;
         while (pendingCount_ > 0 && pending_[0].due <= clock_)
         {
@@ -437,6 +482,8 @@ void Doubler::process (const AudioView& io) noexcept
     snapNext_ = false;
     fast_ = flushToZero (fast_);
     slow_ = flushToZero (slow_);
+    peakHold_ = flushToZero (peakHold_);
+    holdAverage_ = flushToZero (holdAverage_);
     toneLp_ = flushToZero (toneLp_);
     detectorHp_.snapToZero();
     soften_ = flushToZero (soften_);

@@ -104,8 +104,16 @@ host at their exact sample.
   the right ones.
 - **Play higher with −2.** A bass line played higher on the neck with the octave at −2 is recognised
   faster than the same line on the low strings with −1 (see the latency table).
+- **Record at a healthy level.** Set your interface's input gain so your hardest notes peak around
+  −12 to −6 dBFS. The gate and velocity read the level itself: at −30 dBFS peaks the softest
+  string falls under the default gate and every velocity stays low. Raise the gain first; if you
+  can't, drag the gate down until the **Signal** ring follows your softest notes (about −66 dB at
+  −30 dBFS peaks).
 - **Set the gate** with the guitar's volume where you play. Too low and the noise of a string you
   lift can start a note; too high and soft notes go missing.
+- **Fingerstyle is fine.** Moving the fretting hand to the next note before you pluck it doesn't
+  start a note on a string that has died down; a move while the string is still loud can give a
+  short one.
 - **Steady for recording.** Record in Steady with a −38 ms track delay and every note sits on its
   pick. A note picked softly over a string still ringing can land a little late, and a pick right
   after a mute a little early; damping the previous string keeps them on the pick. For playing

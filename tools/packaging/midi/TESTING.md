@@ -41,8 +41,11 @@ paste the path.
 
 ## Before you play
 
+- **Level.** Set your interface's input gain so your hardest notes peak around −12 to −6 dBFS. On a
+  quiet input (peaks around −30 dBFS) soft notes fall under the gate and velocities stay low.
 - **Gate.** Drag the gate handle on the input meter until the **Signal** ring over the meter fills
-  when you play and empties when you're silent. Picks only start notes above it.
+  when you play and empties when you're silent. Picks only start notes above it. If you can't
+  raise the input gain, drag the gate lower (about −66 dB for peaks around −30 dBFS).
 - **Octave.** −1 by default (a bass sounds an octave under a guitar). For a bass part, playing
   higher on the neck with −2 often tracks faster and cleaner than playing on the low strings with −1.
 - **Timing.** *Fastest* sends each note as soon as it is sure (the low E takes longest). *Steady*
@@ -109,6 +112,9 @@ the MIDI it produced helps us most.
   usually fine; chords, or two strings ringing at a similar level, give short wrong notes between
   the right ones. Damp the strings you're not playing.
 - In **Steady**, a note picked softly over a string still ringing can land a little late, and a
-  pick right after a mute a little early.
+  pick right after a mute a little early. Plucked with a finger, a note can land up to 25 ms
+  early: the finger touching the string is taken as the pick.
+- The first note after a rest can come up to 160 ms late, or start, stop and start again, when
+  the finger's touch is heard before the note.
 - Delay from the pick to the note is about 28 ms on the low E, 22 ms on the A, 17 ms on the D and
   16 ms from the G string up, plus your audio buffer.

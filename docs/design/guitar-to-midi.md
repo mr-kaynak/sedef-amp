@@ -280,14 +280,18 @@ of starting one, and a pick seen there counts only when the level comes back, or
 loudest millisecond of the 16 before it (a pick puts energy into the string, a fretting hand does
 not).
 
-**Level.** Nothing that decides a note depends on how loud the input is. The levels of the latest 32
-picks say how hard this player picks on this input. The velocity scale's top sits 10 dB over the
-loud ones (the second loudest; the loudest while there are fewer than four), and its 40 dB span ends
-at a floor: once there is a pick to go by, a pick whose attack is under it (a finger touching a
-string, the hand on the guitar) starts no note, though it still counts, so a passage played that
-much softer comes through after a while. Note-offs come from the level: the note falls 40 dB under
-its attack, or under the gate, or a mute is judged against the note's own level from 3 ms after its
-pick. The gate (default −75 dB) only has to keep the input's own noise out.
+**Level.** Nothing that decides a note depends on how loud the input is: every level a decision
+compares is the input's own noise floor, the note's own level, or the player's. The gate is Auto by
+default, 20 dB over the noise floor Sedef MIDI tracks (Manual keeps a fixed gate). The player's
+level is the average attack, in dB, of about the latest 16 notes; the velocity scale's top sits
+13.5 dB over it, so a note at the player's level gets velocity 88 at the defaults, and its 40 dB
+span ends at a floor 26.5 dB under the player's level: once there is a note to go by, a pick whose
+attack is under it (the hand on the guitar, a string ringing in sympathy) starts no note, though it
+still counts, so a passage played that much softer comes through after a while. Before the first
+note, a note must stand 30 dB out of the noise floor. Note-offs come from the level: the note falls
+40 dB under its attack, or under the gate, or a mute is judged against the note's own level from
+3 ms after its pick. See
+[Any level, fingers, and the first note](#any-level-fingers-and-the-first-note-from-silence-2026-11-09).
 
 In Steady, a note that would sound under 40 ms while its note-on still waits is dropped, and the
 note it interrupted sounds on; a note-on that has gone out is never taken back; a note-off decided
@@ -298,13 +302,10 @@ sounds at a time. The MIDI layer adds 2 ms to the tracker's lock below A3.
 
 | Material | Notes | Right | Wrong (octave) | Missed | Extra |
 |---|---:|---:|---:|---:|---:|
-| Bass lines, bridge, neck and piezo pickups, 6 seeds, open strings damped | 864 | 99.4 % | 0 (0) | 5 | 2 |
-| A sloppy player's bass lines (below), Fastest | 864 | 99.2 % | 4 (0) | 3 | 8 |
-| The same in Steady (the note within 120 ms of its pick) | 864 | 98.4 % | 4 (0) | 10 | 6 |
+| Bass lines, bridge, neck and piezo pickups, 6 seeds, open strings damped | 864 | 99.4 % | 0 (0) | 5 | 1 |
+| A sloppy player's bass lines (below), Fastest | 864 | 99.2 % | 4 (0) | 3 | 9 |
+| The same in Steady (the note within 120 ms of its pick) | 864 | 98.4 % | 4 (0) | 10 | 7 |
 | Chromatic runs, the fretting hand moving 25-60 ms before each pick (below), both timings | 312 | 100 % | 0 | 0 | 0 |
-| A quiet input, every setting at its default (each set with its peak at −30 dBFS): bass lines | 864 | 99.5 % | 0 (0) | 4 | 2 |
-| The sloppy lines at −30 dBFS, Fastest / Steady | 864 | 98.8 / 98.0 % | 4 (0) | 6 / 13 | 8 / 6 |
-| The fretted-first runs at −30 dBFS, both timings | 312 | 100 % | 0 | 0 | 0 |
 | Palm-muted eighths and sixteenths, 120 and 140 bpm, E2 and A2 | 256 | 100 % | 0 | 0 | 0 |
 | Hammer-ons, pull-offs, slides | 69 | 100 % | 0 | 0 | 0 |
 | Vibrato and slight bends | 8 | 100 % | 0 | 0 | 0 |
@@ -319,12 +320,13 @@ shorter than 40 ms per 100 (1 in Steady), no octave errors. Measured: 10 notes u
 Fastest and 3 in Steady (1.2 and 0.3 per 100). Most of their extra notes were strings ringing in
 sympathy after a mute (19 to 8 in Fastest, 14 to 6 in Steady, with the sympathy rule above).
 
-The quiet-input rows are the musician's case (his interface records with peaks at −30 dBFS): the
-same sets, the noise brought down with them, every setting at its default, against the same bars.
-Before the level rules and the −75 dB gate they reached 92.3 % (bass lines), 88.8 % (sloppy) and
-46.5 % (fretted first, whose peaks then sat at −40 dBFS), with every velocity between 26 and 52.
-A second test plays the bass lines at their usual level and at −30 dBFS: after the first note,
-843 of 843 notes get the same velocity within 4 (median 87, 10th to 90th percentile 74-98).
+The bass lines, the sloppy lines, the fretted-first runs, the palm mutes, 45 of the legato notes
+and the strummed chords are also measured with every setting at its default and each set's peaks
+at −40, −30, −18 and −6 dBFS, the noise brought down with it, against the same bars at each level:
+the results are the same at all four
+([below](#any-level-fingers-and-the-first-note-from-silence-2026-11-09)). The first round's quiet-input
+rows (peaks at −30 dBFS, before the level rules) reached 92.3 % (bass lines), 88.8 % (sloppy) and
+46.5 % (fretted first), with every velocity between 26 and 52.
 
 The fretted-first runs model how the musician plays on his own DI (below): chromatic runs up and
 down one string, each note fading 14 dB in half a second, the fretting hand reaching the next fret
@@ -629,3 +631,143 @@ attack; before the first pick of a session there is no player's level yet, so on
 handling noise over the gate can start one note and the first note's velocity uses the scale's
 default place; and a long passage played much softer than what came before drifts up to a usual
 velocity over about 30 notes.
+
+### Any level, fingers, and the first note from silence (2026-11-09)
+
+His interface stays as it is and he plays with his fingers, so no default may depend on the
+input's level or on a pick's click; and a bass player starts nearly every phrase from silence, so
+the first note after a rest must come as quickly as any other.
+
+**Level-independent defaults.** Every level a decision compares is now the input's own noise
+floor, the note's own level, or the player's:
+
+| What | Before | Now |
+|---|---|---|
+| Gate | −75 dB, fixed | **Auto** (default): 20 dB over the input's noise floor, never under −100 dB. The floor is the quietest the level has been (the loudest 3 ms level of each millisecond): it falls at once, rises 6 dB/s while no note sounds, and is the level itself for the first 50 ms. **Manual** keeps the fixed gate: the new MIDI parameter Gate Mode (`gateMode`, Auto or Manual), appended after Audio |
+| The first note | over the gate | also 30 dB out of the noise floor (the hand on the guitar, a string ringing in sympathy and handling noise stay under it) |
+| A note after it | over the gate and the velocity scale's floor | the same; the floor sits 26.5 dB under the player's level |
+| The player's level | the second loudest of the latest 32 picks | the average attack, in dB, of about the latest 16 notes (each new one weighs 1/16): slow enough to keep the dynamics of a phrase |
+| Velocity | the scale's top 10 dB over the loud picks | the top 13.5 dB over the player's level: a note at the player's level gets 88 at the defaults, and the first note is its own player's level |
+| The tracker's detector | picks over −70 dBFS | picks from 6 dB under the gate in effect |
+
+The UI puts Auto and Manual under the input meter; in Auto the meter draws the gate in effect, sent
+with the telemetry, as a dashed line that takes no input.
+
+**Why the first note from silence was late** (his DI at his level, measured before any change).
+D2 at 1.283 s, the first note, came 160-172 ms late; G2 at 10.901 s, after a 2 s rest, sounded for
+36 ms and again 115 ms on.
+- His low strings are plucked near the bridge and heard by a bridge pickup: for the first 100 ms
+  or so the fundamental carries only −30 to −40 dB of the energy at the note's period. The tracker
+  takes a period whose fundamental carries under −30 dB (a share of 0.001) for a virtual
+  fundamental (two notes repeating together at a period neither has, as an open fifth does) and
+  rejects it: D2 waited until its fundamental grew, and G2's held-note check dropped it as its
+  share dipped, until the next lock started it again.
+- A finger touches the string 10-50 ms before it plucks it, 20-22 dB under the pluck on his DI. The
+  detector took the touch for the pick, so the pluck fell in its 25 ms refractory time and was
+  none, and the tracker first locked on the touch's squeak (about 830 Hz, a high harmonic of the
+  string).
+- The attack of a low string plucked that way is pulse-like: the 2 ms power swings 10-20 dB with
+  every period while the 40 ms power catches up, so the detector fired again every 25-34 ms, and
+  each pick restarted the two periods the tracker waits before a pitch counts as settled.
+
+**The fix**: two MonoTracker options, off by default. Sedef MIDI turns them on; Trench does not
+set them, and renders byte-identical.
+- `weakFundamentals`. A virtual fundamental has nothing at its 1st and 7th harmonics (shares near
+  10⁻⁵ on two-note signals); his low notes keep 0.10-0.19 of their energy at the 7th. A period
+  whose fundamental carries at least 3 × 10⁻⁵ counts when its 7th harmonic carries at least 0.02
+  (notes up to about 210 Hz, a seventh of the anti-alias band). A period with under 1 % at its
+  fundamental is judged 2.5 ms later, once the attack no longer leaks into it: without that, the
+  attack of an open fifth named its virtual fundamental for a moment.
+- `fingerPicks`. For 60 ms after a pick, only a pick 6 dB over that pick's peak counts, even in
+  the refractory time, and it is dated from where its climb began: the pluck after a touch is a
+  pick, the swings of a pulse-like attack are not.
+
+In the MIDI layer: a detector pick replaces a pick that started no note; from silence, a pick
+10 dB under the player's level, or the first pick of all, waits 60 ms for a louder one before it
+starts a note; and no note from silence starts while a louder attack is under way (the touch's
+squeak just as the pluck begins). The price is the very first note after Sedef MIDI starts, about
+60 ms after its pluck, since nothing says yet how loud the player is; a note from silence after
+that is not held. Letting a pick that replaced a touch 10 dB quieter skip the wait was tried and
+dropped: when a touch's contact and its squeak were two picks, it started the squeak (8 extra
+notes on one set).
+
+**The suite at any level** (every setting at its default; the same at peaks of −40, −30, −18 and
+−6 dBFS):
+
+| Set | Notes | Right | Wrong (octave) | Missed | Extra | Bar at each level |
+|---|---:|---:|---:|---:|---:|---|
+| Bass lines | 864 | 99.42 % | 0 (0) | 5 | 1 | ≥ 99 %, ≤ 1 extra per 100 |
+| Sloppy lines, Fastest | 864 | 99.19 % | 4 (0) | 3 | 9 | ≥ 98.5 %, ≤ 2.5 per 100 |
+| Sloppy lines, Steady | 864 | 98.38 % | 4 (0) | 10 | 7 | ≥ 97.5 %, ≤ 2 per 100 |
+| Fretted first, Fastest and Steady | 312 | 100 % | 0 | 0 | 0 | ≥ 98 %, ≤ 2 per 100 |
+| Palm mutes | 256 | 100 % | 0 | 0 | 0 | ≥ 99 %, ≤ 1 per 100 |
+| Legato | 45 | 100 % | 0 | 0 | 0 | ≥ 99 %, ≤ 1 per 100 |
+| Strummed chords, both timings | 144 chords | 98 notes | | | none outside a chord | ≤ 4 per chord (3 at most), one at a time |
+
+Velocity on the bass lines at each level: 10th percentile 78, median 88, 90th 99, and 3440 of 3440
+notes within 4 of their velocity at the recorded level. Digital silence, 50 and 60 Hz hum and buzz
+at −70 dBFS, and hiss at −100, −90, −80, −70, −60 and −50 dBFS give no note, in either timing; bass
+lines over a hum at −80 or −60 dBFS are all right, with nothing extra and nothing after the last
+note.
+
+**Notes from silence** (the gate for the fix): fingerstyle notes after rests of 0.5-3 s, each with
+a finger's touch 10-50 ms before the pluck and no pick click, on every string of three tunings
+(standard, a whole step down, drop D), open and at frets 2 and 5, on a bridge pickup that hears
+little of the low strings' fundamental and on a neck pickup: 54 of 54 right in each of the six
+sets, none extra. Each string's median latency from silence (the first note of a run aside)
+against the same notes picked over a ringing string, Fastest:
+
+| String (low to high) | 1 | 2 | 3 | 4 | 5 | 6 |
+|---|---:|---:|---:|---:|---:|---:|
+| Standard, bridge | 28.6 / 28.3 ms | 23.3 / 22.9 | 19.4 / 18.8 | 22.1 / 21.3 | 16.3 / 16.4 | 16.5 / 16.9 |
+| Standard, neck | 26.6 / 25.8 | 20.3 / 20.5 | 16.7 / 16.4 | 16.5 / 16.2 | 16.3 / 16.3 | 16.3 / 16.5 |
+| Whole step down, bridge | 31.7 / 31.1 | 25.0 / 24.9 | 21.2 / 20.3 | 16.3 / 20.4 | 16.6 / 16.3 | 16.4 / 16.6 |
+| Whole step down, neck | 29.2 / 28.6 | 23.3 / 22.3 | 18.2 / 18.0 | 16.4 / 16.3 | 16.4 / 16.2 | 16.3 / 16.4 |
+| Drop D, bridge | 31.4 / 30.9 | 23.1 / 23.0 | 19.1 / 18.9 | 17.0 / 17.2 | 16.4 / 16.4 | 16.3 / 16.8 |
+| Drop D, neck | 28.8 / 28.4 | 20.7 / 20.5 | 18.1 / 16.3 | 16.8 / 16.4 | 16.3 / 16.3 | 16.2 / 16.3 |
+
+From silence minus from a ringing string: −4.1 to +1.8 ms (the gate is +3 ms). The first note of
+each set comes within 65 ms of its pluck (the 60 ms wait). Notes from a ringing string keep
+their latency: pick to note-on, Fastest, at 48 kHz, E2 27.5 ms, A2 21.5, D3 17.0, G3 and up 15.9,
+the tracker's lock 25.5, 19.5, 15.0, 11.5, 9.5, 8.5 and 8.5 ms, all as before. The tracker's own
+tests: with the options a touch 12, 25 or 45 ms ahead gives one pick within 3 ms of the pluck and
+none in the attack after it; D2, E2, G2 and A2 plucked near the bridge are named at once; and an
+open fifth over a ringing neighbour still gives no virtual fundamental.
+
+**His DI, at his level, every setting at its default** (reported, not a gate; in brackets the
+same with the gate dragged to −66 dB in the round before, the target):
+
+| Chromatic DI, 78 notes | Right | Wrong | Missed | Extra per 100 | Under 40 ms per 100 | Velocity p10 / median / p90 |
+|---|---:|---:|---:|---:|---:|---:|
+| Fastest | 100 % (98.7) | 0 | 0 (1) | 7.7 (9.0) | 3.8 (5.1) | 78 / 87 / 93 |
+| Steady | 100 % (100) | 0 | 0 (0) | 3.8 (5.1) | 0 (1.3) | 78 / 87 / 93 |
+| Peaks at −6 dBFS, Fastest | 100 % | 0 | 0 | 7.7 | 3.8 | 79 / 88 / 94 |
+| Peaks at −6 dBFS, Steady | 100 % | 0 | 0 | 3.8 | 0 | 79 / 88 / 94 |
+
+- D2 at 1.283 s, the first note: one note, 49.6 ms after the onset in Fastest (was 160-172 ms);
+  in Steady 11.6 ms after the lag (was 122-134 ms). It is the first note of all, held by the
+  60 ms wait.
+- G2 at 10.901 s, after the 2 s rest: one note, 27.1 ms after the onset (was 36 ms of G2, then G2
+  again 115 ms on).
+- The other runs from silence now start on the pluck rather than the touch: C3 +1.0, F3 +4.0 and
+  D4 +6.0 ms (A3 the same), each now within a few ms of its string's notes from a ringing string
+  (D4 14.7 ms against a run median of 14.4).
+- Notes from a ringing string: 64 of 72 have the latency they had, to 0.1 ms; A2 +1.0, G♯2 +2.0,
+  F♯3 +3.0, A♯2 and G3 −1.0, E3 −2.0 ms. E2 at 2.530 s now starts at its pluck (25.3 ms) instead
+  of 0.7 ms before it, on the fretting hand's move, and D♯4 at 49.522 s now has an 8 ms note on
+  the move before it (counted below). Run medians, D2 to D4: 22.4, 18.0, 16.2, 13.6, 15.9, 14.5 ms
+  (before: 21.1, 17.5, 15.8, 13.3, 15.9, 14.5).
+- Steady: p50 0.4 ms, p95 7.5, p99 12.6, max 15.8; 71.8 % within 1 ms; 11 notes more than 3 ms
+  early (the finger touching the ringing string damps it and breaks its period, which dates the
+  pick: A2 −15.8 ms, E3 −9.7, F♯4 −8.8, the rest 3-7 ms) and one more than 3 ms late (the first
+  note).
+- The extra notes are fretting moves on strings within 10 dB of their attack, as in the round
+  before: C♯3, F♯3 and C4 (both timings), D♯4, A4, and A4 before B4 (Fastest only).
+
+The chords, at his level (the same at −6 dBFS): 28 notes for 13 strums in either timing (1 to 4 per
+strum, median 2; one under 40 ms), none before the first strum, never two at once, no stuck note
+(before: 42 and 39 notes, 2 to 6 and 2 to 5 per strum).
+
+**Left open:** the first note after Sedef MIDI starts (60 ms, once per session); fretting moves on
+strings still within 10 dB of their attack; and in Steady, a note whose ringing string the finger
+touches before plucking lands up to 16 ms early.

@@ -6,6 +6,30 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Sedef MIDI:** a companion that plays MIDI instruments from your guitar. It turns the guitar's
+  DI into MIDI notes in real time, one note at a time, so you can play a bass line on the guitar,
+  hear it on a bass instrument and record it as MIDI. A standalone app with its own MIDI port
+  ("Sedef MIDI"; on Windows it sends to an output you pick), a plug-in (VST3, CLAP, AU) for the
+  guitar track, and on macOS an instrument AU that takes the guitar on its side chain, so Logic's
+  instrument tracks can record its notes. Octave −2 to +1, Notes or Notes + Bend, Fastest or
+  Steady timing (every note 38 ms after you play it, for one track delay), velocity sensitivity
+  and curve, MIDI channel, Panic; no stuck notes on stop, bypass, port change or quit. It works
+  the same with the interface set low or high (peaks from about −40 to −6 dBFS) with every
+  setting at its default: the gate follows the input's own noise (Auto; Manual sets it by hand),
+  and velocity follows how hard you play, over about your last 16 notes. Made for fingers as much
+  as for a pick: nothing waits for a pick's click, a finger touching the string before it plucks
+  it is not a note, and a note after a rest comes as quickly as any other. Its own parameter
+  list, separate from Sedef Amp's ([docs/midi.md](docs/midi.md),
+  [design](docs/design/guitar-to-midi.md)).
+- **Installers:** Sedef MIDI comes with Sedef Amp on every OS, selected by default: its own choice
+  in the macOS installer, a component in the Windows setup (with a Start menu entry), and part of
+  the Linux archive (`./install.sh --no-midi` leaves it out). The macOS uninstaller removes it
+  too, or only it with `--midi` ([docs/install.md](docs/install.md)).
+- **Updates** keep Sedef MIDI when it is installed and leave it out when it isn't
+  ([docs/updates.md](docs/updates.md)).
+
 ## [0.5.0] - 2026-11-09
 
 The Pedals page is a pedalboard you build yourself, with five new filter and modulation pedals;

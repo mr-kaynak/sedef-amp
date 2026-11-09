@@ -64,7 +64,8 @@ export function formatValue(spec: ParamSpec, value: number): string {
     case 's':
       return formatSeconds(value);
     case 'st':
-      return `${signed(Math.round(value), 0)} st`;
+      // A sign only where the range has both (a transpose, not a bend range).
+      return spec.min < 0 ? `${signed(Math.round(value), 0)} st` : `${Math.round(value)} st`;
     case '%':
       if (/Pan$/.test(spec.id)) return formatPan(value);
       // Bipolar percentages (Jetty's feedback) carry their sign, with the typographic minus.

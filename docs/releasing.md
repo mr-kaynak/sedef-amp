@@ -76,7 +76,9 @@ gh run download <run-id> --dir release-dry-run
 
 The run's artifacts are `package-macOS`, `package-Windows`, `package-Linux` and
 `release-preview` (the rendered `notes.md` and `SHA256SUMS.txt`). Its release notes use the
-version from `CMakeLists.txt`.
+version from `CMakeLists.txt`. The macOS and Linux jobs list what their package holds
+(`tools/packaging/list-package.sh`) and fail if a bundle of Sedef Amp or Sedef MIDI is missing; the
+Windows install test lists the files its setup installed.
 
 ## Install test
 
@@ -87,9 +89,9 @@ a failure stops the release before anything is published.
 
 | OS | What it checks |
 |---|---|
-| macOS | Installs the previous release (`OLD_TAG`: the latest one published, which users update from) with `sudo installer`, then the new disk image the way **Update now** does: the formats installed now are chosen, and the install script runs as root with `sudo -n` in place of the password prompt (copy, checksum, mount, Apple's installer, detach). Every bundle must have the new version and the new pkg's binary, and no disk image or script folder may stay behind. Then it removes the AU, puts the previous release's VST3 back and installs again: the VST3 must be replaced and the AU must stay removed. |
-| Windows | Installs the previous release with VST3 and CLAP only, passing the update's switches, which that setup doesn't know and must ignore. Then the new setup starts elevated with the update's switches and a dummy process as `/WAITPID`: while it waits, nothing may write or move the setup file; it must wait for that process, install this build's VST3 and CLAP binaries and leave the standalone app out (`/COMPONENTS` names the formats found). Then the setup runs alone: it must hold its own file while it waits, and must not wait for a process whose creation time differs from `/WAITPIDTIME` (a reused id), or for one given without `/WAITPIDTIME`. |
-| Linux | Installs the previous release for the runner's user and system-wide, then the new archive the way Update now does, in the home folder and then system-wide through the root script (with `sudo -n` in place of `pkexec`). The VST3's version and every binary must be the new build's, the system copy root's, and no script folder may stay behind. |
+| macOS | Installs the previous release (`OLD_TAG`: the latest one published, which users update from) with `sudo installer`, then the new disk image the way **Update now** does: the formats installed now are chosen, and the install script runs as root with `sudo -n` in place of the password prompt (copy, checksum, mount, Apple's installer, detach). Every bundle must have the new version and the new pkg's binary, and no disk image or script folder may stay behind. Then it removes the AU, puts the previous release's VST3 back and installs again: the VST3 must be replaced and the AU must stay removed. Sedef MIDI: the updates over the previous release leave it out (it wasn't installed); the new pkg run as its read-me says installs all five of its bundles; an update keeps them (the `midi` choice), and once they are removed an update leaves them out. |
+| Windows | Installs the previous release with VST3 and CLAP only, passing the update's switches, which that setup doesn't know and must ignore. Then the new setup starts elevated with the update's switches and a dummy process as `/WAITPID`: while it waits, nothing may write or move the setup file; it must wait for that process, install this build's VST3 and CLAP binaries and leave the standalone app out (`/COMPONENTS` names the formats found). Then the setup runs alone: it must hold its own file while it waits, and must not wait for a process whose creation time differs from `/WAITPIDTIME` (a reused id), or for one given without `/WAITPIDTIME`. Sedef MIDI: the log reports whether the setup run alone over an install without it adds it; once installed, its files must be this build's, an update must keep it (`midi` in `/COMPONENTS`), and once removed an update must leave it out. |
+| Linux | Installs the previous release for the runner's user and system-wide, then the new archive the way Update now does, in the home folder and then system-wide through the root script (with `sudo -n` in place of `pkexec`). The VST3's version and every binary must be the new build's, Sedef MIDI's included, the system copy root's, and no script folder may stay behind. Then `install.sh --no-midi` must remove Sedef MIDI, an update must keep it out, and `--midi` must bring it back. |
 
 The script installs into the system's plug-in folders with root rights, which CI machines grant
 without a password. Don't run it on your own computer; `sedef_update_tests` covers the same code
@@ -97,8 +99,9 @@ without installing anything.
 
 ## Building the packages locally
 
-Build the plugin first, then run the packaging script for your OS. Each script writes to the
-output folder you give it.
+Build the plugin and Sedef MIDI first, then run the packaging script for your OS. Each script
+writes to the output folder you give it, and takes Sedef MIDI from the folders next to Sedef Amp's
+(`SedefMidi_artefacts`, and on macOS `SedefMidiInstrument_artefacts`).
 
 macOS (needs the Xcode command line tools and `python3`; `dmgbuild` is installed into a virtual
 environment under `$TMPDIR` on first use):
@@ -106,11 +109,13 @@ environment under `$TMPDIR` on first use):
 ```sh
 export CPM_SOURCE_CACHE=$HOME/.cache/CPM
 cmake --preset release -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
-cmake --build --preset release --target SedefAmp_All SedefAmp_CLAP
+cmake --build --preset release --target SedefAmp_All SedefAmp_CLAP SedefMidi_All SedefMidi_CLAP \
+    SedefMidiInstrument_All
 tools/packaging/macos/package.sh build/release/plugin/SedefAmp_artefacts/Release dist
 ```
 
-Windows, in Git Bash with [Inno Setup 6](https://jrsoftware.org/isinfo.php) installed:
+Windows, in Git Bash with [Inno Setup 6](https://jrsoftware.org/isinfo.php) installed (build
+`SedefAmp_All SedefAmp_CLAP SedefMidi_All SedefMidi_CLAP` first; Linux the same):
 
 ```sh
 tools/packaging/windows/build-installer.sh build/release/plugin/SedefAmp_artefacts/Release dist

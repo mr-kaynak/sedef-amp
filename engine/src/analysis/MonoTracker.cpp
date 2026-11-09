@@ -26,8 +26,6 @@ constexpr double kSlowPowerSeconds = 0.04;
 constexpr float kOnsetRatio = 4.0f;
 constexpr float kRiseRatio = 1.5f;
 constexpr double kClickHz = 2000.0;
-constexpr float kClickFloor = 1.0e-8f; // -80 dBFS
-constexpr float kOnsetFloor = 1.0e-7f; // -70 dBFS
 constexpr double kRefractorySeconds = 0.025;
 constexpr double kOnsetWindowSeconds = 0.04;
 constexpr double kPickLevelSeconds = 0.01;     // a pick's level is its peak over this long
@@ -36,6 +34,21 @@ constexpr double kAttackSeconds = 0.008;       // and nothing is judged inside t
 // A period whose own frequency carries less than this share of the energy (-30 dB) is a virtual
 // fundamental. A bright bridge pickup's low E still has about -17 dB there.
 constexpr float kMinFundamentalShare = 0.001f;
+// Options::weakFundamentals: a period with at least -45 dB at its fundamental and -17 dB at its
+// 7th harmonic is a note. A virtual fundamental has about -50 dB at both (at most -40 dB and
+// -19 dB in the attack); a low string plucked near the bridge, -40 to -30 dB at the fundamental
+// and -10 dB at the 7th harmonic.
+constexpr float kWeakFundamentalShare = 3.0e-5f;
+constexpr float kSeventhShare = 0.02f;
+constexpr int kWitnessHarmonic = 7;
+// ...and a period with under 1 % of its energy at its fundamental is judged 2.5 ms later than
+// others: until then the attack at the edge of its two-period window leaks into that bin (a
+// virtual fundamental can show 0.3 % there at the usual time, and 0.006 % 2 ms on).
+constexpr float kCleanShare = 0.01f;
+constexpr double kWeakMarginSeconds = 0.003;
+// Options::fingerPicks: for this long after a pick, only a pick this much louder than its peak.
+constexpr double kFingerWindowSeconds = 0.06;
+constexpr float kLouderPick = 4.0f; // 6 dB
 
 // Note logic.
 constexpr float kLockClarity = 0.8f;     // periodic enough to lock or to change note
@@ -123,6 +136,7 @@ void MonoTracker::reset() noexcept
     phase_ = 0;
     hopCount_ = 0;
     estimateHz_ = clarity_ = 0.0f;
+    estimateWeak_ = false;
     candidateHz_ = 0.0f;
     candidateHops_ = 0;
     locked_ = false;
@@ -139,8 +153,10 @@ void MonoTracker::reset() noexcept
     refractory_ = 0;
     onsetHops_ = 0;
     rising_ = 0;
+    climb_ = 0;
     samplesSinceOnset_ = 1 << 24;
     picked_ = false;
+    pickCount_ = 0;
     pickPeak_ = 0.0f;
     pickWindow_ = 0;
     event_ = Event::none;
@@ -253,7 +269,9 @@ void MonoTracker::updateLags (float x) noexcept
 
     // Picks: the short-term power jumps 6 dB over the longer-term one.
     const float power = x * x;
+    const float lastFast = fastPower_;
     fastPower_ += fastCoeff_ * (power - fastPower_);
+    climb_ = fastPower_ > lastFast ? climb_ + 1 : 0;
     slowPower_ += slowCoeff_ * (power - slowPower_);
     if (samplesSinceOnset_ < 1 << 24)
         ++samplesSinceOnset_;
@@ -262,17 +280,35 @@ void MonoTracker::updateLags (float x) noexcept
     const bool lowRising = fastPower_ > kRiseRatio * slowPower_;
     const bool clickRising = clickFast_ > kRiseRatio * clickSlow_;
     rising_ = lowRising || clickRising ? rising_ + 1 : 0;
-    const bool lowPick = fastPower_ > kOnsetRatio * slowPower_ && fastPower_ > kOnsetFloor;
-    const bool clickPick = clickFast_ > kOnsetRatio * clickSlow_ && clickFast_ > kClickFloor &&
-                           fastPower_ > kOnsetFloor;
-    if (refractory_ > 0)
+    const bool lowPick = fastPower_ > kOnsetRatio * slowPower_ && fastPower_ > options_.onsetFloor;
+    const bool clickPick = clickFast_ > kOnsetRatio * clickSlow_ &&
+                           clickFast_ > options_.clickFloor && fastPower_ > options_.onsetFloor;
+    bool pick = false;
+    int since = rising_;
+    if (options_.fingerPicks && picked_ &&
+        static_cast<double> (samplesSinceOnset_) < kFingerWindowSeconds * rate_)
+    {
+        if (refractory_ > 0)
+            --refractory_;
+        if (pickWindow_ == 0 && fastPower_ > kLouderPick * pickPeak_ &&
+            fastPower_ > kOnsetRatio * slowPower_ && fastPower_ > options_.onsetFloor)
+        {
+            // Dated from where this climb of the power began.
+            pick = true;
+            since = climb_;
+        }
+    }
+    else if (refractory_ > 0)
         --refractory_;
-    else if (lowPick || clickPick)
+    else
+        pick = lowPick || clickPick;
+    if (pick)
     {
         onsetHops_ = onsetWindowHops_;
         refractory_ = refractorySamples_;
-        samplesSinceOnset_ = rising_;
+        samplesSinceOnset_ = since;
         picked_ = true;
+        ++pickCount_;
         pickPeak_ = 0.0f;
         pickWindow_ = pickWindowSamples_;
     }
@@ -381,8 +417,7 @@ void MonoTracker::estimate() noexcept
                 (held < 0 || key.value > keys_[static_cast<size_t> (held)].value))
                 held = k;
         }
-        if (held >= 0 &&
-            fundamentalShare (keys_[static_cast<size_t> (held)].lag) >= kMinFundamentalShare)
+        if (held >= 0 && fundamentalSounds (keys_[static_cast<size_t> (held)].lag))
         {
             heldHz_ = static_cast<float> (rate_) / keys_[static_cast<size_t> (held)].lag;
             heldClarity_ = keys_[static_cast<size_t> (held)].value;
@@ -415,7 +450,7 @@ void MonoTracker::estimate() noexcept
     // note) repeat together at a period no note has. Nothing sounds at that fundamental, so when
     // the chosen period has no energy at its own frequency, the most periodic of its halves,
     // thirds and quarters that does is the note.
-    if (fundamentalShare (keys_[static_cast<size_t> (chosen)].lag) < kMinFundamentalShare)
+    if (!fundamentalSounds (keys_[static_cast<size_t> (chosen)].lag))
     {
         const float lag = keys_[static_cast<size_t> (chosen)].lag;
         int part = -1;
@@ -428,7 +463,7 @@ void MonoTracker::estimate() noexcept
                     divides || std::abs (key.lag * static_cast<float> (parts) - lag) <= 0.04f * lag;
             if (divides && key.value >= kHoldClarity &&
                 (part < 0 || key.value > keys_[static_cast<size_t> (part)].value) &&
-                fundamentalShare (key.lag) >= kMinFundamentalShare)
+                fundamentalSounds (key.lag))
                 part = k;
         }
         if (part < 0)
@@ -443,16 +478,32 @@ void MonoTracker::estimate() noexcept
     const auto& key = keys_[static_cast<size_t> (chosen)];
     estimateHz_ = static_cast<float> (rate_) / key.lag;
     clarity_ = std::clamp (key.value, 0.0f, 1.0f);
+    estimateWeak_ = options_.weakFundamentals && fundamentalShare (key.lag) < kCleanShare;
+}
+
+bool MonoTracker::fundamentalSounds (float lag) const noexcept
+{
+    const float share = fundamentalShare (lag);
+    if (share >= kMinFundamentalShare)
+        return true;
+    return options_.weakFundamentals && share >= kWeakFundamentalShare &&
+           kWitnessHarmonic * rate_ / static_cast<double> (lag) <= kAntiAliasHz &&
+           partialShare (lag, kWitnessHarmonic) >= kSeventhShare;
 }
 
 float MonoTracker::fundamentalShare (float lag) const noexcept
 {
-    // The share of the last two periods' energy at the period's own frequency (one DFT bin over
-    // exactly two periods, so every harmonic of the period, and of half of it, falls on another
-    // bin and leaks nothing).
+    return partialShare (lag, 1);
+}
+
+float MonoTracker::partialShare (float lag, int harmonic) const noexcept
+{
+    // The share of the last two periods' energy at a harmonic of the period (one DFT bin over
+    // exactly two periods, so every other harmonic of the period, and of half of it, falls on
+    // another bin and leaks nothing).
     const int n = std::min (static_cast<int> (std::lround (2.0f * lag)), historySize_ - 2);
     const float* h = history_.data() + (write_ == 0 ? historySize_ - 1 : write_ - 1) + historySize_;
-    const double w = kTwoPiD / static_cast<double> (lag);
+    const double w = kTwoPiD * harmonic / static_cast<double> (lag);
     const double c = std::cos (w), sn = std::sin (w);
     double re = 0.0, im = 0.0, energy = 0.0;
     double rotRe = 1.0, rotIm = 0.0;
@@ -482,9 +533,10 @@ void MonoTracker::track() noexcept
     // estimate can be locked onto or switched to only after it, and never inside the first 8 ms
     // of the attack, whose short periods can look periodic.
     const bool found = estimateHz_ > 0.0f;
+    const double settleMargin = estimateWeak_ ? kWeakMarginSeconds : kCleanMarginSeconds;
     const bool settled =
         found && static_cast<double> (samplesSinceOnset_) >=
-                     std::max (2.0 / estimateHz_ + kCleanMarginSeconds, kAttackSeconds) * rate_;
+                     std::max (2.0 / estimateHz_ + settleMargin, kAttackSeconds) * rate_;
     // Right after a pick, a new note may be less periodic than usual (the old string still
     // rings under it): it takes over at a lower bar.
     const float bar = locked_ && onsetHops_ > 0 ? kPickedClarity : kLockClarity;

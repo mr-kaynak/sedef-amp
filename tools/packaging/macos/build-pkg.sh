@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# Builds "Install Sedef Amp.pkg": one component package per format and a product archive with a
-# welcome page, the licence and a list of formats to choose from.
+# Builds "Install Sedef Amp.pkg": one component package per bundle and a product archive with a
+# welcome page, the licence and a list of choices: Sedef Amp's four formats, and Sedef MIDI (all of
+# its bundles in one choice).
 #
 #   build-pkg.sh <bundles-dir> <version> <output.pkg>
 #
 # <bundles-dir> uses the JUCE artefacts layout (Standalone/Sedef Amp.app, VST3/Sedef Amp.vst3,
-# AU/Sedef Amp.component, CLAP/Sedef Amp.clap) and its bundles must already be signed.
+# AU/Sedef Amp.component, CLAP/Sedef Amp.clap, and Sedef MIDI's Standalone/Sedef MIDI.app,
+# VST3/Sedef MIDI.vst3, AU/Sedef MIDI.component, AU/Sedef MIDI Instrument.component and
+# CLAP/Sedef MIDI.clap) and its bundles must already be signed.
 # When MACOS_SIGN_INSTALLER_IDENTITY names a "Developer ID Installer" identity, the product
 # archive is signed with it (MACOS_KEYCHAIN optionally names the keychain to search).
 
@@ -26,12 +29,18 @@ repo="$(cd "$here/../../.." && pwd)"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
-# key | folder in <bundles-dir> | bundle | install location
+# key | folder in <bundles-dir> | bundle | install location. The keys name the component packages
+# (io.github.mr-kaynak.sedef-amp.<key>, the receipts uninstall.command forgets): never change them.
 components=(
     "app|Standalone|Sedef Amp.app|/Applications"
     "vst3|VST3|Sedef Amp.vst3|/Library/Audio/Plug-Ins/VST3"
     "au|AU|Sedef Amp.component|/Library/Audio/Plug-Ins/Components"
     "clap|CLAP|Sedef Amp.clap|/Library/Audio/Plug-Ins/CLAP"
+    "midi-app|Standalone|Sedef MIDI.app|/Applications"
+    "midi-vst3|VST3|Sedef MIDI.vst3|/Library/Audio/Plug-Ins/VST3"
+    "midi-au|AU|Sedef MIDI.component|/Library/Audio/Plug-Ins/Components"
+    "midi-instrument|AU|Sedef MIDI Instrument.component|/Library/Audio/Plug-Ins/Components"
+    "midi-clap|CLAP|Sedef MIDI.clap|/Library/Audio/Plug-Ins/CLAP"
 )
 
 mkdir -p "$work/packages"
@@ -49,8 +58,14 @@ for entry in "${components[@]}"; do
 
     scripts="$work/scripts-$key"
     mkdir -p "$scripts"
-    install -m 755 "$here/scripts/preinstall" "$scripts/preinstall"
-    if [[ "$key" == "au" ]]; then
+    # Each preinstall removes only its own product's bundles: Sedef MIDI may be left out.
+    if [[ "$key" == midi-* ]]; then
+        sed "s|@BUNDLE@|$bundle|" "$here/scripts/preinstall-midi" >"$scripts/preinstall"
+        chmod 755 "$scripts/preinstall"
+    else
+        install -m 755 "$here/scripts/preinstall" "$scripts/preinstall"
+    fi
+    if [[ "$key" == "au" || "$key" == "midi-au" || "$key" == "midi-instrument" ]]; then
         install -m 755 "$here/scripts/postinstall-au" "$scripts/postinstall"
     fi
     # Extended attributes would travel in the payload as ._ AppleDouble entries.

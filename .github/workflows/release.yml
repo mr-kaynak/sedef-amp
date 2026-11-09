@@ -30,10 +30,15 @@ jobs:
           cache-dependency-path: ui/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
+      - run: pnpm build:midi
       - uses: actions/upload-artifact@v4
         with:
           name: ui-dist
           path: ui/dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ui-dist-midi
+          path: ui/dist-midi
 
   build:
     needs: [ui]
@@ -53,6 +58,10 @@ jobs:
         with:
           name: ui-dist
           path: ui/dist
+      - uses: actions/download-artifact@v4
+        with:
+          name: ui-dist-midi
+          path: ui/dist-midi
       - uses: actions/cache@v4
         with:
           path: .cpm-cache
@@ -77,7 +86,12 @@ jobs:
           cmake --preset release -DSEDEF_BUILD_UI=OFF -DSEDEF_BUILD_TESTS=OFF
           ${{ runner.os == 'macOS' && '-DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"' || '' }}
       - name: Build
-        run: cmake --build --preset release --target SedefAmp_All SedefAmp_CLAP sedef-update-check
+        shell: bash
+        run: |
+          targets=(SedefAmp_All SedefAmp_CLAP sedef-update-check SedefMidi_All SedefMidi_CLAP)
+          # Sedef MIDI's instrument AU (Logic's side-chain route) exists on macOS only.
+          if [ "$RUNNER_OS" = "macOS" ]; then targets+=(SedefMidiInstrument_All); fi
+          cmake --build --preset release --target "${targets[@]}"
       # Packaging lives in tools/packaging so the same scripts run locally (docs/releasing.md).
       - name: Signing keychain (macOS)
         if: runner.os == 'macOS'
@@ -109,6 +123,12 @@ jobs:
       - name: Package (Linux)
         if: runner.os == 'Linux'
         run: tools/packaging/linux/package.sh build/release/plugin/SedefAmp_artefacts/Release dist
+      # What each package holds, Sedef MIDI included (Windows: the install test lists what its
+      # setup installed).
+      - name: List the package
+        if: runner.os != 'Windows'
+        shell: bash
+        run: tools/packaging/list-package.sh dist
       # The in-app updater's install, through its own code, on the package just built: over the
       # previous release (docs/releasing.md#install-test). A failure stops the release.
       - name: Install test

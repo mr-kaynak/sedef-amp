@@ -9,6 +9,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:midi": "vite build -c vite.midi.config.ts",
+    "dev:midi": "vite -c vite.midi.config.ts",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",

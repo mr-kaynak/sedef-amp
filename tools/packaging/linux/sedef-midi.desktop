@@ -1,0 +1,12 @@
+[Desktop Entry]
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# install.sh fills in Exec with the installed binary's full path.
+Type=Application
+Name=Sedef MIDI
+GenericName=Guitar to MIDI
+Comment=Play MIDI instruments from your guitar, one note at a time
+Exec="@EXEC@"
+Icon=sedef-amp
+Terminal=false
+Categories=AudioVideo;Audio;Music;Midi;
+Keywords=guitar;midi;bass;converter;pitch;

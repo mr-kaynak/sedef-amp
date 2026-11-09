@@ -2,11 +2,13 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
 # Packages a Linux build into Sedef-Amp-Linux-x86_64.tar.gz: the VST3, CLAP and standalone
-# builds plus install.sh / uninstall.sh, a menu entry and an icon.
+# builds of Sedef Amp and Sedef MIDI plus install.sh / uninstall.sh, menu entries and an icon.
 #
 #   package.sh <artefacts-dir> <output-dir>
 #
 # <artefacts-dir> is the JUCE output folder, e.g. build/release/plugin/SedefAmp_artefacts/Release.
+# Sedef MIDI's files come from its sibling folder (SedefMidi_artefacts/Release), or from
+# $SEDEF_MIDI_ARTEFACTS.
 
 set -euo pipefail
 
@@ -15,6 +17,7 @@ if [[ $# -ne 2 ]]; then
     exit 2
 fi
 artefacts="$(cd "$1" && pwd)"
+midi_artefacts="${SEDEF_MIDI_ARTEFACTS:-$(cd "$artefacts/../.." && pwd)/SedefMidi_artefacts/$(basename "$artefacts")}"
 mkdir -p "$2"
 outdir="$(cd "$2" && pwd)"
 
@@ -35,31 +38,43 @@ for item in "VST3/Sedef Amp.vst3" "CLAP/Sedef Amp.clap" "Standalone/Sedef Amp"; 
     fi
     cp -R "$artefacts/$item" "$stage/$item"
 done
+for item in "VST3/Sedef MIDI.vst3" "CLAP/Sedef MIDI.clap" "Standalone/Sedef MIDI"; do
+    if [[ ! -e "$midi_artefacts/$item" ]]; then
+        echo "error: missing $midi_artefacts/$item (build SedefMidi_All and SedefMidi_CLAP first)" >&2
+        exit 1
+    fi
+    cp -R "$midi_artefacts/$item" "$stage/$item"
+done
 
 install -m 755 "$here/install.sh" "$here/uninstall.sh" "$stage/"
 install -m 644 "$here/sedef-amp.desktop" "$stage/sedef-amp.desktop"
+install -m 644 "$here/sedef-midi.desktop" "$stage/sedef-midi.desktop"
 install -m 644 "$repo/tools/packaging/assets/icon.svg" "$stage/sedef-amp.svg"
 install -m 644 "$repo/tools/packaging/assets/icon-256.png" "$stage/sedef-amp.png"
 install -m 644 "$repo/LICENSE" "$stage/LICENSE"
 install -m 644 "$repo/THIRD_PARTY_NOTICES.md" "$stage/THIRD_PARTY_NOTICES.md"
 cat >"$stage/README.txt" <<EOF
 Sedef Amp $version for Linux (x86_64)
-Open-source guitar amp and effects suite.
+Open-source guitar amp and effects suite, with Sedef MIDI, which plays MIDI instruments from your
+guitar, one note at a time.
 
 INSTALL
-  ./install.sh            for you only (~/.vst3, ~/.clap, ~/.local/bin, app menu entry)
+  ./install.sh            for you only (~/.vst3, ~/.clap, ~/.local/bin, app menu entries)
   ./install.sh --system   for every user (/usr/lib/vst3, /usr/lib/clap, /usr/local), via sudo
+  Add --no-midi to leave Sedef MIDI out; later runs and updates keep that until --midi.
 
 Then rescan plugins in your DAW. The interface needs WebKitGTK 4.1
 (Debian/Ubuntu: libwebkit2gtk-4.1-0, Fedora: webkit2gtk4.1); the standalone app uses ALSA or JACK.
 
 UNINSTALL
-  ./uninstall.sh  (or --system); a copy is installed in ~/.local/share/sedef-amp/
+  ./uninstall.sh  (or --system) removes both; a copy is installed in ~/.local/share/sedef-amp/.
+  To remove Sedef MIDI only: ./install.sh --no-midi
   Presets and settings in ~/.config/Sedef are kept.
 
 MANUAL INSTALL
   Copy VST3/Sedef Amp.vst3 to ~/.vst3 and CLAP/Sedef Amp.clap to ~/.clap; the standalone
-  app (Standalone/Sedef Amp) runs from anywhere.
+  app (Standalone/Sedef Amp) runs from anywhere. Sedef MIDI likewise: VST3/Sedef MIDI.vst3,
+  CLAP/Sedef MIDI.clap and Standalone/Sedef MIDI.
 
 More: https://github.com/mr-kaynak/sedef-amp/blob/main/docs/install.md
 Sedef Amp is free software under the GNU Affero General Public License v3.0 or later.

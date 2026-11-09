@@ -1,0 +1,149 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+.panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  min-width: 0;
+  padding: 18px 20px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-panel);
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgb(205 238 238 / 0.05), transparent 60%),
+    linear-gradient(180deg, var(--ink-2), var(--ink-1));
+  box-shadow: var(--shadow-hw);
+}
+
+.readout {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 128px;
+}
+
+.note {
+  display: inline-flex;
+  align-items: baseline;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 500;
+  font-variation-settings: 'opsz' 96;
+  line-height: 1;
+  color: var(--bone-3);
+  transition: color var(--dur-1) var(--ease-out);
+}
+
+.name {
+  font-size: 112px;
+  letter-spacing: -0.02em;
+}
+
+.octave {
+  margin-left: 4px;
+  font-size: var(--t-48);
+}
+
+/* A sounding note is inlaid in nacre; the last one stays, unlit, so the eye can find it. */
+.panel[data-sounding] .note {
+  color: transparent;
+  background: var(--nacre-ink);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+@media (forced-colors: active) {
+  .panel[data-sounding] .note {
+    color: CanvasText;
+    background: none;
+  }
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.tune {
+  width: min(260px, 100%);
+}
+
+.scale {
+  position: relative;
+  height: 14px;
+  border-radius: 7px;
+  background: var(--ink-0);
+  box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.6);
+}
+
+.centre {
+  position: absolute;
+  left: calc(50% - 0.5px);
+  top: 3px;
+  bottom: 3px;
+  width: 1px;
+  background: var(--line-strong);
+}
+
+/* The needle's own box is the scale's half-width, so translateX(±50%) reaches ±50 cents. */
+.needle {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 25%;
+  width: 50%;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-1) var(--ease-out);
+}
+
+.needle::after {
+  content: '';
+  position: absolute;
+  left: calc(50% - 1.5px);
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: 1.5px;
+  background: var(--glow);
+  box-shadow: 0 0 6px rgb(200 241 234 / 0.6);
+}
+
+.scaleLabels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  color: var(--bone-3);
+  font-size: var(--t-10);
+  font-stretch: var(--legend-stretch);
+}
+
+.facts {
+  display: flex;
+  gap: 22px;
+  margin: 0;
+}
+
+.facts div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.facts dt {
+  color: var(--bone-3);
+  font-size: var(--t-10);
+  font-stretch: var(--legend-stretch);
+}
+
+.facts dd {
+  margin: 0;
+  color: var(--bone);
+  font-size: var(--t-14);
+  font-weight: 560;
+}

@@ -13,7 +13,10 @@
 | **Linux** x86_64 | [**Sedef-Amp-Linux-x86_64.tar.gz**](https://github.com/mr-kaynak/sedef-amp/releases/download/@TAG@/Sedef-Amp-Linux-x86_64.tar.gz) | Unpack it and run `./install.sh` |
 
 Every installer lets you pick the formats: VST3, CLAP and the standalone app, plus AU on macOS.
-Afterwards, rescan plugins in your DAW and look for **Sedef Amp** by **Sedef**.
+Each also installs **Sedef MIDI**, which plays MIDI instruments from your guitar, one note at a
+time ([docs/midi.md](https://github.com/mr-kaynak/sedef-amp/blob/@TAG@/docs/midi.md)); untick it,
+or run `./install.sh --no-midi` on Linux, to leave it out. Afterwards, rescan plugins in your DAW
+and look for **Sedef Amp** and **Sedef MIDI** by **Sedef**.
 
 ## What's new
 

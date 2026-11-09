@@ -8,6 +8,7 @@
 #include <array>
 #include <atomic>
 #include <juce_audio_processors/juce_audio_processors.h>
+#include <mutex>
 
 namespace sedef::midiplugin
 {
@@ -110,6 +111,19 @@ private:
     juce::AudioProcessorValueTreeState state_;
     std::array<std::atomic<float>*, midi::kNumParams> raw_ {};
     midi::Values lastValues_ {};
+
+    /// A value as the last restored state held it, and the value it gave the parameter. Saving
+    /// writes a parameter still at that value back as it was loaded, so load-then-save
+    /// reproduces a state byte for byte (APVTS would store denormalise (normalise (x)), which
+    /// can differ from x in the last bit).
+    struct LoadedValue
+    {
+        juce::var saved;
+        float applied = 0.0f;
+        bool valid = false;
+    };
+    std::mutex loadedLock_; ///< state calls come from any thread, never the audio thread
+    std::array<LoadedValue, midi::kNumParams> loaded_ {};
 
     midi::GuitarToMidi converter_;
     midi::EventList events_, pendingOffs_;

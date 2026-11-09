@@ -143,6 +143,7 @@ if(SEDEF_BUILD_PLUGIN_TESTS)
 
     juce_add_console_app(sedef_midi_tests PRODUCT_NAME "sedef_midi_tests")
     target_sources(sedef_midi_tests PRIVATE
+        midi/tests/MidiClapTests.cpp
         midi/tests/MidiHostTests.cpp
         midi/tests/MidiPortTests.cpp
         midi/tests/MidiTestMain.cpp
@@ -155,7 +156,8 @@ if(SEDEF_BUILD_PLUGIN_TESTS)
         JUCE_USE_CURL=0
         JUCE_PLUGINHOST_VST3=1
         JUCE_MODAL_LOOPS_PERMITTED=1
-        SEDEF_MIDI_VST3_PATH="${CMAKE_CURRENT_BINARY_DIR}/SedefMidi_artefacts/$<CONFIG>/VST3/Sedef MIDI.vst3")
+        SEDEF_MIDI_VST3_PATH="${CMAKE_CURRENT_BINARY_DIR}/SedefMidi_artefacts/$<CONFIG>/VST3/Sedef MIDI.vst3"
+        SEDEF_MIDI_CLAP_PATH="${CMAKE_CURRENT_BINARY_DIR}/SedefMidi_artefacts/$<CONFIG>/CLAP/Sedef MIDI.clap")
     target_link_libraries(sedef_midi_tests
         PRIVATE
             sedef::engine
@@ -163,10 +165,11 @@ if(SEDEF_BUILD_PLUGIN_TESTS)
             juce::juce_audio_processors
             juce::juce_gui_basics
             Catch2::Catch2
+            clap
         PUBLIC
             juce::juce_recommended_config_flags
             juce::juce_recommended_warning_flags)
-    add_dependencies(sedef_midi_tests SedefMidi_VST3)
+    add_dependencies(sedef_midi_tests SedefMidi_VST3 SedefMidi_CLAP)
     # The engine's test signals compare floats exactly on purpose.
     if(NOT MSVC)
         target_compile_options(sedef_midi_tests PRIVATE -Wno-float-equal)

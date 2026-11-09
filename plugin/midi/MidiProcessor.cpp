@@ -300,7 +300,18 @@ void MidiProcessor::getStateInformation (juce::MemoryBlock& dest)
 {
     juce::ValueTree root ("SedefMidiState");
     root.setProperty ("version", 1, nullptr);
-    root.addChild (state_.copyState(), -1, nullptr);
+    auto params = state_.copyState();
+    {
+        const std::scoped_lock lock (loadedLock_);
+        for (auto child : params)
+            if (const auto id = midi::findParam (child.getProperty ("id").toString().toStdString()))
+            {
+                const auto& loaded = loaded_[midi::index (*id)];
+                if (loaded.valid && juce::exactlyEqual (paramValue (*id), loaded.applied))
+                    child.setProperty ("value", loaded.saved, nullptr);
+            }
+    }
+    root.addChild (params, -1, nullptr);
     juce::ValueTree extra ("Extra");
     extra.setProperty ("destination", destination(), nullptr);
     root.addChild (extra, -1, nullptr);
@@ -316,7 +327,24 @@ void MidiProcessor::setStateInformation (const void* data, int size)
     const auto root = juce::ValueTree::fromXml (*xml);
     const auto params = root.getChildWithName (state_.state.getType());
     if (params.isValid())
+    {
+        const std::scoped_lock lock (loadedLock_);
+        std::array<LoadedValue, midi::kNumParams> loaded {};
+        // Read the saved values first: replaceState() adopts this tree, and APVTS then writes
+        // the values it actually applied back into it.
+        for (const auto& child : params)
+            if (const auto id = midi::findParam (child.getProperty ("id").toString().toStdString()))
+                loaded[midi::index (*id)] = { child.getProperty ("value"), 0.0f, true };
         state_.replaceState (params);
+        for (std::size_t i = 0; i < midi::kNumParams; ++i)
+            loaded[i].applied = paramValue (static_cast<midi::ParamId> (i));
+        loaded_ = loaded;
+    }
+    // The CLAP wrapper tells the host to re-read parameter values only after a "parameter info
+    // changed" notification; VST3 and AU hosts pick restored values up by themselves. Without
+    // it a CLAP host keeps showing the values from before the restore.
+    if (params.isValid() && wrapperType == wrapperType_Undefined)
+        updateHostDisplay (ChangeDetails().withParameterInfoChanged (true));
     const auto extra = root.getChildWithName ("Extra");
     if (extra.hasProperty ("destination"))
         setDestination (extra.getProperty ("destination").toString());

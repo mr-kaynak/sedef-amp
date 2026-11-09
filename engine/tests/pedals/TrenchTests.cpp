@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 #include "../analysis/PitchTestSignals.h"
+#include "OctaverChords.h"
 #include "OctaverDi.h"
 #include "PedalTestUtils.h"
 #include "sedef/dsp/Trench.h"
@@ -376,27 +377,162 @@ TEST_CASE ("Trench Mono re-locks through a legato run", "[pedals][trench]")
     }
 }
 
-TEST_CASE ("Trench keeps the subs silent at low input", "[pedals][trench]")
+TEST_CASE ("Trench keeps the subs silent on hiss and hum, and divides notes over them",
+           "[pedals][trench]")
 {
-    // A note picked 50 dB below a normal one, and hiss at -60 dBFS RMS: the gate stays shut, so the
-    // subs add exactly nothing. A light note 20 dB down still gets its sub.
-    CHECK (test::peak (render (pluck (164.814, kFs, 2.0, 0.18, 0.001f), kBothSubs)) == 0.0f);
-    std::vector<float> hiss (static_cast<size_t> (kFs), 0.0f);
-    test::addNoise (hiss, -60.0f);
-    CHECK (test::peak (render (hiss, kBothSubs)) == 0.0f);
-    const auto light = render (pluck (164.814, kFs, 2.0, 0.18, 0.03f), kSub1Only);
-    CHECK (std::abs (test::centsError (measuredHz (light, 0.4, 1.5, kFs), 82.407)) < 1.0);
-
-    // Poly shares the level gate.
+    // The gate is set against the input's own noise floor. Hiss at -90 and -60 dBFS and mains hum
+    // at -70 and -60 dBFS (50 and 60 Hz with a third harmonic, present from the start): the subs
+    // add exactly nothing over 3 s. A note 40 dB over the hum gets its sub, in tune in Mono and
+    // at its level in Poly, and after a mute the sub is 60 dB down within 150 ms.
     const Trench::Settings polySubs { 0.0f, 1.0f, 1.0f, 1.0f, Trench::Poly };
-    CHECK (test::peak (render (pluck (164.814, kFs, 2.0, 0.18, 0.001f), polySubs)) == 0.0f);
-    CHECK (test::peak (render (hiss, polySubs)) == 0.0f);
-    const auto lightIn = pluck (164.814, kFs, 2.0, 0.18, 0.03f);
-    const auto lightPoly = render (lightIn, { 0.0f, 0.5f, 0.0f, 1.0f, Trench::Poly });
-    const auto from = static_cast<size_t> (0.4 * kFs), to = static_cast<size_t> (1.4 * kFs);
-    CHECK (std::abs (test::db (test::rms (lightPoly.data() + from, static_cast<int> (to - from)) /
-                               test::rms (lightIn.data() + from, static_cast<int> (to - from)))) <
-           3.0);
+    const auto noiseFloor = [] (float hissDb, double humHz, float humDb) {
+        std::vector<float> v (static_cast<size_t> (3.0 * kFs), 0.0f);
+        if (hissDb > -200.0f)
+            test::addNoise (v, hissDb);
+        if (humHz > 0.0)
+            test::addHum (v, kFs, humHz, humDb);
+        return v;
+    };
+    struct Floor
+    {
+        const char* name;
+        float hissDb;
+        double humHz;
+        float humDb;
+    };
+    const Floor floors[] = { { "hiss -90 dBFS", -90.0f, 0.0, 0.0f },
+                             { "hiss -60 dBFS", -60.0f, 0.0, 0.0f },
+                             { "hum 50 Hz -70 dBFS", -300.0f, 50.0, -70.0f },
+                             { "hum 60 Hz -60 dBFS", -300.0f, 60.0, -60.0f },
+                             { "hum 60 Hz -70 dBFS and hiss -90 dBFS", -90.0f, 60.0, -70.0f } };
+    for (const auto& f : floors)
+    {
+        INFO (f.name);
+        const auto noise = noiseFloor (f.hissDb, f.humHz, f.humDb);
+        CHECK (test::peak (render (noise, kBothSubs)) == 0.0f);
+        CHECK (test::peak (render (noise, polySubs)) == 0.0f);
+    }
+
+    // A note at -30 dBFS peak over -70 dBFS hum and -90 dBFS hiss, muted after 1 s.
+    auto in = noiseFloor (-90.0f, 60.0, -70.0f);
+    test::Pluck p;
+    p.f1 = 164.814;
+    p.peak = 0.0316f;
+    p.pickNoise = 0.15f * p.peak;
+    p.muteAt = 1.0;
+    test::addPluck (in, kFs, kPick, p);
+    const double pickS = static_cast<double> (kPick) / kFs, muteS = pickS + 1.0;
+    const auto mono = render (in, kSub1Only);
+    CHECK (std::abs (test::centsError (measuredHz (mono, 0.4, 1.0, kFs), 82.407)) < 1.0);
+    const auto poly = render (in, { 0.0f, 0.5f, 0.0f, 1.0f, Trench::Poly });
+    const auto from = static_cast<size_t> (0.4 * kFs), to = static_cast<size_t> (1.0 * kFs);
+    CHECK (std::abs (test::db (test::rms (poly.data() + from, static_cast<int> (to - from)) /
+                               test::rms (in.data() + from, static_cast<int> (to - from)))) < 3.0);
+    for (const auto* out : { &mono, &poly })
+        CHECK (peakIn (*out, muteS + 0.15, muteS + 1.5, kFs) <
+               0.001f * peakIn (*out, muteS - 0.1, muteS, kFs));
+}
+
+TEST_CASE ("Trench lets a hum that comes up between notes go within seconds", "[pedals][trench]")
+{
+    // Hum switched on after silence looks like a note to the gate. The floor climbs to it once
+    // nothing has been picked for 2 s, by 6 dB a second: a -70 dBFS hum (its detector level 32 dB
+    // over the floor's lowest) is let go about 6.5 s after it starts.
+    std::vector<float> in (static_cast<size_t> (10.0 * kFs), 0.0f);
+    std::vector<float> hum (static_cast<size_t> (9.5 * kFs), 0.0f);
+    test::addHum (hum, kFs, 60.0, -70.0f);
+    std::copy (hum.begin(), hum.end(), in.begin() + static_cast<std::ptrdiff_t> (0.5 * kFs));
+    for (const auto& s : { kBothSubs, Trench::Settings { 0.0f, 1.0f, 1.0f, 1.0f, Trench::Poly } })
+    {
+        INFO ((s.mode == Trench::Poly ? "Poly" : "Mono"));
+        const auto out = render (in, s);
+        CHECK (peakIn (out, 8.0, 10.0, kFs) < 1.0e-3f * test::peak (hum));
+    }
+}
+
+TEST_CASE ("Trench works the same at any input level", "[pedals][trench]")
+{
+    // The same playing with its peaks at -40, -30, -18 and -6 dBFS, over hiss 70 dB under the peaks
+    // (an interface's gain moves its noise with the playing). Every bar of the real-playing tests
+    // holds at every level, and the numbers match the -6 dBFS ones: Mono's lock within 0.5 ms,
+    // the share of the note held within 1 %, the modulation within 0.3 dB; Poly's chords within
+    // 0.5 dB (off-grid power) and 1 dB (strongest off-grid peak), its warble on a bend within
+    // 0.3 dB. (Before, a -60 dBFS floor of its own kept the gate shut under about -25 dBFS peaks.)
+    using namespace test::octaver;
+    const auto atLevel = [] (std::vector<float> x, double peakDb) {
+        const auto g = static_cast<float> (std::pow (10.0, peakDb / 20.0)) / test::peak (x);
+        for (auto& v : x)
+            v *= g;
+        test::addNoise (x, static_cast<float> (peakDb - 70.0), 5);
+        return x;
+    };
+    std::vector<Scenario> mono;
+    mono.push_back (single ("bridge", bridgePluck (kE2), kFs));
+    mono.push_back (single ("piezo", piezoPluck (kA2), kFs));
+    mono.push_back (single ("bridge", bridgePluck (kA3), kFs));
+    mono.push_back (ringingNeighbour (kE2, -500.0, kFs));
+    mono.push_back (vibrato (kE2, kFs));
+    mono.push_back (bend (kA3, kFs));
+    const Trench::Settings poly { 0.0f, 0.5f, 0.0f, 1.0f, Trench::Poly };
+
+    struct Result
+    {
+        std::vector<NoteStats> mono;
+        std::vector<ChordSub> chords;
+        double bendWarble = 0.0;
+    };
+    const auto measure = [&] (double level) {
+        Result r;
+        for (const auto& s : mono)
+        {
+            const auto in = atLevel (s.signal, level);
+            r.mono.push_back (
+                judge (runTrench (in, kFs, kSub1Only), envelopeBand (in, kFs), kFs, s.notes[0]));
+        }
+        for (const auto& c : chords())
+            if (c.name == "E major open" || c.name == "F major barre")
+            {
+                std::vector<float> in, ideal;
+                renderChord (c, kFs, 1.8, in, ideal);
+                r.chords.push_back (
+                    judgeChordSub (c, runTrench (atLevel (in, level), kFs, poly).out, kFs));
+            }
+        const auto b = bend (kA2, kFs);
+        r.bendWarble = warbleDb (runTrench (atLevel (b.signal, level), kFs, poly).out, kFs,
+                                 b.notes[0].start + 0.2, b.notes[0].end - 0.05);
+        return r;
+    };
+
+    const auto reference = measure (-6.0);
+    for (double level : { -40.0, -30.0, -18.0, -6.0 })
+    {
+        const auto r = level == -6.0 ? reference : measure (level);
+        for (size_t k = 0; k < mono.size(); ++k)
+        {
+            INFO (level << " dBFS, " << mono[k].name << ", " << mono[k].notes[0].pluck.f1 << " Hz");
+            const auto& st = r.mono[k];
+            const auto& ref = reference.mono[k];
+            CHECK (st.flips == 0);
+            CHECK (st.held >= 0.95);
+            CHECK (st.amDb <= 3.0);
+            CHECK (std::abs (st.cents) < 5.0);
+            CHECK (st.rightOctave > 0.99);
+            CHECK (st.lockMs <= (mono[k].notes[0].pluck.f1 < kA3 ? 30.0 : 15.0));
+            CHECK (std::abs (st.lockMs - ref.lockMs) <= 0.5);
+            CHECK (std::abs (st.held - ref.held) <= 0.01);
+            CHECK (std::abs (st.amDb - ref.amDb) <= 0.3);
+        }
+        for (size_t k = 0; k < r.chords.size(); ++k)
+        {
+            INFO (level << " dBFS, chord " << k);
+            CHECK (r.chords[k].offGridDb < -20.0);
+            CHECK (std::abs (r.chords[k].offGridDb - reference.chords[k].offGridDb) <= 0.5);
+            CHECK (std::abs (r.chords[k].worstPeakDb - reference.chords[k].worstPeakDb) <= 1.0);
+        }
+        INFO (level << " dBFS, Poly bend");
+        CHECK (r.bendWarble < 3.0);
+        CHECK (std::abs (r.bendWarble - reference.bendWarble) <= 0.3);
+    }
 }
 
 TEST_CASE ("Trench automation is click-free", "[pedals][trench]")

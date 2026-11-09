@@ -20,10 +20,30 @@ constexpr double kDetectorLpQ = 0.7071;
 // asin (0.25) around a crossing cannot toggle the flip-flop twice.
 constexpr float kHalfHysteresis = 0.25f;
 
-// Envelope and gate.
+// Envelope and gate. The gate keeps hiss and hum from being divided. It is set against the
+// input's own noise floor, which an interface's gain moves together with the playing, so notes
+// open it at any input level: 12 dB over the floor opens it, 6 dB over it closes it. (The 10 ms
+// level of band-limited noise sits within about 5 dB of the floor that follows its dips.)
 constexpr double kLevelSeconds = 0.010; // mean |x|
-constexpr float kOpenLevel = 0.0025f;   // -52 dBFS mean |x|
-constexpr float kCloseLevel = 0.0012f;  // -58 dBFS
+constexpr float kOpenOverFloor = 4.0f;  // +12 dB
+constexpr float kCloseOverFloor = 2.0f; // +6 dB
+// The floor's range, as mean |x| of the band-limited input. At the bottom the gate opens from
+// -100 dBFS: 10 dB over the band-limited noise of a quiet 24-bit interface (-110 dBFS and
+// below), 50 dB under the quietest playing the tests use (-40 dBFS peaks). At the top it asks no
+// more than the fixed gate it replaces did (open at -52 dBFS, close at -58 dBFS), so a floor
+// louder than that is played signal, not noise.
+constexpr float kMinFloor = 2.5e-6f;                  // -112 dBFS
+constexpr float kMaxFloor = 0.0025f / kOpenOverFloor; // -64 dBFS
+// Tracking. The floor follows the level down at once (its dips between notes are the noise).
+// It rises by 6 dB a second only while the gate is shut, or when nothing has been picked for 2 s
+// with the gate open: a hum or hiss that came up then, not a note, which a player re-picks.
+// After a reset, the first 30 ms (three time constants of the level) set the floor, and nothing
+// is divided before that.
+constexpr double kFloorRiseDbPerSecond = 6.0;
+constexpr double kPickHoldSeconds = 2.0;
+constexpr double kPickAverageSeconds = 0.1; // a pick: the level jumps over twice its 100 ms mean
+constexpr float kPickRatio = 2.0f;
+constexpr double kWarmUpSeconds = 0.03;
 constexpr double kGateAttackSeconds = 0.004;
 constexpr double kGateReleaseSeconds = 0.015;
 constexpr float kSubScale = 0.95f; // at noon the sub is within ~2 dB of the note's level
@@ -49,6 +69,10 @@ void Trench::prepare (const ProcessSpec& spec)
     numChannels_ = std::clamp (spec.numChannels, 1, kMaxChannels);
 
     levelCoeff_ = onePole (kLevelSeconds, sampleRate_);
+    averageCoeff_ = onePole (kPickAverageSeconds, sampleRate_);
+    floorRise_ = static_cast<float> (std::pow (10.0, kFloorRiseDbPerSecond / (20.0 * sampleRate_)));
+    pickHoldSamples_ = static_cast<int> (std::lround (kPickHoldSeconds * sampleRate_));
+    warmUpSamples_ = std::max (1, static_cast<int> (std::lround (kWarmUpSeconds * sampleRate_)));
     gateAttack_ = onePole (kGateAttackSeconds, sampleRate_);
     gateRelease_ = onePole (kGateReleaseSeconds, sampleRate_);
 
@@ -80,6 +104,10 @@ void Trench::reset() noexcept
         for (auto* s : { &t.hp, &t.lp, &t.tone, &t.dc })
             s->clear();
         t.level = 0.0f;
+        t.average = 0.0f;
+        t.floor = kMaxFloor;
+        t.sincePick = pickHoldSamples_;
+        t.warmUp = warmUpSamples_;
         t.levelOpen = false;
         t.tone.c = toneCoeffs_;
     }
@@ -109,7 +137,8 @@ void Trench::setSettings (const Settings& s) noexcept
 Trench::TrackState Trench::trackState() const noexcept
 {
     const auto& t = trackers_[0];
-    return { t.mono.hz(), t.mono.clarity(), t.gate, poly_ > 0.0f ? t.poly.partials() : 0 };
+    return { t.mono.hz(), t.mono.clarity(), t.gate, poly_ > 0.0f ? t.poly.partials() : 0,
+             t.levelOpen, t.floor };
 }
 
 void Trench::applySettings (bool snap) noexcept
@@ -148,16 +177,30 @@ void Trench::flush (Tracker& t) noexcept
     // Silence decays every state towards zero; keep it out of the denormal range.
     for (auto* section : { &t.hp, &t.lp, &t.tone, &t.dc })
         section->flush();
-    for (auto* v : { &t.level, &t.gate, &t.pendingAmp, &t.polyGate })
+    for (auto* v : { &t.level, &t.average, &t.gate, &t.pendingAmp, &t.polyGate })
         *v = std::abs (*v) < 1.0e-20f ? 0.0f : *v;
 }
 
 void Trench::updateLevel (Tracker& t, float x) noexcept
 {
-    // Band-limited mean |x|, and whether it is loud enough for the subs (with hysteresis).
-    const float det = t.lp.process (t.hp.process (x));
-    t.level += levelCoeff_ * (std::abs (det) - t.level);
-    if (t.levelOpen ? t.level < kCloseLevel : t.level > kOpenLevel)
+    // Band-limited mean |x|, and whether it stands far enough over the noise floor for the subs
+    // (with hysteresis).
+    const float det = std::abs (t.lp.process (t.hp.process (x)));
+    t.level += levelCoeff_ * (det - t.level);
+    t.average += averageCoeff_ * (det - t.average);
+    t.sincePick =
+        t.level > kPickRatio * t.average ? 0 : std::min (t.sincePick + 1, pickHoldSamples_);
+    if (t.warmUp > 0)
+    {
+        if (--t.warmUp == 0)
+            t.floor = std::clamp (t.level, kMinFloor, kMaxFloor);
+        return;
+    }
+    if (t.level < t.floor)
+        t.floor = std::max (t.level, kMinFloor);
+    else if (!t.levelOpen || t.sincePick >= pickHoldSamples_)
+        t.floor = std::min ({ t.floor * floorRise_, t.level, kMaxFloor });
+    if (t.levelOpen ? t.level < kCloseOverFloor * t.floor : t.level > kOpenOverFloor * t.floor)
         t.levelOpen = !t.levelOpen;
 }
 

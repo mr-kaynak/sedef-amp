@@ -50,6 +50,8 @@ public:
         float confidence = 0.0f; ///< 0..1: how periodic the input is (the estimator's clarity)
         float subGain = 0.0f;    ///< 0..1: the gate on the sub voices (Mono)
         int partials = 0;        ///< partials being divided (Poly)
+        bool open = false;       ///< the level gate: the input stands over its noise floor
+        float floor = 0.0f;      ///< the noise floor it is judged against (mean |x|)
     };
 
     void prepare (const ProcessSpec& spec);
@@ -96,7 +98,11 @@ private:
         detail::PolySub poly;
         // Level detector.
         Section hp, lp;
-        float level = 0.0f; ///< mean |x| of the band-limited input
+        float level = 0.0f;   ///< mean |x| of the band-limited input, over 10 ms
+        float average = 0.0f; ///< the same over 100 ms, to spot picks
+        float floor = 0.0f;   ///< the noise floor the gate is set against
+        int sincePick = 0;    ///< samples since the level last jumped (a pick), up to the hold
+        int warmUp = 0;       ///< samples left before the floor is first set
         // Divider: the fundamental's phase, halved, as a unit vector.
         float halfRe = 1.0f, halfIm = 0.0f;
         float previousHalf = 1.0f;
@@ -123,7 +129,9 @@ private:
 
     std::array<Tracker, kMaxChannels> trackers_ {};
 
-    float levelCoeff_ = 0.0f;
+    float levelCoeff_ = 0.0f, averageCoeff_ = 0.0f;
+    float floorRise_ = 1.0f; ///< per sample, while the floor rises
+    int pickHoldSamples_ = 0, warmUpSamples_ = 1;
     float gateAttack_ = 0.0f, gateRelease_ = 0.0f;
     BiquadCoeffs toneCoeffs_;
 

@@ -1,20 +1,36 @@
 Sedef Amp @VERSION@ for macOS
 =============================
 
-Open-source guitar amp and effects suite. macOS 11 or later, Apple silicon and Intel.
+Open-source guitar amp and effects suite, with Sedef MIDI, which plays MIDI instruments from
+your guitar. macOS 11 or later, Apple silicon and Intel.
 
 
 INSTALL
 
 1. Double-click "Install Sedef Amp".
-2. Pick the formats you want (all are selected) and enter your password when asked.
-3. Rescan plugins in your DAW. Sedef shows up as "Sedef Amp" by "Sedef".
+2. Pick what you want (all is selected) and enter your password when asked. Untick
+   "Sedef MIDI" to leave it out.
+3. Rescan plugins in your DAW. Sedef shows up as "Sedef Amp" and "Sedef MIDI" by "Sedef".
 
 Where things go:
   Standalone app   /Applications/Sedef Amp.app
   VST3             /Library/Audio/Plug-Ins/VST3/Sedef Amp.vst3
   Audio Unit       /Library/Audio/Plug-Ins/Components/Sedef Amp.component
   CLAP             /Library/Audio/Plug-Ins/CLAP/Sedef Amp.clap
+  Sedef MIDI       /Applications/Sedef MIDI.app
+                   /Library/Audio/Plug-Ins/VST3/Sedef MIDI.vst3
+                   /Library/Audio/Plug-Ins/Components/Sedef MIDI.component
+                   /Library/Audio/Plug-Ins/Components/Sedef MIDI Instrument.component
+                   /Library/Audio/Plug-Ins/CLAP/Sedef MIDI.clap
+
+
+SEDEF MIDI
+
+Sedef MIDI turns your guitar's DI into MIDI notes in real time, one note at a time: play a bass
+line on the guitar and hear it on any MIDI instrument. Open Sedef MIDI.app and pick your
+interface's input, or put the Sedef MIDI plugin on your guitar track. In Logic Pro, load
+"Sedef MIDI (Instrument)" on an instrument track with the guitar track as its side chain.
+Setup guide: https://github.com/mr-kaynak/sedef-amp/blob/main/docs/midi.md
 
 
 "INSTALL SEDEF AMP" NOT OPENED?
@@ -25,8 +41,8 @@ Where things go:
 UPDATING
 
 From this version on, Sedef updates itself: when a new version is out, click Update now in
-Sedef's Updates panel and enter your password. It installs over the formats you have; you don't
-need to delete anything first.
+Sedef's Updates panel and enter your password. It installs over the formats you have, and
+Sedef MIDI if you have it; you don't need to delete anything first.
 
 This installer also replaces an older installed version. If you copied Sedef Amp into
 ~/Library/Audio/Plug-Ins by hand (version 0.1.0 shipped that way), run "Uninstall Sedef Amp"
@@ -36,8 +52,10 @@ first so your DAW doesn't list two copies. Your presets are kept.
 UNINSTALL
 
 Double-click "Uninstall Sedef Amp" (it opens in Terminal and asks before removing anything).
-If macOS blocks it, open Terminal and run:
+It removes Sedef Amp and Sedef MIDI. If macOS blocks it, open Terminal and run:
   bash "/Volumes/Sedef Amp @VERSION@/Uninstall Sedef Amp.command"
+To remove Sedef MIDI only, add --midi:
+  bash "/Volumes/Sedef Amp @VERSION@/Uninstall Sedef Amp.command" --midi
 
 Presets and settings live in ~/Library/Application Support/Sedef and are not removed.
 

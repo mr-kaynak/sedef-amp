@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# Packages a macOS build into Sedef-Amp-macOS.dmg: signs the bundles, builds
-# "Install Sedef Amp.pkg", wraps it in the disk image and, with Apple credentials, notarizes and
-# staples both.
+# Packages a macOS build into Sedef-Amp-macOS.dmg: signs the bundles of Sedef Amp and Sedef MIDI,
+# builds "Install Sedef Amp.pkg", wraps it in the disk image and, with Apple credentials, notarizes
+# and staples both.
 #
 #   package.sh <artefacts-dir> <output-dir>
 #
 # <artefacts-dir> is the JUCE output folder, e.g. build/release/plugin/SedefAmp_artefacts/Release.
+# Sedef MIDI's bundles come from its sibling folders (SedefMidi_artefacts/Release and
+# SedefMidiInstrument_artefacts/Release), or from $SEDEF_MIDI_ARTEFACTS and
+# $SEDEF_MIDI_INSTRUMENT_ARTEFACTS.
 #
 # Signing comes from the environment (signing-keychain.sh sets these in CI):
 #   MACOS_SIGN_APP_IDENTITY        "Developer ID Application: ..."; empty = ad hoc signatures
@@ -23,6 +26,10 @@ if [[ $# -ne 2 ]]; then
     exit 2
 fi
 artefacts="$(cd "$1" && pwd)"
+plugin_dir="$(cd "$artefacts/../.." && pwd)"
+config="$(basename "$artefacts")"
+midi_artefacts="${SEDEF_MIDI_ARTEFACTS:-$plugin_dir/SedefMidi_artefacts/$config}"
+midi_instrument_artefacts="${SEDEF_MIDI_INSTRUMENT_ARTEFACTS:-$plugin_dir/SedefMidiInstrument_artefacts/$config}"
 mkdir -p "$2"
 outdir="$(cd "$2" && pwd)"
 
@@ -49,17 +56,30 @@ fi
 echo "Packaging Sedef Amp $version for macOS"
 
 # --- Stage and sign the bundles ------------------------------------------------------------------
+# <source folder>|<bundle in the JUCE layout>|<targets that build it>
+bundles=(
+    "$artefacts|Standalone/Sedef Amp.app|SedefAmp_All"
+    "$artefacts|VST3/Sedef Amp.vst3|SedefAmp_All"
+    "$artefacts|AU/Sedef Amp.component|SedefAmp_All"
+    "$artefacts|CLAP/Sedef Amp.clap|SedefAmp_CLAP"
+    "$midi_artefacts|Standalone/Sedef MIDI.app|SedefMidi_All"
+    "$midi_artefacts|VST3/Sedef MIDI.vst3|SedefMidi_All"
+    "$midi_artefacts|AU/Sedef MIDI.component|SedefMidi_All"
+    "$midi_artefacts|CLAP/Sedef MIDI.clap|SedefMidi_CLAP"
+    "$midi_instrument_artefacts|AU/Sedef MIDI Instrument.component|SedefMidiInstrument_All"
+)
 stage="$work/bundles"
-for item in "Standalone/Sedef Amp.app" "VST3/Sedef Amp.vst3" "AU/Sedef Amp.component" \
-    "CLAP/Sedef Amp.clap"; do
-    if [[ ! -d "$artefacts/$item" ]]; then
-        echo "error: missing $artefacts/$item (build SedefAmp_All and SedefAmp_CLAP first)" >&2
+for entry in "${bundles[@]}"; do
+    IFS='|' read -r source item target <<<"$entry"
+    if [[ ! -d "$source/$item" ]]; then
+        echo "error: missing $source/$item (build $target first)" >&2
         exit 1
     fi
     mkdir -p "$stage/$(dirname "$item")"
-    ditto --noextattr --noqtn "$artefacts/$item" "$stage/$item"
+    ditto --noextattr --noqtn "$source/$item" "$stage/$item"
 
-    binary="$stage/$item/Contents/MacOS/Sedef Amp"
+    executable="$(plutil -extract CFBundleExecutable raw "$stage/$item/Contents/Info.plist")"
+    binary="$stage/$item/Contents/MacOS/$executable"
     archs="$(lipo -archs "$binary")"
     echo "  $item: $archs"
     if [[ "${SEDEF_REQUIRE_UNIVERSAL:-0}" == "1" && ! ("$archs" == *arm64* && "$archs" == *x86_64*) ]]; then

@@ -1,15 +1,17 @@
 # Installing Sedef Amp
 
-Each release has one download per OS. The links below always point to the latest release; older
-versions are on the [releases page](https://github.com/mr-kaynak/sedef-amp/releases).
+Each release has one download per OS, with Sedef Amp and [Sedef MIDI](midi.md), which plays MIDI
+instruments from your guitar. The links below always point to the latest release; older versions
+are on the [releases page](https://github.com/mr-kaynak/sedef-amp/releases).
 
 | OS | Download | What it is |
 |---|---|---|
-| macOS 11 or later, Apple silicon and Intel | [Sedef-Amp-macOS.dmg](https://github.com/mr-kaynak/sedef-amp/releases/latest/download/Sedef-Amp-macOS.dmg) | Disk image with the installer for VST3, AU, CLAP and the standalone app |
-| Windows 10 or 11, x64 | [Sedef-Amp-Windows-Setup.exe](https://github.com/mr-kaynak/sedef-amp/releases/latest/download/Sedef-Amp-Windows-Setup.exe) | Installer for VST3, CLAP and the standalone app |
-| Linux x86_64 | [Sedef-Amp-Linux-x86_64.tar.gz](https://github.com/mr-kaynak/sedef-amp/releases/latest/download/Sedef-Amp-Linux-x86_64.tar.gz) | VST3, CLAP and the standalone app with an install script |
+| macOS 11 or later, Apple silicon and Intel | [Sedef-Amp-macOS.dmg](https://github.com/mr-kaynak/sedef-amp/releases/latest/download/Sedef-Amp-macOS.dmg) | Disk image with the installer for VST3, AU, CLAP and the standalone app, and Sedef MIDI |
+| Windows 10 or 11, x64 | [Sedef-Amp-Windows-Setup.exe](https://github.com/mr-kaynak/sedef-amp/releases/latest/download/Sedef-Amp-Windows-Setup.exe) | Installer for VST3, CLAP and the standalone app, and Sedef MIDI |
+| Linux x86_64 | [Sedef-Amp-Linux-x86_64.tar.gz](https://github.com/mr-kaynak/sedef-amp/releases/latest/download/Sedef-Amp-Linux-x86_64.tar.gz) | VST3, CLAP and the standalone app, and Sedef MIDI, with an install script |
 
-After installing, rescan plugins in your DAW. Sedef shows up as **Sedef Amp** by **Sedef**.
+After installing, rescan plugins in your DAW. Sedef shows up as **Sedef Amp** and **Sedef MIDI** by
+**Sedef**. Sedef MIDI is selected by default; each section below says how to leave it out.
 From the first release after 0.4.0 on you won't need this page to update: **Update now** in
 Sedef's Updates panel installs the next version through the same installer ([updates.md](updates.md)).
 Presets and settings live outside the install folders and survive updates and uninstalls:
@@ -18,9 +20,9 @@ on Linux.
 
 ## macOS
 
-Open the disk image and double-click **Install Sedef Amp**. It lists the formats, all selected,
-and asks for an administrator password because the plugins go into the folders shared by every
-user:
+Open the disk image and double-click **Install Sedef Amp**. It lists the formats and Sedef MIDI,
+all selected, and asks for an administrator password because the plugins go into the folders
+shared by every user. Untick **Sedef MIDI** to leave it out.
 
 | Format | Installed to |
 |---|---|
@@ -28,6 +30,7 @@ user:
 | VST3 | `/Library/Audio/Plug-Ins/VST3/Sedef Amp.vst3` |
 | AU | `/Library/Audio/Plug-Ins/Components/Sedef Amp.component` |
 | CLAP | `/Library/Audio/Plug-Ins/CLAP/Sedef Amp.clap` |
+| Sedef MIDI (one choice) | `/Applications/Sedef MIDI.app`, `/Library/Audio/Plug-Ins/VST3/Sedef MIDI.vst3`, `/Library/Audio/Plug-Ins/Components/Sedef MIDI.component` and `Sedef MIDI Instrument.component`, `/Library/Audio/Plug-Ins/CLAP/Sedef MIDI.clap` |
 
 ### First launch
 
@@ -57,6 +60,12 @@ the script, run it from Terminal:
 bash "/Volumes/Sedef Amp <version>/Uninstall Sedef Amp.command"
 ```
 
+It removes Sedef MIDI too. To remove only Sedef MIDI, add `--midi`:
+
+```sh
+bash "/Volumes/Sedef Amp <version>/Uninstall Sedef Amp.command" --midi
+```
+
 ### Manual install (no administrator password)
 
 The installer's contents can be unpacked without running it:
@@ -65,7 +74,8 @@ The installer's contents can be unpacked without running it:
 pkgutil --expand-full "/Volumes/Sedef Amp <version>/Install Sedef Amp.pkg" ~/Desktop/sedef-amp
 ```
 
-Each format is then in `~/Desktop/sedef-amp/sedef-amp-<format>.pkg/Payload/`. Copy the plugins to
+Each format is then in `~/Desktop/sedef-amp/sedef-amp-<format>.pkg/Payload/`, and Sedef MIDI's
+in `sedef-amp-midi-<format>.pkg/Payload/` (`app`, `vst3`, `au`, `instrument`, `clap`). Copy the plugins to
 `~/Library/Audio/Plug-Ins/VST3`, `~/Library/Audio/Plug-Ins/Components` and
 `~/Library/Audio/Plug-Ins/CLAP`, and the app to `~/Applications`. If macOS then reports a plugin
 as damaged, clear the download flag once, e.g.
@@ -73,13 +83,15 @@ as damaged, clear the download flag once, e.g.
 
 ## Windows
 
-Run **Sedef-Amp-Windows-Setup.exe** and pick the formats on *Select Components* (all are selected):
+Run **Sedef-Amp-Windows-Setup.exe** and pick the formats on *Select Components* (all are selected;
+untick **Sedef MIDI** to leave it out):
 
 | Format | Installed to |
 |---|---|
 | VST3 | `C:\Program Files\Common Files\VST3\Sedef Amp.vst3` |
 | CLAP | `C:\Program Files\Common Files\CLAP\Sedef Amp.clap` |
 | Standalone app | `C:\Program Files\Sedef Amp\Sedef Amp.exe`, with a Start menu shortcut |
+| Sedef MIDI | `C:\Program Files\Common Files\VST3\Sedef MIDI.vst3`, `C:\Program Files\Common Files\CLAP\Sedef MIDI.clap` and `C:\Program Files\Sedef Amp\Sedef MIDI.exe`, with a Start menu shortcut |
 
 The installer isn't code-signed yet, so SmartScreen may say *Windows protected your PC*: click
 **More info**, then **Run anyway**.
@@ -90,9 +102,12 @@ systems, install the [WebView2 Runtime](https://developer.microsoft.com/microsof
 If a DAW has the plugin loaded while you update, Setup lists it and offers to close it; save your
 project first. If you keep it open, the new files are put in place when you restart Windows.
 
-Uninstall from **Settings → Apps → Installed apps → Sedef Amp**. For unattended installs, the
-installer takes the usual Inno Setup switches, e.g.
-`Sedef-Amp-Windows-Setup.exe /VERYSILENT /NORESTART /COMPONENTS="vst3,clap,standalone"`. Close
+Uninstall from **Settings → Apps → Installed apps → Sedef Amp** (it removes Sedef MIDI too). To
+remove only Sedef MIDI, run the setup again and untick it: its files stay until you uninstall, so
+delete `Sedef MIDI.vst3`, `Sedef MIDI.clap` and `Sedef MIDI.exe` from the folders above. For
+unattended installs, the installer takes the usual Inno Setup switches, e.g.
+`Sedef-Amp-Windows-Setup.exe /VERYSILENT /NORESTART /COMPONENTS="vst3,clap,standalone,midi"`
+(leave out `midi` to leave out Sedef MIDI). Close
 DAWs first: a silent install closes programs that hold the plugin, and without `/NORESTART` it
 restarts Windows on its own if a file was still in use. Sedef's updater adds
 `/WAITPID=<pid> /WAITPIDTIME=<its creation time>` (wait for that process to exit before
@@ -106,6 +121,7 @@ tar xzf Sedef-Amp-Linux-x86_64.tar.gz
 cd sedef-amp-*-linux-x86_64
 ./install.sh             # for you only
 ./install.sh --system    # for every user; asks for sudo
+./install.sh --no-midi   # either way, without Sedef MIDI
 ```
 
 | | `./install.sh` | `./install.sh --system` |
@@ -114,6 +130,10 @@ cd sedef-amp-*-linux-x86_64
 | CLAP | `~/.clap/Sedef Amp.clap` | `/usr/lib/clap/Sedef Amp.clap` |
 | Standalone app | `~/.local/bin/sedef-amp` | `/usr/local/bin/sedef-amp` |
 | Menu entry and icon | `~/.local/share` | `/usr/local/share` |
+| Sedef MIDI | `~/.vst3/Sedef MIDI.vst3`, `~/.clap/Sedef MIDI.clap`, `~/.local/bin/sedef-midi` and a menu entry | `/usr/lib/vst3/Sedef MIDI.vst3`, `/usr/lib/clap/Sedef MIDI.clap`, `/usr/local/bin/sedef-midi` and a menu entry |
+
+`--no-midi` also removes a Sedef MIDI installed before, and later runs (and Sedef's updates, which
+run `install.sh`) keep it out until `./install.sh --midi`.
 
 The interface needs WebKitGTK 4.1 (`libwebkit2gtk-4.1-0` on Debian and Ubuntu, `webkit2gtk4.1`
 on Fedora); `install.sh` warns if it's missing. The standalone app uses ALSA or JACK. The update
@@ -121,10 +141,12 @@ check loads `libcurl.so.4` when it runs (`libcurl4` on Debian and Ubuntu, `libcu
 without it Sedef works but can't check for updates.
 
 To uninstall, run `~/.local/share/sedef-amp/uninstall.sh`, or
-`/usr/local/share/sedef-amp/uninstall.sh --system` for a system-wide install.
+`/usr/local/share/sedef-amp/uninstall.sh --system` for a system-wide install; it removes Sedef MIDI
+too.
 
 For a manual install, copy `VST3/Sedef Amp.vst3` to `~/.vst3` and `CLAP/Sedef Amp.clap` to
-`~/.clap`; `Standalone/Sedef Amp` runs from anywhere.
+`~/.clap`; `Standalone/Sedef Amp` runs from anywhere. Sedef MIDI's `VST3/Sedef MIDI.vst3`,
+`CLAP/Sedef MIDI.clap` and `Standalone/Sedef MIDI` go the same way.
 
 ## Building from source
 

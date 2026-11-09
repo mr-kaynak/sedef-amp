@@ -23,6 +23,7 @@
         <line choice="vst3"/>
         <line choice="au"/>
         <line choice="clap"/>
+        <line choice="midi"/>
     </choices-outline>
 
     <choice id="app" start_selected="true" title="Standalone app"
@@ -41,9 +42,24 @@
             description="Sedef Amp.clap in /Library/Audio/Plug-Ins/CLAP.">
         <pkg-ref id="io.github.mr-kaynak.sedef-amp.clap"/>
     </choice>
+    <!-- Sedef MIDI, all of it in one choice. The in-app updater (plugin/src/update) selects it
+         when any of its bundles is installed: never rename the choice or its packages. -->
+    <choice id="midi" start_selected="true" title="Sedef MIDI"
+            description="Play MIDI instruments from your guitar, one note at a time: Sedef MIDI.app in /Applications, and its VST3, CLAP and Audio Unit plugins in /Library/Audio/Plug-Ins (an effect, and an instrument that takes the guitar on its side chain, for Logic Pro).">
+        <pkg-ref id="io.github.mr-kaynak.sedef-amp.midi-app"/>
+        <pkg-ref id="io.github.mr-kaynak.sedef-amp.midi-vst3"/>
+        <pkg-ref id="io.github.mr-kaynak.sedef-amp.midi-au"/>
+        <pkg-ref id="io.github.mr-kaynak.sedef-amp.midi-instrument"/>
+        <pkg-ref id="io.github.mr-kaynak.sedef-amp.midi-clap"/>
+    </choice>
 
     <pkg-ref id="io.github.mr-kaynak.sedef-amp.app" version="@VERSION@" onConclusion="none">sedef-amp-app.pkg</pkg-ref>
     <pkg-ref id="io.github.mr-kaynak.sedef-amp.vst3" version="@VERSION@" onConclusion="none">sedef-amp-vst3.pkg</pkg-ref>
     <pkg-ref id="io.github.mr-kaynak.sedef-amp.au" version="@VERSION@" onConclusion="none">sedef-amp-au.pkg</pkg-ref>
     <pkg-ref id="io.github.mr-kaynak.sedef-amp.clap" version="@VERSION@" onConclusion="none">sedef-amp-clap.pkg</pkg-ref>
+    <pkg-ref id="io.github.mr-kaynak.sedef-amp.midi-app" version="@VERSION@" onConclusion="none">sedef-amp-midi-app.pkg</pkg-ref>
+    <pkg-ref id="io.github.mr-kaynak.sedef-amp.midi-vst3" version="@VERSION@" onConclusion="none">sedef-amp-midi-vst3.pkg</pkg-ref>
+    <pkg-ref id="io.github.mr-kaynak.sedef-amp.midi-au" version="@VERSION@" onConclusion="none">sedef-amp-midi-au.pkg</pkg-ref>
+    <pkg-ref id="io.github.mr-kaynak.sedef-amp.midi-instrument" version="@VERSION@" onConclusion="none">sedef-amp-midi-instrument.pkg</pkg-ref>
+    <pkg-ref id="io.github.mr-kaynak.sedef-amp.midi-clap" version="@VERSION@" onConclusion="none">sedef-amp-midi-clap.pkg</pkg-ref>
 </installer-gui-script>

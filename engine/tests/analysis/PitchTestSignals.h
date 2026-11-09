@@ -83,9 +83,10 @@ struct Pluck
     std::uint32_t seed = 1;
 
     // Pitch moves while the string rings (all off by default), relative to the pick:
-    double stepAt = -1.0, stepCents = 0.0; ///< an instant, phase-continuous step
-    int stepCount = 1;                     ///< more than one: a slide over the frets
-    double stepEvery = 0.05;               ///< seconds between a slide's steps
+    double stepAt = -1.0, stepCents = 0.0;   ///< an instant, phase-continuous step
+    int stepCount = 1;                       ///< more than one: a slide over the frets
+    double stepEvery = 0.05;                 ///< seconds between a slide's steps
+    double step2At = -1.0, step2Cents = 0.0; ///< a second instant step, after the first
     double turnAt = -1.0, turnSeconds = 1.0,
            turnCents = 0.0; ///< a peg turn: smoothstep over turnSeconds
     double vibratoAt = -1.0, vibratoCents = 0.0, vibratoHz = 5.5; ///< peak deviation, rate
@@ -100,6 +101,8 @@ struct Pluck
         for (int k = 0; k < stepCount; ++k)
             if (stepAt >= 0.0 && t >= stepAt + k * stepEvery)
                 c += stepCents;
+        if (step2At >= 0.0 && t >= step2At)
+            c += step2Cents;
         if (turnAt >= 0.0 && t > turnAt)
         {
             const double x = std::min (1.0, (t - turnAt) / turnSeconds);

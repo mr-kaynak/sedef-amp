@@ -57,13 +57,16 @@ juce::String formatValue (const ParamSpec& spec, float value, int maxLength)
         text = printed (value, 2) < 10.0f ? fixed (value, 2) + " s" : fixed (value, 1) + " s";
     else if (unit == "st")
     {
+        // A sign only where the range has both (a transpose, not a bend range).
         const int semitones = juce::roundToInt (value);
-        text = (semitones > 0 ? "+" : "") + juce::String (semitones) + " st";
+        text = (semitones > 0 && spec.min < 0.0f ? "+" : "") + juce::String (semitones) + " st";
     }
     else if (unit == "%")
         text = juce::String (juce::roundToInt (value)) + "%";
     else if (unit == "bpm")
         text = fixed (value, 1) + " BPM";
+    else if (spec.kind == ParamKind::Int && unit.empty())
+        text = juce::String (juce::roundToInt (value));
     else if (unit == "deg")
         text = juce::String (juce::roundToInt (value)) +
                juce::String (juce::CharPointer_UTF8 ("\xc2\xb0"));
@@ -122,13 +125,19 @@ float heldDefault (const juce::NormalisableRange<float>& range, float value)
 
 juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
 {
+    return createParameterLayout (std::span<const ParamSpec> (kParamSpecs));
+}
+
+juce::AudioProcessorValueTreeState::ParameterLayout
+createParameterLayout (std::span<const ParamSpec> specs)
+{
     juce::AudioProcessorValueTreeState::ParameterLayout layout;
 
     // Groups appear in the host in schema order.
     std::vector<std::unique_ptr<juce::AudioProcessorParameterGroup>> groups;
     std::map<std::string_view, juce::AudioProcessorParameterGroup*> byName;
 
-    for (const auto& spec : kParamSpecs)
+    for (const auto& spec : specs)
     {
         auto& group = byName[spec.group];
         if (group == nullptr)

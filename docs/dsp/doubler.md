@@ -128,8 +128,40 @@ calling the switch-on an onset.
 
 **The onset detector** compares the power above 2.5 kHz (2nd-order high-pass)
 through a 1 ms and a 40 ms one-pole: an onset is a rise of more than 4 dB
-(ratio 2.5) above −70 dBFS, then nothing for 70 ms. It is an energy-rise
-detector of the kind surveyed by Bello et al. [Bello 2005; Klapuri 1999].
+(ratio 2.5), then nothing for 70 ms. It is an energy-rise detector of the kind
+surveyed by Bello et al. [Bello 2005; Klapuri 1999].
+
+The rise must also stand 1.5 times over the input's own background, not over a
+fixed level. Up to 0.5.0 that level was −70 dB of high-frequency power, which a
+player peaking at −30 dBFS with soft attacks (fingerstyle, a neck pickup) barely
+clears: on a synthetic fingerstyle phrase 5 of 28 onsets landed where they do at
+full level, and 36 dB down none were found. The background is the peak the
+input's hiss, hum and buzz reach between notes: the fast envelope's peaks, held
+over 100 ms, longer than a mains period, so a buzz's spikes count at their
+height, not their mean. As in the Trench's level gate, it falls at once, is
+first set as the detector warms up after a reset, and rises only while the
+input holds still: the held peaks within 1.5 dB of their 0.3 s mean for 0.2 s.
+Hiss, hum and buzz hold still; ringing and decaying notes do not. It then rises
+by 60 dB a second, so a buzz that starts between notes is learnt within a
+second (until then its spikes pass for attacks). It never goes above the old
+fixed level, so the detector is never less sensitive than before, and onsets at
+normal levels are unchanged: every factory preset renders bit for bit the same,
+with the Doubler off or on.
+
+| Material (detector onsets)                          | up to 0.5.0               | now           |
+| --------------------------------------------------- | ------------------------- | ------------- |
+| fingerstyle, 0 dB vs −24 dB (peaks −30 dBFS)        | 5 of 28 at the same times | 28 of 28      |
+| fingerstyle, 0 dB vs −36 dB (peaks −42 dBFS)        | none found                | 28 of 28      |
+| picked sixteenths, 0 dB vs −36 dB                   | 30 of 56                  | 56 of 56      |
+| fingerstyle at −30 dBFS peaks over −100 dBFS hiss   | 19 of 28 within 1 ms      | 27 of 28      |
+| hiss, mains hum, 50/60 Hz buzz up to −60 dBFS alone | none                      | none          |
+| a 50/60 Hz buzz at −90 to −60 dBFS that starts late | none                      | for 0.8–0.9 s |
+| a sharp buzz at −50 dBFS or more                    | fires on it               | fires on it   |
+
+Rows 1–3 compare onset times within two samples; the quiet versions are the
+same playing with hiss 80 dB under its peaks scaled along, as an interface's
+gain does. Row 4 compares with the full-level times within 1 ms, over hiss
+that does not come down with the playing.
 
 **The DI as onset source.** After a high-gain amp the signal is compressed to a
 wall: on the synthetic palm-muted riff the detector's ratio after an onset had
@@ -283,6 +315,12 @@ silicon machine, where Drift measured 49.5 ns.
   the plain double, +1 dB within 0.2 dB, including when the take already sits
   within 0.25 ms of the spread's offset.
 - The onset source re-times a held tone that has no onsets of its own.
+- The same playing (fingerstyle, picked sixteenths) 24 and 36 dB down gives the
+  same onsets, within two samples; quiet fingerstyle over hiss that does not
+  come down with it keeps all but two onsets within 1 ms.
+- Hiss, mains hum and a 50 Hz sawtooth or 60 Hz click buzz up to −60 dBFS give
+  no onsets; a buzz that starts after hiss alone is learnt within a second, and
+  notes picked over it are heard.
 - On an 8 s note the detune moves the offset, but by less than twice its drift
   limit plus 0.5 ms, and never below 1.5 ms.
 - Levels: left exact, right +1 dB ± 0.3 at variation 0; per-note level within

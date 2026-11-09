@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 #include "TestUtils.h"
 #include "capture/CaptureTestUtils.h"
+#include "midi/MidiTestSignals.h"
 #include "sedef/Engine.h"
 #include "sedef/dsp/cab/CabSim.h"
 #include "sedef/dsp/capture/CaptureStage.h"
@@ -850,4 +851,47 @@ TEST_CASE ("Switching the fuzzes and booster on and off is click-free", "[engine
         // latency would miss it by about the signal's whole size.
         CHECK (worstError <= 0.2f * top);
     }
+}
+
+TEST_CASE ("GuitarToMidi::process never allocates after prepare", "[engine][midi]")
+{
+    // A bass line through every mode and timing, with settings changes, All Notes Off and a
+    // panic between blocks.
+    const double fs = 48000.0;
+    const auto sc = test::midi::bassLine (2, test::midi::Pickup::bridge, 132.0, fs, 24);
+    midi::GuitarToMidi g;
+    g.prepare (fs);
+    midi::EventList out;
+    midi::Settings s;
+    g.setSettings (s);
+    const auto run = [&] (std::size_t from, std::size_t to) {
+        for (std::size_t i = from; i + 256 <= to; i += 256)
+        {
+            out.clear();
+            g.process (sc.signal.data() + i, 256, out);
+        }
+    };
+    const std::size_t quarter = sc.signal.size() / 4;
+    run (0, quarter); // warm-up (first-use paths)
+
+    gAllocations = 0;
+    {
+        TrackAllocations track;
+        s.timing = midi::Timing::steady;
+        s.mode = midi::Mode::notesAndBend;
+        g.setSettings (s);
+        run (quarter, 2 * quarter);
+        s.channel = 5;
+        s.octave = -2;
+        g.setSettings (s);
+        out.clear();
+        g.allNotesOff (out, 0);
+        run (2 * quarter, 3 * quarter);
+        out.clear();
+        g.panic (out, 17);
+        g.reset();
+        run (3 * quarter, sc.signal.size());
+    }
+    CHECK (gAllocations.load() == 0);
+    CHECK (g.notesSent() > 10);
 }

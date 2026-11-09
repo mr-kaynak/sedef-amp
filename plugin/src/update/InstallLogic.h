@@ -65,6 +65,17 @@ inline constexpr MacComponent kMacComponents[] = {
     { "clap", "Sedef Amp.clap", "Library/Audio/Plug-Ins/CLAP" },
 };
 
+/// Sedef MIDI: one choice in the pkg ("midi") for all of its bundles. An update keeps it when
+/// any of them is installed and leaves it out when none is (it was left out, or removed).
+inline constexpr const char* kMacMidiChoice = "midi";
+inline constexpr MacComponent kMacMidiBundles[] = {
+    { "midi", "Sedef MIDI.app", "Applications" },
+    { "midi", "Sedef MIDI.vst3", "Library/Audio/Plug-Ins/VST3" },
+    { "midi", "Sedef MIDI.component", "Library/Audio/Plug-Ins/Components" },
+    { "midi", "Sedef MIDI Instrument.component", "Library/Audio/Plug-Ins/Components" },
+    { "midi", "Sedef MIDI.clap", "Library/Audio/Plug-Ins/CLAP" },
+};
+
 inline constexpr const char* kMacPackageName = "Install Sedef Amp.pkg";
 
 /// The bundle the pkg installs for `component`, under `root` ("/" except in tests).
@@ -75,11 +86,12 @@ juce::File macBundlePath (const MacComponent& component, const juce::File& root)
 juce::String macChoiceFor (const juce::File& runningBundle, const juce::File& root);
 
 /// The formats to install: those installed under `root` now, plus the one this process runs
-/// from; all four when none is found. In kMacComponents order.
+/// from, in kMacComponents order, then "midi" when any of Sedef MIDI's bundles is installed.
+/// When no Sedef Amp format is found, all four and "midi".
 juce::StringArray macChoicesToInstall (const juce::File& root, const juce::File& runningBundle);
 
-/// The `installer -applyChoiceChangesXML` file that selects exactly `selected` of the four
-/// choices and deselects the others.
+/// The `installer -applyChoiceChangesXML` file that selects exactly `selected` of the five
+/// choices (the four formats and "midi") and deselects the others.
 juce::String choiceChangesXml (const juce::StringArray& selected);
 
 /// An XML property list as a var: dict (DynamicObject), array, string, integer (int64), real,
@@ -120,8 +132,9 @@ juce::String installPrompt (const juce::String& version);
 inline constexpr const char* kWindowsAppId = "{8F234EBD-87BC-4821-9789-4BF2E8D8AB79}";
 
 /// The setup's components (sedef-amp.iss) to install: those installed now (the VST3 and CLAP in
-/// `commonFiles`, the app in `appFolder`), plus the one this process runs from; all three when
-/// none is found. In the setup's order.
+/// `commonFiles`, the app in `appFolder`), plus the one this process runs from, in the setup's
+/// order; then "midi" when any of Sedef MIDI's files is installed (its VST3, CLAP or app). All
+/// four when no Sedef Amp component is found.
 juce::StringArray windowsComponentsToInstall (const juce::File& commonFiles,
                                               const juce::File& appFolder,
                                               const juce::File& runningModule);

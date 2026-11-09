@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# Builds Sedef-Amp-Windows-Setup.exe with Inno Setup 6. Runs on Windows in Git Bash or MSYS2.
+# Builds Sedef-Amp-Windows-Setup.exe with Inno Setup 6 (Sedef Amp and Sedef MIDI). Runs on Windows
+# in Git Bash or MSYS2.
 #
 #   build-installer.sh <artefacts-dir> <output-dir>
 #
 # <artefacts-dir> is the JUCE output folder, e.g. build/release/plugin/SedefAmp_artefacts/Release.
+# Sedef MIDI's files come from its sibling folder (SedefMidi_artefacts/Release), or from
+# $SEDEF_MIDI_ARTEFACTS.
 # ISCC is looked up on PATH and in the default install folders, or taken from $ISCC. With
 # SEDEF_INSTALL_INNO=1 (CI), a missing Inno Setup is installed with Chocolatey at a pinned version.
 
@@ -18,6 +21,7 @@ if [[ $# -ne 2 ]]; then
     exit 2
 fi
 artefacts="$(cd "$1" && pwd)"
+midi_artefacts="${SEDEF_MIDI_ARTEFACTS:-$(cd "$artefacts/../.." && pwd)/SedefMidi_artefacts/$(basename "$artefacts")}"
 mkdir -p "$2"
 outdir="$(cd "$2" && pwd)"
 
@@ -27,6 +31,12 @@ version="$("$here/../version.sh")"
 for item in "VST3/Sedef Amp.vst3" "CLAP/Sedef Amp.clap" "Standalone/Sedef Amp.exe"; do
     if [[ ! -e "$artefacts/$item" ]]; then
         echo "error: missing $artefacts/$item (build SedefAmp_All and SedefAmp_CLAP first)" >&2
+        exit 1
+    fi
+done
+for item in "VST3/Sedef MIDI.vst3" "CLAP/Sedef MIDI.clap" "Standalone/Sedef MIDI.exe"; do
+    if [[ ! -e "$midi_artefacts/$item" ]]; then
+        echo "error: missing $midi_artefacts/$item (build SedefMidi_All and SedefMidi_CLAP first)" >&2
         exit 1
     fi
 done
@@ -61,6 +71,7 @@ echo "Using $iscc"
 MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' "$iscc" \
     "/DAppVersion=$version" \
     "/DArtefactsDir=$(cygpath -w "$artefacts")" \
+    "/DMidiArtefactsDir=$(cygpath -w "$midi_artefacts")" \
     "/O$(cygpath -w "$outdir")" \
     "$(cygpath -w "$here/sedef-amp.iss")"
 

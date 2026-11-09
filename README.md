@@ -28,6 +28,7 @@ around them.
 | **Captures** | load any Neural Amp Modeler (`.nam`) capture of a real amp or full rig in place of the amps, levelled to match them |
 | **Cabs** | 1x12 open, 2x12 open, 4x12 closed · two mics per cab from ten mic models, placed anywhere over the cone, backed off and turned off axis · room mics · load your own IRs |
 | **EQ** | 9-band graphic EQ with low/high cut, one bank per amp |
+| **Sedef MIDI** | a companion that plays MIDI instruments from your guitar, one note at a time ([below](#sedef-midi)) |
 | **Post** | **Drift** multi-head tape echo with wow, flutter and tape saturation · **Fathom** plate and hall reverbs · **Doubler**, a second take that differs from note to note, switched on from the header |
 | **Tools** | precision tuner · **intonation workbench** · metronome with odd meters (standalone) |
 | **Presets** | browser with categories, tags and search · click to audition, Esc to go back · A/B compare · Undo when a load or delete would lose work |
@@ -77,6 +78,30 @@ each string's saddle, and Sedef tells you exactly which way and how far:
 The estimate uses `Δs ≈ L · (2^(c/1200) − 1)` for scale length `L` and octave error `c` cents.
 See [docs/intonation.md](docs/intonation.md) for the method and its limits.
 
+## Sedef MIDI
+
+Sedef MIDI plays MIDI instruments from your guitar: play a bass line on the guitar, hear it on a
+bass instrument, and record it as MIDI to edit afterwards. It comes with Sedef Amp's installer on
+every OS.
+
+- **One note at a time:** melodies and bass lines, not chords. An octave switch (−1 by default, a
+  bass's register), velocity from how hard you pluck or pick, and note-offs that follow your
+  muting.
+- **Any input level, fingers or a pick:** the gate follows your interface's own noise and velocity
+  follows your playing, so it works with every setting at its default.
+- **Standalone app** with its own MIDI port, "Sedef MIDI", which other programs list as a MIDI
+  input (on Windows it sends to a MIDI output you pick), and a **plug-in** (VST3, CLAP, AU) for
+  the guitar track.
+- **In Logic:** load **Sedef MIDI (Instrument)** on an instrument track with the guitar track as its
+  side chain, then record on a second instrument track that takes **MIDI From** it.
+- **Fastest** timing (28 ms on the low E, 16 ms from the G string up) or **Steady** (every note
+  38 ms after you play it, for one fixed track delay).
+
+<img src="docs/images/midi.png" alt="Sedef MIDI: the input meter with its automatic gate, the note being sent with its tuning, velocity, and the note and output settings" width="760">
+
+[docs/midi.md](docs/midi.md) covers setup in Logic and other hosts and playing tips;
+[the design](docs/design/guitar-to-midi.md) covers how it works and what was measured.
+
 ## Install
 
 ### [Download for macOS](https://github.com/mr-kaynak/sedef-amp/releases/latest/download/Sedef-Amp-macOS.dmg)
@@ -95,8 +120,9 @@ Windows 10 or 11, x64. Run the installer. If SmartScreen says *Windows protected
 x86_64 with WebKitGTK 4.1. Unpack the archive and run `./install.sh` (add `--system` to install
 for every user).
 
-Each installer lets you pick VST3, CLAP and the standalone app, plus AU on macOS. Rescan plugins in
-your DAW afterwards; Sedef shows up as **Sedef Amp** by **Sedef**. Install paths, uninstalling and
+Each installer lets you pick VST3, CLAP and the standalone app, plus AU on macOS, and Sedef MIDI
+(selected by default; untick it, or `./install.sh --no-midi` on Linux, to leave it out). Rescan
+plugins in your DAW afterwards; Sedef shows up as **Sedef Amp** and **Sedef MIDI** by **Sedef**. Install paths, uninstalling and
 manual installs are in [docs/install.md](docs/install.md); older versions are on the
 [releases page](https://github.com/mr-kaynak/sedef-amp/releases).
 

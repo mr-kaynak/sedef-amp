@@ -1,27 +1,28 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import { Knob } from '../../../controls/Knob';
-import { Segmented } from '../../../controls/Segmented';
-import { Pedal } from '../Pedal';
+import { Pedal, PedalRow } from '../Pedal';
+import { PedalKnob } from '../PedalKnob';
+import { PedalSwitch } from '../PedalSwitch';
 import { MODS_FINISH } from './finishes';
-import styles from './ModsPedals.module.css';
 
 /** Conch: an inductor-style wah. Position is the rocker (heel to toe); Auto rocks it for you. */
 export function ConchPedal() {
   return (
     <Pedal
+      id="conch"
       name="Conch"
       kind="Wah"
       enableParam="conchEnabled"
       finish={MODS_FINISH.conch}
-      status={
-        <div className={styles.switches}>
-          <Segmented param="conchMode" size="sm" className={styles.opaque} />
-        </div>
-      }
+      status={<PedalSwitch param="conchMode" />}
+      lamp="beside"
     >
-      <Knob param="conchPosition" label="Position" />
-      <Knob param="conchResonance" label="Resonance" />
-      <Knob param="conchSensitivity" label="Auto sensitivity" className={styles.span2} />
+      <PedalRow>
+        <PedalKnob param="conchPosition" label="Position" weight="big" />
+      </PedalRow>
+      <PedalRow>
+        <PedalKnob param="conchResonance" label="Resonance" />
+        <PedalKnob param="conchSensitivity" label="Sens." />
+      </PedalRow>
     </Pedal>
   );
 }

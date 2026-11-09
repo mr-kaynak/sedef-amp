@@ -1,53 +1,99 @@
 /* SPDX-License-Identifier: AGPL-3.0-or-later */
-/* The title stays put; the categories scroll beneath it when they don't fit. */
-.picker {
-  top: calc(100% + 6px);
-  right: 24px;
-  display: flex;
-  flex-direction: column;
-  width: 560px;
-  max-height: 520px;
-  padding: 16px 12px 0;
+/* The shelf sits under the board, which gives it the room and stays in view above it. */
+.shelf {
+  position: relative;
+  z-index: 4;
+  flex: none;
+  padding: 8px 16px 12px;
+  border-top: 1px solid var(--line-strong);
+  background: var(--surface-pop);
+  box-shadow: 0 -16px 28px -18px rgb(0 0 0 / 0.8);
+  animation: fade var(--dur-2) var(--ease-out);
 }
 
-.centred {
-  right: auto;
-  left: 50%;
-  translate: -50% 0;
+@media (prefers-reduced-motion: no-preference) {
+  .shelf {
+    animation-name: rise;
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: 26px;
 }
 
 .title {
-  margin: 0 8px 12px;
+  flex: none;
+  margin: 0;
   font-size: var(--t-14);
   font-weight: 600;
 }
 
-/* A row past the bottom edge fades out there, so a longer list shows that it scrolls; the
-   padding keeps the last row clear of the fade when everything fits. */
-.scroll {
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding-bottom: 12px;
-  mask-image: linear-gradient(180deg, #000 calc(100% - 24px), transparent);
-  scrollbar-width: thin;
-  scrollbar-color: var(--ink-4) transparent;
+/* One line about the pedal pointed at: what it is, what it does, where it goes. */
+.about {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  color: var(--bone-2);
+  font-size: var(--t-12);
+  white-space: nowrap;
+  overflow: hidden;
 }
 
-/* Categories flow down two columns, each kept whole (in a box of its own height, or the
-   columns would spill sideways). */
+.aboutName {
+  color: var(--bone);
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: var(--t-16);
+  font-weight: 500;
+}
+
+.aboutKind {
+  color: var(--bone-3);
+  font-size: var(--t-11);
+  font-stretch: var(--legend-stretch);
+}
+
+.aboutPlace {
+  color: var(--nacre-aqua);
+}
+
+/* Categories side by side, each a labelled run of pedals standing on the shelf's edge. */
 .groups {
-  columns: 2;
-  column-gap: 12px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 6px;
 }
 
 .group {
-  break-inside: avoid;
-  padding-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .category {
-  margin: 0 8px 4px;
+  margin: 0;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--line);
   color: var(--bone-3);
   font-size: var(--t-11);
   font-weight: 500;
@@ -55,77 +101,104 @@
 }
 
 .list {
-  margin: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  margin: auto 0 0;
   padding: 0;
   list-style: none;
 }
 
-.row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-areas:
-    'name state'
-    'kind state'
-    'text text';
-  column-gap: 8px;
-  width: 100%;
-  padding: 8px;
-  border: 1px solid transparent;
+/* A card is the pedal's picture over its name; the button under the picture covers both. */
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 62px;
+  padding: 6px 3px 4px;
   border-radius: var(--r-ctl);
+}
+
+.thumb {
+  position: relative;
+  flex: none;
+  pointer-events: none;
+}
+
+.thumbScale {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+}
+
+.pick {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 0;
+  border: none;
   background: transparent;
   color: var(--bone);
-  text-align: start;
   -webkit-tap-highlight-color: transparent;
-  transition: background-color var(--dur-1) var(--ease-out);
+}
+
+/* The whole card presses the button and wears its focus ring. */
+.pick::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 1px solid transparent;
+  border-radius: var(--r-ctl);
+  transition:
+    background-color var(--dur-1) var(--ease-out),
+    border-color var(--dur-1) var(--ease-out);
+}
+
+.pick:focus-visible {
+  box-shadow: none;
+}
+
+/* The ring is a shadow, which forced colors drop: the transparent outline is drawn there. */
+.pick:focus-visible::after {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  box-shadow: var(--focus);
 }
 
 @media (hover: hover) {
-  .row:hover {
+  .pick:hover::after {
     background: rgb(237 230 214 / 0.06);
+    border-color: var(--line);
   }
 }
 
 .name {
-  grid-area: name;
   font-family: var(--font-display);
   font-style: italic;
-  font-size: var(--t-18);
+  font-size: var(--t-14);
   font-weight: 500;
   line-height: 1.1;
 }
 
-.kind {
-  grid-area: kind;
-  color: var(--bone-2);
-  font-size: var(--t-11);
-  font-stretch: var(--legend-stretch);
-}
-
-.text {
-  grid-area: text;
-  margin-top: 4px;
-  color: var(--bone-3);
-  font-size: var(--t-11);
-  line-height: 1.35;
-}
-
 .state {
-  grid-area: state;
-  align-self: start;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  height: 22px;
-  padding: 0 8px;
-  border: 1px solid var(--line-strong);
-  border-radius: 11px;
-  color: var(--bone-2);
-  font-size: var(--t-11);
+  gap: 3px;
+  color: var(--bone-3);
+  font-size: var(--t-10);
+  line-height: 1.2;
   white-space: nowrap;
 }
 
-.row[data-on-board] .state {
-  border-color: var(--on-line);
-  background: var(--on-fill);
-  color: var(--bone);
+/* On the board already: the picture steps back and the card says so. */
+.card[data-on-board] .thumb {
+  opacity: 0.45;
+}
+
+.card[data-on-board] .state {
+  color: var(--nacre-aqua);
 }

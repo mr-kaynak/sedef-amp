@@ -1,22 +1,5 @@
 /* SPDX-License-Identifier: AGPL-3.0-or-later */
 /* Shared by the mods pedals (Conch, Anemone, Gyre, Jetty, Beacon). */
-.span2 {
-  grid-column: span 2;
-}
-
-/* Mode switches sit between the name and the lamp, where a real pedal has its toggles. */
-.switches {
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-}
-
-/* On a light enclosure the switch's usual tinted well washes out its unselected labels; this one
-   is nearly opaque, so they keep 4.5:1 (Conch, Anemone and Gyre). */
-.switches > .opaque {
-  background: rgb(6 17 25 / 0.88);
-}
-
 /* The lamp's brightness follows the sweep (--sweep, LfoLed.tsx). A moving lamp is decoration on
    top of the lit LED: it stands still with reduced motion. */
 .sweepLed[data-on] {

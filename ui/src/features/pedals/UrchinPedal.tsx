@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import { Knob } from '../../controls/Knob';
-import { Pedal, type PedalFinish } from './Pedal';
+import { Pedal, PedalRow, type PedalFinish } from './Pedal';
+import { PedalKnob } from './PedalKnob';
 
 // A sea urchin's plum.
 const FINISH: PedalFinish = {
@@ -13,16 +13,21 @@ const FINISH: PedalFinish = {
 export function UrchinPedal() {
   return (
     <Pedal
+      id="urchin"
       name="Urchin"
       kind="Octave-up fuzz"
       enableParam="urchinEnabled"
       finish={FINISH}
       hint="Neck pickup, above the 12th fret"
     >
-      <Knob param="urchinFuzz" label="Fuzz" />
-      <Knob param="urchinOctave" label="Octave" />
-      <Knob param="urchinTone" label="Tone" />
-      <Knob param="urchinLevel" label="Level" />
+      <PedalRow>
+        <PedalKnob param="urchinFuzz" label="Fuzz" />
+        <PedalKnob param="urchinOctave" label="Octave" />
+      </PedalRow>
+      <PedalRow>
+        <PedalKnob param="urchinTone" label="Tone" />
+        <PedalKnob param="urchinLevel" label="Level" />
+      </PedalRow>
     </Pedal>
   );
 }

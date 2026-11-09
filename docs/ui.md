@@ -70,9 +70,11 @@ ui/src/
     presets/            preset browser: library model, list, Save as/Rename, session (audition,
                         Esc, Undo); see ui/presets.md
     pedals/             the pedalboard: registry.ts (the engine's pedal table, generated), catalog.ts
-                        (each pedal's panel and picker line), the panels (panels/, *Pedal.tsx),
-                        PedalBoard, PedalPicker, useBoardDrag; the board lives in
-                        state/boardStore.ts
+                        (each pedal's panel and picker line), sizes.ts (each enclosure's box),
+                        art.tsx (the figure painted on it), Pedal + PedalKnob + PedalSwitch, the
+                        panels (panels/, mods/, *Pedal.tsx), layout.ts (where everything sits),
+                        PedalBoard, PedalPicker (the Add pedal shelf), useBoardDrag; the board
+                        lives in state/boardStore.ts
     amp/ eq/ cab/ fx/
     tuner/              needle + strobe gauge, overlay
     intonation/         math.ts, store, controller, wizard steps, saddle diagram
@@ -201,7 +203,7 @@ browser the canvas fits the window. Everything is vector or text, so it stays cr
 | Header     | logo, preset bar (prev/next, category chip, name with dirty dot, A/B with copy, Save), input/output gain with peak meters, clip latches and the Doubler switch, Tuner, Intonation, Metronome (standalone only), Settings         |
 | Presets    | browser over the rig ([details](ui/presets.md)): rail, list with tag chips and search, detail pane with the chain by stage; click or arrows audition, Enter keeps, Esc goes back exactly; `[` `]` `P` `A` `B`                    |
 | Tabs       | Pedals · Amp · EQ · Cab · FX, keys 1–5 and arrow keys; each tab shows what is switched on inside it                                                                                                                              |
-| Pedals     | the pedalboard ([below](#pedalboard)): pedals in signal order, left to right and row by row; drag, arrow keys or move buttons to reorder; Remove with Undo; Add pedal picker by category. Gate (threshold, open/closed lamp); Trench Mono/Poly, Remora Germanium/Silicon, Breaker Treble/Full, Conch Manual/Auto, Anemone mode and direction, Gyre stages and Beacon Chorus/Vibrato switches; Tide gain reduction, Ripple rate lamp, Beacon lamp and Gyre/Jetty sweep LEDs; playing hints on Trench (it follows the mode: "One note at a time" in Mono, "Chords and single notes" in Poly) and Urchin, read with their footswitch |
+| Pedals     | the pedalboard ([below](#pedalboard)): the signal runs along a cable from the Guitar jack through the pedals, row by row, into the amp in use; every pedal is its own enclosure (three widths, its own knob layout and painted figure), large on a short board and small on a long one, and all sixteen fit without scrolling; drag a pedal, or use the arrow keys or move buttons on it, to reorder; Remove with Undo; Add pedal opens a shelf with a picture of every pedal by category. Gate (threshold, open/closed lamp); Trench Mono/Poly, Remora Germanium/Silicon, Breaker Treble/Full, Conch Manual/Auto, Anemone mode and direction, Gyre stages and Beacon Chorus/Vibrato switches; Tide gain reduction, Ripple rate lamp, Beacon lamp and Gyre/Jetty sweep LEDs; playing hints on Trench (it follows the mode: "One note at a time" in Mono, "Chords and single notes" in Poly) and Urchin, read with their footswitch |
 | Amp        | Lagoon/Reef/Abyss faceplates; Reef voice lever; Abyss bright/shift levers; amp/cab link; Capture: load or drop a .nam file, gear/author/model, trims, through-cab, interface level, recent, missing file                         |
 | EQ         | the current amp's bank: 9 faders on a log axis under a live response curve, low/high cut, on/off, flatten                                                                                                                        |
 | Cab        | cab picker; Mic A/B markers anywhere over the cone (drag or click to place, wheel or Alt-drag for distance, keys), off-axis stem, other speakers' map; type, position, distance, off-axis, level, pan, phase, room, custom IR    |
@@ -214,31 +216,61 @@ browser the canvas fits the window. Everything is vector or text, so it stays cr
 
 ### Pedalboard
 
-![The pedalboard with Add pedal's picker open](images/pedal-picker.png)
+![The pedalboard with the Add pedal shelf open](images/pedal-picker.png)
 
 The board is the list of pedal ids in signal order (`state/boardStore.ts`), mirrored from the
 plug-in: `hello.board`, `sedef_board_set(pedals)` (answers with the board it kept) and
 `sedef:board` for changes made elsewhere (presets, A/B, preset Undo, host restores). Edits
 apply at once; only the answer to the latest edit is taken, and a board older than the one held
 (by `revision`) is ignored. A plug-in without the board leaves `supported` false: the page then
-shows 0.3.0's pedals in their fixed order without the editing controls.
+shows 0.3.0's pedals in their fixed order without the editing tools.
 
-- **Layout**: pedals wrap into rows inside a scroller; the next row peeks under the fold. Each
-  pedal has a strip above it: the handle, then Move left, Move right and Remove.
-- **Drag**: press the handle and move 4 px. The pedal follows the pointer (canvas pixels, so the
-  Stage's scale doesn't matter), the others stay put, and a nacre bar marks the gap it would land
-  in. Near the scroller's top or bottom edge the board scrolls. Escape or a cancelled pointer
-  puts it back.
+- **Pedals**: one family, sixteen enclosures. `sizes.ts` gives each its box in board units:
+  compact (one column of controls: Gate, Breaker), regular, or wide (Trench, Remora, Anemone),
+  and the height its controls need, so pedals stand at different heights on one bottom line.
+  Each panel lays out its own rows (`PedalRow`), sizes its knobs by weight (`PedalKnob`: normal,
+  big, or one hero knob), puts its name above or under the controls, and carries a line figure
+  after its name (`art.tsx`: rings for Ripple, a spiral for Conch, spines for Urchin). The
+  figures are computed in code; nothing is traced or imported
+  ([ADR-0006](adr/0006-clean-room-sources.md)). Lettering has a halo of the paint, so a
+  figure's lines stop short of it.
+- **Two densities**: a pedal draws at the density its host gives it (`density.ts`): 1 canvas
+  pixel per unit when small, 1.4 when large, with knob, type and footswitch sizes stepping to
+  match. A board that fits one row large (about five pedals) is large and centred; a longer one
+  is small. While the Add pedal shelf is open the board is small, so all of it stays in view.
+- **Layout** (`layout.ts`): arithmetic over the boxes on the fixed 1200 px canvas, no
+  measuring. Small pedals fill rows from the left. The widths are chosen so that all sixteen
+  fit two rows, in any order, in the 588 px under the toolbar (`layout.test.ts` tries a couple
+  of hundred orders); the page scrolls only if a later pedal breaks that.
+- **Signal path**: a cable runs from the Guitar jack along each row at the height of the
+  pedals' jacks, with an arrowhead in every gap, out past the row's end, back along the gap
+  between rows and into the next one. It ends in a small head in the colours and name of the
+  amp in use (Capture when a capture plays), which is a button to the Amp page. An empty board
+  is the jack, a short cable and the amp.
+- **Tools**: each pedal has its tools on its own top edge, on an ink strip that reads on any
+  paint: the handle, then Move left, Move right and Remove. They show while the pointer or the
+  keyboard focus is on the pedal, and always where there is no hover.
+- **Drag**: press the handle, or the enclosure anywhere but on a control, and move 4 px. The
+  pedal follows the pointer (canvas pixels, so the Stage's scale doesn't matter), the others
+  stay put, and a nacre bar down the row marks the gap it would land in. When it lands, the
+  pedals around it glide to their places. Near the scroller's top or bottom edge a scrolling
+  board scrolls. Escape or a cancelled pointer puts it back.
 - **Keyboard**: on the handle, arrow keys move the pedal one place, Home and End to either end;
-  the move buttons do the same. Focus stays on the control used (the handle when that button
+  the move buttons do the same. Focus stays on the tool used (the handle when that button
   switches off at an end). A polite live region says where it went: "Pearl moved to 4 of 5,
   after Coral."
 - **Remove** takes the pedal off at once and shows "Removed Pearl · Undo"; Undo puts it back
   where it was. The notice goes when a preset or A/B brings another board. Focus moves to the
   next pedal's handle, or to Add pedal when the board is empty.
-- **Add pedal** opens a picker grouped by category, each pedal with its kind and one line about
-  it. A new pedal goes to its default position (its rank in the registry) and is announced;
-  a pedal on the board already is marked "On the board", and picking it shows it there.
+- **Add pedal** opens a shelf under the board (a non-modal dialog), not a popover over it: a
+  card for every pedal, by category, with the pedal itself drawn at 40 % (the real panel,
+  `inert` and hidden from assistive technology, so the picture always matches). Pointing at a
+  card, with the pointer or the keyboard focus, shows a bar on the board where the pedal would
+  land (its rank in the registry) and a line with what it does and where it goes; a pedal on
+  the board already is marked "On the board", ringed on the board, and picking it shows it
+  there. Adding announces the pedal's place and leaves the shelf open with focus on the card,
+  so several pedals can go on in one visit. Arrow keys, Home and End walk the cards; Close,
+  Escape or Add pedal closes the shelf, and focus goes back to Add pedal.
 - **Registry**: `features/pedals/registry.ts` reads `generated/pedals.json`, which
   `sedef-params --pedals` dumps from the engine's `PedalList.inc`, and mirrors `sedef::Board`'s
   rules (add at rank, move, the legacy board for presets saved without one, only the pedals
@@ -293,8 +325,8 @@ something is alive.
   specular highlight stays put, so light appears to travel across the shell as you turn it. The
   same nacre inlays the logo (an eight-pointed star, as in sedef inlay work), the in-tune note,
   active selections, the Abyss badge and the Pearl enclosure. Nothing else glows.
-- **Hardware language**: pedals are painted enclosures with screws, chrome-bezel LEDs and hex-nut
-  footswitches; amps are heads with grille cloth and an engraved plate (Lagoon is pale sea-glass,
+- **Hardware language**: pedals are painted enclosures with screws, chrome-bezel LEDs, hex-nut
+  footswitches and a line figure each; amps are heads with grille cloth and an engraved plate (Lagoon is pale sea-glass,
   Reef is oxblood, Abyss is ink with a nacre badge).
 - **Accessibility**: every control is reachable by keyboard with a visible focus ring; knobs and
   faders are ARIA sliders with real values and readable `aria-valuetext`; arrows, Page Up/Down,

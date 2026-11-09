@@ -6,6 +6,22 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **The Pedals page is redrawn as one board you can see whole.** Each of the sixteen pedals is
+  its own enclosure: three widths and several heights by what it carries, its own knob layout
+  and knob sizes, and a line figure painted on it, so a pedal can be told apart without reading
+  its name. A short board is drawn large; a long one small, and every pedal there is fits in two
+  rows without scrolling.
+- **The signal path is drawn on the board:** a cable from the Guitar jack through the pedals,
+  row by row, into the amp in use, which opens the Amp page.
+- **A pedal's tools are on the pedal:** the handle, Move left, Move right and Remove sit on its
+  top edge and show when the pointer or the keyboard is on it. A pedal also drags by its
+  enclosure.
+- **Add pedal is a shelf under the board** with a picture of every pedal, by category, and the
+  ones on the board marked. Pointing at a pedal shows where on the board it will land and what
+  it does. The shelf stays open after you add a pedal.
+
 ## [0.5.0] - 2026-11-09
 
 The Pedals page is a pedalboard you build yourself, with five new filter and modulation pedals;

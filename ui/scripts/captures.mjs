@@ -53,7 +53,7 @@ const result = (cents) => ({
 const SHOTS = {
   'pedals-off': [`section=pedals&${FIVE}&set=${PEDALS_OFF}`],
   'pedals-pearl-on': [`section=pedals&${FIVE}&set=${PEDALS_OFF},pearlEnabled:1`],
-  // The pedalboard: Add pedal's picker open over a short board (?board= sets the mock's board).
+  // The pedalboard: Add pedal's shelf open under a short board (?board= sets the mock's board).
   'pedals-picker': [
     `section=pedals&board=gate,tide,ripple&set=${PEDALS_OFF}`,
     async (page) => {

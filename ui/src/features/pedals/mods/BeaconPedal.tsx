@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { useRef } from 'react';
-import { Knob } from '../../../controls/Knob';
-import { Segmented } from '../../../controls/Segmented';
 import { useParamValue } from '../../../params/useParam';
-import { Pedal } from '../Pedal';
+import { Pedal, PedalRow } from '../Pedal';
+import { PedalKnob } from '../PedalKnob';
+import { PedalSwitch } from '../PedalSwitch';
 import { MODS_FINISH } from './finishes';
 import { lampBrightness, VibeLamp } from './lamps';
 import { LfoLed } from './LfoLed';
-import styles from './ModsPedals.module.css';
 
 /**
  * Beacon: a photocell vibe. Its lamp shows the vibe's own lamp: a quick brightening and a slow
@@ -18,10 +17,12 @@ export function BeaconPedal() {
   const depth = useParamValue('beaconDepth');
   return (
     <Pedal
+      id="beacon"
       name="Beacon"
       kind="Photocell vibe"
       enableParam="beaconEnabled"
       finish={MODS_FINISH.beacon}
+      status={<PedalSwitch param="beaconMode" />}
       led={
         <LfoLed
           enableParam="beaconEnabled"
@@ -30,9 +31,10 @@ export function BeaconPedal() {
         />
       }
     >
-      <Segmented param="beaconMode" size="sm" className={styles.span2} />
-      <Knob param="beaconSpeed" label="Speed" />
-      <Knob param="beaconDepth" label="Depth" />
+      <PedalRow set="tight">
+        <PedalKnob param="beaconSpeed" label="Speed" weight="big" />
+        <PedalKnob param="beaconDepth" label="Depth" weight="big" />
+      </PedalRow>
     </Pedal>
   );
 }

@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { useRef } from 'react';
-import { Knob } from '../../../controls/Knob';
 import { Led } from '../../../controls/Led';
-import { Segmented } from '../../../controls/Segmented';
 import { useParamValue } from '../../../params/useParam';
 import { telemetry, useLiveFrame } from '../../../state/live';
-import { Pedal } from '../Pedal';
+import { usePedalDensity } from '../density';
+import { Pedal, PedalRow } from '../Pedal';
+import { PedalKnob } from '../PedalKnob';
+import { PedalSwitch } from '../PedalSwitch';
 import { RIPPLE } from './finishes';
 import styles from './Panels.module.css';
 
@@ -17,6 +18,7 @@ import styles from './Panels.module.css';
 function RateLed() {
   const ref = useRef<HTMLSpanElement>(null);
   const phase = useRef(0);
+  const large = usePedalDensity() === 'large';
   const on = useParamValue('rippleEnabled') >= 0.5;
   const speed = useParamValue('rippleSpeed');
   useLiveFrame(telemetry, (_t, dt) => {
@@ -29,7 +31,7 @@ function RateLed() {
   });
   return (
     <span ref={ref} className={styles.rate} data-on={on || undefined}>
-      <Led on={on} size={10} />
+      <Led on={on} size={large ? 10 : 8} />
     </span>
   );
 }
@@ -37,20 +39,18 @@ function RateLed() {
 export function RipplePanel() {
   return (
     <Pedal
+      id="ripple"
       name="Ripple"
       kind="Modulation"
       enableParam="rippleEnabled"
       finish={RIPPLE}
+      status={<PedalSwitch param="rippleMode" labels={['Trem', 'Chorus', 'Vibe']} />}
       led={<RateLed />}
     >
-      <Segmented
-        param="rippleMode"
-        size="sm"
-        className={styles.span2}
-        labels={['Trem', 'Chorus', 'Vibe']}
-      />
-      <Knob param="rippleSpeed" label="Speed" />
-      <Knob param="rippleDepth" label="Depth" />
+      <PedalRow set="tight">
+        <PedalKnob param="rippleSpeed" label="Speed" weight="big" />
+        <PedalKnob param="rippleDepth" label="Depth" />
+      </PedalRow>
     </Pedal>
   );
 }

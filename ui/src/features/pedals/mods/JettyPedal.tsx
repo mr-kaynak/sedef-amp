@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { useRef } from 'react';
-import { Knob } from '../../../controls/Knob';
-import { Pedal } from '../Pedal';
+import { Pedal, PedalRow } from '../Pedal';
+import { PedalKnob } from '../PedalKnob';
 import { MODS_FINISH } from './finishes';
 import { lampBrightness, triangle } from './lamps';
 import { LfoLed } from './LfoLed';
@@ -11,10 +11,12 @@ export function JettyPedal() {
   const phase = useRef(0);
   return (
     <Pedal
+      id="jetty"
       name="Jetty"
       kind="Flanger"
       enableParam="jettyEnabled"
       finish={MODS_FINISH.jetty}
+      nameAt="top"
       led={
         <LfoLed
           enableParam="jettyEnabled"
@@ -26,10 +28,14 @@ export function JettyPedal() {
         />
       }
     >
-      <Knob param="jettySpeed" label="Speed" />
-      <Knob param="jettyDepth" label="Depth" />
-      <Knob param="jettyDelay" label="Delay" />
-      <Knob param="jettyFeedback" label="Feedback" />
+      <PedalRow>
+        <PedalKnob param="jettySpeed" label="Speed" />
+        <PedalKnob param="jettyDepth" label="Depth" />
+      </PedalRow>
+      <PedalRow>
+        <PedalKnob param="jettyDelay" label="Delay" />
+        <PedalKnob param="jettyFeedback" label="Feedback" />
+      </PedalRow>
     </Pedal>
   );
 }

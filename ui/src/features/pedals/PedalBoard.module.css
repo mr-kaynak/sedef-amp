@@ -1,26 +1,18 @@
 /* SPDX-License-Identifier: AGPL-3.0-or-later */
 .section {
-  --gap: 24px; /* between pedals; PedalBoard.tsx GAP */
-  --row-gap: 20px;
   display: flex;
   flex-direction: column;
   height: 100%;
 }
 
 .toolbar {
-  position: relative;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 16px;
-  min-height: 46px;
-  padding: 8px 24px 0;
-}
-
-.flow {
-  flex: 1;
-  margin: 0;
-  color: var(--bone-3);
-  font-size: var(--t-11);
+  flex: none;
+  height: 38px; /* layout.ts BOARD_HEIGHT is what is left under it */
+  padding: 6px 16px 0;
 }
 
 .count {
@@ -28,15 +20,16 @@
   font-size: var(--t-11);
 }
 
+/* The board scrolls only when it has to: a board that fits is centred in the room there is. */
 .scroller {
   position: relative;
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
+  overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 10px 24px 28px;
-  /* A row below the fold shows its strip and the top of its pedals, fading out at the edge. */
-  mask-image: linear-gradient(180deg, #000 calc(100% - 28px), transparent);
   scrollbar-width: thin;
   scrollbar-color: var(--ink-4) transparent;
 }
@@ -45,22 +38,145 @@
   cursor: grabbing;
 }
 
-.board {
+/* Everything on it is placed in canvas pixels by layout.ts. */
+.stage {
   position: relative;
+  flex: none;
+  width: 100%;
+  margin-block: auto;
+}
+
+/* The signal: a cable behind the pedals, from the input jack to the amp. */
+.cable {
+  position: absolute;
+  left: 0;
+  top: 0;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.cableJacket {
+  stroke: var(--ink-0);
+  stroke-width: 5;
+}
+
+.cableCore {
+  stroke: var(--ink-4);
+  stroke-width: 2.5;
+}
+
+.cableArrow {
+  stroke: var(--bone-2);
+  stroke-width: 1.5;
+}
+
+/* Where the guitar comes in: a jack socket on the cable, named above it. */
+.input {
+  position: absolute;
   display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: var(--row-gap) var(--gap);
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.jack {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, var(--ink-0) 0 34%, transparent 36%),
+    radial-gradient(circle at 40% 35%, #f2efe7, #8d8c86 70%, #4f4f4c);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.6);
+}
+
+.inputLabel {
+  position: absolute;
+  bottom: calc(50% + 14px);
+  color: var(--bone-3);
+  font-size: var(--t-10);
+  font-stretch: var(--legend-stretch);
+  font-weight: 500;
+}
+
+/* Where it goes: the amp in use, as a small head in its own colours. */
+.amp {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border: 1px solid transparent;
+  border-radius: var(--r-ctl);
+  background: linear-gradient(
+    180deg,
+    var(--amp-top, var(--ink-3)),
+    var(--amp-bottom, var(--ink-2))
+  );
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.18),
+    inset 0 -2px 0 rgb(0 0 0 / 0.25),
+    0 0 0 1px rgb(0 0 0 / 0.4),
+    0 12px 18px -12px rgb(0 0 0 / 0.85);
+  color: var(--amp-legend, var(--bone));
+  -webkit-tap-highlight-color: transparent;
+  transition: filter var(--dur-1) var(--ease-out);
+}
+
+@media (hover: hover) {
+  .amp:hover {
+    filter: brightness(1.08);
+  }
+}
+
+.ampCaption {
+  font-size: var(--t-10);
+  font-stretch: var(--legend-stretch);
+  font-weight: 520;
+  opacity: 0.85;
+}
+
+.ampName {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: var(--t-16);
+  font-weight: 500;
+  line-height: 1;
+  writing-mode: vertical-rl;
+  rotate: 180deg;
+  white-space: nowrap;
+}
+
+.board {
+  position: absolute;
+  inset: 0;
   margin: 0;
   padding: 0;
   list-style: none;
+  pointer-events: none;
 }
 
 .slot {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  position: absolute;
+  z-index: 1;
+  pointer-events: auto;
+}
+
+.slot[data-editable] {
+  cursor: grab;
+  touch-action: pan-y;
+}
+
+/* A pedal glides to its new place when the board changes around it. */
+@media (prefers-reduced-motion: no-preference) {
+  .slot:not([data-dragging], [data-dropped]) {
+    transition:
+      left var(--dur-2) var(--ease-out),
+      top var(--dur-2) var(--ease-out);
+  }
 }
 
 /* The pedal being dragged rides above the others and follows the pointer (translate, set inline). */
@@ -82,59 +198,123 @@
   }
 }
 
-/* The strip above each pedal: its handle, then move and remove. Quiet until it is used. */
-.strip {
+/* The pedal the shelf points at, when it is on the board already. */
+.slot[data-marked]::after {
+  content: '';
+  position: absolute;
+  /* Concentric with the enclosure: its radius (9 units) plus the 2px gap and the ring. */
+  inset: -4px;
+  border: 2px solid var(--nacre-aqua);
+  border-radius: 13px;
+  box-shadow: var(--shadow-nacre-sel);
+  pointer-events: none;
+}
+
+/* The pedal's own tools, on its top edge: the handle, then move and remove. They show when the
+   pointer or the keyboard is on the pedal, on an ink strip that reads on any paint. */
+.tools {
+  position: absolute;
+  z-index: 2;
+  top: 2px;
+  left: 3px;
+  right: 3px;
   display: flex;
   align-items: center;
-  gap: 2px;
-  height: 28px;
-}
-
-.stripGap {
-  flex: 1;
-}
-
-.handle {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
+  height: 18px;
+  padding: 0 1px;
   border: 1px solid transparent;
   border-radius: var(--r-ctl);
-  background: transparent;
-  color: var(--bone-3);
-  cursor: grab;
-  touch-action: none;
-  -webkit-tap-highlight-color: transparent;
-  transition:
-    color var(--dur-1) var(--ease-out),
-    background-color var(--dur-1) var(--ease-out);
+  background: rgb(6 17 25 / 0.9);
+  box-shadow: 0 0 0 1px var(--line-strong);
+  opacity: 0;
+  transition: opacity var(--dur-1) var(--ease-out);
+}
+
+.slot:focus-within .tools,
+.slot[data-dragging] .tools {
+  opacity: 1;
 }
 
 @media (hover: hover) {
-  .handle:hover {
-    color: var(--bone);
-    background: rgb(237 230 214 / 0.06);
+  .slot:hover .tools {
+    opacity: 1;
   }
 }
 
-.slot[data-dragging] .handle {
-  color: var(--bone);
-  background: var(--on-fill);
-  border-color: var(--on-line);
+.board[data-density='large'] .slot[data-marked]::after {
+  border-radius: 16.6px;
+}
+
+/* The strip follows the enclosure's corner: its radius less the 3px between them. */
+.board[data-density='large'] .tools {
+  border-radius: 9.6px;
+}
+
+.board[data-density='large'] .tool {
+  border-radius: 7.6px;
+}
+
+/* Nothing to hover with: the tools stay in view. */
+@media (hover: none) {
+  .tools {
+    opacity: 1;
+  }
+}
+
+/* While another pedal is dragged over it, a pedal keeps its tools to itself. */
+.scroller[data-dragging] .slot:not([data-dragging]) .tools {
+  opacity: 0;
+}
+
+.toolsGap {
+  flex: 1;
 }
 
 .tool {
-  color: var(--bone-3);
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 20px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--bone-2);
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    color var(--dur-1) var(--ease-out),
+    background-color var(--dur-1) var(--ease-out),
+    scale 150ms ease-out;
 }
 
-/* While it rides, only the handle stays: its move and remove buttons would float over a neighbour. */
-.slot[data-dragging] .tool {
+.tool:disabled {
+  opacity: var(--disabled-opacity);
+  cursor: default;
+}
+
+@media (hover: hover) {
+  .tool:not(:disabled):hover {
+    color: var(--bone);
+    background: rgb(237 230 214 / 0.1);
+  }
+}
+
+.tool:focus-visible {
+  box-shadow: 0 0 0 1.5px var(--nacre-aqua);
+}
+
+.handle {
+  cursor: grab;
+  touch-action: none;
+}
+
+/* While it rides, only the handle stays: its move and remove buttons do nothing in the air. */
+.slot[data-dragging] .tool:not(.handle) {
   visibility: hidden;
 }
 
-/* Where the dragged pedal would land: a nacre bar in the gap. */
+/* Where a pedal would land, dragged or picked from the shelf: a nacre bar in the gap. */
 .bar {
   position: absolute;
   z-index: 2;
@@ -156,16 +336,22 @@
   .bar {
     background: Highlight;
   }
+
+  .slot[data-marked]::after {
+    border-color: Highlight;
+  }
 }
 
+/* An empty board: the cable runs from the jack straight into the amp, and the page says so. */
 .empty {
+  position: absolute;
+  left: 0;
+  right: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
   gap: 8px;
-  min-height: 100%;
-  padding-bottom: 40px;
+  padding-top: 8px;
   text-align: center;
 }
 
@@ -185,6 +371,5 @@
 }
 
 .emptyAction {
-  position: relative;
   margin-top: 12px;
 }

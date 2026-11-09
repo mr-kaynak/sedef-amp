@@ -3,6 +3,7 @@ import { useRef } from 'react';
 import { Led } from '../../../controls/Led';
 import { useParamValue } from '../../../params/useParam';
 import { telemetry, useLiveFrame } from '../../../state/live';
+import { usePedalDensity } from '../density';
 import styles from './ModsPedals.module.css';
 
 export interface LfoLedProps {
@@ -19,6 +20,7 @@ export interface LfoLedProps {
  */
 export function LfoLed({ enableParam, speedParam, brightness }: LfoLedProps) {
   const ref = useRef<HTMLSpanElement>(null);
+  const large = usePedalDensity() === 'large';
   const on = useParamValue(enableParam) >= 0.5;
   const speed = useParamValue(speedParam);
   useLiveFrame(telemetry, (_t, dt) => {
@@ -28,7 +30,7 @@ export function LfoLed({ enableParam, speedParam, brightness }: LfoLedProps) {
   });
   return (
     <span ref={ref} className={styles.sweepLed} data-on={on || undefined}>
-      <Led on={on} size={10} />
+      <Led on={on} size={large ? 10 : 8} />
     </span>
   );
 }

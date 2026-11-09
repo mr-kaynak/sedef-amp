@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import { Knob } from '../../../controls/Knob';
 import { Led } from '../../../controls/Led';
 import { useParamValue } from '../../../params/useParam';
 import { telemetry, useLiveSelector } from '../../../state/live';
-import { Pedal } from '../Pedal';
+import { Pedal, PedalRow } from '../Pedal';
+import { PedalKnob } from '../PedalKnob';
 import { GATE } from './finishes';
 import styles from './Panels.module.css';
 
@@ -22,14 +22,16 @@ function GateState() {
 export function GatePanel() {
   return (
     <Pedal
+      id="gate"
       name="Gate"
       kind="Noise gate"
       enableParam="gateEnabled"
       finish={GATE}
-      variant="narrow"
       status={<GateState />}
     >
-      <Knob param="gateThreshold" label="Threshold" />
+      <PedalRow>
+        <PedalKnob param="gateThreshold" label="Threshold" weight="hero" />
+      </PedalRow>
     </Pedal>
   );
 }

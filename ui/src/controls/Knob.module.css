@@ -136,6 +136,8 @@
   font-weight: 560;
   white-space: nowrap;
   box-shadow: var(--shadow-pop);
+  /* An enclosure gives its lettering a halo of its paint; the bubble is not on the paint. */
+  text-shadow: none;
   pointer-events: none;
   z-index: 20;
 }

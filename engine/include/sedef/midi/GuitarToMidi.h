@@ -31,6 +31,31 @@ enum class Curve : std::uint8_t
     hard    ///< loud notes need a hard pick
 };
 
+/// Why the latest note started or ended (diagnostics: render tools and tests read it).
+enum class Why : std::uint8_t
+{
+    none,
+    pick,       ///< started from silence by a pick
+    correction, ///< started by the tracker correcting the note a pick started
+    legato,     ///< started without a pick (hammer-on, pull-off, slide)
+    repick,     ///< the same note picked again
+    replaced,   ///< ended for the next note
+    unvoiced,   ///< ended: the tracker heard no note
+    gate,       ///< ended: the level fell under the gate
+    mute,       ///< ended: the level fell faster than a string decays
+    damped,     ///< ended: no pick, another pitch, the level fallen (the note was damped)
+    other       ///< ended by a settings change or allNotesOff()
+};
+
+/// How the latest pick was seen.
+enum class PickKind : std::uint8_t
+{
+    none,
+    detector, ///< MonoTracker's pick detector
+    weak,     ///< the sounding note losing its period
+    lock      ///< the tracker locking with the level on the rise
+};
+
 struct Settings
 {
     int octave = -1; ///< -2..+1 octaves; a bass sounds an octave under a guitar
@@ -75,6 +100,11 @@ struct Settings
 ///   octave, a twelfth) needs the input to repeat clearly better there than at the note's own
 ///   period (kCorrectionMargin, over the same stretch of signal): a string an octave apart
 ///   ringing under the note, or the body, can make the longer period look as good.
+/// - **The octave up.** After a pick, a string ringing an octave (or two) under the played note,
+///   left ringing or in sympathy, makes the input repeat at its longer period as well, and the
+///   tracker may name it. When the input also repeats at half that period (kOctaveUpClean, over
+///   the longer period), the played note is the octave above: a string's own waveform never
+///   does, its odd partials break the half period.
 /// - **Legato.** Without a pick, the note changes when the pitch sits within kLegatoCentre of
 ///   another semitone and is periodic there (kLegatoPeriodic) for kLegatoConfirmSeconds: a
 ///   hammer-on, pull-off or slide gives every semitone it reaches. A jump over
@@ -82,12 +112,17 @@ struct Settings
 ///   ignored; when the level has fallen kLegatoDropDb under its recent peak, the played note was
 ///   damped and the change ends the note instead.
 /// - **The same note picked again** ends the old note and starts a new one when the pick shows
-///   in the signal: the level rises kRetriggerRiseDb, or the periodicity dips under
-///   kRetriggerPeriodic (strings ringing together beat and can fool a pick detector).
+///   in the signal as a new waveform (the note's periodicity dips under kRetriggerPeriodic) and
+///   the input repeats at the note's own period again. A rise of the level is no proof (pick
+///   noise, a pick scraping a damped string, strings beating), and a new note picked on another
+///   string over this one leaves the tracker on this one for a moment, but repeats at its own
+///   period.
 /// - **Note-off from the level,** not from the tracker, which rides out poor estimates for a long
 ///   time. The note ends when the level falls kOffHysteresisDb under the gate, or kMuteDropDb
 ///   under its highest point of the last kMuteWindowSeconds (a mute: no string decays that fast),
-///   or when the tracker no longer hears a note.
+///   or when the tracker no longer hears a note. The mute is judged against the note's own
+///   level, from 3 ms after its pick: a louder string damped as the note was picked is not the
+///   note being muted.
 /// - **Velocity** from the pick's level (the loudest millisecond 3-12 ms after it):
 ///   kVelocitySpanDb of picking strength up to kVelocityTopDb map to 1..127 through the curve,
 ///   then blend towards kFixedVelocity as the dynamics fall. A legato note takes its velocity
@@ -95,7 +130,10 @@ struct Settings
 /// - **Timing.** Fastest sends each event at the sample it was decided on. Steady sends a picked
 ///   note's note-on kSteadyLagSeconds after its pick, and every other event that long after it
 ///   was decided, so all notes have the same latency and a recording can be moved earlier by one
-///   amount. A note sure only after the lag is still sent, at once, and counted as late.
+///   amount. A note sure only after the lag is still sent, at once, and counted as late. Steady
+///   also sees glitches coming: a note that would sound shorter than kShortNoteSeconds while its
+///   note-on still waits is taken back, and the note it interrupted sounds on if it comes back
+///   before its own note-off went out.
 /// - **No stuck notes.** Every note-on sent is remembered until its note-off is sent;
 ///   allNotesOff() and panic() end all of them. A change of channel or octave ends the sounding
 ///   note first. Legato order is note-off, then note-on, at the same sample.
@@ -116,6 +154,7 @@ public:
     static constexpr float kMuteDropDb = 18.0f;
     static constexpr double kMuteWindowSeconds = 0.04;
     static constexpr double kSteadyLagSeconds = 0.038;
+    static constexpr double kShortNoteSeconds = 0.04;
     static constexpr double kLegatoLeadSeconds = 0.004;
     static constexpr double kBendIntervalSeconds = 0.002;
     static constexpr float kBendDeadbandCents = 1.5f;
@@ -127,6 +166,7 @@ public:
     static constexpr float kLongerPeriodic = 0.9f;
     static constexpr float kLongerMargin = 0.03f;
     static constexpr float kOwnClean = 0.96f;
+    static constexpr float kOctaveUpClean = 0.8f;
     static constexpr double kAttackSkipSeconds = 0.0025;
     static constexpr double kCheckWindowSeconds = 0.0015;
     static constexpr float kLegatoCentre = 0.4f;
@@ -139,8 +179,7 @@ public:
     static constexpr double kPickRefractorySeconds = 0.04;
     static constexpr float kHarmonicTolerance = 0.03f;
     static constexpr float kCorrectionMargin = 0.25f;
-    static constexpr float kRetriggerRiseDb = 2.0f;
-    static constexpr float kRetriggerPeriodic = 0.6f;
+    static constexpr float kRetriggerPeriodic = 0.75f;
     static constexpr int kLockRiseMs = 30;
     static constexpr float kLockRiseDb = 3.0f;
     static constexpr float kPeriodicBreak = 0.7f;
@@ -180,6 +219,10 @@ public:
     std::uint32_t lateNotes() const noexcept { return lateNotes_; }
     /// Notes still sounding at the receiver (note-on sent, note-off not yet).
     int soundingCount() const noexcept;
+    /// Why the latest note started and ended, and how the latest pick was seen.
+    Why startWhy() const noexcept { return startWhy_; }
+    Why endWhy() const noexcept { return endWhy_; }
+    PickKind pickKind() const noexcept { return pickKind_; }
 
     /// The velocity a pick of this level (linear RMS) gets with these settings.
     static int velocityFor (float level, const Settings& s) noexcept;
@@ -197,12 +240,15 @@ private:
 
     void applySettings (EventList& out, int offset) noexcept;
     void decide() noexcept;
-    void startNote (int note, int velocity, std::int64_t reference) noexcept;
+    void startNote (int note, int velocity, std::int64_t reference, Why why) noexcept;
     /// Ends the sounding note: at `reference` plus Steady's lag, or now with `immediately`.
-    void endNote (std::int64_t reference, bool immediately = false) noexcept;
+    void endNote (std::int64_t reference, Why why, bool immediately = false) noexcept;
     float levelAgo (int ms) const noexcept;
     void sendBend (float deviation, std::int64_t due) noexcept;
     void schedule (std::int64_t due, const Event& e) noexcept;
+    /// The latest queued note-on (or note-off) of this note, -1 if none.
+    int findQueued (bool on, int channel, int note) const noexcept;
+    void unqueue (int index) noexcept;
     void emitDue (EventList& out, int offset) noexcept;
     void emit (EventList& out, const Event& e) noexcept;
     void endAll (EventList& out, int offset, bool everyChannel) noexcept;
@@ -214,7 +260,7 @@ private:
     bool lowerNotePossible (float hz) const noexcept;
     float shortPeriodicity (int lag, int window) const noexcept;
     float recentPeakDb() const noexcept;
-    void registerPick (std::int64_t at, bool weak) noexcept;
+    void registerPick (std::int64_t at, PickKind kind) noexcept;
     void refinePick() noexcept;
     bool refineByPeriod() noexcept;
     void watchPeriodicity() noexcept;
@@ -228,6 +274,11 @@ private:
         return ring_[static_cast<std::size_t> ((ringWrite_ - 1 - ago) & ringMask_)];
     }
     int quantise (float p) const noexcept;
+    /// `hz`, or the octave above it (or two) when the input repeats cleanly at that period too.
+    float octaveChecked (float hz) noexcept;
+    /// Where the input's component at `hz` starts rising, near `around`; -1 when unclear.
+    std::int64_t fundamentalOnset (float hz, std::int64_t around) noexcept;
+    std::int64_t clickNear (std::int64_t from, std::int64_t to) const noexcept;
 
     double sampleRate_ = 48000.0;
     Settings settings_, next_;
@@ -302,10 +353,12 @@ private:
     // The note.
     float pitch_ = 0.0f;
     int note_ = -1, noteChannel_ = 1;
-    float noteHz_ = 0.0f; ///< the tracker's reading when the sounding note started
+    float noteHz_ = 0.0f;  ///< the tracker's reading when the sounding note started
+    float heardHz_ = 0.0f; ///< the tracker's reading, an octave up or two when the input says so
     int candidate_ = -1, candidateSamples_ = 0;
     int lastVelocity_ = 0;
-    std::int64_t noteDue_ = 0; ///< when the sounding note's note-on goes out
+    std::int64_t noteDue_ = 0;   ///< when the sounding note's note-on goes out
+    std::int64_t noteStart_ = 0; ///< the sounding note's pick (or legato move)
 
     // Bend.
     int bendSent_ = kBendCentre, bendChannel_ = 1;
@@ -315,12 +368,21 @@ private:
     // Events waiting for their time (Steady), in time order.
     std::array<Pending, kQueueSize> queue_ {};
     int queued_ = 0;
+    int shortNoteSamples_ = 1920, refineToleranceSamples_ = 48;
+    std::int64_t octaveAt_ = 0;
+    float octaveHz_ = 0.0f, octaveRatio_ = 1.0f; ///< octaveChecked()'s latest answer
+    static constexpr int kDemodSize = 2048;
+    std::array<float, kDemodSize> demodRe_ {}, demodIm_ {};
+    std::array<float, 8192> demodAmp_ {};
+    int bridgeNote_ = -1, bridgeChannel_ = 1; ///< a note a dropped glitch interrupted (Steady)
 
     // What the receiver holds: notes on per channel, and the channels used since the last flush.
     std::array<std::array<std::uint64_t, 2>, 16> on_ {};
     std::uint16_t channelsUsed_ = 0;
 
     std::uint32_t notesSent_ = 0, lateNotes_ = 0;
+    Why startWhy_ = Why::none, endWhy_ = Why::none;
+    PickKind pickKind_ = PickKind::none;
 };
 
 } // namespace sedef::midi

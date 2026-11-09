@@ -265,6 +265,124 @@ int trace (int argc, char** argv)
     return 0;
 }
 
+const char* whyName (midi::Why w)
+{
+    switch (w)
+    {
+    case midi::Why::none:
+        return "-";
+    case midi::Why::pick:
+        return "pick";
+    case midi::Why::correction:
+        return "correction";
+    case midi::Why::legato:
+        return "legato";
+    case midi::Why::repick:
+        return "repick";
+    case midi::Why::replaced:
+        return "replaced";
+    case midi::Why::unvoiced:
+        return "unvoiced";
+    case midi::Why::gate:
+        return "gate";
+    case midi::Why::mute:
+        return "mute";
+    case midi::Why::damped:
+        return "damped";
+    case midi::Why::other:
+        return "other";
+    }
+    return "?";
+}
+
+const char* pickName (midi::PickKind k)
+{
+    switch (k)
+    {
+    case midi::PickKind::none:
+        return "-";
+    case midi::PickKind::detector:
+        return "detector";
+    case midi::PickKind::weak:
+        return "weak";
+    case midi::PickKind::lock:
+        return "lock";
+    }
+    return "?";
+}
+
+int why (int argc, char** argv)
+{
+    // Every note sent (Fastest, octave 0), with how it started and ended and what the tracker
+    // read when it did: the diagnosis of extra and split notes.
+    if (argc < 3)
+    {
+        std::fprintf (stderr, "usage: sedef-midi-render why <in.wav> [--gain dB] [--from s] "
+                              "[--to s]\n");
+        return 2;
+    }
+    const auto audio = tools::readWav (argv[2]);
+    if (!audio)
+        return 1;
+    double gainDb = 0.0, from = 0.0, to = 1.0e9;
+    for (int i = 3; i + 1 < argc; i += 2)
+    {
+        const std::string a = argv[i];
+        if (a == "--gain")
+            gainDb = std::atof (argv[i + 1]);
+        else if (a == "--from")
+            from = std::atof (argv[i + 1]);
+        else if (a == "--to")
+            to = std::atof (argv[i + 1]);
+    }
+    const auto g = static_cast<float> (std::pow (10.0, gainDb / 20.0));
+    const double fs = audio->sampleRate;
+    midi::GuitarToMidi conv;
+    conv.prepare (fs);
+    midi::Settings s;
+    s.octave = 0;
+    conv.setSettings (s);
+    struct Open
+    {
+        double on = -1.0;
+        int velocity = 0;
+        std::string start;
+    };
+    std::vector<Open> open (128);
+    midi::EventList out;
+    std::printf ("    on       off     ms  note        vel  started                 ended\n");
+    for (std::size_t i = 0; i < audio->mono.size(); ++i)
+    {
+        const float x = g * audio->mono[i];
+        out.clear();
+        conv.process (&x, 1, out);
+        const double t = static_cast<double> (i) / fs;
+        for (const auto& e : out)
+        {
+            if (e.isNoteOn())
+            {
+                auto& o = open[static_cast<std::size_t> (e.note())];
+                o.on = t;
+                o.velocity = e.velocity();
+                o.start = std::string (whyName (conv.startWhy()));
+                if (conv.startWhy() == midi::Why::pick || conv.startWhy() == midi::Why::repick ||
+                    conv.startWhy() == midi::Why::correction)
+                    o.start += std::string ("/") + pickName (conv.pickKind());
+            }
+            else if (e.isNoteOff())
+            {
+                auto& o = open[static_cast<std::size_t> (e.note())];
+                if (o.on >= 0.0 && o.on >= from && o.on <= to)
+                    std::printf ("%8.3f  %8.3f  %4.0f  %-2s%d (%3d)  %3d  %-22s  %s\n", o.on, t,
+                                 1000.0 * (t - o.on), noteName (e.note()), e.note() / 12 - 1,
+                                 e.note(), o.velocity, o.start.c_str(), whyName (conv.endWhy()));
+                o.on = -1.0;
+            }
+        }
+    }
+    return 0;
+}
+
 // ---------------------------------------------------------------------------------------------
 
 struct Named
@@ -313,6 +431,11 @@ int scenarios (int argc, char** argv)
     list.push_back ({ "pull-offs-d3", legato (146.83, -200.0, 4, 0.15, fs), plain() });
     list.push_back ({ "slide-up-a2", slide (110.0, 5, 0.05, fs), plain() });
     list.push_back ({ "over-ringing-e3", overRinging (164.81, -500.0, fs), plain() });
+    for (std::uint32_t seed = 1; seed <= 6; ++seed)
+        for (int p = 0; p < 3; ++p)
+            list.push_back ({ "sloppy-line-" + std::to_string (seed) + "-" + pickups[p],
+                              sloppyLine (seed, static_cast<Pickup> (p), 110.0 + 5.0 * seed, fs),
+                              plain() });
 
     std::string readme =
         "# Guitar-to-MIDI test renders\n\n"
@@ -328,6 +451,12 @@ int scenarios (int argc, char** argv)
         const auto run = convert (n.sc.signal, fs, n.settings);
         const auto st = score (run, n.sc, 0);
         writeWavMono (dir + "/" + n.name + ".wav", n.sc.signal, fs);
+        {
+            std::ofstream ref (dir + "/" + n.name + ".ref.txt");
+            for (const auto& r : n.sc.notes)
+                ref << r.start << " " << r.end << " " << r.pitch << " " << (r.picked ? 1 : 0)
+                    << "\n";
+        }
         writeMidiFile (dir + "/" + n.name + ".mid",
                        { trackChunk ("Played", playedEvents (n.sc), true),
                          trackChunk ("Sedef MIDI", sentEvents (run), false) });
@@ -421,6 +550,8 @@ int main (int argc, char** argv)
         return bench();
     if (mode == "trace")
         return trace (argc, argv);
+    if (mode == "why")
+        return why (argc, argv);
     std::fprintf (stderr, "usage: sedef-midi-render wav|scenarios|bench ...\n");
     return 2;
 }

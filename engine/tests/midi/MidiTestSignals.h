@@ -39,6 +39,7 @@ struct RefNote
     double start = 0.0, end = 0.0;
     bool picked = true;
     float strength = 0.0f; ///< the pluck's peak, for velocity checks
+    double rings = -1.0;   ///< when the string really stops, if later than `end` (left ringing)
 };
 
 struct Scenario
@@ -209,9 +210,181 @@ inline Scenario bassLine (std::uint32_t seed, Pickup pickup, double bpm, double 
         const double meant = played[k].mute < 0.0
                                  ? (k + 1 < played.size() ? played[k + 1].start : end)
                                  : played[k].mute;
-        s.notes.push_back ({ p.pitch, p.start, std::min (meant, end) + 0.005, true, p.pluck.peak });
+        s.notes.push_back (
+            { p.pitch, p.start, std::min (meant, end) + 0.005, true, p.pluck.peak, end });
     }
     addNoise (s.signal, -80.0f, seed + 3);
+    return s;
+}
+
+/// A guitarist playing a bass line without a bassist's muting: the same pitch walk as bassLine,
+/// but sloppy.
+/// - The previous note keeps ringing under the next (when the next is on another string), 6 to
+///   20 dB under it, until its string is used again or the hand lets go 50-400 ms later.
+/// - Open strings ring in sympathy with a played note whose partials they share (a unison on
+///   another string, an octave or two above the open string, a twelfth): 20-30 dB under it.
+/// - Loud pick noise (up to 80 % of the note's peak), and now and then a pick scraping a damped
+///   string between notes: a noise burst with no note.
+/// - Uneven muting: notes let go from 30 ms before to 60 ms after the next pick, staccato now and
+///   then.
+inline Scenario sloppyLine (std::uint32_t seed, Pickup pickup, double bpm, double fs,
+                            int count = 48)
+{
+    Dice dice (seed * 7919u + 17u);
+    Scenario s;
+    s.name = "sloppy line";
+    s.fs = fs;
+    const double sixteenth = 60.0 / bpm / 4.0;
+    struct Played
+    {
+        int string, pitch;
+        double start;
+        Pluck pluck;
+        double end = -1.0;  ///< when the string stops sounding
+        double meant = 0.0; ///< when the player meant the note to stop
+    };
+    std::vector<Played> played;
+    double t = 0.15;
+    int pitch = kOpenStrings[0] + dice.below (8);
+    int string = 0;
+    for (int k = 0; k < count; ++k)
+    {
+        const double r = dice.unit();
+        int next = pitch;
+        if (r < 0.15)
+            next = pitch;
+        else if (r < 0.65)
+            next = pitch + (dice.unit() < 0.5 ? -1 : 1) * (1 + dice.below (2));
+        else if (r < 0.92)
+            next = pitch + (dice.unit() < 0.5 ? -1 : 1) * (3 + dice.below (5));
+        else
+            next = pitch + (pitch < 50 ? 12 : -12);
+        next = std::clamp (next, 40, 57);
+        int str = string;
+        if (next - kOpenStrings[str] < 0 || next - kOpenStrings[str] > 7)
+        {
+            str = 0;
+            for (int c = 0; c < 6; ++c)
+                if (next - kOpenStrings[c] >= 0 && next - kOpenStrings[c] <= 7)
+                {
+                    str = c;
+                    if (dice.unit() < 0.5)
+                        break;
+                }
+        }
+        const int lengths[] = { 2, 2, 2, 4, 4 };
+        const double length = sixteenth * lengths[dice.below (5)];
+        const float peak =
+            static_cast<float> (0.22 * std::pow (10.0, dice.between (-6.0, 6.0) / 20.0));
+        Played p { str, next, t,
+                   pluckFor (pickup, hzOf (next), peak,
+                             300u + seed * 131u + static_cast<std::uint32_t> (k)) };
+        p.pluck.decaySeconds = dice.between (1.0, 3.0);
+        p.pluck.pickNoise = static_cast<float> (dice.between (0.2, 0.8)) * peak;
+        played.push_back (p);
+        t += length;
+        pitch = next;
+        string = str;
+    }
+    const double total = t + 0.6;
+    s.signal.assign (static_cast<std::size_t> (total * fs), 0.0f);
+
+    // How each note stops, and how loud a note left ringing is under the next (from the last
+    // note back, so the next note's level is final when this one is set under it).
+    for (std::size_t back = played.size(); back-- > 0;)
+    {
+        const std::size_t k = back;
+        auto& p = played[k];
+        const bool last = k + 1 == played.size();
+        const double next = last ? t : played[k + 1].start;
+        p.meant = next;
+        if (last)
+            p.end = next;
+        else if (played[k + 1].string == p.string)
+            p.end = next - 0.001; // the pick stops the old vibration
+        else
+        {
+            const double r = dice.unit();
+            if (r < 0.55)
+            {
+                // Left ringing: until its string is used again, or the hand lets go.
+                p.end = next + dice.between (0.05, 0.4);
+                for (std::size_t j = k + 1; j < played.size(); ++j)
+                    if (played[j].string == p.string)
+                    {
+                        p.end = std::min (p.end, played[j].start - 0.001);
+                        break;
+                    }
+                const double under = dice.between (6.0, 20.0);
+                const double decay = std::exp (-(next - p.start) / p.pluck.decaySeconds);
+                p.pluck.peak = std::min (
+                    p.pluck.peak, static_cast<float> (played[k + 1].pluck.peak *
+                                                      std::pow (10.0, -under / 20.0) / decay));
+            }
+            else if (r < 0.7)
+            {
+                p.end = p.start + 0.6 * (next - p.start); // staccato
+                p.meant = p.end;
+            }
+            else
+                p.end = next + dice.between (-0.03, 0.06);
+        }
+    }
+    for (std::size_t k = 0; k < played.size(); ++k)
+    {
+        auto p = played[k];
+        p.pluck.muteAt = p.end - p.start;
+        addPluck (s.signal, fs, static_cast<std::size_t> (p.start * fs), p.pluck);
+        s.notes.push_back (
+            { p.pitch, p.start, std::min (p.meant, p.end) + 0.005, true, p.pluck.peak, p.end });
+
+        // Open strings that share a partial with the note ring in sympathy, well under it.
+        for (int c = 0; c < 6; ++c)
+        {
+            const int d = p.pitch - kOpenStrings[c];
+            if (c == p.string || !(d == 0 || d == 12 || d == 19 || d == 24) || dice.unit() < 0.4)
+                continue;
+            Pluck q = pluckFor (pickup, hzOf (kOpenStrings[c]), 0.0f,
+                                900u + seed * 31u + static_cast<std::uint32_t> (k * 6 + c));
+            q.peak = static_cast<float> (p.pluck.peak *
+                                         std::pow (10.0, -dice.between (20.0, 30.0) / 20.0));
+            q.pickNoise = 0.0f;
+            q.glideCents = 0.0;
+            q.decaySeconds = 2.0;
+            double stop = p.start + dice.between (0.3, 1.0);
+            for (std::size_t j = k + 1; j < played.size(); ++j)
+                if (played[j].string == c)
+                {
+                    stop = std::min (stop, played[j].start - 0.001);
+                    break;
+                }
+            const double from = p.start + dice.between (0.003, 0.01);
+            if (stop <= from + 0.02)
+                continue;
+            q.muteAt = stop - from;
+            addPluck (s.signal, fs, static_cast<std::size_t> (from * fs), q);
+        }
+
+        // Now and then the pick scrapes a damped string on the way to the next note.
+        if (k + 1 < played.size() && dice.unit() < 0.12)
+        {
+            const double at = p.start + dice.between (0.5, 0.85) * (played[k + 1].start - p.start);
+            const float amp = static_cast<float> (p.pluck.peak * dice.between (0.1, 0.3));
+            std::uint32_t r = 77u + seed * 13u + static_cast<std::uint32_t> (k);
+            const auto from = static_cast<std::size_t> (at * fs);
+            for (std::size_t i = from;
+                 i < std::min (s.signal.size(), from + static_cast<std::size_t> (0.015 * fs)); ++i)
+            {
+                r ^= r << 13;
+                r ^= r >> 17;
+                r ^= r << 5;
+                const double u = static_cast<double> (r) / 4294967296.0 * 2.0 - 1.0;
+                const double age = static_cast<double> (i - from) / fs;
+                s.signal[i] += amp * static_cast<float> (u * std::exp (-age / 0.003));
+            }
+        }
+    }
+    addNoise (s.signal, -80.0f, seed + 5);
     return s;
 }
 

@@ -98,6 +98,50 @@ TEST_CASE ("Guitar to MIDI plays bass lines note for note", "[midi][accuracy]")
     CHECK (total.octaveErrors == 0);
 }
 
+/// Notes sent shorter than `ms`: the glitch notes a split or a flicker leaves.
+int shortNotes (const Run& run, double ms = 40.0)
+{
+    int n = 0;
+    for (const auto& note : run.notes)
+        if (note.off >= 0.0 && 1000.0 * (note.off - note.on) < ms)
+            ++n;
+    return n;
+}
+
+TEST_CASE ("Guitar to MIDI plays a sloppy player's bass lines", "[midi][accuracy][sloppy]")
+{
+    // The same bass lines played the way a guitarist plays them: the previous note left ringing
+    // 6-20 dB under the next, open strings ringing in sympathy, loud pick noise and picks
+    // scraping damped strings, uneven muting. Bars, per 100 notes: in Fastest 98.5 right, at most
+    // 2.5 extra and 2 shorter than 40 ms; in Steady, which drops a glitch inside its look-ahead
+    // but also a right note a wrong correction replaced there, 97.5 right, at most 2 extra and 1
+    // shorter than 40 ms. No octave errors in either.
+    for (const auto timing : { midi::Timing::fastest, midi::Timing::steady })
+    {
+        Score total;
+        int shorts = 0;
+        for (auto pickup : { Pickup::bridge, Pickup::neck, Pickup::piezo })
+            for (std::uint32_t seed = 1; seed <= 6; ++seed)
+            {
+                const auto sc = sloppyLine (seed, pickup, 110.0 + 5.0 * seed, kFs, 48);
+                auto settings = plain();
+                settings.timing = timing;
+                const auto run = convert (sc.signal, kFs, settings);
+                addInto (total,
+                         score (run, sc, 0, timing == midi::Timing::steady ? 0.12 : 0.08, false));
+                shorts += shortNotes (run);
+                CHECK (balanced (run));
+            }
+        const bool steady = timing == midi::Timing::steady;
+        report (steady ? "sloppy lines (Steady)" : "sloppy lines", total);
+        std::printf ("%-28s %4d notes shorter than 40 ms\n", "", shorts);
+        CHECK (total.correctShare() >= (steady ? 0.975 : 0.985));
+        CHECK (total.extraPer100() <= (steady ? 2.0 : 2.5));
+        CHECK (total.octaveErrors == 0);
+        CHECK (100.0 * shorts / total.expected <= (steady ? 1.0 : 2.0));
+    }
+}
+
 TEST_CASE ("Guitar to MIDI plays palm mutes, legato, slides and vibrato", "[midi][accuracy]")
 {
     Score total;
@@ -250,6 +294,89 @@ TEST_CASE ("Guitar to MIDI in Steady sends each note a fixed lag after its pick"
     CHECK (within (1.0) >= 0.8);
     CHECK (within (3.0) >= 0.93);
     CHECK (within (6.0) == 1.0);
+}
+
+namespace
+{
+/// Steady's timing error (ms, note-on minus pick minus lag) of every right note, by how it was
+/// played: a clean pick (nothing else sounding), a pick over the previous note still ringing,
+/// or a legato note (no pick).
+struct SteadyErrors
+{
+    std::vector<double> clean, overRinging, legatoNotes;
+    int late = 0; ///< notes sent more than 3 ms after the lag
+
+    void add (const Scenario& sc, const Run& run)
+    {
+        const double lag = GuitarToMidi::kSteadyLagSeconds;
+        for (std::size_t k = 0; k < sc.notes.size(); ++k)
+        {
+            const auto& ref = sc.notes[k];
+            for (const auto& n : run.notes)
+                if (n.pitch == ref.pitch && n.on >= ref.start && n.on < ref.start + 0.12)
+                {
+                    const double e = 1000.0 * (n.on - ref.start - lag);
+                    if (e > 3.0)
+                        ++late;
+                    if (environment ("SEDEF_STEADY_LIST") != nullptr && std::abs (e) > 1.0)
+                        std::printf (
+                            "  %s %.3f pitch %d err %+.1f prev %d (%.3f..%.3f)\n", sc.name.c_str(),
+                            ref.start, ref.pitch, e, k > 0 ? sc.notes[k - 1].pitch : -1,
+                            k > 0 ? sc.notes[k - 1].start : 0.0, k > 0 ? sc.notes[k - 1].end : 0.0);
+                    if (!ref.picked)
+                        legatoNotes.push_back (e);
+                    else if (k > 0 && std::max (sc.notes[k - 1].end - 0.005,
+                                                sc.notes[k - 1].rings) > ref.start + 0.001)
+                        overRinging.push_back (e);
+                    else
+                        clean.push_back (e);
+                    break;
+                }
+        }
+    }
+};
+
+void reportSteady (const char* name, std::vector<double> e)
+{
+    int bins[6] = {};
+    for (double v : e)
+        ++bins[v < -3.0 ? 0 : v < -1.0 ? 1 : v <= 1.0 ? 2 : v <= 3.0 ? 3 : v <= 10.0 ? 4 : 5];
+    std::printf ("%-22s signed: <-3 %d, -3..-1 %d, +-1 %d, 1..3 %d, 3..10 %d, >10 %d\n", name,
+                 bins[0], bins[1], bins[2], bins[3], bins[4], bins[5]);
+    for (auto& v : e)
+        v = std::abs (v);
+    std::printf ("%-22s %4zu notes  p50 %4.1f  p95 %4.1f  p99 %4.1f  max %5.1f ms\n", name,
+                 e.size(), percentile (e, 0.5), percentile (e, 0.95), percentile (e, 0.99),
+                 e.empty() ? 0.0 : *std::max_element (e.begin(), e.end()));
+}
+} // namespace
+
+TEST_CASE ("Guitar to MIDI Steady timing by note type", "[.report][steadytiming]")
+{
+    auto s = plain();
+    s.timing = midi::Timing::steady;
+    SteadyErrors bass, sloppy, legatoNotes;
+    for (auto pickup : { Pickup::bridge, Pickup::neck, Pickup::piezo })
+        for (std::uint32_t seed = 1; seed <= 6; ++seed)
+        {
+            const auto a = bassLine (seed, pickup, 120.0 + 4.0 * seed, kFs, 48, false);
+            bass.add (a, convert (a.signal, kFs, s));
+            const auto b = sloppyLine (seed, pickup, 110.0 + 5.0 * seed, kFs, 48);
+            sloppy.add (b, convert (b.signal, kFs, s));
+        }
+    for (double hz : { kA2, kD3, kE3 })
+        for (double cents : { 200.0, -200.0, 100.0 })
+        {
+            const auto sc = legato (hz, cents, 4, 0.15, kFs);
+            legatoNotes.add (sc, convert (sc.signal, kFs, s));
+        }
+    reportSteady ("bass: clean picks", bass.clean);
+    reportSteady ("bass: over a ringing", bass.overRinging);
+    reportSteady ("sloppy: clean picks", sloppy.clean);
+    reportSteady ("sloppy: over a ringing", sloppy.overRinging);
+    reportSteady ("legato", legatoNotes.legatoNotes);
+    std::printf ("more than 3 ms after the lag: bass %d, sloppy %d, legato %d\n", bass.late,
+                 sloppy.late, legatoNotes.late);
 }
 
 TEST_CASE ("Guitar to MIDI velocity follows the pick", "[midi][velocity]")

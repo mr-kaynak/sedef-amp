@@ -183,6 +183,8 @@ void GuitarToMidi::reset() noexcept
     leastPeriodicity_ = 1.0f;
     lastPickAt_ = previousPickAt_ = 0;
     pickWeak_ = false;
+    pickChecking_ = false;
+    preHeldDb_ = kFloorDb;
     prevNote_ = lastNote_ = -1;
     lowCheckedAt_ = 0;
     lowCheckedHz_ = 0.0f;
@@ -199,6 +201,7 @@ void GuitarToMidi::reset() noexcept
     note_ = -1;
     noteHz_ = 0.0f;
     heardHz_ = 0.0f;
+    noteLevelDb_ = kFloorDb;
     octaveAt_ = 0;
     octaveHz_ = 0.0f;
     octaveRatio_ = 1.0f;
@@ -299,6 +302,10 @@ void GuitarToMidi::process (const float* in, int numFrames, EventList& out) noex
         {
             history_[static_cast<std::size_t> (historyPos_)] = msMax_;
             historyPos_ = historyPos_ + 1 < kHistoryMs ? historyPos_ + 1 : 0;
+            // The sounding note's attack is the loudest it has been: a pick dated a little early
+            // (the finger touching the string first) has not reached it yet.
+            if (note_ >= 0)
+                noteLevelDb_ = std::max (noteLevelDb_, msMax_);
             msCount_ = 0;
             msMax_ = kFloorDb;
         }
@@ -378,6 +385,14 @@ void GuitarToMidi::registerPick (std::int64_t at, PickKind kind) noexcept
     for (int k = msAgo + 1; k < msAgo + 3; ++k)
         before = std::min (before, levelAgo (k));
     preLevelDb_ = before;
+    float held = kFloorDb;
+    for (int k = msAgo; k < std::min (msAgo + 16, kHistoryMs); ++k)
+        held = std::max (held, levelAgo (k));
+    preHeldDb_ = held;
+    // On a string faded far under the last note's attack (sounding, or just ended by the
+    // fretting hand moving on), a pick must show it brought energy before it counts: the move
+    // breaks the period, or taps the fret, too.
+    pickChecking_ = weak || preHeldDb_ < noteLevelDb_ - kFadedDropDb;
 }
 
 float GuitarToMidi::periodicityAt (float hz, int window) const noexcept
@@ -780,11 +795,19 @@ void GuitarToMidi::decide() noexcept
     if (!pickRefined_ && now_ - pickAt_ >= refineSamples_)
         refinePick();
     // A pick seen only as a break of periodicity must bring a level: when the played note is
-    // damped while another string rings on, the waveform changes too, but the level falls.
-    if (pickWeak_ && now_ - pickAt_ >= weakCheckSamples_)
+    // damped while another string rings on, the waveform changes too, but the level falls. On a
+    // string faded far under the sounding note's attack, any pick must bring energy: the
+    // fretting hand moving on to the next fret (or off it) breaks the period, and can tap the
+    // fret, but leaves the level where it was.
+    if (pickChecking_ && now_ - pickAt_ >= weakCheckSamples_)
     {
+        pickChecking_ = false;
+        const float level = pickLevelDb();
+        const bool fretting =
+            level < noteLevelDb_ - kFadedDropDb && level < preHeldDb_ + kLockRiseDb;
+        const bool damped = pickWeak_ && level < preLevelDb_ - kWeakPickDropDb;
         pickWeak_ = false;
-        if (pickLevelDb() < preLevelDb_ - kWeakPickDropDb)
+        if (damped || fretting)
         {
             pickFresh_ = false;
             lastPickAt_ = pickAt_ = previousPickAt_;
@@ -808,8 +831,10 @@ void GuitarToMidi::decide() noexcept
 
     if (note_ < 0)
     {
-        // From silence a note needs a pick behind it, a level over the gate and a settled pitch.
-        if (!voiced || !recentPick || levelDb_ < settings_.gateDb || muted() || !pitchSettled())
+        // From silence a note needs a pick behind it (its level checked, when it may be the
+        // fretting hand), a level over the gate and a settled pitch.
+        if (!voiced || !recentPick || pickChecking_ || levelDb_ < settings_.gateDb || muted() ||
+            !pitchSettled())
         {
             candidate_ = -1;
             return;
@@ -854,9 +879,10 @@ void GuitarToMidi::decide() noexcept
         if (pickedChange)
         {
             // A correction of the note this pick started must hold longer than a new note: the
-            // strings still ringing under a new note can pull the tracker around for a moment.
+            // strings still ringing under a new note can pull the tracker around for a moment. A
+            // pick whose level is still to be checked starts nothing yet.
             if (candidateSamples_ < (pickFresh_ ? confirmSamples_ : correctionConfirmSamples_) ||
-                !pickedNoteReady (heard))
+                pickChecking_ || !pickedNoteReady (heard))
                 return;
             // A second change after one pick corrects the tracker's first reading, but never back
             // to the note before the pick, whose string may simply still ring.
@@ -876,9 +902,11 @@ void GuitarToMidi::decide() noexcept
         if (candidateSamples_ < (std::abs (q - note_) == 1 ? 4 : 1) * legatoConfirmSamples_)
             return;
         // No pick. A level that fell means the note was damped and another string rings on: the
-        // note ends. A leap no fretting hand makes without picking (an octave flip of the
-        // tracker on a note and its partial) is ignored.
-        if (levelDb_ < recentPeakDb() - kLegatoDropDb)
+        // note ends. So does a string faded far under the note's attack: the fretting hand moved
+        // on before the next pick. A leap no fretting hand makes without picking (an octave flip
+        // of the tracker on a note and its partial) is ignored.
+        const float recent = recentPeakDb();
+        if (levelDb_ < recent - kLegatoDropDb || recent < noteLevelDb_ - kFadedDropDb)
         {
             endNote (now_, Why::damped);
             candidate_ = -1;
@@ -905,7 +933,7 @@ void GuitarToMidi::decide() noexcept
     // And only once the input repeats at the note's own period again: a new note picked on
     // another string, with this one still ringing under it, leaves the tracker on the old note
     // for a moment, but the input then repeats at the new note's period, not the old one's.
-    if (recentPick && q == note_ && pitchSettled() && attacked &&
+    if (recentPick && !pickChecking_ && q == note_ && pitchSettled() && attacked &&
         periodicityAt (heard) >= kPeriodicHigh)
     {
         const int velocity = velocityAt (pickLevelDb());
@@ -928,6 +956,8 @@ void GuitarToMidi::startNote (int note, int velocity, std::int64_t reference, Wh
 {
     startWhy_ = why;
     noteStart_ = reference;
+    // A legato note keeps the energy the pick gave the string (or what it added to it).
+    noteLevelDb_ = why == Why::legato ? std::max (noteLevelDb_, recentPeakDb()) : pickLevelDb();
     // Steady dates a picked note from the signal once more, now that its pitch is known: where its
     // fundamental rises out of what was there (and the click there, if there is one). A pick
     // dated to the previous note's mute, or a soft pick dated by a break of periodicity, moves to

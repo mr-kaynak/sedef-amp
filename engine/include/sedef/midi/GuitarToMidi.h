@@ -111,6 +111,18 @@ struct Settings
 ///   kMaxLegatoSemitones is the tracker moving to another string, not a legato note, and is
 ///   ignored; when the level has fallen kLegatoDropDb under its recent peak, the played note was
 ///   damped and the change ends the note instead.
+/// - **The fretting hand on a fading string.** A player moves to the next fret, or lifts off it,
+///   while the string still rings, tens of milliseconds before picking the next note: the
+///   ringing string takes the new pitch (or the open string's) with no energy added. A legato
+///   note keeps the energy its pick gave the string; when the loudest of the last
+///   kMuteWindowSeconds is kFadedDropDb under the sounding note's attack (the loudest it has been
+///   since its pick, or since the pick of the legato run it belongs to), the
+///   string has faded, and a change of pitch on it without a pick ends the note instead of
+///   starting one. The move can also break the note's periodicity, or tap the fret hard enough
+///   for the tracker's detector: on a faded string, a pick counts only when its level (3-12 ms
+///   on) comes back within kFadedDropDb of that attack or rises kLockRiseDb over the loudest
+///   millisecond of the 16 before it (a pick puts energy into the string, a fretting hand does
+///   not), and no note starts from it until that is known. The next pick starts the next note.
 /// - **The same note picked again** ends the old note and starts a new one when the pick shows
 ///   in the signal as a new waveform (the note's periodicity dips under kRetriggerPeriodic) and
 ///   the input repeats at the note's own period again. A rise of the level is no proof (pick
@@ -159,6 +171,7 @@ public:
     static constexpr double kBendIntervalSeconds = 0.002;
     static constexpr float kBendDeadbandCents = 1.5f;
     static constexpr float kLegatoDropDb = 10.0f;
+    static constexpr float kFadedDropDb = 10.0f;
     static constexpr double kLowestHz = 70.0;
     static constexpr float kMinNoteHz = 60.0f;
     static constexpr float kPickedClarity = 0.75f;
@@ -341,6 +354,9 @@ private:
     std::uint32_t pickCount_ = 0;
     std::int64_t pickAt_ = 0, lastPickAt_ = 0, previousPickAt_ = 0;
     bool pickWeak_ = false; ///< seen only as a break of periodicity, its level not checked yet
+    bool pickChecking_ =
+        false; ///< the pick's level is not checked yet (weak, or on a faded string)
+    float preHeldDb_ = -120.0f;   ///< the loudest millisecond of the 16 before the pick
     bool pickWeakSource_ = false; ///< the latest pick was seen only as a break of periodicity
     int prevNote_ = -1;           ///< the note before the latest pick
     int lastNote_ = -1;           ///< the latest note ended
@@ -355,6 +371,7 @@ private:
     int note_ = -1, noteChannel_ = 1;
     float noteHz_ = 0.0f;  ///< the tracker's reading when the sounding note started
     float heardHz_ = 0.0f; ///< the tracker's reading, an octave up or two when the input says so
+    float noteLevelDb_ = -120.0f; ///< the sounding note's attack: the loudest it has been
     int candidate_ = -1, candidateSamples_ = 0;
     int lastVelocity_ = 0;
     std::int64_t noteDue_ = 0;   ///< when the sounding note's note-on goes out

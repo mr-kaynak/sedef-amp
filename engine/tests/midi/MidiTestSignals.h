@@ -389,6 +389,106 @@ inline Scenario sloppyLine (std::uint32_t seed, Pickup pickup, double bpm, doubl
     return s;
 }
 
+/// Chromatic runs up or down one string, fingerstyle, the way a guitarist plays them slowly: the
+/// fretting hand moves to the next fret 25-60 ms before the next pick, while the string still
+/// rings (the ringing string glides to the new pitch over about 10 ms, with no energy added, and
+/// half the time the finger taps the fret audibly), sometimes lifting off first so the open
+/// string sounds for 20-60 ms; then the finger picks the note on the same string, with no click.
+/// The strings fade fast, about 14 dB in half a second, as on the musician's own DI. Tunings:
+/// standard, or a whole step down.
+inline Scenario fretThenPick (std::uint32_t seed, Pickup pickup, double fs, int runs = 2,
+                              int notesPerRun = 13)
+{
+    Dice dice (seed * 104729u + 7u);
+    Scenario s;
+    s.name = "fret then pick";
+    s.fs = fs;
+    struct Played
+    {
+        int pitch;
+        double start;
+        Pluck pluck;
+    };
+    std::vector<Played> played;
+    std::vector<std::pair<double, float>> taps; // when, how loud
+    double t = 0.2;
+    for (int r = 0; r < runs; ++r)
+    {
+        const int open = kOpenStrings[dice.below (6)] - (dice.unit() < 0.5 ? 2 : 0);
+        const bool up = dice.unit() < 0.6;
+        const auto first = static_cast<int> (played.size());
+        for (int k = 0; k < notesPerRun; ++k)
+        {
+            const int fret = up ? k : notesPerRun - 1 - k;
+            const float peak =
+                static_cast<float> (0.2 * std::pow (10.0, dice.between (-6.0, 0.0) / 20.0));
+            Pluck p = pluckFor (pickup, hzOf (open + fret), peak,
+                                1000u + seed * 97u + static_cast<std::uint32_t> (played.size()));
+            p.pickNoise = 0.0f;
+            p.decaySeconds = dice.between (0.25, 0.35);
+            played.push_back ({ open + fret, t, p });
+            t += dice.between (0.48, 0.65);
+        }
+        // The fretting hand reaches each next fret on the ringing string before the next pick.
+        for (int k = first; k + 1 < static_cast<int> (played.size()); ++k)
+        {
+            auto& p = played[static_cast<std::size_t> (k)];
+            const auto& next = played[static_cast<std::size_t> (k + 1)];
+            const double life = next.start - p.start;
+            const double move = life - dice.between (0.025, 0.06);
+            const double cents = 100.0 * (next.pitch - p.pitch);
+            const int fret = p.pitch - open;
+            if (fret > 0 && dice.unit() < 0.3)
+            {
+                // Off the fret first: the open string sounds, then the finger lands on the next.
+                p.pluck.stepAt = move - dice.between (0.02, 0.06);
+                p.pluck.stepCents = -100.0 * fret;
+                p.pluck.step2At = move;
+                p.pluck.step2Cents = 100.0 * (next.pitch - open);
+            }
+            else
+            {
+                p.pluck.stepAt = move;
+                p.pluck.stepCount = 4;
+                p.pluck.stepCents = cents / 4.0;
+                p.pluck.stepEvery = 0.003;
+            }
+            p.pluck.muteAt = life; // the pick on the same string takes over its vibration
+            if (dice.unit() < 0.5)
+                taps.push_back ({ p.start + move,
+                                  static_cast<float> (0.3 * p.pluck.peak *
+                                                      std::exp (-move / p.pluck.decaySeconds)) });
+        }
+        played.back().pluck.muteAt = dice.between (0.4, 0.6);
+        t += 0.8;
+    }
+    s.signal.assign (static_cast<std::size_t> ((t + 0.5) * fs), 0.0f);
+    for (std::size_t k = 0; k < played.size(); ++k)
+    {
+        const auto& p = played[k];
+        addPluck (s.signal, fs, static_cast<std::size_t> (p.start * fs), p.pluck);
+        const double end = p.start + p.pluck.muteAt;
+        s.notes.push_back ({ p.pitch, p.start, end, true, p.pluck.peak });
+    }
+    std::uint32_t r = 31u + seed;
+    for (const auto& [at, amp] : taps)
+    {
+        const auto from = static_cast<std::size_t> (at * fs);
+        for (std::size_t i = from;
+             i < std::min (s.signal.size(), from + static_cast<std::size_t> (0.004 * fs)); ++i)
+        {
+            r ^= r << 13;
+            r ^= r >> 17;
+            r ^= r << 5;
+            const double u = static_cast<double> (r) / 4294967296.0 * 2.0 - 1.0;
+            s.signal[i] += amp * static_cast<float> (
+                                     u * std::exp (-static_cast<double> (i - from) / fs / 0.001));
+        }
+    }
+    addNoise (s.signal, -80.0f, seed + 11);
+    return s;
+}
+
 /// Palm-muted notes on one pitch: `perBeat` notes per beat at `bpm`, each damped just before the
 /// next is picked.
 inline Scenario palmMutedRun (double hz, double bpm, int perBeat, double fs, int count = 16,

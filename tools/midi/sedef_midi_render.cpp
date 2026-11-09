@@ -11,6 +11,11 @@
 //       track 2 what was sent) and a README.md with the scores.
 //   sedef-midi-render bench
 //       CPU cost per sample at 48 kHz, for the tracker alone and for the whole MIDI layer.
+//   sedef-midi-render why <in.wav> [--gain dB] [--from s] [--to s] [--steady 1] [--gate dB]
+//                         [--octave n]
+//       Lists every note with why it started and ended, and how its pick was seen.
+//   sedef-midi-render trace <in.wav> <from s> <to s> [--gain dB]
+//       What the tracker reads, every millisecond, next to what is sent.
 
 #include "../WavIo.h"
 #include "midi/MidiTestSignals.h"
@@ -318,13 +323,15 @@ int why (int argc, char** argv)
     if (argc < 3)
     {
         std::fprintf (stderr, "usage: sedef-midi-render why <in.wav> [--gain dB] [--from s] "
-                              "[--to s]\n");
+                              "[--to s] [--steady 1] [--gate dB] [--octave n]\n");
         return 2;
     }
     const auto audio = tools::readWav (argv[2]);
     if (!audio)
         return 1;
     double gainDb = 0.0, from = 0.0, to = 1.0e9;
+    midi::Settings s;
+    s.octave = 0;
     for (int i = 3; i + 1 < argc; i += 2)
     {
         const std::string a = argv[i];
@@ -334,13 +341,17 @@ int why (int argc, char** argv)
             from = std::atof (argv[i + 1]);
         else if (a == "--to")
             to = std::atof (argv[i + 1]);
+        else if (a == "--steady" && std::atoi (argv[i + 1]) != 0)
+            s.timing = midi::Timing::steady;
+        else if (a == "--gate")
+            s.gateDb = static_cast<float> (std::atof (argv[i + 1]));
+        else if (a == "--octave")
+            s.octave = std::atoi (argv[i + 1]);
     }
     const auto g = static_cast<float> (std::pow (10.0, gainDb / 20.0));
     const double fs = audio->sampleRate;
     midi::GuitarToMidi conv;
     conv.prepare (fs);
-    midi::Settings s;
-    s.octave = 0;
     conv.setSettings (s);
     struct Open
     {
@@ -436,6 +447,10 @@ int scenarios (int argc, char** argv)
             list.push_back ({ "sloppy-line-" + std::to_string (seed) + "-" + pickups[p],
                               sloppyLine (seed, static_cast<Pickup> (p), 110.0 + 5.0 * seed, fs),
                               plain() });
+    for (std::uint32_t seed = 1; seed <= 4; ++seed)
+        for (int p = 0; p < 3; ++p)
+            list.push_back ({ "fret-then-pick-" + std::to_string (seed) + "-" + pickups[p],
+                              fretThenPick (seed, static_cast<Pickup> (p), fs), plain() });
 
     std::string readme =
         "# Guitar-to-MIDI test renders\n\n"

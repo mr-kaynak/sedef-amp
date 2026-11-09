@@ -142,6 +142,40 @@ TEST_CASE ("Guitar to MIDI plays a sloppy player's bass lines", "[midi][accuracy
     }
 }
 
+TEST_CASE ("Guitar to MIDI waits for the pick when the fretting hand moves first",
+           "[midi][accuracy][fretting]")
+{
+    // Chromatic runs, fingerstyle: the fretting hand reaches each next fret on the still ringing
+    // string 25-60 ms before the pick (sometimes off the fret to the open string first, sometimes
+    // tapping the fret), on strings that fade about 14 dB in half a second. The move is not a
+    // note; the pick is. Bars, per 100 notes: 98 right, at most 2 extra, at most 2 shorter than
+    // 40 ms, no octave errors, in both timings.
+    for (const auto timing : { midi::Timing::fastest, midi::Timing::steady })
+    {
+        Score total;
+        int shorts = 0;
+        for (auto pickup : { Pickup::bridge, Pickup::neck, Pickup::piezo })
+            for (std::uint32_t seed = 1; seed <= 4; ++seed)
+            {
+                const auto sc = fretThenPick (seed, pickup, kFs);
+                auto settings = plain();
+                settings.timing = timing;
+                const auto run = convert (sc.signal, kFs, settings);
+                addInto (total,
+                         score (run, sc, 0, timing == midi::Timing::steady ? 0.12 : 0.08, false));
+                shorts += shortNotes (run);
+                CHECK (balanced (run));
+            }
+        const bool steady = timing == midi::Timing::steady;
+        report (steady ? "fretted first (Steady)" : "fretted first", total);
+        std::printf ("%-28s %4d notes shorter than 40 ms\n", "", shorts);
+        CHECK (total.correctShare() >= 0.98);
+        CHECK (total.extraPer100() <= 2.0);
+        CHECK (total.octaveErrors == 0);
+        CHECK (100.0 * shorts / total.expected <= 2.0);
+    }
+}
+
 TEST_CASE ("Guitar to MIDI plays palm mutes, legato, slides and vibrato", "[midi][accuracy]")
 {
     Score total;

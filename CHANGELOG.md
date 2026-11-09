@@ -30,6 +30,15 @@ All notable changes to this project are documented here. The format follows
 - **Updates** keep Sedef MIDI when it is installed and leave it out when it isn't
   ([docs/updates.md](docs/updates.md)).
 
+### Fixed
+
+- **The Doubler hears quiet playing.** Its onset detector judged attacks against a fixed level,
+  so a player peaking around −30 dBFS with soft attacks (fingerstyle, a neck pickup) got few or no
+  new takes per note. It now judges them against the input's own hiss, hum and buzz, the way
+  Trench's gate does: the same playing 36 dB quieter gives the same onsets, and hiss, hum and buzz
+  alone still give none. At normal levels nothing changes; the factory presets render the same
+  ([docs/dsp/doubler.md](docs/dsp/doubler.md)).
+
 ## [0.5.0] - 2026-11-09
 
 The Pedals page is a pedalboard you build yourself, with five new filter and modulation pedals;
@@ -58,6 +67,7 @@ any input level.
   By default Anemone and Conch go between Trench and Remora, before the drives; Beacon, Gyre and
   Jetty after the drives, before Ripple. All five are off by default and add no latency, so
   existing sessions and presets sound the same.
+
 - New parameters (177 → 202): `anemoneEnabled`, `anemoneSensitivity`, `anemoneRange`,
   `anemoneResonance`, `anemoneMode`, `anemoneDirection`, `conchEnabled`, `conchMode`,
   `conchPosition`, `conchResonance`, `conchSensitivity`, `beaconEnabled`, `beaconSpeed`,

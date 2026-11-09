@@ -27,7 +27,7 @@ voiced (the Benthic preset, for one, is written for single-note riffs).
 
 ```
 in ─┬──────────────────────────────────────────────────────────── × direct ─────────────────┐
-    ├─► HP 45 Hz ─► LP 1.1 kHz ─► mean |x| (10 ms) ─► level gate (−52/−58 dBFS) ─┐          │
+    ├─► HP 45 Hz ─► LP 1.1 kHz ─► mean |x| (10 ms) ─► gate (floor +12 / +6 dB) ──┐          │
     │                                                                            │          │
     ├─► Mono: MonoTracker ─► analytic fundamental ─► phase ÷2 ─► Schmitt trigger │          │
     │         ─► flip-flop ÷2 ─► square −1 ─┐ polyBLEP edges                      │          │
@@ -102,10 +102,10 @@ whole-step bend, palm-muted sixteenths and legato runs. The old tracker fails 72
   toggle is band-limited with a polyBLEP residual split between the sample before the edge (held
   back one sample) and the one after, so the squares need no oversampling.
 - **Envelope and gate**: the subs are `square × level × π/2`, `level` being the band-limited
-  input's mean |x| over 10 ms (π/2 makes it the amplitude of a sine), times a gate. The gate
-  opens above −52 dBFS mean |x| and closes below −58 dBFS (hysteresis), and its target is "a note
-  is held"; it rises in 4 ms and falls in 15 ms. So the sub is silent in silence and at low level,
-  fades after a note stops, and never holds a stuck note.
+  input's mean |x| over 10 ms (π/2 makes it the amplitude of a sine), times a gate. The gate's
+  target is "the level gate is open (see "The level gate") and a note is held"; it rises in 4 ms
+  and falls in 15 ms. So the sub is silent on silence, hiss and hum, fades after a note stops,
+  and never holds a stuck note.
 
 ## Poly: one voice per partial
 
@@ -135,9 +135,10 @@ whole-step bend, palm-muted sixteenths and legato runs. The old tracker fails 72
   and a sudden drop (the 2 ms power 24 dB under it: a palm mute), widen every band four times;
   they narrow back with a 30 ms time constant. The detector rests 50 ms after each detection: the
   2 ms power ripples with a low note's waveform and the 40 ms power lags behind the pick.
-- **Level gate.** Poly shares Mono's level detector and gate (open above −52 dBFS mean |x|, shut
-  below −58 dBFS, 4 ms up, 15 ms down), so hiss and hum below it are not divided. The subs
-  otherwise carry the input's own envelope.
+- **Level gate.** Poly shares Mono's level detector and level gate (4 ms up, 15 ms down), so
+  hiss and hum are not divided. The subs otherwise carry the input's own envelope. The bank's own
+  floors (a band's power, the pick detector's power) are numerical only, at −180 dBFS: what is
+  noise is the level gate's call.
 
 ### Why not halve every band
 
@@ -159,6 +160,40 @@ At 14 Hz the bank separates the low strings of a chord (the closest distinct low
 open E are about 40 Hz apart). Partials closer than that (an equal-tempered major third's 2nd
 partial against the root's 5th, 3 Hz apart) beat as they do on the strings, and their octave down
 beats at a slightly different rate, which puts weak sidebands next to the note.
+
+## The level gate
+
+Both modes share it. It keeps hiss and hum from being divided. Until 0.5 it was a fixed level:
+open above −52 dBFS mean |x| of the detector band (45 Hz–1.1 kHz), shut below −58 dBFS. A player
+whose interface is set low never got past it. On a fingerstyle DI peaking at −30.6 dBFS the
+detector level's median is −61 dBFS, and the sub spoke on a fifth of the notes (measurements
+below). Raising Input Gain fixed it, but nothing told the player so.
+
+The gate is now set against the input's own noise floor. An interface's gain moves its noise and
+the playing together, so a gate relative to the floor works the same at any input level.
+
+- **Open and close.** The gate opens when the level is 12 dB over the floor and closes when it
+  falls to 6 dB over it. The 10 ms level of band-limited noise stays within about 5 dB of a floor
+  that follows its dips, so noise alone neither opens the gate nor holds it open.
+- **The floor.** It follows the level down at once, because the dips between notes are the noise.
+  It climbs by 6 dB a second only while the gate is shut, or while the gate is open but nothing
+  has been picked for 2 s. (A pick is the 10 ms level jumping over twice its 100 ms mean.) That
+  lets go of a hum that came up while the gate was open. A player re-picks well within 2 s, so
+  held notes and continuous playing never lift the floor into the music.
+- **After a reset** (and when the plug-in starts), the first 30 ms set the floor, and nothing is
+  divided before then. That is three time constants of the level. Hiss or hum present from the
+  start is never divided, not even for a moment.
+- **Its range.** The floor stays between −112 and −64 dBFS mean |x|.
+  - At the bottom, the gate opens from −100 dBFS. That is 10 dB over the band-limited noise of a
+    quiet 24-bit interface (−110 dBFS and below), and 50 dB under the quietest playing the tests
+    use (−40 dBFS peaks).
+  - At the top, it asks no more than the fixed gate did (open at −52, close at −58 dBFS). A
+    "floor" louder than that is played signal, not noise: a steady test tone, for example.
+
+Mono's tracker still has to name a note before its sub speaks, and its voicing and clarity
+reject hiss. Poly divides whatever passes the gate. The gate's numbers come from the statistics
+of noise and from interface noise, not from one recording. The same rules give the same results
+from −40 to −6 dBFS peaks (measurements below).
 
 ## Control mapping
 
@@ -227,6 +262,48 @@ stays at 90 % of its level all the time (0.4.0: 3.4 flips per note, 64 % of the 
 modal phrases about a fifth of the frames are read an octave low: the guitar body's resonance
 near 100 Hz gives low notes a strong component an octave under the string (a known limit,
 below).
+
+### At any input level
+
+The suites above with the input's peaks at −40, −30, −18 and −6 dBFS (a scratch harness over the
+same scenarios; `"Trench works the same at any input level"` checks a subset in ctest). The
+fixed gate of 0.4 and 0.5's gate against the noise floor:
+
+| peak | gate | Mono flips | held (min) | lock E2–E3 / A3–E5 (max) | legato lock | Poly chords off-grid / strongest peak | Poly warble on a bend |
+|---|---|---|---|---|---|---|---|
+| −40 dBFS | fixed | 8 | 0 % | never / never | never | +5.8 / −24.1 dB | 4.1 dB |
+| −30 dBFS | fixed | 1 | 0 % | 28.3 ms / never | 12.0 ms | −23.8 / −25.2 dB | 1.7 dB |
+| −18 dBFS | fixed | 0 | 99.2 % | 28.3 / 13.3 ms | 12.0 ms | −23.8 / −25.2 dB | 1.7 dB |
+| −6 dBFS | fixed | 0 | 99.2 % | 28.3 / 13.3 ms | 12.0 ms | −23.9 / −25.2 dB | 1.7 dB |
+| −40 to −6 dBFS | floor | 0 | 99.2 % | 28.3 / 13.3 ms | 12.0 ms | −23.9 / −25.2 dB | 1.7 dB |
+
+With the floor, every number is the same at every level, and equal to the fixed gate's at
+−6 dBFS. (The worst note cents on the chords read 1.27 instead of 1.25.)
+
+A player's own dry DI, recorded with the interface gain low: fingerstyle, tuned a whole step
+down. One file runs up each string (peaks −30.6 dBFS, noise floor near −101 dBFS); the other has
+13 strummed chords (peaks −27.1 dBFS). Trench alone, measured as on the real DI above, as recorded
+and with gain to −6 dBFS peaks:
+
+| input | gate | Mono gate on / flips | sub present Mono / Poly | dropouts Mono / Poly |
+|---|---|---|---|---|
+| runs, as recorded | fixed | 18 % / 0.9 per s | 20 / 20 % | 0.7 / 0.7 per s |
+| runs, as recorded | floor | 100 % / 0.4 per s | 100 / 100 % | 0.2 / 0.1 per s |
+| runs, −6 dBFS | fixed | 99 % / 0.6 per s | 100 / 100 % | 0.2 / 0.1 per s |
+| runs, −6 dBFS | floor | 100 % / 0.5 per s | 100 / 100 % | 0.2 / 0.1 per s |
+| chords, as recorded | fixed | 35 % / 1.7 per s | 40 / 51 % | 1.8 / 1.3 per s |
+| chords, as recorded | floor | 79 % / 2.8 per s | 84 / 100 % | 2.9 / 0.0 per s |
+| chords, −6 dBFS | fixed | 79 % / 3.1 per s | 84 / 100 % | 2.9 / 0.0 per s |
+| chords, −6 dBFS | floor | 79 % / 3.0 per s | 84 / 100 % | 2.9 / 0.0 per s |
+
+Mono on the chords stays at 84 % because it follows one note (see the limitations). Poly's
+intermodulation on the strums, 0.25–1.25 s after each one, is now the same at both levels. Its
+strongest off-grid peak sits a median 22.6 dB under the strongest note (fixed gate as recorded:
+16.4 dB). Against the weakest note the median is −11.7 dB (fixed gate: −4.2 dB as recorded,
+−11.4 dB at −6 dBFS). The worst strum reads +10.2 dB against its weakest note, against +4.6 dB
+with the fixed gate at −6 dBFS. That is not a louder product: the strum at 5.3 s now has all six
+notes' subs where the fixed gate's run missed one, so its weakest note is a quieter one. Against
+the strongest note, every strum is within 2 dB of the fixed gate's run.
 
 ### Poly (`sedef_engine_tests "PolySub measurements"`)
 
@@ -354,7 +431,11 @@ puts it by default, and the order we recommend; the player can move it anywhere.
   resets to its initial state.
 - Trench, both modes: finite output for random settings and full-scale noise; silence in gives
   silence out; direct at noon with the subs down is a bit-exact copy, with no latency; subs
-  silent (exactly zero) for a note 50 dB down and for −60 dBFS hiss; automating each knob, all of
+  silent (exactly zero) over 3 s of hiss at −90 and −60 dBFS and of 50 and 60 Hz hum at −70 and
+  −60 dBFS; a note 40 dB over a −70 dBFS hum gets its sub (in tune in Mono, at its level in Poly)
+  and is 60 dB down within 150 ms of a mute; a hum that comes up after silence is let go within
+  8 s; the real-playing scenarios, two chords and a bend give the same numbers with their peaks
+  at −40, −30, −18 and −6 dBFS over hiss 70 dB under the peaks; automating each knob, all of
   them and the mode is click-free.
 - Mono: subs within 1 cent of f/2 and f/4 from E2 to E5 at 44.1, 48 and 96 kHz; lock and level
   bounds; no burst on onsets, chords and releases (a muted note's sub is 60 dB down within
@@ -370,6 +451,19 @@ puts it by default, and the order we recommend; the player can move it anywhere.
   out within 3 dB of their level.
 
 ## Known limitations
+
+- A hum or hiss that comes up while nothing is played looks like a note to the level gate. It is
+  divided until the floor catches up: 2 s, then 1 s for every 6 dB it stands over the old floor
+  (about 6.5 s for a −70 dBFS hum after digital silence). Hum present when the plug-in starts,
+  or hum under the playing, is never divided.
+- A note held without a new pick keeps its sub until the floor, climbing 6 dB a second from 2 s
+  after the pick, comes within 6 dB of it. With peaks near −30 dBFS that is 6.5 s after the pick
+  for a string decaying with a 2 s time constant (the note then 33 dB under its attack) and 8.8 s
+  for a 5 s one (19 dB under). The floor never climbs past −64 dBFS, so no note loses its sub
+  sooner than with the fixed gate of 0.4: at −6 dBFS peaks both shut at −58 dBFS.
+- Playing under −90 dBFS peaks is not divided: the gate opens from −100 dBFS. Below about
+  −60 dBFS peaks, Mono's tracker also needs a little longer to see a pick (its onset detector
+  ignores 2 ms power under −70 dBFS).
 
 - Mono plays one note at a time. On a chord it follows the root when the other strings are its
   harmonics (power chords, open majors) and fades otherwise.

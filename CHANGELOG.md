@@ -96,6 +96,11 @@ All notable changes to this project are documented here. The format follows
   fingerstyle piece the sub is on 97 % of the time instead of 69 %, with 1.3 flips a second
   instead of 19.6. It locks in about two periods of the note (28 ms on the low E, 11 ms from E4
   up), follows vibrato, bends and hammer-ons, and keeps palm-muted sixteenths at an even level.
+- **Trench works at any input level.** Its gate, which keeps hiss and hum from being divided,
+  was a fixed level, and with the interface gain set low it stayed shut: on a fingerstyle DI
+  peaking at −30 dBFS the sub spoke on a fifth of the notes. The gate now follows the input's
+  own noise floor, so that DI gets a sub on every note in Mono and Poly, as it did at −6 dBFS.
+  Silence, hiss and hum still get no sub ([docs/dsp/trench.md](docs/dsp/trench.md#the-level-gate)).
 
 ## [0.4.0] - 2026-11-04
 

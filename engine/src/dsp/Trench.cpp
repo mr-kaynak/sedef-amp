@@ -30,10 +30,10 @@ constexpr float kCloseOverFloor = 2.0f; // +6 dB
 // The floor's range, as mean |x| of the band-limited input. At the bottom the gate opens from
 // -100 dBFS: 10 dB over the band-limited noise of a quiet 24-bit interface (-110 dBFS and
 // below), 50 dB under the quietest playing the tests use (-40 dBFS peaks). At the top it asks no
-// more than the fixed gate it replaces did (open at -52 dBFS, close at -58 dBFS), so a floor
-// louder than that is played signal, not noise.
-constexpr float kMinFloor = 2.5e-6f;                  // -112 dBFS
-constexpr float kMaxFloor = 0.0025f / kOpenOverFloor; // -64 dBFS
+// more than the fixed gate it replaces did (close at -58 dBFS, open at -52 dBFS): a floor louder
+// than that is played signal, not noise, and no note loses its sub sooner than it did then.
+constexpr float kMinFloor = 2.5e-6f;                   // -112 dBFS
+constexpr float kMaxFloor = 0.0012f / kCloseOverFloor; // -64 dBFS
 // Tracking. The floor follows the level down at once (its dips between notes are the noise).
 // It rises by 6 dB a second only while the gate is shut, or when nothing has been picked for 2 s
 // with the gate open: a hum or hiss that came up then, not a note, which a player re-picks.

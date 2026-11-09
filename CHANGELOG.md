@@ -56,7 +56,8 @@ All notable changes to this project are documented here. The format follows
   its own MIDI port ("Sedef MIDI"), a plug-in (AU, VST3, CLAP) for the guitar track, and an
   instrument AU that takes the guitar through Logic's side chain. Octave −2 to +1, Notes or
   Notes + Bend, Fastest or Steady timing, velocity sensitivity and curve, MIDI channel, Panic; no
-  stuck notes on stop, bypass, port change or quit. Its own parameter list, separate from Sedef
+  stuck notes on stop, bypass, port change or quit. Works the same with the interface set low or
+  high (peaks from about −30 to −6 dBFS): velocity follows how you pick on your input. Its own parameter list, separate from Sedef
   Amp's. Not in the installers yet: CI builds a macOS test build
   ([docs/midi.md](docs/midi.md), [design](docs/design/guitar-to-midi.md)).
 

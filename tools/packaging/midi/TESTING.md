@@ -41,11 +41,11 @@ paste the path.
 
 ## Before you play
 
-- **Level.** Set your interface's input gain so your hardest notes peak around −12 to −6 dBFS. On a
-  quiet input (peaks around −30 dBFS) soft notes fall under the gate and velocities stay low.
-- **Gate.** Drag the gate handle on the input meter until the **Signal** ring over the meter fills
-  when you play and empties when you're silent. Picks only start notes above it. If you can't
-  raise the input gain, drag the gate lower (about −66 dB for peaks around −30 dBFS).
+- **Level.** Play at your interface's usual setting; you don't need to change its gain. Sedef MIDI
+  works the same with peaks anywhere from about −30 to −6 dBFS.
+- **Gate.** Check that the **Signal** ring over the input meter fills when you play and empties
+  when you're silent. If it stays lit while you're silent (hum, noise), drag the gate handle just
+  above that. Picks only start notes above the gate.
 - **Octave.** −1 by default (a bass sounds an octave under a guitar). For a bass part, playing
   higher on the neck with −2 often tracks faster and cleaner than playing on the low strings with −1.
 - **Timing.** *Fastest* sends each note as soon as it is sure (the low E takes longest). *Steady*

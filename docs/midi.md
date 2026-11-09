@@ -25,13 +25,13 @@ not in the installers yet.
 
 | Control | What it does |
 |---|---|
-| **Input meter and Gate** | The meter shows your guitar's level. Drag the gate handle above the noise and below your softest pick: picks under it never start a note. The **Signal** ring over the meter fills and lights while you're above it. |
+| **Input meter and Gate** | The meter shows your guitar's level. The gate starts low enough for a quiet interface; drag its handle up only if hum or noise lights the **Signal** ring while you're silent: picks under it never start a note. The ring over the meter fills and lights while you're above it. |
 | **Note** | The note being sent, large enough to read from the guitar, with how far your pitch is from it (±50 cents). The last note stays, unlit, after it ends. |
 | **Octave** | −2, −1 (default), 0 or +1. A bass sounds an octave under a guitar, so −1 puts a guitar line in a bass's register. |
 | **Mode** | *Notes* (default) sends notes only. *Notes + Bend* also sends vibrato and slight bends as pitch bend. |
 | **Bend range** | In Notes + Bend: must match the bend range set in your instrument (2 semitones in most). |
 | **Timing** | *Fastest* (default) sends each note as soon as it is sure: low strings take longer. *Steady* sends every note 38 ms after its pick, so one track delay of −38 ms puts every recorded note on its pick. |
-| **Velocity: Sensitivity, Curve** | How much your picking strength sets the velocity (0 %: every note at 100). *Soft*: a light pick already plays loud; *Hard*: loud notes need a hard pick. |
+| **Velocity: Sensitivity, Curve** | How much your picking strength sets the velocity (0 %: every note at 100). The scale follows how you pick on your input, so the same playing gets the same velocities whether your interface is set high or low. *Soft*: a light pick already plays loud; *Hard*: loud notes need a hard pick. |
 | **Channel** | The MIDI channel, 1-16. |
 | **Guitar audio / Side chain** | *Through* lets the guitar's sound pass; *Mute* silences it. The standalone app and the instrument start muted: they are there for the notes. |
 | **Send to / Also send to** | The standalone app: its own port, or a MIDI output. The plug-ins: the host only (default), their own virtual port, or a MIDI output such as an IAC bus. |
@@ -104,13 +104,13 @@ host at their exact sample.
   the right ones.
 - **Play higher with −2.** A bass line played higher on the neck with the octave at −2 is recognised
   faster than the same line on the low strings with −1 (see the latency table).
-- **Record at a healthy level.** Set your interface's input gain so your hardest notes peak around
-  −12 to −6 dBFS. The gate and velocity read the level itself: at −30 dBFS peaks the softest
-  string falls under the default gate and every velocity stays low. Raise the gain first; if you
-  can't, drag the gate down until the **Signal** ring follows your softest notes (about −66 dB at
-  −30 dBFS peaks).
-- **Set the gate** with the guitar's volume where you play. Too low and the noise of a string you
-  lift can start a note; too high and soft notes go missing.
+- **Any input level works.** Sedef MIDI works the same with your interface's peaks anywhere from
+  about −30 to −6 dBFS: the gate's default sits under the softest notes of a quiet input, and
+  velocity and note-offs follow your own playing, not the input's level. A very first note
+  played before any other can come out softer than the rest.
+- **Raise the gate only for hum or noise.** If the **Signal** ring lights while you're silent
+  (single-coil hum, a noisy cable), drag the gate just above it. Too high and soft notes go
+  missing.
 - **Fingerstyle is fine.** Moving the fretting hand to the next note before you pluck it doesn't
   start a note on a string that has died down; a move while the string is still loud can give a
   short one.
@@ -118,8 +118,10 @@ host at their exact sample.
   pick. A note picked softly over a string still ringing can land a little late, and a pick right
   after a mute a little early; damping the previous string keeps them on the pick. For playing
   live, Fastest feels quicker.
-- **Velocity.** Keep the sensitivity high if you play with dynamics; lower it, or set the curve to
-  Soft, if quiet notes come out too soft.
+- **Velocity.** Your loudest picks of the last few dozen notes set the top of the scale. Keep the
+  sensitivity high if you play with dynamics; lower it, or set the curve to Soft, if quiet notes
+  come out too soft. A long passage played much softer than the rest slowly comes up to a
+  usual velocity.
 
 ## How fast is it
 

@@ -259,36 +259,52 @@ Phase 1 (2026-11-09): the engine layer (`sedef::midi::GuitarToMidi`, engine/src/
 and the standalone app (plugin/midi), the UI (ui/src/midi), tests, and a macOS test build from CI.
 Installers, the updater and the final AU codes are Phase 2, after the musician's test.
 
-**How notes are made.** The class comment in `GuitarToMidi.h` is the reference. In short: picks
-come from the tracker's detector, from the note losing its own period (soft picks over a ringing
-note, the same note picked again) and from a lock that comes with a level rise, and each is dated
-to the sample from its click or the broken period. A picked note goes out once its pitch has
-settled, its own period is periodic since the pick, and no lower note can be under it (above A3,
-that means waiting one period of the low E). Legato changes must sit on their semitone (12 ms for
-a change of one semitone, 3 ms for more); octave corrections need the input to repeat clearly
-better at the longer period, and a picked note is taken an octave above what the tracker reads
-when the input also repeats cleanly at half that period (a string ringing an octave under it).
-The same note picked again needs a new waveform: its periodicity breaks and the input then repeats
-at its own period again, so pick noise or a scrape over a sounding note is not a repick. A
-detector pick replaces a weak pick still waiting for its level check. On a string that has faded
-10 dB under its attack, a change of pitch without a pick is the fretting hand moving to the next
-note (or lifting off to the open string) before the finger picks it: it ends the note instead of
-starting one, and a pick seen there counts only when the level comes back, or rises 3 dB over the
+**How notes are made.** The class comment in `GuitarToMidi.h` is the reference. In short: picks come
+from the tracker's detector, from the note losing its own period (soft picks over a ringing note,
+the same note picked again) and from a lock that comes with a level rise (the tracker locking, or
+changing its reading after the level was under the gate), and each is dated to the sample from its
+click or the broken period. A picked note goes out once its pitch has settled, its own period is
+periodic since the pick, and no lower note can be under it (above A3, that means waiting one period
+of the low E). Legato changes must sit on their semitone (12 ms for a change of one semitone, 3 ms
+for more); octave corrections need the input to repeat clearly better at the longer period, and a
+picked note is taken an octave above what the tracker reads when the input also repeats cleanly at
+half that period (a string ringing an octave under it). The same note picked again needs a new
+waveform: its periodicity breaks and the input then repeats at its own period again, so pick noise
+or a scrape over a sounding note is not a repick. A detector pick replaces a weak pick still waiting
+for its level check. A mute breaks the period too: when the level has fallen 10 dB under the note
+before a pick seen only that way, and the note heard is one the muted note was a partial of (unison,
+octave, twelfth...), it is a string ringing in sympathy, and no note starts. On a string that has
+faded 10 dB under its attack, a change of pitch without a pick is the fretting hand moving to the
+next note (or lifting off to the open string) before the finger picks it: it ends the note instead
+of starting one, and a pick seen there counts only when the level comes back, or rises 3 dB over the
 loudest millisecond of the 16 before it (a pick puts energy into the string, a fretting hand does
-not). Note-offs come from the level (gate, and a mute judged against the note's own level from
-3 ms after its pick). In Steady, a note that would sound under 40 ms while its note-on still waits
-is dropped, and the note it interrupted sounds on; a note-on that has gone out is never taken back;
-a note-off decided after the next note's pick (a mute, the fretting hand) goes out with that
-note-on, so one note sounds at a time. The MIDI layer adds 2 ms to the tracker's lock below A3.
+not).
+
+**Level.** Nothing that decides a note depends on how loud the input is. The levels of the latest 32
+picks say how hard this player picks on this input. The velocity scale's top sits 10 dB over the
+loud ones (the second loudest; the loudest while there are fewer than four), and its 40 dB span ends
+at a floor: once there is a pick to go by, a pick whose attack is under it (a finger touching a
+string, the hand on the guitar) starts no note, though it still counts, so a passage played that
+much softer comes through after a while. Note-offs come from the level: the note falls 40 dB under
+its attack, or under the gate, or a mute is judged against the note's own level from 3 ms after its
+pick. The gate (default −75 dB) only has to keep the input's own noise out.
+
+In Steady, a note that would sound under 40 ms while its note-on still waits is dropped, and the
+note it interrupted sounds on; a note-on that has gone out is never taken back; a note-off decided
+after the next note's pick (a mute, the fretting hand) goes out with that note-on, so one note
+sounds at a time. The MIDI layer adds 2 ms to the tracker's lock below A3.
 
 **Accuracy** (synthetic DI, 48 kHz; the tests in engine/tests/midi gate it):
 
 | Material | Notes | Right | Wrong (octave) | Missed | Extra |
 |---|---:|---:|---:|---:|---:|
 | Bass lines, bridge, neck and piezo pickups, 6 seeds, open strings damped | 864 | 99.4 % | 0 (0) | 5 | 2 |
-| A sloppy player's bass lines (below), Fastest | 864 | 98.8 % | 4 (0) | 6 | 19 |
-| The same in Steady (the note within 120 ms of its pick) | 864 | 98.0 % | 4 (0) | 13 | 14 |
+| A sloppy player's bass lines (below), Fastest | 864 | 99.2 % | 4 (0) | 3 | 8 |
+| The same in Steady (the note within 120 ms of its pick) | 864 | 98.4 % | 4 (0) | 10 | 6 |
 | Chromatic runs, the fretting hand moving 25-60 ms before each pick (below), both timings | 312 | 100 % | 0 | 0 | 0 |
+| A quiet input, every setting at its default (each set with its peak at −30 dBFS): bass lines | 864 | 99.5 % | 0 (0) | 4 | 2 |
+| The sloppy lines at −30 dBFS, Fastest / Steady | 864 | 98.8 / 98.0 % | 4 (0) | 6 / 13 | 8 / 6 |
+| The fretted-first runs at −30 dBFS, both timings | 312 | 100 % | 0 | 0 | 0 |
 | Palm-muted eighths and sixteenths, 120 and 140 bpm, E2 and A2 | 256 | 100 % | 0 | 0 | 0 |
 | Hammer-ons, pull-offs, slides | 69 | 100 % | 0 | 0 | 0 |
 | Vibrato and slight bends | 8 | 100 % | 0 | 0 | 0 |
@@ -299,8 +315,16 @@ note left ringing 6-20 dB under the next (55 % of notes), open strings that shar
 the note ringing in sympathy 20-30 dB under it, loud pick noise, picks scraping damped strings
 (12 %), and uneven muting (−30 to +60 ms). They gate the rules above: at least 98.5 % right in
 Fastest (97.5 % in Steady), at most 2.5 extra notes per 100 (2 in Steady), at most 2 notes
-shorter than 40 ms per 100 (1 in Steady), no octave errors. Measured: 13 notes under 40 ms in
-Fastest and 3 in Steady (1.5 and 0.3 per 100).
+shorter than 40 ms per 100 (1 in Steady), no octave errors. Measured: 10 notes under 40 ms in
+Fastest and 3 in Steady (1.2 and 0.3 per 100). Most of their extra notes were strings ringing in
+sympathy after a mute (19 to 8 in Fastest, 14 to 6 in Steady, with the sympathy rule above).
+
+The quiet-input rows are the musician's case (his interface records with peaks at −30 dBFS): the
+same sets, the noise brought down with them, every setting at its default, against the same bars.
+Before the level rules and the −75 dB gate they reached 92.3 % (bass lines), 88.8 % (sloppy) and
+46.5 % (fretted first, whose peaks then sat at −40 dBFS), with every velocity between 26 and 52.
+A second test plays the bass lines at their usual level and at −30 dBFS: after the first note,
+843 of 843 notes get the same velocity within 4 (median 87, 10th to 90th percentile 74-98).
 
 The fretted-first runs model how the musician plays on his own DI (below): chromatic runs up and
 down one string, each note fading 14 dB in half a second, the fretting hand reaching the next fret
@@ -334,7 +358,7 @@ the onset search below: 86, 95 and 100 %). By note type, the error from pick + 3
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
 | Bass lines, clean pick | 796 | 88.6 % | 0.2 ms | 2.1 ms | 3.9 ms | 20.1 ms | 10 | 13 |
 | Bass lines, soft pick over a ringing note | 63 | 92.1 % | 0.2 | 1.5 | 1.9 | 4.1 | 0 | 1 |
-| Sloppy lines, clean pick | 712 | 96.1 % | 0.2 | 0.4 | 20.5 | 25.6 | 17 | 4 |
+| Sloppy lines, clean pick | 715 | 96.1 % | 0.2 | 0.4 | 20.5 | 25.6 | 17 | 4 |
 | Sloppy lines, soft pick over a ringing note | 135 | 82.2 % | 0.2 | 26.3 | 34.5 | 36.0 | 0 | 23 |
 | Legato (hammer-ons, pull-offs, slides) | 36 | 22.2 % | 1.8 | 3.6 | 7.2 | 7.2 | 0 | 3 |
 
@@ -355,7 +379,10 @@ Used directly it made timing worse: one period cannot tell a note from its neigh
 narrows where to look for the pick's click, and the click dates it, which helps clean picks.
 
 **Velocity** rises with picking strength over five strengths spanning 18 dB, on every string and
-with each curve; at 0 % sensitivity every note has velocity 100.
+with each curve; at 0 % sensitivity every note has velocity 100. It is the same at any input level
+(above): the scale follows the player's loud picks. The cost: a long passage played much softer
+than what came before drifts up to a usual velocity over about 30 notes, and the very first note
+after loading, with no pick to go by yet, uses the scale's default place (top at −10 dB).
 
 **No stuck notes.** Tests end a note mid-line by stopping, bypassing, resetting, changing the
 channel, octave or settings at random, and Panic, in the engine; and by bypass, transport stop and
@@ -374,12 +401,16 @@ of which the tracker is 80 ns; `process()` never allocates (tested).
 - Steady's constant-latency bar holds for clearly dated picks only: early after a mute, late for
   a soft pick over a ringing string, and legato about 2 ms after the change (above).
 - The sloppy player's lines, harsher than the acceptance material (several strings ringing at
-  once, scrapes), reach 98.8 % right with 2.2 extra notes per 100 in Fastest, short of the 99 %
-  and 1 per 100 the bass lines meet.
-- The gate's default (−54 dB) and the velocity scale are absolute levels, set for a guitar at a
-  usual recording level. At the musician's interface level (peaks at −30 dBFS) the quietest
-  string falls under the gate and velocities stay under 50, until the gate is dragged to about
-  −66 dB or the input gets about 20 dB more gain ([his DI](#the-musicians-own-di-2026-11-09)).
+  once, scrapes), now reach 99.2 % right with 0.9 extra notes per 100 in Fastest (the bass lines'
+  bars); Steady stays at 98.4 % right.
+- The gate is the one absolute level left, and its default moved from −54 to −75 dB so that an
+  interface set low (peaks at −30 dBFS, the musician's) needs nothing changed: his softest notes
+  are 17 dB over it, and his noise brought up to −6 dBFS peaks stays 7 dB under it. Before the
+  first pick of a session, the floor under the player's level does not exist yet, so on a loud
+  input handling noise above −75 dB can start one note (two on his chords at −6 dBFS); one wrong
+  velocity can follow.
+- Under the gate's off point (−83 dB by default) a note ends before it has fallen 40 dB: notes
+  quieter than about −43 dB at their attack end 25-40 dB down.
 - On fingerstyle playing, a fretting move on a string still within 10 dB of its attack can start
   a short note (5 or 6 of the 78 notes on his DI in Fastest, 3 in Steady), and Steady dates a
   pluck from the finger's touch, up to 26 ms early.
@@ -470,8 +501,9 @@ floor of 26 that 75 % sensitivity leaves. Brought to −6 dBFS peaks (+24.6 dB) 
 gives 26-108 (median 88, 10th to 90th percentile 69-98) and every note over the gate; the gate
 dragged to −66 dB at the native level gets every note too. Lowering the default instead was
 tried and rejected: at −60 or −66 dB the sloppy lines exceed their gate (23 extra notes in
-Fastest, 2.7 per 100; 18 in Steady, 2.1). The gate is meant to be set by the player (the
-checklist starts with it), and the docs now say to raise the interface's gain first.
+Fastest, 2.7 per 100; 18 in Steady, 2.1). That was the first round's answer (raise the
+interface's gain); the [second round](#his-level-is-the-operating-level-2026-11-09) makes his level
+work as it is.
 
 **What was wrong in the MIDI layer.** Once the notes were over the gate, almost every note came
 out twice: the fretting hand moved on while the string still rang, the ringing string took the
@@ -543,7 +575,57 @@ at once, the last note-off 2.3 s before the end of the file. Notes out per strum
 Each strum gives a few notes as the tracker moves between the ringing strings, mostly the low one
 first, and settles on one of them; before the fixes each run gave one note more or one fewer.
 
+### His level is the operating level (2026-11-09)
+
+There are no more recordings, and his interface stays as it is: peaks at −30 dBFS are where Sedef
+MIDI has to work, with every setting at its default. Three things depended on the input's level:
+
+| Before | Now | Why this value |
+|---|---|---|
+| Gate default −54 dB: his top string (attacks at −52 to −58 dB) under it | −75 dB, still the player's control | His softest attack is 17 dB over it; his noise floor (the silence after the runs, at most −107 dB) brought to −6 dBFS peaks stays 7 dB under it |
+| Velocity: picks from −50 to −10 dB map to 1..127 | The scale's top 10 dB over the player's loud picks (the second loudest of the latest 32) | The same playing gets the same velocities at any level; 10 dB puts the bass lines' median where the old scale did at a usual level (87 against 84) |
+| Note-off under the gate's off point (−62 dB): his notes ended after 15 dB of decay | Also 40 dB under the note's attack | The old off point sat 32-47 dB under the attacks of a usual level |
+
+Lowering the gate showed what it had hid at a usual level. Each was reproduced on the synthetic
+sets with the gate at −66 to −78 dB before it was fixed:
+- A mute breaks the period too. When the mute takes longer than the weak pick's 12 ms level
+  check, a string ringing in sympathy with the muted note (20-30 dB under it) started a note from
+  that break, with the muted note's velocity: 4 of the 23 extra notes on the sloppy lines at
+  −66 dB. The sympathy rule (under "How notes are made") removed them, and 11 more at the old
+  gate.
+- Handling noise and a finger touching a string, 40-60 dB under the playing, start notes on a
+  loud input (on his DI brought to −6 dBFS: F♯4 for 243 ms and D4 for 49 ms, velocity 26, before
+  the C3 and A3 runs). The floor under the player's level stops them.
+- With the floor in place, two kinds of real notes measured under it, because their pick was
+  dated wrong. After a mute, the tracker can miss the next pick and hold a reading through the
+  silence: the note started on the mute's stale break, 84 ms earlier, with velocity 26. The
+  tracker changing its reading after the level was under the gate now counts as a pick. On his
+  DI the detector dates the first pluck of a run 41 ms early (the finger touching the string):
+  the attack of a note from silence is now the loudest millisecond from its pick until it
+  starts.
+
+| Chromatic DI, 78 notes, defaults | Right | Wrong | Missed | Extra per 100 | Under 40 ms per 100 | Velocity p10 / median / p90 |
+|---|---:|---:|---:|---:|---:|---:|
+| His level (−30.6 dBFS peaks), Fastest | 98.7 % (80.8) | 0 | 1 (15) | 10.3 | 5.1 | 72 / 82 / 94 (26 / 33 / 40) |
+| His level, Steady | 100 % (82.1) | 0 | 0 (14) | 5.1 | 0 | 72 / 82 / 94 |
+| Peaks at −6 dBFS, Fastest | 98.7 % | 0 | 1 | 11.5 | 5.1 | 72 / 83 / 94 |
+| Peaks at −6 dBFS, Steady | 98.7 % | 1 | 0 | 5.1 | 0 | 72 / 83 / 94 |
+
+In brackets, before this round at his level. Both levels now give nearly the same notes; the extra
+one at −6 dBFS is handling noise before the first pick (D4 at 1.03 s, 129 ms), when there is no
+level to go by yet. The other errors are those in the table above: the tracker's first note from
+silence, the G2 after a rest, and fretting moves within 10 dB of the attack. Steady at his level:
+p50 0.4 ms, p95 10.8, p99 48.4, max 124.6, 71.8 % within 1 ms. Right notes now last 0.92 (Fastest)
+to 0.96 (Steady) of the time to the next pluck, as at −6 dBFS (0.76 before, at his level).
+
+The chords, at his level: 42 notes in Fastest (2 to 6 per strum, median 3, 9 under 40 ms), 39 in
+Steady (2 to 5, 4 under 40 ms); at −6 dBFS 49 and 46, with 2 before the first strum. The old gate
+cut them to 33 and 31. Never two notes at once, no stuck note. The tracker is untouched: Trench
+renders stay byte-identical to main (the same 105 renders).
+
 **Left open:** the tracker's first note from silence (late by about 160 ms, or split), which needs
 a tracker change that Trench would hear; fretting moves on strings still within 10 dB of their
-attack; and the gate and velocity scale, set for a guitar at a usual recording level, which a
-quiet interface needs about 20 dB more gain for (or the gate at about −66 dB).
+attack; before the first pick of a session there is no player's level yet, so on a loud input
+handling noise over the gate can start one note and the first note's velocity uses the scale's
+default place; and a long passage played much softer than what came before drifts up to a usual
+velocity over about 30 notes.

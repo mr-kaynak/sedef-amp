@@ -1005,6 +1005,20 @@ void GuitarToMidi::startNote (int note, int velocity, std::int64_t reference, Wh
         }
     }
     bridgeNote_ = -1;
+    // Steady dates the note-on from its pick, which can come before what ended the note before
+    // it was decided (a mute, the fretting hand): that note-off goes no later than this note-on,
+    // so one note sounds at a time.
+    if (settings_.timing == Timing::steady)
+        for (int k = queued_ - 1; k >= 0; --k)
+        {
+            const auto p = queue_[static_cast<std::size_t> (k)];
+            if (p.event.isNoteOff() && p.due > due &&
+                findQueued (true, p.event.channel(), p.event.note()) < 0)
+            {
+                unqueue (k);
+                schedule (due, p.event);
+            }
+        }
     note_ = note;
     noteHz_ = heardHz_;
     periodicHz_ = 0.0f;

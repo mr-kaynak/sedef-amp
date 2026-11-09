@@ -131,6 +131,7 @@ TEST_CASE ("Guitar to MIDI plays a sloppy player's bass lines", "[midi][accuracy
                          score (run, sc, 0, timing == midi::Timing::steady ? 0.12 : 0.08, false));
                 shorts += shortNotes (run);
                 CHECK (balanced (run));
+                CHECK (run.maxSounding <= 1);
             }
         const bool steady = timing == midi::Timing::steady;
         report (steady ? "sloppy lines (Steady)" : "sloppy lines", total);
@@ -165,6 +166,7 @@ TEST_CASE ("Guitar to MIDI waits for the pick when the fretting hand moves first
                          score (run, sc, 0, timing == midi::Timing::steady ? 0.12 : 0.08, false));
                 shorts += shortNotes (run);
                 CHECK (balanced (run));
+                CHECK (run.maxSounding <= 1);
             }
         const bool steady = timing == midi::Timing::steady;
         report (steady ? "fretted first (Steady)" : "fretted first", total);

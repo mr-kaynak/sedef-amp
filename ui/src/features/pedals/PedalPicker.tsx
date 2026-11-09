@@ -9,9 +9,9 @@ import type { KeyboardEvent, RefObject } from 'react';
 import buttons from '../../controls/Button.module.css';
 import { Icon } from '../../controls/Icon';
 import { PEDAL_CATALOG } from './catalog';
-import { PedalDensityContext } from './density';
+import { PedalScaleContext } from './density';
 import { addPedal, CATEGORIES, pedalName, PEDALS } from './registry';
-import { pedalBox } from './sizes';
+import { MIN_SCALE, pedalBox } from './sizes';
 import styles from './PedalPicker.module.css';
 
 /** How much smaller than a small pedal the shelf draws each one. */
@@ -141,7 +141,7 @@ export function PedalPicker({
           <Icon name="close" size={12} />
         </button>
       </div>
-      <PedalDensityContext value="small">
+      <PedalScaleContext value={MIN_SCALE}>
         <div className={styles.groups}>
           {groups.map(({ category, pedals }) => (
             <section key={category} className={styles.group} aria-label={category}>
@@ -208,7 +208,7 @@ export function PedalPicker({
             </section>
           ))}
         </div>
-      </PedalDensityContext>
+      </PedalScaleContext>
     </div>
   );
 }

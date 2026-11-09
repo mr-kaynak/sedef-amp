@@ -5,7 +5,7 @@ import { Footswitch } from '../../controls/Footswitch';
 import { Led } from '../../controls/Led';
 import { useParamValue } from '../../params/useParam';
 import { PedalArt } from './art';
-import { usePedalDensity } from './density';
+import { usePedalScale } from './density';
 import { pedalBox } from './sizes';
 import styles from './Pedal.module.css';
 
@@ -27,8 +27,6 @@ export interface PedalProps {
   finish: PedalFinish;
   /** The controls, as rows (PedalRow) from the top. */
   children: ReactNode;
-  /** Where the name sits: under the controls (default) or above them. */
-  nameAt?: 'middle' | 'top';
   /** Optional status element under the name (meters, switches). */
   status?: ReactNode;
   /** Optional engraved instruction in the status area ("One note at a time"). */
@@ -48,7 +46,7 @@ export function PedalRow({ children, set }: { children: ReactNode; set?: 'tight'
 
 /**
  * A stompbox enclosure: its painted figure, the controls, the name, an LED and the footswitch.
- * It draws itself at the density of whatever hosts it (density.ts) and needs nothing else.
+ * It draws itself at the scale of whatever hosts it (density.ts) and needs nothing else.
  */
 export function Pedal({
   id,
@@ -57,17 +55,19 @@ export function Pedal({
   enableParam,
   finish,
   children,
-  nameAt = 'middle',
   status,
   hint,
   led,
   lamp = 'above',
 }: PedalProps) {
   const on = useParamValue(enableParam) >= 0.5;
-  const density = usePedalDensity();
+  const scale = usePedalScale();
+  // Type steps once, where the enclosure is clearly the larger kind.
+  const density = scale >= 1.25 ? 'large' : 'small';
   const hintId = useId();
   const box = pedalBox(id);
   const style = {
+    '--u': `${scale}px`,
     '--w': box.w,
     '--h': box.h,
     '--paint-top': finish.paint[0],
@@ -85,7 +85,6 @@ export function Pedal({
       aria-label={`${name} ${kind}`}
       data-on={on || undefined}
       data-density={density}
-      data-name-at={nameAt}
       data-lamp={lamp}
     >
       <PedalArt id={id} box={box} />

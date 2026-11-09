@@ -16,12 +16,12 @@ export function ConchPedal() {
       status={<PedalSwitch param="conchMode" />}
       lamp="beside"
     >
-      <PedalRow>
+      <PedalRow set="tight">
         <PedalKnob param="conchPosition" label="Position" weight="big" />
+        <PedalKnob param="conchResonance" label="Resonance" />
       </PedalRow>
       <PedalRow>
-        <PedalKnob param="conchResonance" label="Resonance" />
-        <PedalKnob param="conchSensitivity" label="Sens." />
+        <PedalKnob param="conchSensitivity" label="Auto sensitivity" />
       </PedalRow>
     </Pedal>
   );

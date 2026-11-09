@@ -19,6 +19,7 @@ export function UrchinPedal() {
       enableParam="urchinEnabled"
       finish={FINISH}
       hint="Neck pickup, above the 12th fret"
+      lamp="beside"
     >
       <PedalRow>
         <PedalKnob param="urchinFuzz" label="Fuzz" />

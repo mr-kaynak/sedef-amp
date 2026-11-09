@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Where everything on the board sits. The canvas is always 1200 px wide (app/Stage scales it), so
-// the layout is arithmetic over the pedals' boxes: no measuring. A board that fits one row at the
-// large density is drawn large and centred; otherwise the pedals are small and fill rows from the
-// left, the signal running along each row and back to the start of the next. The widths are
-// chosen so that every pedal there is fits two rows, in any order.
-import { pedalBox, type PedalDensity } from './sizes';
+// the layout is arithmetic over the pedals' boxes: no measuring. A board that fits one row is
+// drawn as large as that row allows, up to 1.4 canvas pixels per unit, and centred; otherwise the
+// pedals are at the smallest scale and fill rows evenly from the left, the signal running along
+// each row and back to the start of the next. The widths are chosen so that every pedal there is
+// fits two rows, in any order.
+import { MAX_SCALE, MIN_SCALE, pedalBox } from './sizes';
 
 export const BOARD_WIDTH = 1200;
 /** Room for two small rows under the toolbar, in canvas pixels. */
@@ -26,10 +27,19 @@ interface Metrics {
   output: { w: number; h: number };
 }
 
-const METRICS: Record<PedalDensity, Metrics> = {
-  small: { unit: 1, gap: 8, input: { w: 34, h: 56 }, output: { w: 48, h: 104 } },
-  large: { unit: 1.4, gap: 12, input: { w: 44, h: 64 }, output: { w: 60, h: 132 } },
-};
+/** The spacing and the two ends of the chain grow with the pedals. */
+function metrics(scale: number): Metrics {
+  const grown = scale - MIN_SCALE;
+  return {
+    unit: scale,
+    gap: 8 + 10 * grown,
+    input: { w: 34 + 25 * grown, h: 56 + 20 * grown },
+    output: { w: 48 + 30 * grown, h: 136 + 60 * grown },
+  };
+}
+
+/** The largest the board is drawn while the Add pedal shelf takes the lower part of the page. */
+const SHELF_SCALE = 1.2;
 
 export interface Rect {
   x: number;
@@ -58,7 +68,8 @@ export interface Arrow {
 }
 
 export interface BoardLayout {
-  density: PedalDensity;
+  /** Canvas pixels per board unit: how large the pedals are drawn. */
+  scale: number;
   gap: number;
   pedals: PlacedPedal[];
   rows: BoardRow[];
@@ -80,11 +91,11 @@ const RIGHT = BOARD_WIDTH - PAD_X;
  */
 function flow(
   ids: readonly string[],
-  density: PedalDensity,
+  scale: number,
   maxRows: number,
   right = RIGHT,
 ): string[][] | null {
-  const m = METRICS[density];
+  const m = metrics(scale);
   const width = (id: string) => pedalBox(id).w * m.unit;
   const rows: string[][] = [[]];
   let x = PAD_X + m.input.w + m.gap;
@@ -111,15 +122,15 @@ function flow(
  * The same number of rows, evened out: the narrowest fill line that still takes no more rows,
  * so a ninth pedal does not sit alone under a row of eight.
  */
-function balanced(ids: readonly string[], density: PedalDensity): string[][] {
-  const full = flow(ids, density, Infinity) ?? [[...ids]];
+function balanced(ids: readonly string[], scale: number): string[][] {
+  const full = flow(ids, scale, Infinity) ?? [[...ids]];
   if (full.length < 2) return full;
   let best = full;
   let low = PAD_X;
   let high = RIGHT;
   while (high - low > 1) {
     const middle = (low + high) / 2;
-    const rows = flow(ids, density, full.length, middle);
+    const rows = flow(ids, scale, full.length, middle);
     if (rows) {
       best = rows;
       high = middle;
@@ -150,8 +161,8 @@ function wire(points: [number, number][]): string {
   return d;
 }
 
-function place(rowsOfIds: string[][], density: PedalDensity): BoardLayout {
-  const m = METRICS[density];
+function place(rowsOfIds: string[][], scale: number): BoardLayout {
+  const m = metrics(scale);
   const rowHeight = (ids: string[]) =>
     ids.length === 0
       ? m.output.h
@@ -221,18 +232,23 @@ function place(rowsOfIds: string[][], density: PedalDensity): BoardLayout {
       x += slack;
       if (ids.length > 0) arrows.push({ x: x - m.gap / 2, y: cableY, heading: 'right' });
       else if (slack) arrows.push({ x: x - m.gap - slack / 2, y: cableY, heading: 'right' });
-      output = { x: round(x), y: round(cableY - m.output.h / 2), w: m.output.w, h: m.output.h };
+      output = {
+        x: round(x),
+        y: round(cableY - m.output.h / 2),
+        w: round(m.output.w),
+        h: round(m.output.h),
+      };
       path.push([x + 4, cableY]);
     }
     top += height + ROW_GAP;
   });
 
   return {
-    density,
+    scale,
     gap: m.gap,
     pedals,
     rows,
-    input: { ...input, x: round(input.x), y: round(input.y) },
+    input: { x: round(input.x), y: round(input.y), w: round(input.w), h: round(input.h) },
     output,
     cable: wire(path),
     arrows: arrows.map((a) => ({ ...a, x: round(a.x), y: round(a.y) })),
@@ -240,15 +256,27 @@ function place(rowsOfIds: string[][], density: PedalDensity): BoardLayout {
   };
 }
 
+/** How wide one row of these pedals is at a scale, ends and padding included. */
+function rowWidth(ids: readonly string[], scale: number): number {
+  const m = metrics(scale);
+  const pedals = ids.reduce((sum, id) => sum + pedalBox(id).w * m.unit, 0);
+  return 2 * PAD_X + m.input.w + m.output.w + (ids.length + 1) * m.gap + pedals;
+}
+
 /**
- * Lays the board out: large in one row when that fits, small in as many rows as it takes.
- * `roomy` is false while the Add pedal shelf takes the lower part of the page: a large row would
- * not fit above it, so the board is small until the shelf closes.
+ * Lays the board out: in one row as large as fits, or at the smallest scale in as many rows as
+ * it takes. `roomy` is false while the Add pedal shelf takes the lower part of the page: the
+ * board is then drawn no larger than fits above it, so all of it stays in view.
  */
 export function layoutBoard(ids: readonly string[], roomy = true): BoardLayout {
-  const large = roomy ? flow(ids, 'large', 1) : null;
-  if (large) return place(large, 'large');
-  return place(balanced(ids, 'small'), 'small');
+  const most = roomy ? MAX_SCALE : SHELF_SCALE;
+  if (rowWidth(ids, MIN_SCALE) <= BOARD_WIDTH) {
+    // The row's width is linear in the scale: the largest that fits, to a hundredth.
+    const perScale = rowWidth(ids, MIN_SCALE + 1) - rowWidth(ids, MIN_SCALE);
+    const fits = MIN_SCALE + (BOARD_WIDTH - rowWidth(ids, MIN_SCALE)) / perScale;
+    return place([[...ids]], Math.min(most, Math.floor(fits * 100) / 100));
+  }
+  return place(balanced(ids, MIN_SCALE), MIN_SCALE);
 }
 
 /**

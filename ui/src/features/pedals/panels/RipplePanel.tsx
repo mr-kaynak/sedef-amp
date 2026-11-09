@@ -3,7 +3,7 @@ import { useRef } from 'react';
 import { Led } from '../../../controls/Led';
 import { useParamValue } from '../../../params/useParam';
 import { telemetry, useLiveFrame } from '../../../state/live';
-import { usePedalDensity } from '../density';
+import { usePedalScale } from '../density';
 import { Pedal, PedalRow } from '../Pedal';
 import { PedalKnob } from '../PedalKnob';
 import { PedalSwitch } from '../PedalSwitch';
@@ -18,7 +18,7 @@ import styles from './Panels.module.css';
 function RateLed() {
   const ref = useRef<HTMLSpanElement>(null);
   const phase = useRef(0);
-  const large = usePedalDensity() === 'large';
+  const large = usePedalScale() >= 1.25;
   const on = useParamValue('rippleEnabled') >= 0.5;
   const speed = useParamValue('rippleSpeed');
   useLiveFrame(telemetry, (_t, dt) => {

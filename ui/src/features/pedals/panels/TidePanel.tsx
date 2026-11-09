@@ -32,7 +32,6 @@ export function TidePanel() {
       kind="Compressor"
       enableParam="tideEnabled"
       finish={TIDE}
-      nameAt="top"
       status={<ReductionMeter />}
     >
       <PedalRow>

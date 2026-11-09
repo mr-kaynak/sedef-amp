@@ -43,7 +43,7 @@ const FIGURES: Record<string, Figure> = {
     const bars = 6;
     for (let i = 0; i < bars; i += 1) {
       const x = 13 + (i * (w - 26)) / (bars - 1);
-      d += line(x, 0, x, h * 0.52) + `l-3 -6m3 6l3 -6`;
+      d += line(x, 0, x, h * 0.45) + `l-3 -6m3 6l3 -6`;
     }
     return { lines: d + line(6, h * 0.07, w - 6, h * 0.07) + line(6, h * 0.34, w - 6, h * 0.34) };
   },

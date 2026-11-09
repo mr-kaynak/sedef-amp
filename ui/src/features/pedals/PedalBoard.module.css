@@ -123,13 +123,48 @@
     0 12px 18px -12px rgb(0 0 0 / 0.85);
   color: var(--amp-legend, var(--bone));
   -webkit-tap-highlight-color: transparent;
-  transition: filter var(--dur-1) var(--ease-out);
+  transition:
+    filter var(--dur-1) var(--ease-out),
+    translate var(--dur-1) var(--ease-out),
+    scale 150ms ease-out;
 }
 
+/* It is a button: it lights and lifts under the pointer, and its arrow steps forward. */
 @media (hover: hover) {
   .amp:hover {
-    filter: brightness(1.08);
+    filter: brightness(1.1);
   }
+
+  .amp:hover .ampGo {
+    opacity: 1;
+  }
+}
+
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .amp:hover {
+    translate: 0 -1px;
+  }
+
+  .amp:hover .ampGo {
+    translate: 2px 0;
+  }
+}
+
+.amp:focus-visible .ampGo {
+  opacity: 1;
+}
+
+.ampGo {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 0.14);
+  opacity: 0.75;
+  transition:
+    opacity var(--dur-1) var(--ease-out),
+    translate var(--dur-1) var(--ease-out);
 }
 
 .ampCaption {
@@ -205,7 +240,7 @@
   /* Concentric with the enclosure: its radius (9 units) plus the 2px gap and the ring. */
   inset: -4px;
   border: 2px solid var(--nacre-aqua);
-  border-radius: 13px;
+  border-radius: calc(9 * var(--u, 1px) + 4px);
   box-shadow: var(--shadow-nacre-sel);
   pointer-events: none;
 }
@@ -223,7 +258,8 @@
   height: 18px;
   padding: 0 1px;
   border: 1px solid transparent;
-  border-radius: var(--r-ctl);
+  /* The strip follows the enclosure's corner: its radius (9 units) less the 3px between them. */
+  border-radius: calc(9 * var(--u, 1px) - 3px);
   background: rgb(6 17 25 / 0.9);
   box-shadow: 0 0 0 1px var(--line-strong);
   opacity: 0;
@@ -239,19 +275,6 @@
   .slot:hover .tools {
     opacity: 1;
   }
-}
-
-.board[data-density='large'] .slot[data-marked]::after {
-  border-radius: 16.6px;
-}
-
-/* The strip follows the enclosure's corner: its radius less the 3px between them. */
-.board[data-density='large'] .tools {
-  border-radius: 9.6px;
-}
-
-.board[data-density='large'] .tool {
-  border-radius: 7.6px;
 }
 
 /* Nothing to hover with: the tools stay in view. */
@@ -278,7 +301,7 @@
   height: 16px;
   padding: 0;
   border: none;
-  border-radius: 4px;
+  border-radius: calc(9 * var(--u, 1px) - 5px);
   background: transparent;
   color: var(--bone-2);
   -webkit-tap-highlight-color: transparent;

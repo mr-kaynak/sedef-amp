@@ -145,7 +145,8 @@
 .label {
   margin-top: 4px;
   color: var(--legend, var(--bone-2));
-  font-size: var(--t-11);
+  /* An enclosure sets its own legend sizes (--knob-label-size, --knob-value-size). */
+  font-size: var(--knob-label-size, var(--t-11));
   font-stretch: var(--legend-stretch);
   font-weight: 520;
   letter-spacing: 0.01em;
@@ -155,16 +156,16 @@
 
 .value {
   color: var(--legend-dim, var(--bone-3));
-  font-size: var(--t-10);
+  font-size: var(--knob-value-size, var(--t-10));
   font-weight: 450;
   line-height: 1.1;
   white-space: nowrap;
 }
 
 .sm .label {
-  font-size: var(--t-10);
+  font-size: var(--knob-label-size, var(--t-10));
 }
 
 .xl .label {
-  font-size: var(--t-12);
+  font-size: var(--knob-label-size, var(--t-12));
 }

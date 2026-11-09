@@ -259,7 +259,7 @@ describe('PedalBoard', () => {
 
       const coral = within(picker()).getByRole('button', { name: 'Add Coral, distortion' });
       act(() => coral.focus());
-      // The board is small while the shelf is open; Coral would go between Tide and Ripple.
+      // The board is smaller while the shelf is open; Coral would go between Tide and Ripple.
       const gap = gapAt(layoutBoard(['gate', 'tide', 'ripple'], false), 2)!;
       expect(landing()!.style.left).toBe(`${gap.x}px`);
       expect(landing()!.style.height).toBe(`${gap.h}px`);
@@ -276,16 +276,16 @@ describe('PedalBoard', () => {
       expect(landing()).toBeNull();
     });
 
-    it('draws the board small while the shelf is open, so all of it stays in view', async () => {
+    it('draws the board smaller while the shelf is open, so all of it stays in view', async () => {
       await start({ board: ['gate', 'tide', 'ripple'] });
-      const density = () =>
-        screen.getByRole('region', { name: 'Tide Compressor' }).getAttribute('data-density');
-      expect(density()).toBe('large');
+      const unit = () =>
+        screen.getByRole('region', { name: 'Tide Compressor' }).style.getPropertyValue('--u');
+      expect(unit()).toBe('1.4px');
       fireEvent.click(screen.getByRole('button', { name: 'Add pedal' }));
-      expect(density()).toBe('small');
+      expect(unit()).toBe('1.2px');
       fireEvent.click(within(picker()).getByRole('button', { name: 'Close' }));
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-      expect(density()).toBe('large');
+      expect(unit()).toBe('1.4px');
       expect(screen.getByRole('button', { name: 'Add pedal' })).toHaveFocus();
     });
 
@@ -507,7 +507,7 @@ describe('PedalBoard', () => {
     it('places each pedal where the layout says, large for a short board', async () => {
       await start();
       const layout = layoutBoard(FIVE);
-      expect(layout.density).toBe('large');
+      expect(layout.scale).toBe(1.4);
       for (const placed of layout.pedals) {
         const slot = document.querySelector<HTMLElement>(`li[data-pedal="${placed.id}"]`)!;
         expect(slot.style.left).toBe(`${placed.x}px`);

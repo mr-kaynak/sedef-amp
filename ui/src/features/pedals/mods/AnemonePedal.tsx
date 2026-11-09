@@ -13,7 +13,6 @@ export function AnemonePedal() {
       kind="Envelope filter"
       enableParam="anemoneEnabled"
       finish={MODS_FINISH.anemone}
-      nameAt="top"
       status={
         <>
           <PedalSwitch param="anemoneMode" labels={['Low', 'Band', 'High']} />

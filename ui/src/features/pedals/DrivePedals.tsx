@@ -57,7 +57,6 @@ export function SargassoPedal() {
       kind="Sustain fuzz"
       enableParam="sargassoEnabled"
       finish={FINISH.sargasso}
-      nameAt="top"
     >
       <PedalRow>
         <PedalKnob param="sargassoSustain" label="Sustain" />

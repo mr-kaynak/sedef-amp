@@ -196,7 +196,7 @@
 
 /* On the board already: the picture steps back and the card says so. */
 .card[data-on-board] .thumb {
-  opacity: 0.45;
+  opacity: 0.75;
 }
 
 .card[data-on-board] .state {

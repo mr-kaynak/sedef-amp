@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// How big each enclosure is, in board units (one canvas pixel at the small density). The width
+// How big each enclosure is, in board units (one canvas pixel at the smallest scale). The width
 // follows what the pedal carries: one column of controls is compact, two are regular, and a pedal
 // with a wide switch or four knobs and a switch is wide. The board's layout (layout.ts) and each
 // panel read the same table.
@@ -42,8 +42,9 @@ export function pedalBox(id: string): PedalBox {
   return (PEDAL_BOX as Record<string, PedalBox>)[id] ?? FALLBACK;
 }
 
-/** The two sizes a board draws its pedals at: small when it needs the room, large when not. */
-export type PedalDensity = 'small' | 'large';
-
-/** Canvas pixels per board unit. */
-export const DENSITY_SCALE: Record<PedalDensity, number> = { small: 1, large: 1.4 };
+/**
+ * Canvas pixels per board unit. A board draws its pedals as large as fits one row, between
+ * these; a board that needs more rows is at the smallest.
+ */
+export const MIN_SCALE = 1;
+export const MAX_SCALE = 1.4;

@@ -14,7 +14,7 @@ import { boardActions, useBoardStore } from '../../state/boardStore';
 import { uiActions } from '../../state/uiStore';
 import { AMPS } from '../amp/amps';
 import { PEDAL_CATALOG } from './catalog';
-import { PedalDensityContext } from './density';
+import { PedalScaleContext } from './density';
 import { gapAt, layoutBoard, type Arrow, type BoardLayout } from './layout';
 import { PedalPicker } from './PedalPicker';
 import { addPedal, pedalName } from './registry';
@@ -87,7 +87,7 @@ function AmpTerminal({ style }: { style: CSSProperties }) {
   return (
     <button
       type="button"
-      className={styles.amp}
+      className={`${buttons.press} ${styles.amp}`}
       style={{ ...style, ...paint }}
       aria-label={`Into the amp: ${name}. Open the Amp page`}
       title="Open the Amp page"
@@ -95,6 +95,9 @@ function AmpTerminal({ style }: { style: CSSProperties }) {
     >
       <span className={styles.ampCaption}>Amp</span>
       <span className={styles.ampName}>{name}</span>
+      <span className={styles.ampGo} aria-hidden="true">
+        <Icon name="next" size={12} />
+      </span>
     </button>
   );
 }
@@ -288,11 +291,11 @@ export function PedalBoard() {
             <span className={styles.inputLabel}>Guitar</span>
           </div>
 
-          <PedalDensityContext value={layout.density}>
+          <PedalScaleContext value={layout.scale}>
             <ol
               ref={listRef}
               className={styles.board}
-              data-density={layout.density}
+              style={{ '--u': `${layout.scale}px` } as CSSProperties}
               aria-label="Pedalboard, in signal order"
             >
               {layout.pedals.map((placed, i) => {
@@ -387,7 +390,7 @@ export function PedalBoard() {
                 />
               )}
             </ol>
-          </PedalDensityContext>
+          </PedalScaleContext>
 
           <AmpTerminal style={box(layout.output)} />
 

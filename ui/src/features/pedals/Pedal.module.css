@@ -1,11 +1,14 @@
 /* SPDX-License-Identifier: AGPL-3.0-or-later */
-/* An enclosure is measured in board units (--u): 1px at the small density, 1.4px at the large one.
-   Its box (--w, --h, sizes.ts) differs per pedal; type sizes step with the density. */
+/* An enclosure is measured in board units (--u, set by Pedal.tsx: 1 to 1.4 canvas pixels). Its
+   box (--w, --h, sizes.ts) differs per pedal. The name and the hardware grow with the unit; the
+   legends are 11px at every scale, the smallest type on the page. */
 .pedal {
   --u: 1px;
-  --name-size: 21px;
-  --small-type: var(--t-10);
-  --footswitch: 40px;
+  --name-size: calc(21 * var(--u));
+  --small-type: var(--t-11);
+  --knob-label-size: var(--t-11);
+  --knob-value-size: var(--t-11);
+  --footswitch: calc(40 * var(--u));
   /* Engraved legends at their normal width: two long labels still fit side by side. */
   --legend-stretch: 100%;
   position: relative;
@@ -36,10 +39,7 @@
 }
 
 .pedal[data-density='large'] {
-  --u: 1.4px;
-  --name-size: 30px;
-  --small-type: var(--t-11);
-  --footswitch: 54px;
+  --knob-label-size: var(--t-12);
   --legend-stretch: 112%;
 }
 
@@ -72,7 +72,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: calc(3 * var(--u));
+  gap: calc(2 * var(--u));
   width: 100%;
 }
 
@@ -108,12 +108,6 @@
   text-align: center;
 }
 
-.pedal[data-name-at='top'] .identity {
-  order: -1;
-  margin-top: 0;
-  margin-bottom: calc(5 * var(--u));
-}
-
 .name {
   margin: 0;
   font-family: var(--font-display);
@@ -140,7 +134,7 @@
 .status {
   display: grid;
   justify-items: center;
-  row-gap: calc(3 * var(--u));
+  row-gap: calc(2 * var(--u));
   margin-top: calc(3 * var(--u));
   max-width: 100%;
 }
@@ -152,7 +146,7 @@
   color: var(--legend-dim);
   font-size: var(--small-type);
   font-weight: 450;
-  line-height: 1.2;
+  line-height: 1.15;
   text-align: center;
   text-wrap: balance;
 }
@@ -227,6 +221,10 @@
 .switch[role='radiogroup'] {
   background: var(--ink-1);
   text-shadow: none;
+}
+
+.switch > button {
+  font-size: var(--t-11);
 }
 
 .pedal[data-density='small'] .switch > button {

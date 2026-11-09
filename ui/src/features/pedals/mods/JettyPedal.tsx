@@ -16,7 +16,6 @@ export function JettyPedal() {
       kind="Flanger"
       enableParam="jettyEnabled"
       finish={MODS_FINISH.jetty}
-      nameAt="top"
       led={
         <LfoLed
           enableParam="jettyEnabled"

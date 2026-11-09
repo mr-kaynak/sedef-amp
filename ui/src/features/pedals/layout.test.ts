@@ -45,7 +45,7 @@ describe('the board layout', () => {
 
   it('draws a short board large, centred in one row', () => {
     const layout = layoutBoard(['gate', 'pearl', 'ripple']);
-    expect(layout.density).toBe('large');
+    expect(layout.scale).toBe(1.4);
     expect(layout.rows).toHaveLength(1);
     expect(layout.height).toBeLessThanOrEqual(BOARD_HEIGHT);
     expectTidy(layout);
@@ -58,10 +58,13 @@ describe('the board layout', () => {
     expect(new Set(bottoms).size).toBe(1);
   });
 
-  it('fits eight pedals in one small row without scrolling', () => {
+  it('fits eight pedals in one row without scrolling, as large as the row allows', () => {
     const layout = layoutBoard(EIGHT);
-    expect(layout.density).toBe('small');
+    expect(layout.scale).toBeGreaterThanOrEqual(1);
+    expect(layout.scale).toBeLessThan(1.4);
     expect(layout.rows).toHaveLength(1);
+    // Nothing to spare: a hundredth larger would not fit.
+    expect(layout.input.x).toBeLessThan(16 + 12);
     expect(layout.pedals.map((p) => p.id)).toEqual(EIGHT);
     expect(layout.height).toBeLessThanOrEqual(BOARD_HEIGHT);
     expectTidy(layout);
@@ -85,9 +88,26 @@ describe('the board layout', () => {
     }
   });
 
-  it('keeps the board small while the Add pedal shelf is open', () => {
-    expect(layoutBoard(['gate', 'pearl'], false).density).toBe('small');
-    expect(layoutBoard(['gate', 'pearl'], true).density).toBe('large');
+  it('grows a board of six or seven pedals to the width there is', () => {
+    const six = layoutBoard(['trench', 'tide', 'pearl', 'kelp', 'coral', 'ripple']);
+    const seven = layoutBoard(['trench', 'tide', 'pearl', 'kelp', 'coral', 'ripple', 'breaker']);
+    expect(six.rows).toHaveLength(1);
+    expect(seven.rows).toHaveLength(1);
+    expect(six.scale).toBeGreaterThan(seven.scale);
+    expect(seven.scale).toBeGreaterThan(1);
+    expect(six.scale).toBeLessThan(1.4);
+    expectTidy(six);
+    expectTidy(seven);
+    // A board that needs two rows is at the smallest scale.
+    expect(layoutBoard(LEGACY_BOARD).scale).toBe(1);
+  });
+
+  it('draws the board no larger than fits above the Add pedal shelf while it is open', () => {
+    expect(layoutBoard(['gate', 'pearl'], false).scale).toBe(1.2);
+    expect(layoutBoard(['gate', 'pearl'], true).scale).toBe(1.4);
+    const open = layoutBoard(['gate', 'trench', 'pearl'], false);
+    // 350 px are left between the toolbar and the shelf.
+    expect(open.height).toBeLessThanOrEqual(350);
   });
 
   it('runs the cable from the input jack to the amp, turning back between rows', () => {
@@ -96,9 +116,10 @@ describe('the board layout', () => {
     // One row: a straight run, an arrow in every gap (input to first, between, last to amp).
     expect(one.cable).not.toContain('Q');
     expect(one.arrows).toHaveLength(EIGHT.length + 1);
-    expect(one.arrows.every((a) => a.heading === 'right' && a.y === one.rows[0]!.cableY)).toBe(
-      true,
-    );
+    for (const arrow of one.arrows) {
+      expect(arrow.heading).toBe('right');
+      expect(arrow.y).toBeCloseTo(one.rows[0]!.cableY, 0);
+    }
 
     const two = layoutBoard(LEGACY_BOARD);
     expect(two.rows).toHaveLength(2);

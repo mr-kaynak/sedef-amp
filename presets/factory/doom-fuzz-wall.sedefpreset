@@ -14,11 +14,12 @@
     "cabModel": 2,
     "reefVoice": 2,
     "reefGain": 0.2,
+    "reefBass": 0.4,
     "sargassoEnabled": 1,
     "sargassoSustain": 0.75,
     "sargassoTone": 0.42,
     "sargassoVolume": 0.5,
     "gateThreshold": -60.0,
-    "reefOutput": 0.4333
+    "reefOutput": 0.4291
   }
 }

@@ -17,6 +17,7 @@
     "lagoonBass": 0.4,
     "lagoonCut": 0.15,
     "lagoonMaster": 0.55,
+    "lagoonOutput": 0.5167,
     "tideEnabled": 1,
     "tideComp": 0.55,
     "tideTone": 0.62,
@@ -27,7 +28,6 @@
     "driftTime": 110.0,
     "driftFeedback": 0.1,
     "driftTapeMod": 0.2,
-    "driftMix": 0.22,
-    "lagoonOutput": 0.525
+    "driftMix": 0.22
   }
 }

@@ -294,6 +294,8 @@ const char* whyName (midi::Why w)
         return "mute";
     case midi::Why::damped:
         return "damped";
+    case midi::Why::decayed:
+        return "decayed";
     case midi::Why::other:
         return "other";
     }

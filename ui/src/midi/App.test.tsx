@@ -118,6 +118,6 @@ describe('Sedef MIDI app', () => {
     await userEvent.keyboard('{ArrowUp}');
     const sent = b.calls.filter((c) => c.name === 'sedef_setParam' && c.args[0] === 'gate');
     expect(sent.length).toBeGreaterThan(0);
-    expect(Number(sent.at(-1)?.args[1])).toBeGreaterThan(-54);
+    expect(Number(sent.at(-1)?.args[1])).toBeGreaterThan(-75);
   });
 });

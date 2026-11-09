@@ -44,6 +44,7 @@ enum class Why : std::uint8_t
     gate,       ///< ended: the level fell under the gate
     mute,       ///< ended: the level fell faster than a string decays
     damped,     ///< ended: no pick, another pitch, the level fallen (the note was damped)
+    decayed,    ///< ended: the level fell kDecayOffDb under the note's attack
     other       ///< ended by a settings change or allNotesOff()
 };
 
@@ -63,7 +64,7 @@ struct Settings
     int bendRange = 2; ///< semitones; must match the instrument's
     Timing timing = Timing::fastest;
     int channel = 1;        ///< 1..16
-    float gateDb = -54.0f;  ///< notes start only above this level (band RMS, dBFS)
+    float gateDb = -75.0f;  ///< notes start only above this level (band RMS, dBFS)
     float dynamics = 0.75f; ///< 0: every note at kFixedVelocity, 1: the pick sets it all
     Curve curve = Curve::linear;
 };
@@ -77,12 +78,22 @@ struct Settings
 ///   kPickWindowSeconds), so a ringing string or a squeak never starts one. Three things count
 ///   as a pick: MonoTracker's detector; the note losing its own period (its periodicity, measured
 ///   at a decimated rate, falls under kPeriodicBreak within 20 ms of being steady), which is how a
-///   soft pick over a ringing note or the same note picked again shows; and a lock with the level
-///   kLockRiseDb over where it was kLockRiseMs before. A pick seen only as lost periodicity counts
-///   when the level 3-12 ms on is no more than kWeakPickDropDb under the level before it (a mute
-///   also breaks the period). Picks closer than kPickRefractorySeconds are one pick. Each pick is
-///   then dated to the sample from the signal: by its click (the power above 2 kHz rising 9 dB),
-///   or, for a lost period, by where the input stops repeating the period it had.
+///   soft pick over a ringing note or the same note picked again shows; and the tracker locking
+///   (or changing its reading after the level was under the gate) with the level kLockRiseDb over
+///   where it was kLockRiseMs before. A pick seen only as lost periodicity counts when the level
+///   3-12 ms on is no more than kWeakPickDropDb under the level before it (a mute also breaks the
+///   period); and when, by the time its note would start, the level has fallen that far and the
+///   note heard is one the note before was a partial of, the break was a mute and that string
+///   only rang on in sympathy. Picks closer than kPickRefractorySeconds are one pick. Each pick
+///   is then dated to the sample from the signal: by its click (the power above 2 kHz rising
+///   9 dB), or, for a lost period, by where the input stops repeating the period it had.
+/// - **The player's level.** The levels of the latest kVelocityPicks picks that started notes say
+///   how hard this player picks on this input; they survive reset() (not prepare()). Once there is
+///   one, a pick whose attack (the loudest millisecond from 3 ms after it until its note would
+///   start) is under the bottom of the velocity scale (below) is not a note: a finger touching a
+///   string, the hand on the guitar. It is still remembered, so a passage played that much softer
+///   comes through after a while. The gate (Settings::gateDb) only needs to keep the input's own
+///   noise out: its default sits under the softest picks of an input whose peaks are at -30 dBFS.
 /// - **Quantisation with hysteresis.** The tracked pitch (a fractional MIDI note, after the
 ///   octave transpose) changes the note only once it is more than kHysteresisSemitones past the
 ///   half-way point to the next semitone and has stayed there for kConfirmSeconds. Vibrato and a
@@ -130,15 +141,20 @@ struct Settings
 ///   string over this one leaves the tracker on this one for a moment, but repeats at its own
 ///   period.
 /// - **Note-off from the level,** not from the tracker, which rides out poor estimates for a long
-///   time. The note ends when the level falls kOffHysteresisDb under the gate, or kMuteDropDb
+///   time. The note ends when the level falls kOffHysteresisDb under the gate or kDecayOffDb
+///   under the note's attack (it is no longer heard, however loud the input), or kMuteDropDb
 ///   under its highest point of the last kMuteWindowSeconds (a mute: no string decays that fast),
 ///   or when the tracker no longer hears a note. The mute is judged against the note's own
 ///   level, from 3 ms after its pick: a louder string damped as the note was picked is not the
 ///   note being muted.
-/// - **Velocity** from the pick's level (the loudest millisecond 3-12 ms after it):
-///   kVelocitySpanDb of picking strength up to kVelocityTopDb map to 1..127 through the curve,
-///   then blend towards kFixedVelocity as the dynamics fall. A legato note takes its velocity
-///   from the level.
+/// - **Velocity** from the pick's level (the loudest millisecond 3-12 ms after it, or its attack
+///   for a note from silence): kVelocitySpanDb of picking strength up to the top of the scale map
+///   to 1..127 through the curve, then blend towards kFixedVelocity as the dynamics fall. The top
+///   sits kVelocityHeadroomDb over the player's loud picks (the second loudest of the latest
+///   kVelocityPicks, the loudest while there are fewer than four), so the same playing gets the
+///   same velocities at any input level; before the first pick it is kVelocityTopDb, where a
+///   guitar at a usual recording level puts it. A legato note takes its velocity from the
+///   level.
 /// - **Timing.** Fastest sends each event at the sample it was decided on. Steady sends a picked
 ///   note's note-on kSteadyLagSeconds after its pick, and every other event that long after it
 ///   was decided, so all notes have the same latency and a recording can be moved earlier by one
@@ -198,6 +214,9 @@ public:
     static constexpr float kPeriodicBreak = 0.7f;
     static constexpr float kVelocityTopDb = -10.0f;
     static constexpr float kVelocitySpanDb = 40.0f;
+    static constexpr float kVelocityHeadroomDb = 10.0f;
+    static constexpr int kVelocityPicks = 32;
+    static constexpr float kDecayOffDb = 40.0f;
     static constexpr int kFixedVelocity = 100;
 
     void prepare (double sampleRate);
@@ -237,8 +256,11 @@ public:
     Why endWhy() const noexcept { return endWhy_; }
     PickKind pickKind() const noexcept { return pickKind_; }
 
-    /// The velocity a pick of this level (linear RMS) gets with these settings.
-    static int velocityFor (float level, const Settings& s) noexcept;
+    /// The velocity a pick of this level (linear RMS) gets with these settings, on a scale whose
+    /// top is `topDb` (by default where it sits before any pick: kVelocityTopDb).
+    static int velocityFor (float level, const Settings& s, float topDb = kVelocityTopDb) noexcept;
+    /// The top of the velocity scale now: kVelocityHeadroomDb over the player's loud picks.
+    float velocityTopDb() const noexcept;
     /// Steady's lag in samples at this rate.
     static int steadyLagSamples (double sampleRate) noexcept;
 
@@ -282,6 +304,8 @@ private:
     float periodicityAt (float hz, int window = 0) const noexcept;
     float pickLevelDb() const noexcept;
     int velocityAt (float levelDb) const noexcept;
+    void rememberPick (float levelDb) noexcept;
+    float attackLevelDb() const noexcept;
     float ringAt (int ago) const noexcept
     {
         return ring_[static_cast<std::size_t> ((ringWrite_ - 1 - ago) & ringMask_)];
@@ -374,6 +398,10 @@ private:
     float noteLevelDb_ = -120.0f; ///< the sounding note's attack: the loudest it has been
     int candidate_ = -1, candidateSamples_ = 0;
     int lastVelocity_ = 0;
+    /// The levels of the latest kVelocityPicks picks that started notes (or were too soft to),
+    /// kept across reset(): they say how this player picks on this input.
+    std::array<float, kVelocityPicks> pickLevels_ {};
+    int pickLevelCount_ = 0, pickLevelPos_ = 0;
     std::int64_t noteDue_ = 0;   ///< when the sounding note's note-on goes out
     std::int64_t noteStart_ = 0; ///< the sounding note's pick (or legato move)
 

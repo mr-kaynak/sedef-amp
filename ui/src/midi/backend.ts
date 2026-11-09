@@ -271,7 +271,7 @@ export class MockMidiBackend implements MidiBackend {
       const [played = 40, length = 1] = LINE[Math.min(index, LINE.length - 1)] ?? [];
       const into = (beats - at) / length;
       const octave = [-2, -1, 0, 1][Math.round(this.values.octave ?? 1)] ?? -1;
-      const gate = this.values.gate ?? -54;
+      const gate = this.values.gate ?? -75;
       const levelDb = -16 - 30 * into + 1.5 * Math.sin(Date.now() / 37);
       const sounding = into < 0.85 && levelDb > gate;
       if (index !== lastIndex && sounding) {

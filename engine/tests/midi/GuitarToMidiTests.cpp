@@ -178,6 +178,125 @@ TEST_CASE ("Guitar to MIDI waits for the pick when the fretting hand moves first
     }
 }
 
+namespace
+{
+/// The scenario with its peak brought to `peakDb` dBFS (its noise too, as an interface's gain
+/// would).
+Scenario atPeak (Scenario sc, double peakDb)
+{
+    float peak = 0.0f;
+    for (float v : sc.signal)
+        peak = std::max (peak, std::abs (v));
+    const auto g = static_cast<float> (std::pow (10.0, peakDb / 20.0) / std::max (peak, 1.0e-9f));
+    for (auto& v : sc.signal)
+        v *= g;
+    return sc;
+}
+} // namespace
+
+TEST_CASE ("Guitar to MIDI works out of the box on a quiet input", "[midi][accuracy][quiet]")
+{
+    // An interface set low: every scenario with its peak at -30 dBFS, its noise as far under it
+    // as before, and every setting at its default. The same bars as at a usual level: the gate's
+    // default lets the softest picks through, nothing under the player's level starts a note,
+    // and no threshold depends on how loud the input is.
+    constexpr double kQuietPeakDb = -30.0;
+    auto settings = plain();
+    {
+        Score total;
+        for (auto pickup : { Pickup::bridge, Pickup::neck, Pickup::piezo })
+            for (std::uint32_t seed = 1; seed <= 6; ++seed)
+            {
+                const auto sc = atPeak (bassLine (seed, pickup, 120.0 + 4.0 * seed, kFs, 48, false),
+                                        kQuietPeakDb);
+                const auto run = convert (sc.signal, kFs, settings);
+                addInto (total, score (run, sc, 0));
+                CHECK (balanced (run));
+            }
+        report ("bass lines, quiet input", total);
+        CHECK (total.correctShare() >= 0.99);
+        CHECK (total.extraPer100() <= 1.0);
+        CHECK (total.octaveErrors == 0);
+    }
+    for (const auto timing : { midi::Timing::fastest, midi::Timing::steady })
+    {
+        const bool steady = timing == midi::Timing::steady;
+        settings.timing = timing;
+        Score sloppy, fretted;
+        int sloppyShorts = 0, frettedShorts = 0;
+        for (auto pickup : { Pickup::bridge, Pickup::neck, Pickup::piezo })
+        {
+            for (std::uint32_t seed = 1; seed <= 6; ++seed)
+            {
+                const auto sc =
+                    atPeak (sloppyLine (seed, pickup, 110.0 + 5.0 * seed, kFs, 48), kQuietPeakDb);
+                const auto run = convert (sc.signal, kFs, settings);
+                addInto (sloppy, score (run, sc, 0, steady ? 0.12 : 0.08, false));
+                sloppyShorts += shortNotes (run);
+                CHECK (balanced (run));
+                CHECK (run.maxSounding <= 1);
+            }
+            for (std::uint32_t seed = 1; seed <= 4; ++seed)
+            {
+                const auto sc = atPeak (fretThenPick (seed, pickup, kFs), kQuietPeakDb);
+                const auto run = convert (sc.signal, kFs, settings);
+                addInto (fretted, score (run, sc, 0, steady ? 0.12 : 0.08, false));
+                frettedShorts += shortNotes (run);
+                CHECK (balanced (run));
+                CHECK (run.maxSounding <= 1);
+            }
+        }
+        report (steady ? "sloppy, quiet (Steady)" : "sloppy, quiet input", sloppy);
+        report (steady ? "fretted first, quiet (Steady)" : "fretted first, quiet input", fretted);
+        CHECK (sloppy.correctShare() >= (steady ? 0.975 : 0.985));
+        CHECK (sloppy.extraPer100() <= (steady ? 2.0 : 2.5));
+        CHECK (sloppy.octaveErrors == 0);
+        CHECK (100.0 * sloppyShorts / sloppy.expected <= (steady ? 1.0 : 2.0));
+        CHECK (fretted.correctShare() >= 0.98);
+        CHECK (fretted.extraPer100() <= 2.0);
+        CHECK (fretted.octaveErrors == 0);
+        CHECK (100.0 * frettedShorts / fretted.expected <= 2.0);
+    }
+}
+
+TEST_CASE ("Guitar to MIDI velocity is the same at any input level", "[midi][velocity][quiet]")
+{
+    // The velocity scale follows how this player picks on this input (kVelocityHeadroomDb over
+    // the loud picks of the latest kVelocityPicks), so the same playing gets the same velocities
+    // at -30 dBFS peaks as at a usual level, over the same useful range. Only the first note,
+    // before any pick says how loud the input is, uses the scale's default place.
+    int matched = 0, same = 0;
+    std::vector<double> quietVelocities;
+    for (auto pickup : { Pickup::bridge, Pickup::neck, Pickup::piezo })
+        for (std::uint32_t seed = 1; seed <= 6; ++seed)
+        {
+            const auto sc = bassLine (seed, pickup, 120.0 + 4.0 * seed, kFs, 48, false);
+            const auto loud = convert (sc.signal, kFs, plain());
+            const auto quiet = convert (atPeak (sc, -30.0).signal, kFs, plain());
+            for (std::size_t k = 1; k < quiet.notes.size(); ++k)
+            {
+                const auto& q = quiet.notes[k];
+                quietVelocities.push_back (q.velocity);
+                for (const auto& l : loud.notes)
+                    if (l.pitch == q.pitch && std::abs (l.on - q.on) < 0.005)
+                    {
+                        ++matched;
+                        same += std::abs (l.velocity - q.velocity) <= 4 ? 1 : 0;
+                        break;
+                    }
+            }
+        }
+    std::printf ("velocity at -30 dBFS: %d of %d notes within 4 of the usual level's; p10 %.0f, "
+                 "median %.0f, p90 %.0f\n",
+                 same, matched, percentile (quietVelocities, 0.1),
+                 percentile (quietVelocities, 0.5), percentile (quietVelocities, 0.9));
+    REQUIRE (matched > 800);
+    CHECK (same >= 0.95 * matched);
+    CHECK (percentile (quietVelocities, 0.5) >= 64.0);
+    CHECK (percentile (quietVelocities, 0.5) <= 104.0);
+    CHECK (percentile (quietVelocities, 0.9) - percentile (quietVelocities, 0.1) >= 12.0);
+}
+
 TEST_CASE ("Guitar to MIDI plays palm mutes, legato, slides and vibrato", "[midi][accuracy]")
 {
     Score total;
@@ -483,25 +602,39 @@ TEST_CASE ("Guitar to MIDI ends notes from the level", "[midi][noteoff]")
             CHECK (n.off - n.on < 60.0 / 140.0 / 2.0 + 0.02);
     }
     // A long note decaying freely stays on while it is clearly audible: until its level is within
-    // 10 dB of the gate's off point.
+    // 10 dB of where it ends, kDecayOffDb under its attack (or the gate's off point, if higher).
+    // The same at a quiet input, where the gate's off point can come first.
+    for (double gainDb : { 0.0, -24.0 })
     {
+        INFO ("input " << gainDb << " dB");
         auto s = plain();
         std::vector<float> x (static_cast<std::size_t> (6.0 * kFs), 0.0f);
         auto p = pluckFor (Pickup::bridge, kA2, 0.3f, 2);
         p.decaySeconds = 1.2;
         test::addPluck (x, kFs, static_cast<std::size_t> (0.1 * kFs), p);
         test::addNoise (x, -90.0f);
+        const auto g = static_cast<float> (std::pow (10.0, gainDb / 20.0));
+        for (auto& v : x)
+            v *= g;
         const auto run = convert (x, kFs, s);
         REQUIRE (run.notes.size() == 1);
-        const auto off = static_cast<std::size_t> (run.notes[0].off * kFs);
         REQUIRE (run.notes[0].off > 0.0);
-        // The level 50 ms before the note-off, in the band the converter listens to.
-        const auto from = off - static_cast<std::size_t> (0.06 * kFs);
-        double sum = 0.0;
-        for (std::size_t i = from; i < from + static_cast<std::size_t> (0.01 * kFs); ++i)
-            sum += static_cast<double> (x[i]) * x[i];
-        const double db = 10.0 * std::log10 (sum / (0.01 * kFs));
-        CHECK (db < s.gateDb - GuitarToMidi::kOffHysteresisDb + 10.0);
+        const auto levelAt = [&] (double seconds) {
+            const auto from = static_cast<std::size_t> (seconds * kFs);
+            double sum = 0.0;
+            for (std::size_t i = from; i < from + static_cast<std::size_t> (0.01 * kFs); ++i)
+                sum += static_cast<double> (x[i]) * x[i];
+            return 10.0 * std::log10 (sum / (0.01 * kFs));
+        };
+        double attack = -200.0;
+        for (double t = 0.1; t < 0.15; t += 0.002)
+            attack = std::max (attack, levelAt (t));
+        const double end =
+            std::max (static_cast<double> (s.gateDb - GuitarToMidi::kOffHysteresisDb),
+                      attack - static_cast<double> (GuitarToMidi::kDecayOffDb));
+        // The level 50 ms before the note-off.
+        CHECK (levelAt (run.notes[0].off - 0.06) < end + 10.0);
+        CHECK (levelAt (run.notes[0].off - 0.06) > end - 10.0);
     }
 }
 

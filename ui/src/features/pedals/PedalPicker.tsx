@@ -117,8 +117,8 @@ export function PedalPicker({
         <h2 id={titleId} className={styles.title}>
           Add a pedal
         </h2>
-        {/* What the pedal pointed at does and where it goes; each card carries the same for a
-            screen reader, so this line is for the eye. */}
+        {/* What the pedal pointed at does and where it goes; each card's description says the
+            same to a screen reader, so this line is for the eye. */}
         <p className={styles.about} aria-hidden="true">
           {pointed && about ? (
             <>
@@ -199,7 +199,7 @@ export function PedalPicker({
                         </span>
                       </button>
                       <span id={describedBy} className="visually-hidden">
-                        {entry.description}
+                        {entry.description} {placeText(board, p.id)}
                       </span>
                     </li>
                   );

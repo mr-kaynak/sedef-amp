@@ -155,8 +155,9 @@ describe('PedalBoard', () => {
       await start({ board: ['gate', 'tide', 'ripple'] });
       fireEvent.click(screen.getByRole('button', { name: 'Add pedal' }));
       const coral = within(picker()).getByRole('button', { name: 'Add Coral, distortion' });
+      // What it does, and where it would go on this board.
       expect(coral).toHaveAccessibleDescription(
-        'Hard clipping with a cut control for darker tones.',
+        'Hard clipping with a cut control for darker tones. Goes after Tide.',
       );
       coral.focus();
       fireEvent.click(coral);

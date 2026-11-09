@@ -1429,7 +1429,8 @@ TEST_CASE ("The setup stays held only while a Setup may run", "[update][install]
         CHECK (install().outcome == InstallResult::Outcome::Scheduled);
         CHECK (parameters.contains (" /WAITPID=" + juce::String (self) + " "));
         CHECK (parameters.contains (" /WAITPIDTIME=" + juce::String (processCreationTime (self))));
-        CHECK (parameters.contains (" /COMPONENTS=vst3,clap,standalone "));
+        // Nothing is installed in the scratch folders: every component goes in.
+        CHECK (parameters.contains (" /COMPONENTS=vst3,clap,standalone,midi "));
         CHECK_FALSE (setup.deleteFile()); // until this process exits
     }
     SECTION ("a prompt still open when Sedef closes keeps it, until it ends in No")

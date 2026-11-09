@@ -111,9 +111,29 @@ describe('Sedef MIDI app', () => {
     expect(screen.getByRole('radio', { name: '−2' })).toHaveAttribute('aria-checked', 'true');
   });
 
-  it('moves the gate from the keyboard', async () => {
+  it('shows the automatic gate, and takes no input until Manual', async () => {
     const b = await setup();
     const gate = screen.getByRole('slider', { name: 'Gate' });
+    expect(screen.getByRole('radio', { name: 'Auto' })).toHaveAttribute('aria-checked', 'true');
+    expect(gate).toHaveAttribute('aria-disabled', 'true');
+    act(() => b.publish({ gateDb: -81.6 }));
+    expect(gate).toHaveAttribute('aria-valuetext', 'Automatic, −82.0 dB');
+    expect(screen.getByText('−82.0 dB')).toBeInTheDocument();
+    gate.focus();
+    await userEvent.keyboard('{ArrowUp}');
+    expect(b.calls.some((c) => c.name === 'sedef_setParam' && c.args[0] === 'gate')).toBe(false);
+  });
+
+  it('moves the gate from the keyboard in Manual', async () => {
+    const b = await setup();
+    await userEvent.click(screen.getByRole('radio', { name: 'Manual' }));
+    expect(
+      b.calls.some(
+        (c) => c.name === 'sedef_setParam' && c.args[0] === 'gateMode' && c.args[1] === 1,
+      ),
+    ).toBe(true);
+    const gate = screen.getByRole('slider', { name: 'Gate' });
+    expect(gate).not.toHaveAttribute('aria-disabled');
     gate.focus();
     await userEvent.keyboard('{ArrowUp}');
     const sent = b.calls.filter((c) => c.name === 'sedef_setParam' && c.args[0] === 'gate');

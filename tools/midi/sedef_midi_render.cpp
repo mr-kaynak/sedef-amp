@@ -192,7 +192,10 @@ int convertWav (int argc, char** argv)
         else if (a == "--bend")
             s.mode = midi::Mode::notesAndBend;
         else if (a == "--gate")
+        {
+            s.gateMode = midi::GateMode::manual;
             s.gateDb = static_cast<float> (next());
+        }
         else if (a == "--block")
             block = std::max (1, static_cast<int> (next()));
     }
@@ -225,10 +228,9 @@ int trace (int argc, char** argv)
     const double gainDb = argc > 6 ? std::atof (argv[6]) : 0.0;
     const auto g = static_cast<float> (std::pow (10.0, gainDb / 20.0));
     const double fs = audio->sampleRate;
-    analysis::MonoTracker m;
-    m.prepare (fs);
     midi::GuitarToMidi conv;
     conv.prepare (fs);
+    const auto& m = conv.tracker();
     midi::Settings s;
     s.octave = 0;
     conv.setSettings (s);
@@ -238,7 +240,6 @@ int trace (int argc, char** argv)
     for (std::size_t i = 0; i < audio->mono.size(); ++i)
     {
         const float x = g * audio->mono[i];
-        m.push (x);
         out.clear();
         conv.process (&x, 1, out);
         const double t = static_cast<double> (i) / fs;
@@ -250,8 +251,9 @@ int trace (int argc, char** argv)
         if (pick || ev != analysis::MonoTracker::Event::none || !out.empty() ||
             i % static_cast<std::size_t> (ms) == 0)
         {
-            std::printf ("t %.4f %s%s hz %7.2f (%5.2f) est %7.2f clar %.2f lvl %6.1f dB", t,
-                         pick ? "PICK " : "",
+            std::printf ("t %.4f %s%s hz %7.2f (%5.2f) est %7.2f clar %.2f lvl %6.1f dB gate %6.1f "
+                         "note %3d",
+                         t, pick ? "PICK " : "",
                          ev == analysis::MonoTracker::Event::noteOn
                              ? "ON "
                              : (ev == analysis::MonoTracker::Event::noteChange
@@ -260,7 +262,8 @@ int trace (int argc, char** argv)
                          static_cast<double> (m.hz()),
                          m.hz() > 0 ? 69 + 12 * std::log2 (m.hz() / 440.0) : 0.0,
                          static_cast<double> (m.estimateHz()), static_cast<double> (m.clarity()),
-                         static_cast<double> (conv.levelDb()));
+                         static_cast<double> (conv.levelDb()),
+                         static_cast<double> (conv.gateLevelDb()), conv.note());
             for (const auto& e : out)
                 std::printf ("  [%s %d v%d]", e.isNoteOn() ? "on" : (e.isNoteOff() ? "off" : "cc"),
                              e.note(), e.velocity());
@@ -346,7 +349,10 @@ int why (int argc, char** argv)
         else if (a == "--steady" && std::atoi (argv[i + 1]) != 0)
             s.timing = midi::Timing::steady;
         else if (a == "--gate")
+        {
+            s.gateMode = midi::GateMode::manual;
             s.gateDb = static_cast<float> (std::atof (argv[i + 1]));
+        }
         else if (a == "--octave")
             s.octave = std::atoi (argv[i + 1]);
     }

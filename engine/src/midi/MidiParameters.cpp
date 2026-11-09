@@ -44,6 +44,7 @@ Settings settingsFrom (const Values& v) noexcept
     s.bendRange = whole (v, ParamId::bendRange);
     s.timing = whole (v, ParamId::timing) == 1 ? Timing::steady : Timing::fastest;
     s.channel = whole (v, ParamId::channel);
+    s.gateMode = whole (v, ParamId::gateMode) == 1 ? GateMode::manual : GateMode::automatic;
     s.gateDb = value (v, ParamId::gate);
     s.dynamics = value (v, ParamId::dynamics) / 100.0f;
     const int curve = whole (v, ParamId::curve);

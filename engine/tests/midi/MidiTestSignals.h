@@ -590,6 +590,226 @@ inline Scenario overRinging (double hz, double cents, double fs)
     return s;
 }
 
+/// A fingerstyle note as the musician's own DI has it: plucked near the bridge with no click,
+/// and on a bridge pickup the low strings' fundamental barely heard (-30 to -40 dB of the energy
+/// at the attack under 130 Hz, as on that DI), their 2 ms power swinging with every period.
+inline Pluck fingerPluck (Pickup pickup, double hz, float peak, std::uint32_t seed)
+{
+    Dice dice (seed * 7907u + 3u);
+    Pluck p = pluckFor (pickup, hz, peak, seed);
+    p.pickNoise = 0.0f;
+    if (pickup != Pickup::piezo)
+    {
+        p.pluckPosition = dice.between (0.07, 0.11);
+        p.pickupPosition = pickup == Pickup::bridge ? 0.06 : 0.22;
+    }
+    const double weak = dice.between (0.12, 0.25);
+    if (pickup == Pickup::bridge && hz < 200.0)
+        p.fundamentalGain = hz < 130.0 ? weak : weak + (1.0 - weak) * (hz - 130.0) / 70.0;
+    p.decaySeconds = dice.between (0.4, 0.8);
+    return p;
+}
+
+/// What a finger does just before it plucks a silent string, `lead` seconds ahead: it lands on the
+/// string (a contact noise), pushes it a little (the string's own note) and, while it rests there,
+/// the string sounds the harmonic whose node it touches (the 9th to 13th). The pluck's level
+/// stands 15-30 dB over all of it (20-22 dB on the musician's DI), and takes over the string.
+inline void addTouch (std::vector<float>& out, double fs, double pluckAt, double lead, double hz,
+                      float peak, std::uint32_t seed)
+{
+    Dice dice (seed * 92821u + 5u);
+    const double at = pluckAt - lead;
+    // The push: the string's note, faint, until the pluck.
+    Pluck push = fingerPluck (
+        Pickup::bridge, hz,
+        peak * static_cast<float> (std::pow (10.0, -dice.between (26.0, 36.0) / 20.0)), seed + 1u);
+    push.muteAt = lead;
+    addPluck (out, fs, static_cast<std::size_t> (at * fs), push);
+    // The harmonic under the resting finger, from a third of the way in until the pluck.
+    const double harmonicHz = hz * (9 + dice.below (5));
+    const double from = at + lead / 3.0;
+    const double level = peak * std::pow (10.0, -dice.between (27.0, 35.0) / 20.0);
+    for (auto i = static_cast<std::size_t> (from * fs); i < static_cast<std::size_t> (pluckAt * fs);
+         ++i)
+    {
+        if (i >= out.size())
+            break;
+        const double t = static_cast<double> (i) / fs - from;
+        const double left = pluckAt - static_cast<double> (i) / fs;
+        const double fade = std::min ({ 1.0, t / 0.003, left / 0.002 });
+        out[i] += static_cast<float> (level * fade * std::sin (kTwoPiD * harmonicHz * t));
+    }
+    // The contact: 2 ms of noise.
+    std::uint32_t r = 77u + seed;
+    for (auto i = static_cast<std::size_t> (at * fs);
+         i < std::min (out.size(), static_cast<std::size_t> ((at + 0.002) * fs)); ++i)
+    {
+        r ^= r << 13;
+        r ^= r >> 17;
+        r ^= r << 5;
+        const double u = static_cast<double> (r) / 4294967296.0 * 2.0 - 1.0;
+        const double t = static_cast<double> (i) / fs - at;
+        out[i] += static_cast<float> (0.03 * peak * u * std::exp (-t / 0.0005));
+    }
+}
+
+/// Tunings for the from-silence notes: standard, a whole step down, drop D.
+inline constexpr int kTunings[3][6] = { { 40, 45, 50, 55, 59, 64 },
+                                        { 38, 43, 48, 53, 57, 62 },
+                                        { 38, 45, 50, 55, 59, 64 } };
+
+/// Fingerstyle notes from silence: every string of `tuning`, open and at frets 2 and 5, each
+/// after a rest of 0.5 to 3 s (the first after 0.5 s of nothing but the input's noise), each with
+/// the finger touching the string 10-50 ms before it plucks it (when `touch`). Each note sounds
+/// 0.4-0.8 s and is then damped.
+inline Scenario fromSilence (std::uint32_t seed, int tuning, Pickup pickup, double fs,
+                             bool touch = true)
+{
+    Dice dice (seed * 15485863u + static_cast<std::uint32_t> (tuning) * 31u + 1u);
+    Scenario s;
+    s.name = "from silence";
+    s.fs = fs;
+    struct Played
+    {
+        int pitch;
+        double at, lead;
+        Pluck pluck;
+    };
+    std::vector<Played> played;
+    constexpr double kRests[] = { 0.5, 1.0, 2.0, 3.0 };
+    double t = 0.5;
+    int k = 0;
+    for (int string = 0; string < 6; ++string)
+        for (int fret : { 0, 2, 5 })
+        {
+            const int pitch = kTunings[tuning][string] + fret;
+            const auto peak =
+                static_cast<float> (0.2 * std::pow (10.0, dice.between (-6.0, 0.0) / 20.0));
+            Pluck p = fingerPluck (pickup, hzOf (pitch), peak,
+                                   300u + seed * 131u + static_cast<std::uint32_t> (k));
+            p.muteAt = dice.between (0.4, 0.8);
+            played.push_back ({ pitch, t, dice.between (0.01, 0.05), p });
+            t += p.muteAt + kRests[(k + static_cast<int> (seed)) % 4];
+            ++k;
+        }
+    s.signal.assign (static_cast<std::size_t> ((t + 0.3) * fs), 0.0f);
+    for (std::size_t n = 0; n < played.size(); ++n)
+    {
+        const auto& p = played[n];
+        if (touch)
+            addTouch (s.signal, fs, p.at, p.lead, hzOf (p.pitch), p.pluck.peak,
+                      seed * 1000u + static_cast<std::uint32_t> (n));
+        addPluck (s.signal, fs, static_cast<std::size_t> (p.at * fs), p.pluck);
+        s.notes.push_back ({ p.pitch, p.at, p.at + p.pluck.muteAt + 0.005, true, p.pluck.peak });
+    }
+    addNoise (s.signal, -80.0f, seed + 3);
+    return s;
+}
+
+/// The same notes as fromSilence(), each picked while the one before it on the same string still
+/// rings (the pick takes over the string's vibration): the latency a string has from a ringing
+/// string, to compare the notes from silence with.
+inline Scenario fromRinging (std::uint32_t seed, int tuning, Pickup pickup, double fs)
+{
+    Dice dice (seed * 15485863u + static_cast<std::uint32_t> (tuning) * 31u + 1u);
+    Scenario s;
+    s.name = "from a ringing string";
+    s.fs = fs;
+    std::vector<std::pair<double, Pluck>> plucks;
+    double t = 0.3;
+    int k = 0;
+    for (int string = 0; string < 6; ++string)
+    {
+        // The open string rings first, then the three notes, each over the one before.
+        Pluck lead = fingerPluck (pickup, hzOf (kTunings[tuning][string] + 7), 0.15f,
+                                  900u + static_cast<std::uint32_t> (string));
+        lead.muteAt = 0.4;
+        plucks.push_back ({ t, lead });
+        s.notes.push_back ({ kTunings[tuning][string] + 7, t, t + 0.405, true, lead.peak });
+        t += 0.4;
+        for (int fret : { 0, 2, 5 })
+        {
+            const int pitch = kTunings[tuning][string] + fret;
+            const auto peak =
+                static_cast<float> (0.2 * std::pow (10.0, dice.between (-6.0, 0.0) / 20.0));
+            Pluck p = fingerPluck (pickup, hzOf (pitch), peak,
+                                   300u + seed * 131u + static_cast<std::uint32_t> (k));
+            p.muteAt = fret == 5 ? 0.5 : dice.between (0.4, 0.6);
+            plucks.push_back ({ t, p });
+            s.notes.push_back ({ pitch, t, t + p.muteAt + 0.005, true, p.peak });
+            t += p.muteAt;
+            ++k;
+        }
+        t += 0.6;
+    }
+    s.signal.assign (static_cast<std::size_t> ((t + 0.3) * fs), 0.0f);
+    for (const auto& [at, p] : plucks)
+        addPluck (s.signal, fs, static_cast<std::size_t> (at * fs), p);
+    addNoise (s.signal, -80.0f, seed + 3);
+    return s;
+}
+
+/// Strummed chords, which a monophonic converter cannot play: open shapes and power chords, 3 to
+/// 6 strings struck 8-30 ms apart, down or up, picked or with the fingers, ringing 0.6-1.2 s
+/// together and then damped, 0.2-0.8 s apart. Each RefNote is one chord: its lowest string's
+/// pitch, from the first string struck until the damping.
+inline Scenario strummedChords (std::uint32_t seed, Pickup pickup, double fs, int count = 12)
+{
+    static constexpr int kShapes[][6] = {
+        { 40, 47, 52, 56, 59, 64 }, // E
+        { 0, 45, 52, 57, 60, 64 },  // A minor
+        { 0, 0, 50, 57, 62, 66 },   // D
+        { 43, 47, 50, 55, 59, 67 }, // G
+        { 0, 48, 52, 55, 60, 64 },  // C
+        { 40, 47, 52, 0, 0, 0 },    // E5
+        { 0, 45, 52, 57, 0, 0 },    // A5
+    };
+    Dice dice (seed * 49979687u + 17u);
+    Scenario s;
+    s.name = "strummed chords";
+    s.fs = fs;
+    std::vector<std::pair<double, Pluck>> plucks;
+    double t = 0.3;
+    for (int c = 0; c < count; ++c)
+    {
+        const auto& shape = kShapes[dice.below (7)];
+        const bool down = dice.unit() < 0.6;
+        const bool fingers = dice.unit() < 0.5;
+        const double spread = dice.between (0.008, 0.03);
+        const double ring = dice.between (0.6, 1.2);
+        const auto peak =
+            static_cast<float> (0.15 * std::pow (10.0, dice.between (-6.0, 0.0) / 20.0));
+        std::vector<int> strings;
+        for (int k = 0; k < 6; ++k)
+            if (shape[k] > 0)
+                strings.push_back (k);
+        if (!down)
+            std::reverse (strings.begin(), strings.end());
+        double at = t;
+        int lowest = 127;
+        for (int k : strings)
+        {
+            const int pitch = shape[k];
+            lowest = std::min (lowest, pitch);
+            Pluck p = fingers ? fingerPluck (pickup, hzOf (pitch), peak,
+                                             seed * 71u + static_cast<std::uint32_t> (c * 6 + k))
+                              : pluckFor (pickup, hzOf (pitch), peak,
+                                          seed * 71u + static_cast<std::uint32_t> (c * 6 + k));
+            p.decaySeconds = 1.5;
+            p.muteAt = t + ring - at;
+            plucks.push_back ({ at, p });
+            at += spread * dice.between (0.6, 1.4);
+        }
+        s.notes.push_back ({ lowest, t, t + ring + 0.005, true, peak });
+        t += ring + dice.between (0.2, 0.8);
+    }
+    s.signal.assign (static_cast<std::size_t> ((t + 0.5) * fs), 0.0f);
+    for (const auto& [at, p] : plucks)
+        addPluck (s.signal, fs, static_cast<std::size_t> (at * fs), p);
+    addNoise (s.signal, -80.0f, seed + 5);
+    return s;
+}
+
 // ---------------------------------------------------------------------------------------------
 // Running the converter and judging its notes.
 

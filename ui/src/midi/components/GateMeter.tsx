@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// The input's level on the same scale as the gate, with the gate as a handle on it: drag the
-// handle just above the noise and under the softest pick.
+// The input's level on the same scale as the gate, with the gate on it. In Auto the gate follows
+// the input's own noise floor and the line shows where it is; in Manual it is a handle: drag it
+// just above the noise and under the softest pick.
 import { useRef } from 'react';
 import type { CSSProperties } from 'react';
+import { Segmented } from '../../controls/Segmented';
 import { useValueControl } from '../../controls/useValueControl';
+import { formatValue } from '../../params/format';
 import { useParam } from '../../params/useParam';
-import { useLiveFrame } from '../../state/live';
+import { useLiveFrame, useLiveSelector } from '../../state/live';
 import { midiTelemetry } from '../store';
 import styles from './GateMeter.module.css';
 
@@ -19,11 +22,16 @@ function meterPosition(db: number): number {
 
 export function GateMeter({ height = 280 }: { height?: number }) {
   const gate = useParam('gate');
+  const auto = Math.round(useParam('gateMode').value) === 0;
+  // The gate in effect, whole dB: the automatic one moves with the noise floor.
+  const autoDb = useLiveSelector(midiTelemetry, (t) => (t ? Math.round(t.gateDb) : null));
+  const gateDb = auto ? (autoDb ?? FLOOR_DB) : gate.value;
   const span = gate.spec.max - gate.spec.min;
   const { active, handlers, wheelRef } = useValueControl(gate, {
     pixelsForRange: (height * span) / (CEIL_DB - FLOOR_DB),
     layoutPixels: true,
     fineFactor: 8,
+    disabled: auto,
   });
 
   const fill = useRef<HTMLDivElement>(null);
@@ -33,13 +41,14 @@ export function GateMeter({ height = 280 }: { height?: number }) {
     const target = t?.levelDb ?? FLOOR_DB;
     level.current = Math.max(target, level.current - RELEASE_DB_PER_S * dt);
     if (fill.current) fill.current.style.transform = `scaleY(${meterPosition(level.current)})`;
-    if (open.current) open.current.toggleAttribute('data-on', !!t && t.levelDb >= gate.value);
+    if (open.current) open.current.toggleAttribute('data-on', !!t && t.levelDb >= t.gateDb);
   });
 
   const style = {
     '--h': `${height}px`,
-    '--gate': meterPosition(gate.value),
+    '--gate': meterPosition(gateDb),
   } as CSSProperties;
+  const shown = auto ? (autoDb === null ? 'Auto' : formatValue(gate.spec, autoDb)) : gate.display;
 
   return (
     <div className={styles.wrap} style={style}>
@@ -55,12 +64,13 @@ export function GateMeter({ height = 280 }: { height?: number }) {
         className={styles.track}
         role="slider"
         aria-orientation="vertical"
-        tabIndex={0}
+        tabIndex={auto ? -1 : 0}
         aria-label="Gate"
+        aria-disabled={auto || undefined}
         aria-valuemin={gate.spec.min}
         aria-valuemax={gate.spec.max}
-        aria-valuenow={Number(gate.value.toFixed(1))}
-        aria-valuetext={gate.display}
+        aria-valuenow={Number(Math.min(gate.spec.max, Math.max(gate.spec.min, gateDb)).toFixed(1))}
+        aria-valuetext={auto ? `Automatic, ${shown}` : gate.display}
         data-active={active || undefined}
         {...handlers}
       >
@@ -80,8 +90,9 @@ export function GateMeter({ height = 280 }: { height?: number }) {
         </div>
       </div>
       <div className={styles.value} data-active={active || undefined}>
-        {gate.display}
+        {shown}
       </div>
+      <Segmented param="gateMode" size="sm" ariaLabel="Gate mode" />
     </div>
   );
 }

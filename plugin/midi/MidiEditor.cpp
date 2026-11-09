@@ -342,6 +342,7 @@ void MidiEditor::emitTelemetry()
     const auto t = processor_.telemetry();
     browser_->emitEventIfBrowserIsVisible (
         "sedef:midi:telemetry", object ({ { "levelDb", t.levelDb },
+                                          { "gateDb", t.gateDb },
                                           { "note", t.note },
                                           { "pitch", t.pitch },
                                           { "velocity", t.velocity },

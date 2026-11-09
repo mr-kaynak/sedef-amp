@@ -24,6 +24,12 @@ enum class Timing : std::uint8_t
     steady   ///< every picked note a fixed lag after its pick (kSteadyLagSeconds)
 };
 
+enum class GateMode : std::uint8_t
+{
+    automatic, ///< over the input's own noise floor: no setting, at any input level
+    manual     ///< Settings::gateDb
+};
+
 enum class Curve : std::uint8_t
 {
     soft,   ///< a light pick already plays loud
@@ -63,8 +69,9 @@ struct Settings
     Mode mode = Mode::notes;
     int bendRange = 2; ///< semitones; must match the instrument's
     Timing timing = Timing::fastest;
-    int channel = 1;        ///< 1..16
-    float gateDb = -75.0f;  ///< notes start only above this level (band RMS, dBFS)
+    int channel = 1; ///< 1..16
+    GateMode gateMode = GateMode::automatic;
+    float gateDb = -75.0f;  ///< the manual gate: notes start only above it (band RMS, dBFS)
     float dynamics = 0.75f; ///< 0: every note at kFixedVelocity, 1: the pick sets it all
     Curve curve = Curve::linear;
 };
@@ -87,13 +94,33 @@ struct Settings
 ///   only rang on in sympathy. Picks closer than kPickRefractorySeconds are one pick. Each pick
 ///   is then dated to the sample from the signal: by its click (the power above 2 kHz rising
 ///   9 dB), or, for a lost period, by where the input stops repeating the period it had.
-/// - **The player's level.** The levels of the latest kVelocityPicks picks that started notes say
-///   how hard this player picks on this input; they survive reset() (not prepare()). Once there is
-///   one, a pick whose attack (the loudest millisecond from 3 ms after it until its note would
-///   start) is under the bottom of the velocity scale (below) is not a note: a finger touching a
-///   string, the hand on the guitar. It is still remembered, so a passage played that much softer
-///   comes through after a while. The gate (Settings::gateDb) only needs to keep the input's own
-///   noise out: its default sits under the softest picks of an input whose peaks are at -30 dBFS.
+/// - **The gate.** In Auto (the default) it follows the input's own noise floor, so it needs no
+///   setting at any input level. The floor is the quietest the level has been (the loudest 3 ms
+///   level of each millisecond): it falls at once to anything quieter and rises
+///   kNoiseRiseDbPerSecond while no note sounds; for kWarmupSeconds after reset() it is simply
+///   the level. The gate sits kNoiseMarginDb over the floor, never under kAutoGateFloorDb
+///   (digital silence). Manual uses Settings::gateDb as it is. Notes start only above the gate
+///   and end kOffHysteresisDb under it; the tracker's detector hears picks from just under it.
+/// - **The player's level.** The average attack (dB) of the picks that started notes, over about
+///   the latest kPlayingNotes (each weighs the same until there are that many, then each new one
+///   1/kPlayingNotes): how hard this player picks on this input. It survives reset() and
+///   prepare(). Before the first note nothing says how loud the player is, so in Auto a note must
+///   stand kFirstNoteMarginDb out of the noise floor (the hand on the guitar, a string ringing in
+///   sympathy, stay under it). After it, a pick whose attack is under the bottom of the velocity
+///   scale (below; 26.5 dB under the player's level) is not a note: a brush of the hand, a string
+///   ringing in sympathy. It still counts towards the player's level, so a passage played that
+///   much softer comes through after a while. A note so needs the higher of the gate and the
+///   player's level less a margin, and every other level a decision compares is the note's own
+///   or the player's.
+/// - **A finger's touch.** A finger touching the string before it plucks it is a pick too,
+///   10-60 ms ahead of the pluck, 15-30 dB under it, and sometimes with a squeak at a high
+///   harmonic. From silence, a pick kTouchBelowDb under the player's level (or the first pick
+///   ever) waits until kTouchWaitSeconds after it before it may start a note; the tracker
+///   (MonoTracker::Options::fingerPicks) sees the pluck as a new pick, which replaces it (a pick
+///   from the detector replaces any pick that started no note). No note from silence starts
+///   while a louder attack is under way. MonoTracker::Options::weakFundamentals names a low
+///   string plucked near the bridge, whose fundamental is weak for its first 100 ms. A pick's
+///   click is never needed: fingers have none.
 /// - **Quantisation with hysteresis.** The tracked pitch (a fractional MIDI note, after the
 ///   octave transpose) changes the note only once it is more than kHysteresisSemitones past the
 ///   half-way point to the next semitone and has stayed there for kConfirmSeconds. Vibrato and a
@@ -150,11 +177,10 @@ struct Settings
 /// - **Velocity** from the pick's level (the loudest millisecond 3-12 ms after it, or its attack
 ///   for a note from silence): kVelocitySpanDb of picking strength up to the top of the scale map
 ///   to 1..127 through the curve, then blend towards kFixedVelocity as the dynamics fall. The top
-///   sits kVelocityHeadroomDb over the player's loud picks (the second loudest of the latest
-///   kVelocityPicks, the loudest while there are fewer than four), so the same playing gets the
-///   same velocities at any input level; before the first pick it is kVelocityTopDb, where a
-///   guitar at a usual recording level puts it. A legato note takes its velocity from the
-///   level.
+///   sits kPlayingHeadroomDb over the player's level (over the note's own level for the first
+///   note), so the same playing gets the same velocities at any input level (88 at the player's
+///   level with the default settings), and as the player's level moves slowly, the dynamics of a
+///   phrase stay in them. A legato note takes its velocity from the level.
 /// - **Timing.** Fastest sends each event at the sample it was decided on. Steady sends a picked
 ///   note's note-on kSteadyLagSeconds after its pick, and every other event that long after it
 ///   was decided, so all notes have the same latency and a recording can be moved earlier by one
@@ -212,12 +238,18 @@ public:
     static constexpr int kLockRiseMs = 30;
     static constexpr float kLockRiseDb = 3.0f;
     static constexpr float kPeriodicBreak = 0.7f;
-    static constexpr float kVelocityTopDb = -10.0f;
     static constexpr float kVelocitySpanDb = 40.0f;
-    static constexpr float kVelocityHeadroomDb = 10.0f;
-    static constexpr int kVelocityPicks = 32;
+    static constexpr float kPlayingHeadroomDb = 13.5f;
+    static constexpr int kPlayingNotes = 16;
     static constexpr float kDecayOffDb = 40.0f;
     static constexpr int kFixedVelocity = 100;
+    static constexpr float kAutoGateFloorDb = -100.0f;
+    static constexpr float kNoiseMarginDb = 20.0f;
+    static constexpr float kFirstNoteMarginDb = 30.0f;
+    static constexpr float kNoiseRiseDbPerSecond = 6.0f;
+    static constexpr double kWarmupSeconds = 0.05;
+    static constexpr double kTouchWaitSeconds = 0.06;
+    static constexpr float kTouchBelowDb = 10.0f;
 
     void prepare (double sampleRate);
     /// Forgets the signal and every pending event, without sending anything: call allNotesOff()
@@ -246,6 +278,13 @@ public:
     float pitch() const noexcept { return pitch_; }
     float levelDb() const noexcept { return levelDb_; }
     int lastVelocity() const noexcept { return lastVelocity_; }
+    /// The gate in effect (dB, the level's scale): the automatic one, or Settings::gateDb.
+    float gateLevelDb() const noexcept { return gateLevelDb_; }
+    /// The input's noise floor as the automatic gate tracks it (dB, the level's scale).
+    float noiseFloorDb() const noexcept { return noiseDb_; }
+    /// How hard this player picks on this input: the average attack (dB) of about the latest
+    /// kPlayingNotes picks, -120 before the first.
+    float playingLevelDb() const noexcept;
     /// Note-ons sent since prepare(), and how many of them Steady sent after its lag.
     std::uint32_t notesSent() const noexcept { return notesSent_; }
     std::uint32_t lateNotes() const noexcept { return lateNotes_; }
@@ -255,12 +294,15 @@ public:
     Why startWhy() const noexcept { return startWhy_; }
     Why endWhy() const noexcept { return endWhy_; }
     PickKind pickKind() const noexcept { return pickKind_; }
+    /// The tracker this converter reads (diagnostics).
+    const analysis::MonoTracker& tracker() const noexcept { return tracker_; }
 
     /// The velocity a pick of this level (linear RMS) gets with these settings, on a scale whose
-    /// top is `topDb` (by default where it sits before any pick: kVelocityTopDb).
-    static int velocityFor (float level, const Settings& s, float topDb = kVelocityTopDb) noexcept;
-    /// The top of the velocity scale now: kVelocityHeadroomDb over the player's loud picks.
-    float velocityTopDb() const noexcept;
+    /// top is `topDb`.
+    static int velocityFor (float level, const Settings& s, float topDb) noexcept;
+    /// The top of the velocity scale for a pick of this level (dB) now: kPlayingHeadroomDb over
+    /// the player's level, or over this pick when it is the first.
+    float velocityTopDb (float levelDb) const noexcept;
     /// Steady's lag in samples at this rate.
     static int steadyLagSamples (double sampleRate) noexcept;
 
@@ -305,7 +347,12 @@ private:
     float pickLevelDb() const noexcept;
     int velocityAt (float levelDb) const noexcept;
     void rememberPick (float levelDb) noexcept;
+    /// Once a millisecond: the noise floor, the gate in effect and the tracker's pick floor.
+    void updateGate (float msLevelDb) noexcept;
+    /// Under this, the input is silent for this player: the gate, or far under how they pick.
+    float quietDb() const noexcept;
     float attackLevelDb() const noexcept;
+    float attackBeforeDb() const noexcept;
     float ringAt (int ago) const noexcept
     {
         return ring_[static_cast<std::size_t> ((ringWrite_ - 1 - ago) & ringMask_)];
@@ -362,7 +409,7 @@ private:
     float leastPeriodicity_ = 1.0f; ///< the lowest periodicity since the latest pick
     int steadySamples_ = 480, breakWindowSamples_ = 960, refractorySamples_ = 1200;
     int weakRefractorySamples_ = 2880, weakCheckSamples_ = 576, lockPickGapSamples_ = 2400;
-    int correctionConfirmSamples_ = 384;
+    int correctionConfirmSamples_ = 384, touchWaitSamples_ = 1440;
 
     // Clock and timing constants (samples).
     std::int64_t now_ = 0;
@@ -398,10 +445,14 @@ private:
     float noteLevelDb_ = -120.0f; ///< the sounding note's attack: the loudest it has been
     int candidate_ = -1, candidateSamples_ = 0;
     int lastVelocity_ = 0;
-    /// The levels of the latest kVelocityPicks picks that started notes (or were too soft to),
-    /// kept across reset(): they say how this player picks on this input.
-    std::array<float, kVelocityPicks> pickLevels_ {};
-    int pickLevelCount_ = 0, pickLevelPos_ = 0;
+    /// The average attack of the latest picks that started notes (or were too soft to), over
+    /// about kPlayingNotes of them, kept across reset() and prepare(): how this player picks on
+    /// this input.
+    float playingDb_ = -120.0f;
+    int playingCount_ = 0;
+    // The gate.
+    float noiseDb_ = kAutoGateFloorDb, gateLevelDb_ = kAutoGateFloorDb, noiseRisePerMs_ = 0.006f;
+    std::int64_t warmupSamples_ = 2400;
     std::int64_t noteDue_ = 0;   ///< when the sounding note's note-on goes out
     std::int64_t noteStart_ = 0; ///< the sounding note's pick (or legato move)
 

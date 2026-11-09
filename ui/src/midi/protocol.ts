@@ -42,6 +42,8 @@ export interface MidiHello {
 export interface MidiTelemetry {
   /** The input's level in the tracker's band, the scale the gate uses (dBFS). */
   levelDb: number;
+  /** The gate in effect on the same scale: the automatic one, or the Gate parameter in Manual. */
+  gateDb: number;
   /** The note being played (after the octave), -1 when none. */
   note: number;
   /** The tracked pitch as a fractional MIDI note, 0 when none. */

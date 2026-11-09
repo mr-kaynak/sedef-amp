@@ -25,13 +25,13 @@ not in the installers yet.
 
 | Control | What it does |
 |---|---|
-| **Input meter and Gate** | The meter shows your guitar's level. The gate starts low enough for a quiet interface; drag its handle up only if hum or noise lights the **Signal** ring while you're silent: picks under it never start a note. The ring over the meter fills and lights while you're above it. |
+| **Input meter and Gate** | The meter shows your guitar's level, and the gate on the same scale: a pluck or pick under the gate never starts a note. **Auto** (default): the gate follows your input's own noise, so it needs no setting at any input level; the dashed line shows where it is. **Manual**: drag the handle to set it yourself. The **Signal** ring over the meter fills and lights while you're above the gate. |
 | **Note** | The note being sent, large enough to read from the guitar, with how far your pitch is from it (±50 cents). The last note stays, unlit, after it ends. |
 | **Octave** | −2, −1 (default), 0 or +1. A bass sounds an octave under a guitar, so −1 puts a guitar line in a bass's register. |
 | **Mode** | *Notes* (default) sends notes only. *Notes + Bend* also sends vibrato and slight bends as pitch bend. |
 | **Bend range** | In Notes + Bend: must match the bend range set in your instrument (2 semitones in most). |
-| **Timing** | *Fastest* (default) sends each note as soon as it is sure: low strings take longer. *Steady* sends every note 38 ms after its pick, so one track delay of −38 ms puts every recorded note on its pick. |
-| **Velocity: Sensitivity, Curve** | How much your picking strength sets the velocity (0 %: every note at 100). The scale follows how you pick on your input, so the same playing gets the same velocities whether your interface is set high or low. *Soft*: a light pick already plays loud; *Hard*: loud notes need a hard pick. |
+| **Timing** | *Fastest* (default) sends each note as soon as it is sure: low strings take longer. *Steady* sends every note 38 ms after you pluck or pick it, so one track delay of −38 ms puts every recorded note where you played it. |
+| **Velocity: Sensitivity, Curve** | How much the strength of each pluck or pick sets the velocity (0 %: every note at 100). The scale follows how hard you play on your input, about your last 16 notes, so the same playing gets the same velocities whether your interface is set high or low, and the dynamics of a phrase come through. *Soft*: a light touch already plays loud; *Hard*: loud notes need a hard one. |
 | **Channel** | The MIDI channel, 1-16. |
 | **Guitar audio / Side chain** | *Through* lets the guitar's sound pass; *Mute* silences it. The standalone app and the instrument start muted: they are there for the notes. |
 | **Send to / Also send to** | The standalone app: its own port, or a MIDI output. The plug-ins: the host only (default), their own virtual port, or a MIDI output such as an IAC bus. |
@@ -105,27 +105,33 @@ host at their exact sample.
 - **Play higher with −2.** A bass line played higher on the neck with the octave at −2 is recognised
   faster than the same line on the low strings with −1 (see the latency table).
 - **Any input level works.** Sedef MIDI works the same with your interface's peaks anywhere from
-  about −30 to −6 dBFS: the gate's default sits under the softest notes of a quiet input, and
-  velocity and note-offs follow your own playing, not the input's level. A very first note
-  played before any other can come out softer than the rest.
-- **Raise the gate only for hum or noise.** If the **Signal** ring lights while you're silent
-  (single-coil hum, a noisy cable), drag the gate just above it. Too high and soft notes go
+  about −40 to −6 dBFS, with every setting at its default: the gate follows your input's own
+  noise, and velocity and note-offs follow your own playing, not the input's level. You don't
+  need to change your interface's gain.
+- **Fingers or a pick.** Nothing in Sedef MIDI waits for a pick's click. A finger touching the
+  string just before it plucks it is not a note, and the note is timed from the pluck. Moving the
+  fretting hand to the next note before you play it doesn't start a note on a string that has
+  died down; a move while the string is still loud can give a short one.
+- **The very first note.** Until you have played a note, Sedef MIDI can't tell a finger's touch
+  from a soft pluck, so the first note after it starts comes about 60 ms after you play it. Every
+  note after that, after a rest or not, comes as quickly as the table below says.
+- **Manual gate only for noise that comes and goes.** Auto ignores steady hum and hiss. If the
+  **Signal** ring still lights while you're silent (a crackling cable, a buzz that starts and
+  stops), switch the gate to Manual and drag it just above that. Too high and soft notes go
   missing.
-- **Fingerstyle is fine.** Moving the fretting hand to the next note before you pluck it doesn't
-  start a note on a string that has died down; a move while the string is still loud can give a
-  short one.
-- **Steady for recording.** Record in Steady with a −38 ms track delay and every note sits on its
-  pick. A note picked softly over a string still ringing can land a little late, and a pick right
-  after a mute a little early; damping the previous string keeps them on the pick. For playing
+- **Steady for recording.** Record in Steady with a −38 ms track delay and every note sits where
+  you played it. A note played softly over a string still ringing can land a little late, and one
+  right after a mute (or a finger touching the still ringing string) a little early; damping the
+  previous string a moment sooner keeps them in place. For playing
   live, Fastest feels quicker.
-- **Velocity.** Your loudest picks of the last few dozen notes set the top of the scale. Keep the
-  sensitivity high if you play with dynamics; lower it, or set the curve to Soft, if quiet notes
-  come out too soft. A long passage played much softer than the rest slowly comes up to a
-  usual velocity.
+- **Velocity.** A note as strong as your recent average gets about 88 at the default settings;
+  softer and harder ones spread around it. Keep the sensitivity high if you play with dynamics;
+  lower it, or set the curve to Soft, if quiet notes come out too soft. A long passage played much
+  softer than the rest slowly comes up to a usual velocity.
 
 ## How fast is it
 
-From the pick to the note, at 48 kHz, plus your audio buffer (for example 5.3 ms at 256 samples):
+From the pluck or pick to the note, at 48 kHz, plus your audio buffer (for example 5.3 ms at 256 samples):
 
 | String | E2 | A2 | D3 | G3 and up |
 |---|---:|---:|---:|---:|

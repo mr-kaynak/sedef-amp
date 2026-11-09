@@ -26,6 +26,8 @@ constexpr float kAgreeClarity = 0.8f;
 constexpr double kAgreeSeconds = 0.002;
 // A pick that rises this much over the level before it dominates whatever still rings.
 constexpr float kDominantPickDb = 6.0f;
+// The tracker's detector hears picks down to this far under the gate.
+constexpr float kPickUnderGateDb = 6.0f;
 
 int samples (double seconds, double fs) noexcept
 {
@@ -99,36 +101,52 @@ int GuitarToMidi::velocityFor (float level, const Settings& s, float topDb) noex
 
 int GuitarToMidi::velocityAt (float levelDb) const noexcept
 {
-    return velocityFor (std::pow (10.0f, levelDb / 20.0f), settings_, velocityTopDb());
+    return velocityFor (std::pow (10.0f, levelDb / 20.0f), settings_, velocityTopDb (levelDb));
 }
 
 void GuitarToMidi::rememberPick (float levelDb) noexcept
 {
-    pickLevels_[static_cast<std::size_t> (pickLevelPos_)] = levelDb;
-    pickLevelPos_ = (pickLevelPos_ + 1) % kVelocityPicks;
-    pickLevelCount_ = std::min (pickLevelCount_ + 1, kVelocityPicks);
+    // An average in dB over about the latest kPlayingNotes picks: every pick weighs the same
+    // until there are that many, then each new one weighs 1/kPlayingNotes. It moves slowly, so
+    // the dynamics of a phrase stay in it.
+    playingCount_ = std::min (playingCount_ + 1, kPlayingNotes);
+    playingDb_ += (levelDb - playingDb_) / static_cast<float> (playingCount_);
 }
 
-float GuitarToMidi::velocityTopDb() const noexcept
+float GuitarToMidi::playingLevelDb() const noexcept
 {
-    // How hard this player picks on this input: the loudest of the latest picks, or the second
-    // loudest once there are a few (one accidental hit does not set the scale). Before any pick,
-    // the scale is where a guitar at a usual recording level puts it.
-    if (pickLevelCount_ == 0)
-        return kVelocityTopDb;
-    float first = kFloorDb, second = kFloorDb;
-    for (int k = 0; k < pickLevelCount_; ++k)
-    {
-        const float v = pickLevels_[static_cast<std::size_t> (k)];
-        if (v > first)
-        {
-            second = first;
-            first = v;
-        }
-        else if (v > second)
-            second = v;
-    }
-    return (pickLevelCount_ >= 4 ? second : first) + kVelocityHeadroomDb;
+    return playingCount_ > 0 ? playingDb_ : kFloorDb;
+}
+
+float GuitarToMidi::velocityTopDb (float levelDb) const noexcept
+{
+    // How hard this player picks on this input sets the scale: a pick at the player's level
+    // sits kPlayingHeadroomDb under its top. The first pick is the player's level.
+    return (playingCount_ > 0 ? playingDb_ : levelDb) + kPlayingHeadroomDb;
+}
+
+float GuitarToMidi::quietDb() const noexcept
+{
+    return std::max (gateLevelDb_, playingCount_ > 0 ? playingDb_ - kVelocitySpanDb : kFloorDb);
+}
+
+void GuitarToMidi::updateGate (float msLevelDb) noexcept
+{
+    // The noise floor: the quietest the input has been, rising slowly while no note sounds (the
+    // noise may grow). During the warm-up after reset() it is simply the level: the input was
+    // there before we listened, and the level rises from nothing at first.
+    if (now_ <= warmupSamples_ || msLevelDb < noiseDb_)
+        noiseDb_ = msLevelDb;
+    else if (note_ < 0)
+        noiseDb_ = std::min (msLevelDb, noiseDb_ + noiseRisePerMs_);
+    gateLevelDb_ = settings_.gateMode == GateMode::manual
+                       ? settings_.gateDb
+                       : std::max (kAutoGateFloorDb, noiseDb_ + kNoiseMarginDb);
+    // The tracker's detector hears picks down to just under the gate.
+    auto options = tracker_.options();
+    options.onsetFloor = std::pow (10.0f, (gateLevelDb_ - kPickUnderGateDb) / 10.0f);
+    options.clickFloor = 0.1f * options.onsetFloor;
+    tracker_.setOptions (options);
 }
 
 int GuitarToMidi::steadyLagSamples (double sampleRate) noexcept
@@ -140,6 +158,12 @@ void GuitarToMidi::prepare (double sampleRate)
 {
     sampleRate_ = sampleRate;
     tracker_.prepare (sampleRate);
+    // Fingers: a touch before the pluck, and the weak fundamental and pulse-like attack of a low
+    // string plucked near the bridge.
+    analysis::MonoTracker::Options trackerOptions;
+    trackerOptions.weakFundamentals = true;
+    trackerOptions.fingerPicks = true;
+    tracker_.setOptions (trackerOptions);
     hp_.c = design::highpass (sampleRate, kBandLowHz, 0.7071);
     lp_.c = design::lowpass (sampleRate, std::min (kBandHighHz, 0.4 * sampleRate), 0.7071);
     powerCoeff_ = static_cast<float> (1.0 - std::exp (-1.0 / (kLevelSeconds * sampleRate)));
@@ -189,15 +213,20 @@ void GuitarToMidi::prepare (double sampleRate)
     attackSkip_ = static_cast<int> (std::lround (kAttackSkipSeconds * rate_));
     steadySamples_ = samples (0.01, sampleRate);
     breakWindowSamples_ = samples (0.02, sampleRate);
+    warmupSamples_ = samples (kWarmupSeconds, sampleRate);
+    touchWaitSamples_ = samples (kTouchWaitSeconds, sampleRate);
+    noiseRisePerMs_ = kNoiseRiseDbPerSecond / 1000.0f;
     settings_ = next_;
     settingsChanged_ = false;
-    pickLevelCount_ = pickLevelPos_ = 0;
     reset();
 }
 
 void GuitarToMidi::reset() noexcept
 {
     tracker_.reset();
+    noiseDb_ = kAutoGateFloorDb;
+    gateLevelDb_ = settings_.gateMode == GateMode::manual ? settings_.gateDb
+                                                          : kAutoGateFloorDb + kNoiseMarginDb;
     hp_.s0 = hp_.s1 = lp_.s0 = lp_.s1 = 0.0f;
     clickHp_.s0 = clickHp_.s1 = 0.0f;
     clickPower_ = 0.0f;
@@ -261,8 +290,8 @@ void GuitarToMidi::setSettings (const Settings& s) noexcept
     const auto& from = settingsChanged_ ? next_ : settings_;
     if (clean.octave != from.octave || clean.mode != from.mode ||
         clean.bendRange != from.bendRange || clean.timing != from.timing ||
-        clean.channel != from.channel || clean.gateDb != from.gateDb ||
-        clean.dynamics != from.dynamics || clean.curve != from.curve)
+        clean.channel != from.channel || clean.gateMode != from.gateMode ||
+        clean.gateDb != from.gateDb || clean.dynamics != from.dynamics || clean.curve != from.curve)
     {
         next_ = clean;
         settingsChanged_ = true;
@@ -344,6 +373,7 @@ void GuitarToMidi::process (const float* in, int numFrames, EventList& out) noex
             // (the finger touching the string first) has not reached it yet.
             if (note_ >= 0)
                 noteLevelDb_ = std::max (noteLevelDb_, msMax_);
+            updateGate (msMax_);
             msCount_ = 0;
             msMax_ = kFloorDb;
         }
@@ -361,9 +391,9 @@ void GuitarToMidi::process (const float* in, int numFrames, EventList& out) noex
         // missed (a soft pick under what still rang): it came about one settling time earlier.
         // So is the tracker changing its reading with the level risen from under the gate: it
         // can hold a reading through a short silence.
-        const bool fromSilence = ev == analysis::MonoTracker::Event::noteOn ||
-                                 (ev == analysis::MonoTracker::Event::noteChange &&
-                                  levelAgo (kLockRiseMs) < settings_.gateDb);
+        const bool fromSilence =
+            ev == analysis::MonoTracker::Event::noteOn ||
+            (ev == analysis::MonoTracker::Event::noteChange && levelAgo (kLockRiseMs) < quietDb());
         if (fromSilence && now_ - lastPickAt_ > lockPickGapSamples_ &&
             levelDb_ >= levelAgo (kLockRiseMs) + kLockRiseDb)
         {
@@ -396,6 +426,9 @@ void GuitarToMidi::process (const float* in, int numFrames, EventList& out) noex
 
 void GuitarToMidi::registerPick (std::int64_t at, PickKind kind) noexcept
 {
+    // Right after reset() a rise is only the input starting to be heard.
+    if (now_ <= warmupSamples_)
+        return;
     const bool weak = kind == PickKind::weak;
     // The tracker's detector and the periodicity watch can both see one pick: the first counts.
     // A break of periodicity alone (weak) also follows the end of whatever the pick replaced,
@@ -403,10 +436,15 @@ void GuitarToMidi::registerPick (std::int64_t at, PickKind kind) noexcept
     // A pick the detector (or a lock) sees while a break of periodicity still waits for its level
     // check replaces it: the break was the previous note's end, a mute just before this pick.
     const bool replacesWeak = pickWeak_ && !weak;
+    // From silence, a pick that started no note (it waits, or was too soft) may have been a
+    // finger touching the string: a pick the detector sees soon after it (it hears one that soon
+    // only when it is much louder) is the pluck.
+    const bool replacesTouch = kind == PickKind::detector && note_ < 0;
     if (lastPickAt_ > 0 &&
-        at - lastPickAt_ < (weak ? weakRefractorySamples_ : refractorySamples_) && !replacesWeak)
+        at - lastPickAt_ < (weak ? weakRefractorySamples_ : refractorySamples_) && !replacesWeak &&
+        !replacesTouch)
         return;
-    if (!replacesWeak)
+    if (!replacesWeak && !replacesTouch)
         previousPickAt_ = lastPickAt_;
     lastPickAt_ = at;
     pickKind_ = kind;
@@ -485,7 +523,7 @@ void GuitarToMidi::watchPeriodicity() noexcept
     }
     const bool steady = periodicSince_ > 0 && periodicAt_ - periodicSince_ >= steadySamples_;
     if (periodicity_ < kPeriodicBreak && steady && now_ - periodicAt_ < breakWindowSamples_ &&
-        levelDb_ >= settings_.gateDb)
+        levelDb_ >= gateLevelDb_)
         registerPick (periodicAt_, PickKind::weak);
     if (periodicity_ < kPeriodicBreak)
         periodicSince_ = 0;
@@ -554,7 +592,7 @@ void GuitarToMidi::refinePick() noexcept
         base += clickRing_[static_cast<std::size_t> (k & clickMask_)];
     if (count <= 0)
         return;
-    const auto threshold = static_cast<float> (std::max (8.0 * base / count, 1.0e-10));
+    const auto threshold = static_cast<float> (std::max (8.0 * base / count, 1.0e-20));
     const std::int64_t to = std::min (now_, pickAt_ + refineSamples_);
     for (std::int64_t k = from; k <= to; ++k)
         if (clickRing_[static_cast<std::size_t> (k & clickMask_)] > threshold)
@@ -589,6 +627,17 @@ float GuitarToMidi::attackLevelDb() const noexcept
     for (int k = 0; k <= ago - 3; ++k)
         peak = std::max (peak, levelAgo (k));
     return std::max (peak, pickLevelDb());
+}
+
+float GuitarToMidi::attackBeforeDb() const noexcept
+{
+    // The loudest millisecond from 3 ms after the pick until the one before this.
+    const int ago = static_cast<int> (
+        std::min<std::int64_t> ((now_ - pickAt_) / std::max (1, msSamples_), kHistoryMs - 1));
+    float peak = kFloorDb;
+    for (int k = 0; k <= ago - 3; ++k)
+        peak = std::max (peak, levelAgo (k));
+    return ago < 3 ? levelDb_ : peak;
 }
 
 float GuitarToMidi::levelAgo (int ms) const noexcept
@@ -799,7 +848,7 @@ std::int64_t GuitarToMidi::clickNear (std::int64_t from, std::int64_t to) const 
     for (std::int64_t k = from - baseSpan; k < from; ++k)
         base += clickRing_[static_cast<std::size_t> (k & clickMask_)];
     const auto threshold =
-        static_cast<float> (std::max (8.0 * base / static_cast<double> (baseSpan), 1.0e-10));
+        static_cast<float> (std::max (8.0 * base / static_cast<double> (baseSpan), 1.0e-20));
     for (std::int64_t k = from; k <= std::min (now_, to); ++k)
         if (clickRing_[static_cast<std::size_t> (k & clickMask_)] > threshold)
             return std::max (from, k - clickDelaySamples_);
@@ -893,7 +942,7 @@ void GuitarToMidi::decide() noexcept
         // its partials), the break was the mute and the string only rang on under it.
         const bool sympathy = pickWeakSource_ && prevNote_ >= 0 && q >= 0 &&
                               levelDb_ < preLevelDb_ - kWeakPickDropDb && partialOf (q, prevNote_);
-        if (!voiced || !recentPick || pickChecking_ || levelDb_ < settings_.gateDb || muted() ||
+        if (!voiced || !recentPick || pickChecking_ || levelDb_ < gateLevelDb_ || muted() ||
             sympathy || !pitchSettled())
         {
             candidate_ = -1;
@@ -903,19 +952,38 @@ void GuitarToMidi::decide() noexcept
         candidate_ = q;
         if (candidateSamples_ < confirmSamples_ || !pickedNoteReady (heard))
             return;
-        // Once there is a pick to go by, a pick far under how this player picks (under the
-        // bottom of the velocity scale) is not a note: a finger touching a string, the hand on
-        // the guitar. It still counts towards how this player picks, so a passage played that
-        // much softer comes through after a while. Before the first pick only the gate stands:
-        // nothing says how loud this input is yet.
+        // Before the first note nothing says how loud this player is: a note must stand
+        // kFirstNoteMarginDb out of the input's noise (the hand on the guitar, a string ringing
+        // in sympathy, stay under it).
         const float level = attackLevelDb();
-        if (pickLevelCount_ > 0 && level < velocityTopDb() - kVelocitySpanDb)
+        if (playingCount_ == 0 && settings_.gateMode == GateMode::automatic &&
+            level < noiseDb_ + kFirstNoteMarginDb)
+        {
+            pickFresh_ = false;
+            candidate_ = -1;
+            return;
+        }
+        // After it, a pick far under how this player picks (under the bottom of the velocity
+        // scale) is not a note: a brush of the hand, a string ringing in sympathy. It still
+        // counts towards how this player picks, so a passage played that much softer comes
+        // through after a while.
+        if (playingCount_ > 0 && level < velocityTopDb (level) - kVelocitySpanDb)
         {
             rememberPick (level);
             pickFresh_ = false;
             candidate_ = -1;
             return;
         }
+        // A finger touching the string before it plucks it is a pick too, 10-60 ms ahead of the
+        // pluck and 15-30 dB under it. From silence, a pick kTouchBelowDb under how this player
+        // picks, or the first one (nothing says yet how they pick), waits until kTouchWaitSeconds
+        // after it: a louder pick by then replaces it. And a louder attack starting right now is
+        // a pick about to be seen: no note starts in the middle of it.
+        if ((playingCount_ == 0 || level < playingDb_ - kTouchBelowDb) &&
+            now_ - pickAt_ < touchWaitSamples_)
+            return;
+        if (levelDb_ > attackBeforeDb() + kDominantPickDb)
+            return;
         startNote (q, velocityAt (level), pickAt_, Why::pick);
         pickFresh_ = false;
         candidate_ = -1;
@@ -925,7 +993,7 @@ void GuitarToMidi::decide() noexcept
     // A sounding note ends when the tracker hears nothing, the level falls under the gate or
     // kDecayOffDb under the note's attack (it is no longer heard, however loud the input), or it
     // drops faster than any string decays (a mute).
-    const bool underGate = levelDb_ < settings_.gateDb - kOffHysteresisDb;
+    const bool underGate = levelDb_ < gateLevelDb_ - kOffHysteresisDb;
     const bool decayed = levelDb_ < noteLevelDb_ - kDecayOffDb;
     if (!voiced || underGate || decayed || muted())
     {

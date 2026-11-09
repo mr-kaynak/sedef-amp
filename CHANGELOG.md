@@ -57,8 +57,12 @@ All notable changes to this project are documented here. The format follows
   instrument AU that takes the guitar through Logic's side chain. Octave −2 to +1, Notes or
   Notes + Bend, Fastest or Steady timing, velocity sensitivity and curve, MIDI channel, Panic; no
   stuck notes on stop, bypass, port change or quit. Works the same with the interface set low or
-  high (peaks from about −30 to −6 dBFS): velocity follows how you pick on your input. Its own parameter list, separate from Sedef
-  Amp's. Not in the installers yet: CI builds a macOS test build
+  high (peaks from about −40 to −6 dBFS) with every setting at its default: the gate follows the
+  input's own noise (Auto; Manual sets it by hand), and velocity follows how hard you play on
+  your input, about your last 16 notes. Made for fingers as much as for a pick: nothing waits for
+  a pick's click, a finger touching the string before it plucks it is not a note, and a note
+  after a rest comes as quickly as any other. Its own parameter list, separate from Sedef Amp's.
+  Not in the installers yet: CI builds a macOS test build
   ([docs/midi.md](docs/midi.md), [design](docs/design/guitar-to-midi.md)).
 
 ### Changed

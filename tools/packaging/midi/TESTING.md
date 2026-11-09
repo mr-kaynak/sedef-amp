@@ -42,15 +42,18 @@ paste the path.
 ## Before you play
 
 - **Level.** Play at your interface's usual setting; you don't need to change its gain. Sedef MIDI
-  works the same with peaks anywhere from about −30 to −6 dBFS.
-- **Gate.** Check that the **Signal** ring over the input meter fills when you play and empties
-  when you're silent. If it stays lit while you're silent (hum, noise), drag the gate handle just
-  above that. Picks only start notes above the gate.
+  works the same with peaks anywhere from about −40 to −6 dBFS.
+- **Fingers or a pick.** Play the way you always do: Sedef MIDI doesn't need a pick's click, and a
+  finger touching the string just before it plucks it is not a note.
+- **Gate.** Leave it on **Auto** (the default): it follows your input's own noise. Check that the
+  **Signal** ring over the input meter fills when you play and empties when you're silent. If it
+  stays lit while you're silent, switch the gate to **Manual** and drag its handle just above
+  that. Notes only start above the gate.
 - **Octave.** −1 by default (a bass sounds an octave under a guitar). For a bass part, playing
   higher on the neck with −2 often tracks faster and cleaner than playing on the low strings with −1.
 - **Timing.** *Fastest* sends each note as soon as it is sure (the low E takes longest). *Steady*
-  sends every note 38 ms after its pick, so you can set the track delay to −38 ms and every note
-  lands on its pick.
+  sends every note 38 ms after you pluck or pick it, so you can set the track delay to −38 ms and
+  every note lands where you played it.
 - **Panic** ends every note on all 16 channels if anything hangs.
 
 ## Checklist
@@ -103,7 +106,7 @@ to **Steady**, set the instrument track's **Track Delay** to −38 ms (inspector
 and look at where the notes land. Then play your own bass lines.
 *Send back:* how the delay feels on low E and A in each mode, where recorded notes land against
 the beat in Steady, and any wrong, missing or extra notes (which notes, which strings, how you
-played them: picked, legato, muted, with open strings ringing). A short recording of the DI with
+played them: plucked with a finger or picked, legato, muted, with open strings ringing). A short recording of the DI with
 the MIDI it produced helps us most.
 
 ## Known limits
@@ -111,10 +114,10 @@ the MIDI it produced helps us most.
 - Monophonic: one note at a time. A string left ringing under a clearly louder new note is
   usually fine; chords, or two strings ringing at a similar level, give short wrong notes between
   the right ones. Damp the strings you're not playing.
-- In **Steady**, a note picked softly over a string still ringing can land a little late, and a
-  pick right after a mute a little early. Plucked with a finger, a note can land up to 25 ms
-  early: the finger touching the string is taken as the pick.
-- The first note after a rest can come up to 160 ms late, or start, stop and start again, when
-  the finger's touch is heard before the note.
-- Delay from the pick to the note is about 28 ms on the low E, 22 ms on the A, 17 ms on the D and
-  16 ms from the G string up, plus your audio buffer.
+- In **Steady**, a note played softly over a string still ringing can land a little late. A note
+  whose string you damp, or touch with the plucking finger while it still rings, just before you
+  play it can land up to about 15 ms early.
+- The very first note after Sedef MIDI starts comes about 60 ms after you play it: until then it
+  can't tell a finger's touch from a soft pluck. Notes after a rest come as quickly as any other.
+- Delay from the pluck or pick to the note is about 28 ms on the low E, 22 ms on the A, 17 ms on
+  the D and 16 ms from the G string up, plus your audio buffer.

@@ -132,6 +132,15 @@
   font-stretch: var(--legend-stretch);
 }
 
+/* Auto: the gate moves by itself, so the line is dashed and does not take the pointer. */
+.track[aria-disabled='true'] {
+  cursor: default;
+}
+
+.track[aria-disabled='true'] .handle {
+  border-top-style: dashed;
+}
+
 .track:focus-visible .handle,
 .track[data-active] .handle {
   border-top-color: var(--nacre-aqua);

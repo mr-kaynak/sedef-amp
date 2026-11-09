@@ -59,6 +59,20 @@ std::vector<float> oneNote (double hz, Pickup pickup, float peak, std::uint32_t 
     return x;
 }
 
+/// The same note twice, picked at 0.1 s and at 1.1 s: the second is played once the converter has
+/// heard how this player picks (the first note of all waits kTouchWaitSeconds for a louder pick).
+std::vector<float> secondNote (double hz, Pickup pickup, float peak, std::uint32_t seed)
+{
+    std::vector<float> x (static_cast<std::size_t> (1.7 * kFs), 0.0f);
+    auto first = pluckFor (pickup, hz, peak, seed + 100u);
+    first.muteAt = 0.6;
+    test::addPluck (x, kFs, static_cast<std::size_t> (0.1 * kFs), first);
+    test::addPluck (x, kFs, static_cast<std::size_t> (1.1 * kFs),
+                    pluckFor (pickup, hz, peak, seed));
+    test::addNoise (x, -80.0f, seed);
+    return x;
+}
+
 /// Every note-on has its note-off, on the same channel, and none is ended twice.
 bool balanced (const Run& run)
 {
@@ -194,26 +208,38 @@ Scenario atPeak (Scenario sc, double peakDb)
 }
 } // namespace
 
-TEST_CASE ("Guitar to MIDI works out of the box on a quiet input", "[midi][accuracy][quiet]")
+namespace
 {
-    // An interface set low: every scenario with its peak at -30 dBFS, its noise as far under it
-    // as before, and every setting at its default. The same bars as at a usual level: the gate's
-    // default lets the softest picks through, nothing under the player's level starts a note,
-    // and no threshold depends on how loud the input is.
-    constexpr double kQuietPeakDb = -30.0;
-    auto settings = plain();
+/// Strummed chords, which the converter cannot play, must not unsettle it: one note at a time,
+/// nothing outside a chord, at most kMaxPerChord notes in one, every note ended.
+struct ChordRun
+{
+    int chords = 0, notes = 0, outside = 0, mostInOne = 0, maxSounding = 0;
+    bool balanced = true;
+};
+
+ChordRun playChords (double peakDb, midi::Timing timing, bool atLevel);
+
+/// Every set of the suite with its peak at `peakDb` dBFS (its noise too, as an interface's gain
+/// would) and every setting at its default but the octave: the bars of the sets at their own
+/// level hold at every level.
+void levelSuite (double peakDb)
+{
+    INFO ("peak " << peakDb << " dBFS");
+    char name[64];
     {
         Score total;
         for (auto pickup : { Pickup::bridge, Pickup::neck, Pickup::piezo })
             for (std::uint32_t seed = 1; seed <= 6; ++seed)
             {
-                const auto sc = atPeak (bassLine (seed, pickup, 120.0 + 4.0 * seed, kFs, 48, false),
-                                        kQuietPeakDb);
-                const auto run = convert (sc.signal, kFs, settings);
+                const auto sc =
+                    atPeak (bassLine (seed, pickup, 120.0 + 4.0 * seed, kFs, 48, false), peakDb);
+                const auto run = convert (sc.signal, kFs, plain());
                 addInto (total, score (run, sc, 0));
                 CHECK (balanced (run));
             }
-        report ("bass lines, quiet input", total);
+        std::snprintf (name, sizeof name, "bass lines, %.0f dBFS", peakDb);
+        report (name, total);
         CHECK (total.correctShare() >= 0.99);
         CHECK (total.extraPer100() <= 1.0);
         CHECK (total.octaveErrors == 0);
@@ -221,6 +247,7 @@ TEST_CASE ("Guitar to MIDI works out of the box on a quiet input", "[midi][accur
     for (const auto timing : { midi::Timing::fastest, midi::Timing::steady })
     {
         const bool steady = timing == midi::Timing::steady;
+        auto settings = plain();
         settings.timing = timing;
         Score sloppy, fretted;
         int sloppyShorts = 0, frettedShorts = 0;
@@ -229,7 +256,7 @@ TEST_CASE ("Guitar to MIDI works out of the box on a quiet input", "[midi][accur
             for (std::uint32_t seed = 1; seed <= 6; ++seed)
             {
                 const auto sc =
-                    atPeak (sloppyLine (seed, pickup, 110.0 + 5.0 * seed, kFs, 48), kQuietPeakDb);
+                    atPeak (sloppyLine (seed, pickup, 110.0 + 5.0 * seed, kFs, 48), peakDb);
                 const auto run = convert (sc.signal, kFs, settings);
                 addInto (sloppy, score (run, sc, 0, steady ? 0.12 : 0.08, false));
                 sloppyShorts += shortNotes (run);
@@ -238,7 +265,7 @@ TEST_CASE ("Guitar to MIDI works out of the box on a quiet input", "[midi][accur
             }
             for (std::uint32_t seed = 1; seed <= 4; ++seed)
             {
-                const auto sc = atPeak (fretThenPick (seed, pickup, kFs), kQuietPeakDb);
+                const auto sc = atPeak (fretThenPick (seed, pickup, kFs), peakDb);
                 const auto run = convert (sc.signal, kFs, settings);
                 addInto (fretted, score (run, sc, 0, steady ? 0.12 : 0.08, false));
                 frettedShorts += shortNotes (run);
@@ -246,8 +273,11 @@ TEST_CASE ("Guitar to MIDI works out of the box on a quiet input", "[midi][accur
                 CHECK (run.maxSounding <= 1);
             }
         }
-        report (steady ? "sloppy, quiet (Steady)" : "sloppy, quiet input", sloppy);
-        report (steady ? "fretted first, quiet (Steady)" : "fretted first, quiet input", fretted);
+        std::snprintf (name, sizeof name, "sloppy, %.0f dBFS%s", peakDb, steady ? " (Steady)" : "");
+        report (name, sloppy);
+        std::snprintf (name, sizeof name, "fretted first, %.0f dBFS%s", peakDb,
+                       steady ? " (Steady)" : "");
+        report (name, fretted);
         CHECK (sloppy.correctShare() >= (steady ? 0.975 : 0.985));
         CHECK (sloppy.extraPer100() <= (steady ? 2.0 : 2.5));
         CHECK (sloppy.octaveErrors == 0);
@@ -256,45 +286,256 @@ TEST_CASE ("Guitar to MIDI works out of the box on a quiet input", "[midi][accur
         CHECK (fretted.extraPer100() <= 2.0);
         CHECK (fretted.octaveErrors == 0);
         CHECK (100.0 * frettedShorts / fretted.expected <= 2.0);
+
+        const auto chords = playChords (peakDb, timing, true);
+        std::printf ("%-28s %4d chords, %d notes, at most %d in one, %d outside a chord\n",
+                     steady ? "strummed chords (Steady)" : "strummed chords", chords.chords,
+                     chords.notes, chords.mostInOne, chords.outside);
+        CHECK (chords.maxSounding <= 1);
+        CHECK (chords.balanced);
+        CHECK (chords.outside == 0);
+        CHECK (chords.mostInOne <= 4);
+    }
+    {
+        Score palm, slurred;
+        for (double hz : { kE2, kA2 })
+            for (int perBeat : { 2, 4 })
+                for (double bpm : { 120.0, 140.0 })
+                    for (auto pickup : { Pickup::bridge, Pickup::piezo })
+                    {
+                        const auto sc =
+                            atPeak (palmMutedRun (hz, bpm, perBeat, kFs, 16, pickup), peakDb);
+                        addInto (palm, score (convert (sc.signal, kFs, plain()), sc, 0));
+                    }
+        for (double hz : { kA2, kD3, kE3 })
+            for (double cents : { 200.0, -200.0, 100.0 })
+            {
+                const auto sc = atPeak (legato (hz, cents, 4, 0.15, kFs), peakDb);
+                addInto (slurred, score (convert (sc.signal, kFs, plain()), sc, 0));
+            }
+        std::snprintf (name, sizeof name, "palm mutes, %.0f dBFS", peakDb);
+        report (name, palm);
+        std::snprintf (name, sizeof name, "legato, %.0f dBFS", peakDb);
+        report (name, slurred);
+        for (const auto* t : { &palm, &slurred })
+        {
+            CHECK (t->correctShare() >= 0.99);
+            CHECK (t->extraPer100() <= 1.0);
+            CHECK (t->octaveErrors == 0);
+        }
+        CHECK (palm.lateOff == 0);
     }
 }
 
-TEST_CASE ("Guitar to MIDI velocity is the same at any input level", "[midi][velocity][quiet]")
+ChordRun playChords (double peakDb, midi::Timing timing, bool atLevel)
 {
-    // The velocity scale follows how this player picks on this input (kVelocityHeadroomDb over
-    // the loud picks of the latest kVelocityPicks), so the same playing gets the same velocities
-    // at -30 dBFS peaks as at a usual level, over the same useful range. Only the first note,
-    // before any pick says how loud the input is, uses the scale's default place.
-    int matched = 0, same = 0;
-    std::vector<double> quietVelocities;
+    ChordRun r;
+    auto settings = plain();
+    settings.timing = timing;
     for (auto pickup : { Pickup::bridge, Pickup::neck, Pickup::piezo })
-        for (std::uint32_t seed = 1; seed <= 6; ++seed)
+        for (std::uint32_t seed = 1; seed <= 4; ++seed)
         {
-            const auto sc = bassLine (seed, pickup, 120.0 + 4.0 * seed, kFs, 48, false);
-            const auto loud = convert (sc.signal, kFs, plain());
-            const auto quiet = convert (atPeak (sc, -30.0).signal, kFs, plain());
-            for (std::size_t k = 1; k < quiet.notes.size(); ++k)
+            auto sc = strummedChords (seed, pickup, kFs);
+            if (atLevel)
+                sc = atPeak (sc, peakDb);
+            const auto run = convert (sc.signal, kFs, settings);
+            r.maxSounding = std::max (r.maxSounding, run.maxSounding);
+            r.balanced = r.balanced && balanced (run);
+            for (const auto& n : run.notes)
             {
-                const auto& q = quiet.notes[k];
-                quietVelocities.push_back (q.velocity);
-                for (const auto& l : loud.notes)
-                    if (l.pitch == q.pitch && std::abs (l.on - q.on) < 0.005)
-                    {
-                        ++matched;
-                        same += std::abs (l.velocity - q.velocity) <= 4 ? 1 : 0;
-                        break;
-                    }
+                ++r.notes;
+                bool in = false;
+                for (const auto& c : sc.notes)
+                    in = in || (n.on >= c.start - 0.002 && n.on <= c.end + 0.05);
+                r.outside += in ? 0 : 1;
+            }
+            for (const auto& c : sc.notes)
+            {
+                ++r.chords;
+                int k = 0;
+                for (const auto& n : run.notes)
+                    k += n.on >= c.start - 0.002 && n.on <= c.end + 0.05 ? 1 : 0;
+                r.mostInOne = std::max (r.mostInOne, k);
             }
         }
-    std::printf ("velocity at -30 dBFS: %d of %d notes within 4 of the usual level's; p10 %.0f, "
-                 "median %.0f, p90 %.0f\n",
-                 same, matched, percentile (quietVelocities, 0.1),
-                 percentile (quietVelocities, 0.5), percentile (quietVelocities, 0.9));
-    REQUIRE (matched > 800);
+    return r;
+}
+} // namespace
+
+TEST_CASE ("Guitar to MIDI plays the same with peaks at -40 dBFS", "[midi][accuracy][level]")
+{
+    levelSuite (-40.0);
+}
+
+TEST_CASE ("Guitar to MIDI plays the same with peaks at -30 dBFS", "[midi][accuracy][level]")
+{
+    levelSuite (-30.0);
+}
+
+TEST_CASE ("Guitar to MIDI plays the same with peaks at -18 dBFS", "[midi][accuracy][level]")
+{
+    levelSuite (-18.0);
+}
+
+TEST_CASE ("Guitar to MIDI plays the same with peaks at -6 dBFS", "[midi][accuracy][level]")
+{
+    levelSuite (-6.0);
+}
+
+TEST_CASE ("Guitar to MIDI velocity is the same at any input level", "[midi][velocity][level]")
+{
+    // Velocity follows how this player picks on this input (a pick at their level, the average of
+    // about the last kPlayingNotes, gets 88 at the default settings), so the same playing gets the
+    // same velocities with peaks at -40, -30, -18 or -6 dBFS, the first note included, over a
+    // useful range around 88.
+    int matched = 0, same = 0;
+    for (double peakDb : { -40.0, -30.0, -18.0, -6.0 })
+    {
+        std::vector<double> velocities;
+        for (auto pickup : { Pickup::bridge, Pickup::neck, Pickup::piezo })
+            for (std::uint32_t seed = 1; seed <= 6; ++seed)
+            {
+                const auto sc = bassLine (seed, pickup, 120.0 + 4.0 * seed, kFs, 48, false);
+                const auto ref = convert (sc.signal, kFs, plain());
+                const auto at = convert (atPeak (sc, peakDb).signal, kFs, plain());
+                for (const auto& q : at.notes)
+                {
+                    velocities.push_back (q.velocity);
+                    for (const auto& l : ref.notes)
+                        if (l.pitch == q.pitch && std::abs (l.on - q.on) < 0.005)
+                        {
+                            ++matched;
+                            same += std::abs (l.velocity - q.velocity) <= 4 ? 1 : 0;
+                            break;
+                        }
+                }
+            }
+        std::printf ("velocity with peaks at %.0f dBFS: p10 %.0f, median %.0f, p90 %.0f\n", peakDb,
+                     percentile (velocities, 0.1), percentile (velocities, 0.5),
+                     percentile (velocities, 0.9));
+        CHECK (percentile (velocities, 0.5) >= 78.0);
+        CHECK (percentile (velocities, 0.5) <= 98.0);
+        CHECK (percentile (velocities, 0.9) - percentile (velocities, 0.1) >= 12.0);
+    }
+    std::printf ("velocity: %d of %d notes within 4 of the as-recorded level's\n", same, matched);
+    REQUIRE (matched > 3000);
     CHECK (same >= 0.95 * matched);
-    CHECK (percentile (quietVelocities, 0.5) >= 64.0);
-    CHECK (percentile (quietVelocities, 0.5) <= 104.0);
-    CHECK (percentile (quietVelocities, 0.9) - percentile (quietVelocities, 0.1) >= 12.0);
+}
+
+TEST_CASE ("Guitar to MIDI plays nothing from silence, hum or hiss", "[midi][gate]")
+{
+    // The automatic gate sits over the input's own noise floor: digital silence, mains hum and
+    // buzz at -70 dBFS, and hiss from -100 to -50 dBFS start no note, from the moment the
+    // converter starts listening; notes over a hum come through, and once they stop the hum
+    // alone starts nothing.
+    const auto n = static_cast<std::size_t> (4.0 * kFs);
+    std::vector<std::pair<std::string, std::vector<float>>> inputs;
+    inputs.push_back ({ "digital silence", std::vector<float> (n, 0.0f) });
+    for (double mains : { 50.0, 60.0 })
+    {
+        std::vector<float> hum (n, 0.0f);
+        test::addHum (hum, kFs, mains, -70.0f);
+        test::addNoise (hum, -100.0f, 3);
+        inputs.push_back ({ "hum " + std::to_string (static_cast<int> (mains)) + " Hz", hum });
+        // A buzz: the odd harmonics up to the 9th.
+        std::vector<float> buzz (n, 0.0f);
+        for (int h = 1; h <= 9; h += 2)
+        {
+            const double amp = std::pow (10.0, -70.0 / 20.0) / h;
+            for (std::size_t i = 0; i < n; ++i)
+                buzz[i] += static_cast<float> (
+                    amp * std::sin (kTwoPiD * mains * h * static_cast<double> (i) / kFs + 0.3 * h));
+        }
+        inputs.push_back ({ "buzz " + std::to_string (static_cast<int> (mains)) + " Hz", buzz });
+    }
+    for (float db : { -100.0f, -90.0f, -80.0f, -70.0f, -60.0f, -50.0f })
+    {
+        std::vector<float> hiss (n, 0.0f);
+        test::addNoise (hiss, db, 9);
+        inputs.push_back ({ "hiss " + std::to_string (static_cast<int> (db)) + " dBFS", hiss });
+    }
+    for (const auto& [what, x] : inputs)
+        for (const auto timing : { midi::Timing::fastest, midi::Timing::steady })
+        {
+            INFO (what << (timing == midi::Timing::steady ? ", Steady" : ""));
+            auto s = plain();
+            s.timing = timing;
+            const auto run = convert (x, kFs, s);
+            CHECK (run.notes.empty());
+        }
+    for (float db : { -80.0f, -60.0f })
+    {
+        INFO ("hum at " << db << " dBFS");
+        auto sc = bassLine (2, Pickup::bridge, 128.0, kFs, 16, false);
+        sc.signal.resize (sc.signal.size() + static_cast<std::size_t> (3.0 * kFs), 0.0f);
+        test::addHum (sc.signal, kFs, 50.0, db);
+        test::addNoise (sc.signal, db - 10.0f, 4);
+        const auto run = convert (sc.signal, kFs, plain());
+        const auto st = score (run, sc, 0);
+        CHECK (st.correct == st.expected);
+        CHECK (st.extra == 0);
+        CHECK (std::none_of (run.notes.begin(), run.notes.end(),
+                             [&] (const SentNote& m) { return m.on > sc.notes.back().end + 0.1; }));
+    }
+}
+
+TEST_CASE ("Guitar to MIDI catches a note from silence as soon as one from a ringing string",
+           "[midi][latency][silence]")
+{
+    // Fingerstyle notes after rests of 0.5-3 s on every string of three tunings (standard, a
+    // whole step down, drop D), open and at frets 2 and 5, on a bridge pickup that hears little
+    // of the low strings' fundamental and on a neck pickup, each with the finger touching the
+    // string 10-50 ms before it plucks it. The touch is never a note: every note is right, none
+    // extra. Each string's median latency from silence (the first note of a run aside: nothing
+    // says yet how loud the player is, so it waits kTouchWaitSeconds for a louder pick) is no
+    // more than 3 ms over the same notes picked over a ringing string.
+    for (int tuning = 0; tuning < 3; ++tuning)
+        for (auto pickup : { Pickup::bridge, Pickup::neck })
+        {
+            INFO ("tuning " << tuning << (pickup == Pickup::bridge ? ", bridge" : ", neck"));
+            Score silent;
+            std::vector<std::vector<double>> afterRest (6), afterRinging (6);
+            for (std::uint32_t seed = 1; seed <= 3; ++seed)
+            {
+                const auto a = fromSilence (seed, tuning, pickup, kFs);
+                const auto b = fromRinging (seed, tuning, pickup, kFs);
+                const auto ra = convert (a.signal, kFs, plain());
+                const auto rb = convert (b.signal, kFs, plain());
+                addInto (silent, score (ra, a, 0));
+                CHECK (balanced (ra));
+                const auto latency = [] (const Run& r, const RefNote& n) {
+                    for (const auto& m : r.notes)
+                        if (m.pitch == n.pitch && m.on >= n.start - 0.002 && m.on <= n.start + 0.08)
+                            return 1000.0 * (m.on - n.start);
+                    return -1.0;
+                };
+                // fromSilence: three notes per string; fromRinging: a lead-in, then the three.
+                for (std::size_t k = 1; k < a.notes.size(); ++k)
+                    if (const double ms = latency (ra, a.notes[k]); ms >= 0.0)
+                        afterRest[k / 3].push_back (ms);
+                for (std::size_t k = 0; k < b.notes.size(); ++k)
+                    if (const double ms = latency (rb, b.notes[k]); k % 4 != 0 && ms >= 0.0)
+                        afterRinging[k / 4].push_back (ms);
+                // The first note of all: caught, within the wait plus the tracker's lock.
+                const double first = latency (ra, a.notes[0]);
+                CHECK (first >= 0.0);
+                CHECK (first <= 1000.0 * GuitarToMidi::kTouchWaitSeconds + 5.0);
+            }
+            CHECK (silent.correct == silent.expected);
+            CHECK (silent.extra == 0);
+            for (int string = 0; string < 6; ++string)
+            {
+                INFO ("string " << string);
+                const double rest = percentile (afterRest[static_cast<std::size_t> (string)], 0.5);
+                const double ringing =
+                    percentile (afterRinging[static_cast<std::size_t> (string)], 0.5);
+                std::printf ("tuning %d %s string %d: from silence %.1f ms, from a ringing string "
+                             "%.1f ms\n",
+                             tuning, pickup == Pickup::bridge ? "bridge" : "neck  ", string, rest,
+                             ringing);
+                CHECK (rest <= ringing + 3.0);
+            }
+        }
 }
 
 TEST_CASE ("Guitar to MIDI plays palm mutes, legato, slides and vibrato", "[midi][accuracy]")
@@ -356,14 +597,20 @@ TEST_CASE ("Guitar to MIDI plays palm mutes, legato, slides and vibrato", "[midi
 }
 
 /// When MonoTracker on its own first locks onto a note in x, in seconds (or -1).
-double trackerLock (const std::vector<float>& x)
+double trackerLock (const std::vector<float>& x, double from = 0.0)
 {
     analysis::MonoTracker m;
     m.prepare (kFs);
+    analysis::MonoTracker::Options options;
+    options.weakFundamentals = true;
+    options.fingerPicks = true;
+    m.setOptions (options);
     for (std::size_t i = 0; i < x.size(); ++i)
     {
         m.push (x[i]);
-        if (m.event() == analysis::MonoTracker::Event::noteOn)
+        if (static_cast<double> (i) / kFs >= from &&
+            (m.event() == analysis::MonoTracker::Event::noteOn ||
+             m.event() == analysis::MonoTracker::Event::noteChange))
             return static_cast<double> (i) / kFs;
     }
     return -1.0;
@@ -376,7 +623,8 @@ TEST_CASE ("Guitar to MIDI sends each note within the tracker's lock time plus 5
     // high E, with a bright bridge pickup and a piezo. The MIDI layer may take 5 ms past the
     // tracker's own lock to be sure; notes above A3 wait for one period of the low E (16 ms
     // after the attack) before a lower note can be ruled out. The block size changes nothing:
-    // events carry their sample offsets.
+    // events carry their sample offsets. The note is the second of two: the first of all waits
+    // for a louder pick (kTouchWaitSeconds), since nothing says yet how loud the player is.
     const double floorMs =
         1000.0 * (1.0 / GuitarToMidi::kLowestOpenHz + GuitarToMidi::kAttackSkipSeconds +
                   GuitarToMidi::kCheckWindowSeconds) +
@@ -386,15 +634,16 @@ TEST_CASE ("Guitar to MIDI sends each note within the tracker's lock time plus 5
             for (std::uint32_t seed = 1; seed <= 4; ++seed)
             {
                 INFO (hz << " Hz, seed " << seed << (pickup == Pickup::piezo ? ", piezo" : ""));
-                const auto x = oneNote (hz, pickup, 0.1f + 0.05f * static_cast<float> (seed), seed);
+                const auto x =
+                    secondNote (hz, pickup, 0.1f + 0.05f * static_cast<float> (seed), seed);
                 const auto a = convert (x, kFs, plain(), 64);
                 const auto b = convert (x, kFs, plain(), 256);
-                REQUIRE (a.notes.size() == 1);
-                REQUIRE (b.notes.size() == 1);
-                CHECK (a.notes[0].pitch == pitchOf (hz));
-                CHECK (a.notes[0].on == b.notes[0].on);
-                const double ms = 1000.0 * (a.notes[0].on - 0.1);
-                const double lockMs = 1000.0 * (trackerLock (x) - 0.1);
+                REQUIRE (a.notes.size() == 2);
+                REQUIRE (b.notes.size() == 2);
+                CHECK (a.notes[1].pitch == pitchOf (hz));
+                CHECK (a.notes[1].on == b.notes[1].on);
+                const double ms = 1000.0 * (a.notes[1].on - 1.1);
+                const double lockMs = 1000.0 * (trackerLock (x, 1.1) - 1.1);
                 CHECK (ms <= std::max (lockMs + 5.0, floorMs));
                 // And the tracker's own bound (two periods or 8 ms, plus 5 ms) plus those 5 ms,
                 // which the tracker misses only on the one synthetic piezo E2 whose body swell
@@ -415,15 +664,18 @@ TEST_CASE ("Guitar to MIDI in Steady sends each note a fixed lag after its pick"
         for (int block : { 64, 256 })
         {
             INFO (hz << " Hz, block " << block);
-            const auto x = oneNote (hz, Pickup::bridge, 0.25f, 3);
+            const auto x = secondNote (hz, Pickup::bridge, 0.25f, 3);
             const auto run = convert (x, kFs, s, block);
-            REQUIRE (run.notes.size() == 1);
-            CHECK (std::abs (run.notes[0].on - 0.1 - lag) < 0.001);
+            REQUIRE (run.notes.size() == 2);
+            CHECK (std::abs (run.notes[1].on - 1.1 - lag) < 0.001);
         }
     // Across the bass lines the lag holds as well as each pick is dated. A pick the tracker's
     // detector or its click dates lands within 1 ms; a soft pick seen only as the previous note
     // losing its period is dated to a few milliseconds, and a mute just before a pick can be
-    // taken for it. Measured: 86 % within 1 ms of the lag, 95 % within 3 ms, none past 6 ms.
+    // taken for it. Measured: 89 % within 1 ms of the lag, 97 % within 3 ms, none past 6 ms.
+    // The first note of all is not among them: nothing says yet how loud the player is, so it
+    // waits kTouchWaitSeconds for a louder pick (a finger's touch comes before its pluck), and
+    // goes out at once after that.
     std::vector<double> errors;
     for (std::uint32_t seed = 1; seed <= 3; ++seed)
     {
@@ -433,7 +685,11 @@ TEST_CASE ("Guitar to MIDI in Steady sends each note a fixed lag after its pick"
             for (const auto& n : run.notes)
                 if (n.pitch == ref.pitch && n.on >= ref.start && n.on < ref.start + 0.1)
                 {
-                    errors.push_back (1000.0 * (n.on - ref.start - lag));
+                    const double ms = 1000.0 * (n.on - ref.start - lag);
+                    if (&ref == &sc.notes.front())
+                        CHECK (ms <= 1000.0 * (GuitarToMidi::kTouchWaitSeconds - lag) + 5.0);
+                    else
+                        errors.push_back (ms);
                     break;
                 }
     }
@@ -445,7 +701,7 @@ TEST_CASE ("Guitar to MIDI in Steady sends each note a fixed lag after its pick"
     std::printf ("Steady: %zu notes, %.1f %% within 1 ms of the lag, %.1f %% within 3 ms, "
                  "%.1f %% within 6 ms\n",
                  errors.size(), 100.0 * within (1.0), 100.0 * within (3.0), 100.0 * within (6.0));
-    REQUIRE (errors.size() >= 140);
+    REQUIRE (errors.size() >= 138);
     CHECK (within (1.0) >= 0.8);
     CHECK (within (3.0) >= 0.93);
     CHECK (within (6.0) == 1.0);
@@ -536,31 +792,41 @@ TEST_CASE ("Guitar to MIDI Steady timing by note type", "[.report][steadytiming]
 
 TEST_CASE ("Guitar to MIDI velocity follows the pick", "[midi][velocity]")
 {
-    // Five picking strengths over 18 dB give five rising velocities on every string, with each
-    // curve; at no dynamics every note gets the same velocity.
+    // After a few notes at one strength (the player's level), five picking strengths over 18 dB
+    // around it give five rising velocities on every string, with each curve, and a note at the
+    // player's level gets about 88; at no dynamics every note gets the same velocity.
+    const auto stream = [] (double hz, const std::vector<float>& peaks) {
+        std::vector<float> x (static_cast<std::size_t> ((0.2 + 0.5 * peaks.size()) * kFs), 0.0f);
+        for (std::size_t k = 0; k < peaks.size(); ++k)
+        {
+            auto p = pluckFor (Pickup::bridge, hz, peaks[k], 9u + static_cast<std::uint32_t> (k));
+            p.muteAt = 0.4;
+            test::addPluck (x, kFs, static_cast<std::size_t> ((0.1 + 0.5 * k) * kFs), p);
+        }
+        test::addNoise (x, -80.0f, 9);
+        return x;
+    };
+    const std::vector<float> peaks { 0.13f, 0.13f, 0.13f, 0.13f, 0.05f, 0.08f, 0.13f, 0.2f, 0.4f };
     for (auto curve : { midi::Curve::soft, midi::Curve::linear, midi::Curve::hard })
         for (double hz : { kE2, kA2, kD3, kE3 })
         {
+            INFO (hz << " Hz, curve " << static_cast<int> (curve));
             auto s = plain();
             s.curve = curve;
-            int last = 0;
-            for (float peak : { 0.05f, 0.08f, 0.13f, 0.2f, 0.4f })
-            {
-                INFO (hz << " Hz, peak " << peak << ", curve " << static_cast<int> (curve));
-                const auto run = convert (oneNote (hz, Pickup::bridge, peak, 9), kFs, s);
-                REQUIRE (run.notes.size() == 1);
-                CHECK (run.notes[0].velocity > last);
-                last = run.notes[0].velocity;
-            }
+            const auto run = convert (stream (hz, peaks), kFs, s);
+            REQUIRE (run.notes.size() == peaks.size());
+            if (curve == midi::Curve::linear)
+                for (std::size_t k = 0; k < 4; ++k)
+                    CHECK (std::abs (run.notes[k].velocity - 88) <= 4);
+            for (std::size_t k = 5; k < peaks.size(); ++k)
+                CHECK (run.notes[k].velocity > run.notes[k - 1].velocity);
         }
     auto flat = plain();
     flat.dynamics = 0.0f;
-    for (float peak : { 0.05f, 0.4f })
-    {
-        const auto run = convert (oneNote (kA2, Pickup::bridge, peak, 9), kFs, flat);
-        REQUIRE (run.notes.size() == 1);
-        CHECK (run.notes[0].velocity == GuitarToMidi::kFixedVelocity);
-    }
+    const auto run = convert (stream (kA2, { 0.05f, 0.4f }), kFs, flat);
+    REQUIRE (run.notes.size() == 2);
+    for (const auto& n : run.notes)
+        CHECK (n.velocity == GuitarToMidi::kFixedVelocity);
     // The mapping itself: monotonic in the level, 1..127, any curve.
     for (auto curve : { midi::Curve::soft, midi::Curve::linear, midi::Curve::hard })
     {
@@ -570,7 +836,7 @@ TEST_CASE ("Guitar to MIDI velocity follows the pick", "[midi][velocity]")
         int last = 0;
         for (float db = -60.0f; db <= 0.0f; db += 1.0f)
         {
-            const int v = GuitarToMidi::velocityFor (std::pow (10.0f, db / 20.0f), s);
+            const int v = GuitarToMidi::velocityFor (std::pow (10.0f, db / 20.0f), s, 0.0f);
             CHECK (v >= last);
             CHECK (v >= 1);
             CHECK (v <= 127);
@@ -602,8 +868,8 @@ TEST_CASE ("Guitar to MIDI ends notes from the level", "[midi][noteoff]")
             CHECK (n.off - n.on < 60.0 / 140.0 / 2.0 + 0.02);
     }
     // A long note decaying freely stays on while it is clearly audible: until its level is within
-    // 10 dB of where it ends, kDecayOffDb under its attack (or the gate's off point, if higher).
-    // The same at a quiet input, where the gate's off point can come first.
+    // 10 dB of where it ends, kDecayOffDb under its attack (the automatic gate sits far under
+    // it, over the input's noise). The same at a quiet input.
     for (double gainDb : { 0.0, -24.0 })
     {
         INFO ("input " << gainDb << " dB");
@@ -629,9 +895,7 @@ TEST_CASE ("Guitar to MIDI ends notes from the level", "[midi][noteoff]")
         double attack = -200.0;
         for (double t = 0.1; t < 0.15; t += 0.002)
             attack = std::max (attack, levelAt (t));
-        const double end =
-            std::max (static_cast<double> (s.gateDb - GuitarToMidi::kOffHysteresisDb),
-                      attack - static_cast<double> (GuitarToMidi::kDecayOffDb));
+        const double end = attack - static_cast<double> (GuitarToMidi::kDecayOffDb);
         // The level 50 ms before the note-off.
         CHECK (levelAt (run.notes[0].off - 0.06) < end + 10.0);
         CHECK (levelAt (run.notes[0].off - 0.06) > end - 10.0);
@@ -768,9 +1032,10 @@ TEST_CASE ("Guitar to MIDI settings: octave, channel, gate and bend", "[midi]")
             CHECK (run.notes[0].pitch == 45 + 12 * octave);
             CHECK (run.notes[0].channel == channel);
         }
-    // A note under the gate never starts.
+    // A note under the manual gate never starts.
     {
         auto s = plain();
+        s.gateMode = midi::GateMode::manual;
         s.gateDb = -20.0f;
         const auto run = convert (oneNote (kA2, Pickup::bridge, 0.02f, 6), kFs, s);
         CHECK (run.notes.empty());
@@ -814,7 +1079,7 @@ TEST_CASE ("Guitar to MIDI settings: octave, channel, gate and bend", "[midi]")
 TEST_CASE ("Sedef MIDI parameter schema", "[midi][params]")
 {
     // Ids are unique, defaults sit in range, and the defaults give the documented behaviour:
-    // one octave down, Notes, Fastest, channel 1.
+    // one octave down, Notes, Fastest, channel 1, the automatic gate.
     for (std::size_t i = 0; i < midi::kNumParams; ++i)
     {
         const auto& a = midi::kParamSpecs[i];
@@ -830,6 +1095,7 @@ TEST_CASE ("Sedef MIDI parameter schema", "[midi][params]")
     CHECK (s.timing == midi::Timing::fastest);
     CHECK (s.channel == 1);
     CHECK (s.bendRange == 2);
+    CHECK (s.gateMode == midi::GateMode::automatic);
     CHECK (midi::audioThrough (midi::defaultValues()));
     // Nonsense in, sane settings out.
     auto v = midi::defaultValues();

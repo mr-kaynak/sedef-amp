@@ -92,6 +92,7 @@ public:
     struct Telemetry
     {
         float levelDb = -120.0f;
+        float gateDb = -120.0f; ///< the gate in effect (automatic, or the Gate parameter)
         int note = -1;
         float pitch = 0.0f;
         int velocity = 0;
@@ -135,7 +136,7 @@ private:
     bool wasBypassed_ = false, wasPlaying_ = false;
     float gain_ = 1.0f; ///< audio through (1) or muted (0), ramped
 
-    std::atomic<float> tLevelDb_ { -120.0f }, tPitch_ { 0.0f };
+    std::atomic<float> tLevelDb_ { -120.0f }, tGateDb_ { -120.0f }, tPitch_ { 0.0f };
     std::atomic<int> tNote_ { -1 }, tVelocity_ { 0 }, tSounding_ { 0 };
     std::atomic<std::uint32_t> tNotesSent_ { 0 }, tLateNotes_ { 0 };
 

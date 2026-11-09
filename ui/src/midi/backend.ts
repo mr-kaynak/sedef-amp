@@ -116,6 +116,9 @@ export interface MockOptions {
   unavailable?: readonly string[];
 }
 
+/** The automatic gate the mock reports: 20 dB over its silence, as the plug-in sets it. */
+const MOCK_AUTO_GATE_DB = -68;
+
 /** A bass line in E: MIDI notes and their lengths in beats. */
 const LINE: readonly [number, number][] = [
   [40, 1],
@@ -137,6 +140,7 @@ export class MockMidiBackend implements MidiBackend {
   private timer: ReturnType<typeof setInterval> | null = null;
   private telemetryState: MidiTelemetry = {
     levelDb: -90,
+    gateDb: MOCK_AUTO_GATE_DB,
     note: -1,
     pitch: 0,
     velocity: 0,
@@ -271,7 +275,8 @@ export class MockMidiBackend implements MidiBackend {
       const [played = 40, length = 1] = LINE[Math.min(index, LINE.length - 1)] ?? [];
       const into = (beats - at) / length;
       const octave = [-2, -1, 0, 1][Math.round(this.values.octave ?? 1)] ?? -1;
-      const gate = this.values.gate ?? -75;
+      const gate =
+        Math.round(this.values.gateMode ?? 0) === 1 ? (this.values.gate ?? -75) : MOCK_AUTO_GATE_DB;
       const levelDb = -16 - 30 * into + 1.5 * Math.sin(Date.now() / 37);
       const sounding = into < 0.85 && levelDb > gate;
       if (index !== lastIndex && sounding) {
@@ -284,6 +289,7 @@ export class MockMidiBackend implements MidiBackend {
       this.telemetryState = {
         ...this.telemetryState,
         levelDb: into < 0.9 ? levelDb : -88,
+        gateDb: gate,
         note: sounding ? note : -1,
         pitch: sounding ? note + cents / 100 : 0,
         sounding,

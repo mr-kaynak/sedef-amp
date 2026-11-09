@@ -236,6 +236,7 @@ void MidiProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
     gain_ = target;
 
     tLevelDb_.store (converter_.levelDb(), std::memory_order_relaxed);
+    tGateDb_.store (converter_.gateLevelDb(), std::memory_order_relaxed);
     tPitch_.store (converter_.pitch(), std::memory_order_relaxed);
     tNote_.store (converter_.note(), std::memory_order_relaxed);
     tVelocity_.store (converter_.lastVelocity(), std::memory_order_relaxed);
@@ -270,6 +271,7 @@ MidiProcessor::Telemetry MidiProcessor::telemetry() const noexcept
 {
     Telemetry t;
     t.levelDb = tLevelDb_.load (std::memory_order_relaxed);
+    t.gateDb = tGateDb_.load (std::memory_order_relaxed);
     t.pitch = tPitch_.load (std::memory_order_relaxed);
     t.note = tNote_.load (std::memory_order_relaxed);
     t.velocity = tVelocity_.load (std::memory_order_relaxed);

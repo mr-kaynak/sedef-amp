@@ -28,7 +28,7 @@ export const PEDAL_BOX = {
   tide: regular(276),
   urchin: regular(280),
   conch: regular(280),
-  anemone: wide(268),
+  anemone: wide(264),
   trench: wide(280),
   remora: wide(280),
 } as const satisfies Record<string, PedalBox>;

@@ -83,14 +83,12 @@
   width: 100%;
 }
 
-/* Two big knobs, or a knob and a lever: closer than an even spread would put them. */
+/* Two knobs of different sizes: closer than an even spread would put them, and standing on one
+   line, so their labels and values read across. */
 .tight {
   justify-content: center;
+  align-items: flex-end;
   gap: calc(6 * var(--u));
-}
-
-.arc > :nth-child(2) {
-  margin-top: calc(14 * var(--u));
 }
 
 /* A knob takes the room of its dial; its label may hang over into the gap beside it. */
@@ -104,8 +102,24 @@
 }
 
 .identity {
+  isolation: isolate;
   margin-top: auto;
   text-align: center;
+}
+
+/* The name stands on a soft patch of the paint: a figure whose lines run along the lettering
+   (waves, strands) fades out under it, where a halo alone leaves them between the letters. */
+.identity::before,
+.hint::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 0 calc(-4 * var(--u));
+  border-radius: calc(6 * var(--u));
+  background: var(--paint-top);
+  background: color-mix(in srgb, var(--paint-top), var(--paint-bottom));
+  filter: blur(3px);
+  opacity: 0.88;
 }
 
 .name {
@@ -130,6 +144,14 @@
   white-space: nowrap;
 }
 
+/* Switches stacked beside a knob, in its row (Anemone). */
+.pedal .row > .stack {
+  display: grid;
+  justify-items: center;
+  align-self: center;
+  row-gap: calc(3 * var(--u));
+}
+
 /* Switches, meters and the playing hint: one group under the name. */
 .status {
   display: grid;
@@ -149,6 +171,8 @@
   line-height: 1.15;
   text-align: center;
   text-wrap: balance;
+  position: relative;
+  isolation: isolate;
 }
 
 /* The lamp over the footswitch, at the bottom of the enclosure. */

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import { Pedal, PedalRow } from '../Pedal';
+import { Pedal, PedalRow, PedalStack } from '../Pedal';
 import { PedalKnob } from '../PedalKnob';
 import { PedalSwitch } from '../PedalSwitch';
 import { MODS_FINISH } from './finishes';
@@ -13,17 +13,17 @@ export function AnemonePedal() {
       kind="Envelope filter"
       enableParam="anemoneEnabled"
       finish={MODS_FINISH.anemone}
-      status={
-        <>
+    >
+      <PedalRow>
+        <PedalKnob param="anemoneSensitivity" label="Sensitivity" />
+        <PedalKnob param="anemoneResonance" label="Resonance" />
+      </PedalRow>
+      <PedalRow set="tight">
+        <PedalKnob param="anemoneRange" label="Range" />
+        <PedalStack>
           <PedalSwitch param="anemoneMode" labels={['Low', 'Band', 'High']} />
           <PedalSwitch param="anemoneDirection" />
-        </>
-      }
-    >
-      <PedalRow set="arc">
-        <PedalKnob param="anemoneSensitivity" label="Sensitivity" />
-        <PedalKnob param="anemoneRange" label="Range" />
-        <PedalKnob param="anemoneResonance" label="Resonance" />
+        </PedalStack>
       </PedalRow>
     </Pedal>
   );

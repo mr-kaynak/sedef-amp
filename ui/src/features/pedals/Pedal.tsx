@@ -36,12 +36,14 @@ export interface PedalProps {
   lamp?: 'above' | 'beside';
 }
 
-/**
- * One row of an enclosure's controls. `tight` keeps two big knobs close; `arc` drops the middle
- * of three, so their labels sit on two lines and long ones do not meet.
- */
-export function PedalRow({ children, set }: { children: ReactNode; set?: 'tight' | 'arc' }) {
+/** One row of an enclosure's controls. `tight` keeps two close, standing on one line. */
+export function PedalRow({ children, set }: { children: ReactNode; set?: 'tight' }) {
   return <div className={set ? `${styles.row} ${styles[set]}` : styles.row}>{children}</div>;
+}
+
+/** Switches stacked in a row, beside a knob. */
+export function PedalStack({ children }: { children: ReactNode }) {
+  return <div className={styles.stack}>{children}</div>;
 }
 
 /**

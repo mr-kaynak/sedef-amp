@@ -1,6 +1,8 @@
 # Guitar to MIDI: play bass lines on a guitar (design)
 
-Status: approved 2026-11-08; built in Phase 1 (engine layer, plug-ins, standalone app, test build).
+Status: approved 2026-11-08; built in Phase 1 (engine layer, plug-ins, standalone app, test build);
+shipped in Phase 2 with Sedef Amp's installers from 0.6.0, its identity frozen
+([docs/midi.md](../midi.md#identity)).
 What was measured, and where the build differs from this design, is in [As built](#as-built)
 at the end. The user page is [docs/midi.md](../midi.md).
 
@@ -257,7 +259,9 @@ another name in the marine style). It takes a mono guitar DI and sends MIDI note
 
 Phase 1 (2026-11-09): the engine layer (`sedef::midi::GuitarToMidi`, engine/src/midi), the plug-ins
 and the standalone app (plugin/midi), the UI (ui/src/midi), tests, and a macOS test build from CI.
-Installers, the updater and the final AU codes are Phase 2, after the musician's test.
+Installers, the updater and the final AU codes were Phase 2: Sedef MIDI ships in Sedef Amp's
+installers from 0.6.0, without waiting for the musician's test, with the codes and AU types of the
+test build frozen (`aufx` `Sdm1` and `aumu` `Sdm2`, manufacturer `Sedf`).
 
 **How notes are made.** The class comment in `GuitarToMidi.h` is the reference. In short: picks come
 from the tracker's detector, from the note losing its own period (soft picks over a ringing note,

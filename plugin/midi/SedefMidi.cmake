@@ -3,7 +3,9 @@
 # that takes the guitar through a side chain, so Logic's instrument tracks can record its notes.
 # Included from plugin/CMakeLists.txt, so it shares the web UI's build rules.
 
-# The product's identity, in one place. The AU codes are not final before the first release.
+# The product's identity, in one place. Frozen since 0.6.0, its first release: hosts, sessions and
+# installers know Sedef MIDI by these (docs/midi.md#identity). Never change them, nor the AU types
+# below (aufx for the effect, aumu for the instrument).
 set(SEDEF_MIDI_EFFECT_CODE Sdm1)
 set(SEDEF_MIDI_INSTRUMENT_CODE Sdm2)
 set(SEDEF_MIDI_BUNDLE_ID "io.github.mr-kaynak.sedef-midi")

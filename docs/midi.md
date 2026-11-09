@@ -4,10 +4,10 @@
 time, and sends MIDI notes in real time: play a bass line on the guitar and hear it on a bass
 instrument, record it as MIDI and edit it afterwards.
 
-Status: **preview**. A test build for macOS comes from CI (see [Test build](#test-build)); it is
-not in the installers yet.
+Sedef MIDI comes with Sedef Amp's installer on macOS, Windows and Linux, from 0.6.0 on
+([Install](#install)).
 
-<!-- Screenshot: docs/images/midi.png once the UI is final. -->
+<img src="images/midi.png" alt="Sedef MIDI: the input meter with its automatic gate, the note being sent with its tuning, velocity, and the note and output settings" width="100%">
 
 ## What you get
 
@@ -20,6 +20,19 @@ not in the installers yet.
   chain (see below).
 - Both plug-ins can also send their notes to a MIDI output you pick, or to a virtual port of their
   own, "Sedef MIDI (plug-in)". This is off by default.
+
+## Install
+
+Sedef MIDI is part of the Sedef Amp download for your OS and is selected by default:
+
+| OS | Sedef MIDI | To leave it out |
+|---|---|---|
+| macOS | `Sedef MIDI.app` in `/Applications`; its VST3, CLAP and AU (effect and instrument) in `/Library/Audio/Plug-Ins` | Untick **Sedef MIDI** in the installer's list |
+| Windows | `Sedef MIDI.vst3` and `Sedef MIDI.clap` in `Common Files`, `Sedef MIDI.exe` next to Sedef Amp with a Start menu entry | Untick **Sedef MIDI** on *Select Components* |
+| Linux | `Sedef MIDI.vst3`, `Sedef MIDI.clap`, the `sedef-midi` app and a menu entry, next to Sedef Amp's | `./install.sh --no-midi` |
+
+Updates from inside Sedef Amp keep Sedef MIDI when it is installed and leave it out when it isn't.
+[install.md](install.md) has every path and how to remove Sedef MIDI later.
 
 ## The controls
 
@@ -142,29 +155,39 @@ A low note needs about two of its periods before its pitch is sure; above A3, Se
 period of the low E (16 ms) to rule out a lower note under it. See
 [the design](design/guitar-to-midi.md#as-built) for the measurements.
 
-## Test build
+## If something doesn't work
 
-CI builds a macOS test build on every run of the `CI` workflow: the artifact
-**sedef-midi-test-build-macOS** holds the app, both AUs, the VST3, the CLAP and
-[TESTING.md](../tools/packaging/midi/TESTING.md), which explains where each goes, how to open an
-unsigned build, and the checklist below.
+- **No notes, and the meter doesn't move:** the input is wrong. In the app, choose
+  **Audio input…** and pick the input your guitar is plugged into; in a host, check that Sedef MIDI
+  is on the guitar's track (or, for the instrument AU, that its **Side Chain** is the guitar
+  track).
+- **The meter moves, the note display doesn't:** play a single note on one string and damp the
+  others. If the **Signal** ring stays dark while you play, switch the gate to Manual and drag it
+  under your notes.
+- **The note display moves, the instrument stays silent:** the MIDI doesn't reach it. Check that
+  the instrument app lists "Sedef MIDI" as an input, that its channel matches Sedef MIDI's, or in
+  Logic that the instrument track takes **MIDI From** the Sedef MIDI (Instrument) track.
+- **Wrong, missing or extra notes:** see the playing tips above. Reports help most with a short
+  recording of the dry DI and the MIDI it gave:
+  [open an issue](https://github.com/mr-kaynak/sedef-amp/issues).
 
-## Checklist for the first test
+## Identity
 
-Each step says what you should see, and what to send back if you don't. TESTING.md has the details.
+These never change, so sessions, presets and host settings that name Sedef MIDI keep finding it.
+New parameters are only appended ([ADR-0004](adr/0004-single-parameter-schema.md)).
 
-1. **Standalone app into an instrument app.** The instrument plays what you play. If not: does the
-   meter move, does the note display move, and does "Sedef MIDI" appear among the other app's MIDI
-   inputs?
-2. **Standalone app into Logic.** An instrument track records MIDI from "Sedef MIDI". If not: what
-   Logic's MIDI activity display shows while you play, and the track's MIDI input setting.
-3. **Effect AU on the guitar track, instrument track MIDI From.** Tell us whether Logic offers the
-   guitar track under MIDI From at all; a screenshot of the menu either way.
-4. **Instrument AU with the guitar on its side chain, a second instrument track MIDI From it.**
-   The second track plays and records. If not: does the Side Chain menu list the guitar track, does
-   Sedef MIDI's meter move, and a screenshot of the MIDI From menu.
-5. **Either AU into an IAC bus, an instrument track listening.** The instrument plays. If not: the
-   line under **Also send to**.
-6. **Feel.** The delay on the low E and A strings in Fastest; then Steady with a −38 ms track delay:
-   where do recorded notes land? Then your own bass lines: which notes come out wrong, missing or
-   extra, and how you played them. A short recording of the DI with the MIDI it gave helps most.
+| | Sedef MIDI | Sedef MIDI (Instrument), macOS only |
+|---|---|---|
+| Manufacturer code | `Sedf` | `Sedf` |
+| Plug-in code | `Sdm1` | `Sdm2` |
+| AU | `aufx` `Sdm1` `Sedf`, "Sedef: Sedef MIDI" | `aumu` `Sdm2` `Sedf`, "Sedef: Sedef MIDI (Instrument)" |
+| Bundle ID | `io.github.mr-kaynak.sedef-midi` | `io.github.mr-kaynak.sedef-midi-instrument` |
+| VST3 classes | component `ABCDEF019182FAEB5365646653646D31`, controller `ABCDEF011234ABCD5365646653646D31` | |
+| CLAP ID | `io.github.mr-kaynak.sedef-midi` | |
+
+**Why the effect is `aufx`, not `aumf`.** A music effect (`aumf`) is an effect that takes MIDI in
+as well as audio; Sedef MIDI takes only audio and sends MIDI out, so it is an audio effect that
+listens to its input. Every AU host offers `aufx` on an audio track, where the guitar is. And the
+type changes nothing for Logic's routing: Logic passes MIDI on only from instrument tracks, which is
+what the instrument AU (`aumu`) is for. The type is part of an AU's identity, with its subtype and
+manufacturer, so it is fixed now.

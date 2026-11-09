@@ -257,8 +257,9 @@ TEST_CASE ("Formats to install are the ones installed now, plus the running one"
     Scratch s;
     const auto root = s.dir.getChildFile ("root");
     REQUIRE (root.createDirectory());
-    // Nothing installed: all four.
-    CHECK (macChoicesToInstall (root, {}) == juce::StringArray { "app", "vst3", "au", "clap" });
+    // Nothing installed: all four, and Sedef MIDI.
+    CHECK (macChoicesToInstall (root, {}) ==
+           juce::StringArray { "app", "vst3", "au", "clap", "midi" });
 
     makeBundle (macBundlePath (kMacComponents[1], root), "0.1.0"); // vst3
     makeBundle (macBundlePath (kMacComponents[2], root), "0.1.0"); // au
@@ -282,6 +283,16 @@ TEST_CASE ("Formats to install are the ones installed now, plus the running one"
     REQUIRE (macBundlePath (kMacComponents[0], root).replaceWithText ("x"));
     CHECK (macChoicesToInstall (root, {}) == juce::StringArray { "vst3", "au" });
 
+    // Sedef MIDI is kept when any of its bundles is installed, and left out when none is.
+    for (const auto& midi : kMacMidiBundles)
+    {
+        INFO (midi.bundle);
+        makeBundle (macBundlePath (midi, root), "0.6.0");
+        CHECK (macChoicesToInstall (root, {}) == juce::StringArray { "vst3", "au", "midi" });
+        REQUIRE (macBundlePath (midi, root).deleteRecursively());
+        CHECK (macChoicesToInstall (root, {}) == juce::StringArray { "vst3", "au" });
+    }
+
 #if !JUCE_WINDOWS
     CHECK (macBundlePath (kMacComponents[0], juce::File ("/")).getFullPathName() ==
            "/Applications/Sedef Amp.app");
@@ -298,10 +309,10 @@ TEST_CASE ("The choice changes select exactly the formats to install", "[update]
     const auto parsed = parsePlist (xml);
     const auto* items = parsed.getArray();
     REQUIRE (items != nullptr);
-    REQUIRE (items->size() == 4); // every choice, so none keeps its start_selected default
-    const char* ids[] = { "app", "vst3", "au", "clap" };
-    const int selected[] = { 0, 1, 0, 1 };
-    for (int i = 0; i < 4; ++i)
+    REQUIRE (items->size() == 5); // every choice, so none keeps its start_selected default
+    const char* ids[] = { "app", "vst3", "au", "clap", "midi" };
+    const int selected[] = { 0, 1, 0, 1, 0 };
+    for (int i = 0; i < 5; ++i)
     {
         const auto& item = (*items)[i];
         CHECK (item["choiceIdentifier"].toString() == ids[i]);
@@ -309,7 +320,7 @@ TEST_CASE ("The choice changes select exactly the formats to install", "[update]
         CHECK (item["attributeSetting"].isInt64());
         CHECK (static_cast<int> (item["attributeSetting"]) == selected[i]);
     }
-    const auto all = parsePlist (choiceChangesXml ({ "app", "vst3", "au", "clap" }));
+    const auto all = parsePlist (choiceChangesXml ({ "app", "vst3", "au", "clap", "midi" }));
     REQUIRE (all.getArray() != nullptr);
     for (const auto& item : *all.getArray())
         CHECK (static_cast<int> (item["attributeSetting"]) == 1);
@@ -492,8 +503,9 @@ TEST_CASE ("Setup installs the formats there are, plus the running one",
     const auto exe = app.getChildFile ("Sedef Amp.exe");
     const juce::StringArray all { "vst3", "clap", "standalone" };
 
-    // Nothing installed: all three.
-    CHECK (windowsComponentsToInstall (common, app, {}) == all);
+    // Nothing installed: all three, and Sedef MIDI.
+    CHECK (windowsComponentsToInstall (common, app, {}) ==
+           juce::StringArray { "vst3", "clap", "standalone", "midi" });
     REQUIRE (vst3.getChildFile ("Contents/x86_64-win").createDirectory());
     CHECK (windowsComponentsToInstall (common, app, {}) == juce::StringArray { "vst3" });
     // The CLAP this process runs from counts, installed or not.
@@ -510,6 +522,24 @@ TEST_CASE ("Setup installs the formats there are, plus the running one",
     REQUIRE (clap.createDirectory());
     CHECK (windowsComponentsToInstall (common, app, {}) ==
            juce::StringArray { "vst3", "standalone" });
+
+    // Sedef MIDI is kept when any of its files is installed, and left out when none is.
+    const juce::File midiFiles[] = { common.getChildFile ("VST3/Sedef MIDI.vst3"),
+                                     common.getChildFile ("CLAP/Sedef MIDI.clap"),
+                                     app.getChildFile ("Sedef MIDI.exe") };
+    for (const auto& f : midiFiles)
+    {
+        INFO (f.getFullPathName());
+        if (f.hasFileExtension ("vst3"))
+            REQUIRE (f.createDirectory());
+        else
+            REQUIRE (f.replaceWithText ("midi"));
+        CHECK (windowsComponentsToInstall (common, app, {}) ==
+               juce::StringArray { "vst3", "standalone", "midi" });
+        REQUIRE (f.deleteRecursively());
+        CHECK (windowsComponentsToInstall (common, app, {}) ==
+               juce::StringArray { "vst3", "standalone" });
+    }
 
     // Setup updates only what it put where it puts it.
     const auto module = vst3.getChildFile ("Contents/x86_64-win/Sedef Amp.vst3");

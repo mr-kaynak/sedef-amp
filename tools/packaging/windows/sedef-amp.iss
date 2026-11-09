@@ -1,14 +1,18 @@
 ; SPDX-License-Identifier: AGPL-3.0-or-later
 ;
-; Inno Setup script for Sedef-Amp-Windows-Setup.exe (x64). build-installer.sh runs it as
-;   iscc /DAppVersion=<x.y.z> /DArtefactsDir=<JUCE artefacts folder> /O<output folder> sedef-amp.iss
+; Inno Setup script for Sedef-Amp-Windows-Setup.exe (x64): Sedef Amp and Sedef MIDI.
+; build-installer.sh runs it as
+;   iscc /DAppVersion=<x.y.z> /DArtefactsDir=<JUCE artefacts folder>
+;        /DMidiArtefactsDir=<Sedef MIDI's JUCE artefacts folder> /O<output folder> sedef-amp.iss
 ; Needs Inno Setup 6.
 ;
 ; The in-app updater (docs/updates.md) starts this setup elevated with
 ;   /SILENT /SUPPRESSMSGBOXES /NORESTART /NOCLOSEAPPLICATIONS /RESTARTEXITCODE=3010
 ;   /COMPONENTS=<the formats installed now> /WAITPID=<pid> /WAITPIDTIME=<its creation time>
 ; and, from the standalone app, /RELAUNCH. /COMPONENTS names the formats found on disk plus the
-; one the updater runs as. /WAITPID makes Setup wait until that process (the DAW that has the
+; one the updater runs as, and "midi" when any of Sedef MIDI's files is installed (updaters up to
+; 0.5.0 never name it, so updating from them leaves Sedef MIDI out). Never rename a component.
+; /WAITPID makes Setup wait until that process (the DAW that has the
 ; plugin loaded, and locked) has exited before it installs anything, if it is still the process
 ; created at /WAITPIDTIME (a FILETIME) and not a later one that got the same id; the wait has no
 ; limit, as the updater says ("It installs when you close your DAW"). With /WAITPID, Setup also
@@ -24,8 +28,13 @@
 #endif
 #define RepoDir SourcePath + "..\..\.."
 #define AssetsDir SourcePath + "..\assets"
+#ifndef MidiArtefactsDir
+  #define MidiArtefactsDir ArtefactsDir + "\..\..\SedefMidi_artefacts\Release"
+#endif
 #define AppName "Sedef Amp"
 #define AppExe "Sedef Amp.exe"
+#define MidiName "Sedef MIDI"
+#define MidiExe "Sedef MIDI.exe"
 
 [Setup]
 ; AppId identifies the installation for upgrades and the uninstaller; never change it.
@@ -64,7 +73,7 @@ RestartApplications=no
 
 [Messages]
 ApplicationsFound=These programs are using Sedef Amp, for example a DAW with the plugin loaded. Save your work in them first.%n%nSetup can close them now. If you keep them open, the update is completed when you restart your computer.
-FinishedLabel=Sedef Amp is installed.%n%nRescan plugins in your DAW and look for Sedef Amp by Sedef. The standalone app is in the Start menu.
+FinishedLabel=Sedef Amp is installed.%n%nRescan plugins in your DAW and look for Sedef Amp by Sedef, and Sedef MIDI if you chose it. The standalone apps are in the Start menu.
 
 [Types]
 Name: "full"; Description: "Everything"
@@ -74,21 +83,27 @@ Name: "custom"; Description: "Choose formats"; Flags: iscustom
 Name: "vst3"; Description: "VST3 plugin (Common Files\VST3)"; Types: full custom
 Name: "clap"; Description: "CLAP plugin (Common Files\CLAP)"; Types: full custom
 Name: "standalone"; Description: "Standalone app with a Start menu shortcut"; Types: full custom
+Name: "midi"; Description: "Sedef MIDI: play MIDI instruments from your guitar (VST3, CLAP, and an app with a Start menu shortcut)"; Types: full custom
 
 [InstallDelete]
 ; Clear an older VST3 bundle, including one copied there by hand, so no stale files remain in it.
 Type: filesandordirs; Name: "{commoncf64}\VST3\Sedef Amp.vst3"; Components: vst3
+Type: filesandordirs; Name: "{commoncf64}\VST3\Sedef MIDI.vst3"; Components: midi
 
 [Files]
 Source: "{#ArtefactsDir}\VST3\Sedef Amp.vst3\*"; DestDir: "{commoncf64}\VST3\Sedef Amp.vst3"; Components: vst3; Flags: ignoreversion recursesubdirs createallsubdirs restartreplace uninsrestartdelete
 Source: "{#ArtefactsDir}\CLAP\Sedef Amp.clap"; DestDir: "{commoncf64}\CLAP"; Components: clap; Flags: ignoreversion restartreplace uninsrestartdelete
 Source: "{#ArtefactsDir}\Standalone\{#AppExe}"; DestDir: "{app}"; Components: standalone; Flags: ignoreversion restartreplace uninsrestartdelete
+Source: "{#MidiArtefactsDir}\VST3\Sedef MIDI.vst3\*"; DestDir: "{commoncf64}\VST3\Sedef MIDI.vst3"; Components: midi; Flags: ignoreversion recursesubdirs createallsubdirs restartreplace uninsrestartdelete
+Source: "{#MidiArtefactsDir}\CLAP\Sedef MIDI.clap"; DestDir: "{commoncf64}\CLAP"; Components: midi; Flags: ignoreversion restartreplace uninsrestartdelete
+Source: "{#MidiArtefactsDir}\Standalone\{#MidiExe}"; DestDir: "{app}"; Components: midi; Flags: ignoreversion restartreplace uninsrestartdelete
 Source: "{#RepoDir}\LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"; Flags: ignoreversion
 Source: "{#RepoDir}\THIRD_PARTY_NOTICES.md"; DestDir: "{app}"; DestName: "THIRD_PARTY_NOTICES.txt"; Flags: ignoreversion
 Source: "{#AssetsDir}\icon.ico"; DestDir: "{app}"; DestName: "sedef-amp.ico"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExe}"; Components: standalone
+Name: "{autoprograms}\{#MidiName}"; Filename: "{app}\{#MidiExe}"; Components: midi
 
 [Run]
 Filename: "{app}\{#AppExe}"; Description: "Open {#AppName} now"; Components: standalone; Flags: nowait postinstall skipifsilent unchecked runasoriginaluser

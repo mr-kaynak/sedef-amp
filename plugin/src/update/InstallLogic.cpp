@@ -448,8 +448,18 @@ juce::StringArray macChoicesToInstall (const juce::File& root, const juce::File&
         if (macBundlePath (c, root).isDirectory() || running == c.choice)
             out.add (c.choice);
     if (out.isEmpty())
+    {
         for (const auto& c : kMacComponents)
             out.add (c.choice);
+        out.add (kMacMidiChoice);
+        return out;
+    }
+    for (const auto& c : kMacMidiBundles)
+        if (macBundlePath (c, root).isDirectory())
+        {
+            out.add (kMacMidiChoice);
+            break;
+        }
     return out;
 }
 
@@ -460,17 +470,21 @@ juce::String choiceChangesXml (const juce::StringArray& selected)
            "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" "
            "\"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"
            "<plist version=\"1.0\">\n<array>\n";
+    juce::StringArray choices;
     for (const auto& c : kMacComponents)
+        choices.add (c.choice);
+    choices.add (kMacMidiChoice);
+    for (const auto& choice : choices)
         xml << "\t<dict>\n"
                "\t\t<key>attributeSetting</key>\n"
                "\t\t<integer>"
-            << (selected.contains (c.choice) ? 1 : 0)
+            << (selected.contains (choice) ? 1 : 0)
             << "</integer>\n"
                "\t\t<key>choiceAttribute</key>\n"
                "\t\t<string>selected</string>\n"
                "\t\t<key>choiceIdentifier</key>\n"
                "\t\t<string>"
-            << c.choice << "</string>\n\t</dict>\n";
+            << choice << "</string>\n\t</dict>\n";
     xml << "</array>\n</plist>\n";
     return xml;
 }
@@ -610,7 +624,13 @@ juce::StringArray windowsComponentsToInstall (const juce::File& commonFiles,
     if (appFolder != juce::File() && (app.existsAsFile() || runningModule == app))
         out.add ("standalone");
     if (out.isEmpty())
-        out = { "vst3", "clap", "standalone" };
+        return { "vst3", "clap", "standalone", "midi" };
+    // Sedef MIDI, one component: kept when any of its files is installed.
+    if ((known &&
+         (commonFiles.getChildFile ("VST3").getChildFile ("Sedef MIDI.vst3").isDirectory() ||
+          commonFiles.getChildFile ("CLAP").getChildFile ("Sedef MIDI.clap").existsAsFile())) ||
+        (appFolder != juce::File() && appFolder.getChildFile ("Sedef MIDI.exe").existsAsFile()))
+        out.add ("midi");
     return out;
 }
 

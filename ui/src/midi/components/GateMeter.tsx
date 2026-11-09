@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // The input's level on the same scale as the gate, with the gate on it. In Auto the gate follows
 // the input's own noise floor and the line shows where it is; in Manual it is a handle: drag it
-// just above the noise and under the softest pick.
+// just above the noise and under the softest note.
 import { useRef } from 'react';
 import type { CSSProperties } from 'react';
 import { Segmented } from '../../controls/Segmented';
@@ -54,7 +54,11 @@ export function GateMeter({ height = 280 }: { height?: number }) {
     <div className={styles.wrap} style={style}>
       <div className={styles.head}>
         <span className={styles.legend}>Input</span>
-        <div ref={open} className={styles.open} title="Over the gate: a pick can start a note">
+        <div
+          ref={open}
+          className={styles.open}
+          title="Over the gate: a pluck or pick can start a note"
+        >
           <span className={styles.dot} aria-hidden="true" />
           <span>Signal</span>
         </div>

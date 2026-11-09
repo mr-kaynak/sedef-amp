@@ -110,6 +110,8 @@ export interface MockOptions {
   wrapperType?: string;
   /** Play the simulated bass line (off in tests that drive telemetry themselves). */
   autoPlay?: boolean;
+  /** Screenshots: hold the bass line still this many milliseconds into it. */
+  frameMs?: number;
   /** Start with this port selected. */
   destination?: string;
   /** Outputs that fail to open, as an unplugged device does. */
@@ -260,11 +262,13 @@ export class MockMidiBackend implements MidiBackend {
 
   private startPlaying(): void {
     const bpm = 96;
+    const frame = this.options.frameMs;
     const start = Date.now();
+    const now = () => (frame === undefined ? Date.now() : start + frame);
     const total = LINE.reduce((sum, [, beats]) => sum + beats, 0);
     let lastIndex = -1;
     this.timer = setInterval(() => {
-      const beats = (((Date.now() - start) / 60000) * bpm) % total;
+      const beats = (((now() - start) / 60000) * bpm) % total;
       let at = 0;
       let index = 0;
       for (; index < LINE.length; index += 1) {
@@ -277,7 +281,7 @@ export class MockMidiBackend implements MidiBackend {
       const octave = [-2, -1, 0, 1][Math.round(this.values.octave ?? 1)] ?? -1;
       const gate =
         Math.round(this.values.gateMode ?? 0) === 1 ? (this.values.gate ?? -75) : MOCK_AUTO_GATE_DB;
-      const levelDb = -16 - 30 * into + 1.5 * Math.sin(Date.now() / 37);
+      const levelDb = -16 - 30 * into + 1.5 * Math.sin((now() - start) / 37);
       const sounding = into < 0.85 && levelDb > gate;
       if (index !== lastIndex && sounding) {
         this.telemetryState.notesSent += 1;
@@ -285,7 +289,7 @@ export class MockMidiBackend implements MidiBackend {
         lastIndex = index;
       }
       const note = played + 12 * octave;
-      const cents = 9 * Math.sin(Date.now() / 160);
+      const cents = 9 * Math.sin((now() - start) / 160);
       this.telemetryState = {
         ...this.telemetryState,
         levelDb: into < 0.9 ? levelDb : -88,

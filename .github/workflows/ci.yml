@@ -262,24 +262,14 @@ jobs:
         run: |
           cd build/release/plugin/SedefMidi_artefacts/Release
           if [ "$RUNNER_OS" = "macOS" ]; then
-            # The musician's test build: everything flat in one folder, with TESTING.md.
-            pack="$RUNNER_TEMP/sedef-midi-test-build"
-            mkdir -p "$pack"
-            cp -R "Standalone/Sedef MIDI.app" "AU/Sedef MIDI.component" "VST3/Sedef MIDI.vst3" \
-              "CLAP/Sedef MIDI.clap" "$pack/"
-            cp -R "../../SedefMidiInstrument_artefacts/Release/AU/Sedef MIDI Instrument.component" "$pack/"
-            cp "$GITHUB_WORKSPACE/tools/packaging/midi/TESTING.md" "$pack/"
-            ditto -c -k --sequesterRsrc --keepParent "$pack" "$GITHUB_WORKSPACE/sedef-midi-test-build-macOS.zip"
+            mkdir -p "$RUNNER_TEMP/pack-midi" && cp -R VST3 CLAP Standalone AU "$RUNNER_TEMP/pack-midi/"
+            cp -R "../../SedefMidiInstrument_artefacts/Release/AU/Sedef MIDI Instrument.component" \
+              "$RUNNER_TEMP/pack-midi/AU/"
+            ditto -c -k --sequesterRsrc "$RUNNER_TEMP/pack-midi" "$GITHUB_WORKSPACE/sedef-midi-${RUNNER_OS}.zip"
           else
             7z a "$GITHUB_WORKSPACE/sedef-midi-${RUNNER_OS}.zip" VST3 CLAP Standalone
           fi
       - uses: actions/upload-artifact@v4
-        if: runner.os == 'macOS'
-        with:
-          name: sedef-midi-test-build-macOS
-          path: sedef-midi-test-build-macOS.zip
-      - uses: actions/upload-artifact@v4
-        if: runner.os != 'macOS'
         with:
           name: sedef-midi-${{ runner.os }}
           path: sedef-midi-${{ runner.os }}.zip

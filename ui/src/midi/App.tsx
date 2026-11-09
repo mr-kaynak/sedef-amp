@@ -117,7 +117,7 @@ export function MidiApp() {
             <Knob param="dynamics" size="md" label="Sensitivity" />
             <Field
               label="Curve"
-              hint="Soft: a light pick already plays loud. Hard: loud notes need a hard pick."
+              hint="Soft: a light touch already plays loud. Hard: loud notes need a hard pluck or pick."
             >
               <Segmented param="curve" size="md" />
             </Field>
@@ -148,7 +148,7 @@ export function MidiApp() {
               label="Timing"
               hint={
                 steady
-                  ? `Every note ${Math.round(session.steadyLagMs)} ms after its pick. Set the track delay to −${Math.round(session.steadyLagMs)} ms.`
+                  ? `Every note ${Math.round(session.steadyLagMs)} ms after you play it. Set the track delay to −${Math.round(session.steadyLagMs)} ms.`
                   : 'Each note as soon as it is sure. Low strings take longer.'
               }
             >

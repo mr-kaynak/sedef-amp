@@ -25,6 +25,8 @@ const PATHS = {
     'M7.5 4.6l1.1-1.1a2.6 2.6 0 0 1 3.7 3.7l-1.1 1.1M8.5 11.4l-1.1 1.1a2.6 2.6 0 0 1-3.7-3.7l1.1-1.1M2 2l12 12',
   folder: 'M1.5 4.5v8h13v-7H8L6.5 4z',
   plus: 'M8 3v10M3 8h10',
+  // Six dots: a drag handle. Round caps turn each zero-length stroke into a dot.
+  grip: 'M6 3.5h.01M10 3.5h.01M6 8h.01M10 8h.01M6 12.5h.01M10 12.5h.01',
   copy: 'M5.5 5.5h8v8h-8zM10.5 5.5v-3h-8v8h3',
   check: 'M3 8.5l3.2 3L13 4.5',
   refresh: 'M13 8a5 5 0 1 1-1.5-3.6M13 2.5v2.5h-2.5',

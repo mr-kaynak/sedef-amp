@@ -11,6 +11,7 @@
     "solo"
   ],
   "description": "Boosted lead with a hint of chorus and a dotted-eighth echo.",
+  "board": ["gate", "pearl", "ripple"],
   "parameters": {
     "ampModel": 2,
     "abyssGain": 0.65,

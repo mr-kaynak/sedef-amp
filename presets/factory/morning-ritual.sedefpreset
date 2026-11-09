@@ -10,6 +10,7 @@
     "blues"
   ],
   "description": "Edge of breakup: dig in for grit, roll the volume back to clean up.",
+  "board": ["gate", "pearl"],
   "parameters": {
     "ampModel": 0,
     "micAPosition": 0.4,

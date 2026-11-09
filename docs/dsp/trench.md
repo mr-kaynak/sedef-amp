@@ -301,8 +301,8 @@ puts energy: f_b − f_a/2 is the amp's 2y − x of the two subs.
 ## Where it goes in the chain
 
 First, right after the gate: **Trench** → Anemone → Conch → Remora → Tide → Urchin → Sargasso →
-Pearl → Kelp → Coral → Beacon → Gyre → Jetty → Ripple → Breaker. That is the engine's fixed order
-until the pedalboard lets the player choose; it is also the order we recommend.
+Pearl → Kelp → Coral → Beacon → Gyre → Jetty → Ripple → Breaker. That is where the pedalboard
+puts it by default, and the order we recommend; the player can move it anywhere.
 
 - **Ahead of every drive.** Both modes need the string's own partials. Every harmonic a drive adds
   is one more the tracker has to see past (Mono), or one more partial to divide along with the

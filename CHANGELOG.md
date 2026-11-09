@@ -8,21 +8,12 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
-- **Sedef MIDI (preview):** a companion that turns a guitar's DI into MIDI notes in real time,
-  one note at a time, to play and record MIDI instruments from the guitar. A standalone app with
-  its own MIDI port ("Sedef MIDI"), a plug-in (AU, VST3, CLAP) for the guitar track, and an
-  instrument AU that takes the guitar through Logic's side chain. Octave −2 to +1, Notes or
-  Notes + Bend, Fastest or Steady timing, velocity sensitivity and curve, MIDI channel, Panic; no
-  stuck notes on stop, bypass, port change or quit. Its own parameter list, separate from Sedef
-  Amp's. Not in the installers yet: CI builds a macOS test build
-  ([docs/midi.md](docs/midi.md), [design](docs/design/guitar-to-midi.md)).
-
 - **Settings > Latency:** Low latency, the default, or **Linear phase**, the 0.4.0 filters, which
   keep every frequency in time for mixing and re-amping and add about 5 ms at 48 kHz. Switching
   restarts the audio for a moment and tells the host the new latency; the status bar and About
   follow it. Sessions saved with 0.4.0 open in Low latency.
 - New parameter: `oversampling` (global, not automatable, not saved in presets).
-- **Five filter and modulation pedals**, each with its own enclosure on the Pedals page:
+- **Five filter and modulation pedals**, each with its own enclosure on the pedalboard:
   - **Anemone**, an envelope filter: low-, band- or high-pass that opens (or closes) with your
     picking, with a fast attack and a slower release for funk
     ([docs/dsp/anemone.md](docs/dsp/anemone.md)).
@@ -34,15 +25,25 @@ All notable changes to this project are documented here. The format follows
   - **Jetty**, a bucket-brigade flanger with Feedback in either polarity
     ([docs/dsp/jetty.md](docs/dsp/jetty.md)).
 
-  Anemone and Conch go between Trench and Remora, before the drives; Beacon, Gyre and Jetty after
-  the drives, before Ripple. All five are off by default and add no latency, so existing sessions
-  and presets sound the same.
+  By default Anemone and Conch go between Trench and Remora, before the drives; Beacon, Gyre and
+  Jetty after the drives, before Ripple. All five are off by default and add no latency, so
+  existing sessions and presets sound the same.
 - New parameters (177 → 202): `anemoneEnabled`, `anemoneSensitivity`, `anemoneRange`,
   `anemoneResonance`, `anemoneMode`, `anemoneDirection`, `conchEnabled`, `conchMode`,
   `conchPosition`, `conchResonance`, `conchSensitivity`, `beaconEnabled`, `beaconSpeed`,
   `beaconDepth`, `beaconMode`, `gyreEnabled`, `gyreSpeed`, `gyreDepth`, `gyreFeedback`,
   `gyreStages`, `jettyEnabled`, `jettySpeed`, `jettyDepth`, `jettyDelay`, `jettyFeedback`.
 - **Sea Lantern** factory preset: Lagoon pushed by Coral into the Beacon vibe, with a plate.
+- **Pedalboard:** the Pedals page is a board. Add pedals from a picker grouped by category, take
+  them off (with Undo), and drag them into any order by their handle, or move them with the
+  arrow keys or the move buttons. The board is saved with the session and with presets, and
+  A/B, preset Undo and the browser's audition carry it. Pedals off the board cost no CPU, and
+  the plug-in's latency stays the same whatever is on it. A reorder is a short duck (about
+  12 ms) rather than a click; adding and removing use each pedal's bypass fade
+  ([docs/architecture.md](docs/architecture.md#the-pedalboard)).
+- The Gate is a board pedal, first by default; it still listens to the guitar wherever it sits.
+- `sedef-render --board gate,tide,…` renders through a given board (without it, a preset's own
+  board), and `--switch 2.5=ripple,gate,…` changes the board mid-render.
 - **Trench Poly:** a Mono/Poly switch on Trench. Poly divides every string of a chord, so open
   chords, power chords and barres get their octave down: each note's sub lands within 1.3 cents,
   what is neither a note nor one of its partials stays 24 dB under the rest, and a sub speaks
@@ -50,6 +51,14 @@ All notable changes to this project are documented here. The format follows
   sessions and presets made before keep their sound
   ([docs/dsp/trench.md](docs/dsp/trench.md)).
 - New parameter (202 → 203): `trenchMode` (automatable; Mono by default).
+- **Sedef MIDI (preview):** a companion that turns a guitar's DI into MIDI notes in real time,
+  one note at a time, to play and record MIDI instruments from the guitar. A standalone app with
+  its own MIDI port ("Sedef MIDI"), a plug-in (AU, VST3, CLAP) for the guitar track, and an
+  instrument AU that takes the guitar through Logic's side chain. Octave −2 to +1, Notes or
+  Notes + Bend, Fastest or Steady timing, velocity sensitivity and curve, MIDI channel, Panic; no
+  stuck notes on stop, bypass, port change or quit. Its own parameter list, separate from Sedef
+  Amp's. Not in the installers yet: CI builds a macOS test build
+  ([docs/midi.md](docs/midi.md), [design](docs/design/guitar-to-midi.md)).
 
 ### Changed
 
@@ -80,6 +89,15 @@ All notable changes to this project are documented here. The format follows
   nothing can change it meanwhile, and `/RELAUNCH` opens the standalone app afterwards.
 - **Releases** are installed over the previous release on every OS, through the updater's own
   code, before they are published ([docs/releasing.md](docs/releasing.md#install-test)).
+- Sessions and user presets saved before the board (0.4.0 and earlier) open with the whole fixed
+  chain it replaces (Gate, Trench, Anemone, Conch, Remora, Tide, Urchin, Sargasso, Pearl, Kelp,
+  Coral, Beacon, Gyre, Jetty, Ripple, Breaker; 0.3.0 had Gate, Tide, Pearl, Coral and Ripple, in
+  that order), so every pedal whose settings they saved is in view, and they sound exactly as
+  they did.
+- Every factory preset carries a board with just the pedals it uses, and sounds exactly as it did
+  (a test renders each one against the fixed chain). A new instance and Init open with the Gate
+  alone, the only pedal on by default; add the rest from the picker.
+- The Pedals tab shows a lamp for each pedal on the board, in its order.
 - **Trench tracks real playing.** On real guitar DI its sub chopped on and off 12–20 times a
   second: a bright pickup's 2nd and 3rd partials, the pick and the last note still ringing threw
   its period detector off. A new note tracker holds the note through all of them: on a recorded

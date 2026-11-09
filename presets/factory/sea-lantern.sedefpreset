@@ -11,6 +11,7 @@
     "blues"
   ],
   "description": "Raw distortion into a slow, throbbing photocell vibe, for singing blues leads.",
+  "board": ["gate", "coral", "beacon"],
   "parameters": {
     "ampModel": 0,
     "lagoonVolume": 0.5,

@@ -10,6 +10,7 @@
     "metal"
   ],
   "description": "Tight, punchy high gain: a mid-pushed boost in front of the amp keeps low riffs locked.",
+  "board": ["gate", "kelp"],
   "parameters": {
     "ampModel": 2,
     "abyssGain": 0.55,

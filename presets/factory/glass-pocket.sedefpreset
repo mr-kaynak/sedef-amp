@@ -11,6 +11,7 @@
     "funk"
   ],
   "description": "Snappy compressed clean for funk comping, dotted-eighth echo underneath.",
+  "board": ["gate", "tide"],
   "parameters": {
     "ampModel": 0,
     "micAPosition": 0.4,

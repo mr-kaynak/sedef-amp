@@ -11,6 +11,7 @@
     "drone"
   ],
   "description": "Dark, slowly churning drone: four tape heads into a 12-second hall.",
+  "board": ["gate", "ripple"],
   "parameters": {
     "ampModel": 2,
     "abyssGain": 0.33,

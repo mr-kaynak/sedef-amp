@@ -163,7 +163,7 @@ jobs:
         shell: bash
         run: |
           targets=(SedefAmp_All SedefAmp_CLAP sedef-host-smoke sedef_update_tests sedef_capture_tests
-                   SedefMidi_All SedefMidi_CLAP sedef_midi_tests)
+                   sedef_plugin_tests SedefMidi_All SedefMidi_CLAP sedef_midi_tests)
           # The instrument AU (Logic's side-chain route) exists on macOS only.
           if [ "$RUNNER_OS" = "macOS" ]; then targets+=(SedefMidiInstrument_All); fi
           cmake --build --preset release --target "${targets[@]}"
@@ -173,6 +173,9 @@ jobs:
       - name: Capture library tests
         shell: bash
         run: build/release/plugin/sedef_capture_tests_artefacts/Release/sedef_capture_tests
+      - name: Plug-in state tests (session, presets, A/B, pedalboard)
+        shell: bash
+        run: build/release/plugin/sedef_plugin_tests_artefacts/Release/sedef_plugin_tests
       - name: Sedef MIDI tests (hosted VST3, MIDI ports)
         shell: bash
         run: |

@@ -7,6 +7,7 @@
 //   ?errors=3.6,-2.4,1.1             12th-fret errors (cents) the simulated guitar produces
 //   ?preset=soft-focus               start from a factory preset (slug, default nacre)
 //   ?set=pearlEnabled:1,pearlGain:0.4  parameter values applied as part of that preset
+//   ?board=gate,pearl,ripple         the pedalboard, as part of that preset
 //   ?freeze                          no simulation: static meters, pitch only from the demo hook
 //   ?demo                            expose window.__sedefDemo for scripted frames (captures)
 //   ?grain=0                         hide the lacquer grain (smaller screenshots)
@@ -23,6 +24,8 @@ export interface DemoFlags {
   errors: number[] | undefined;
   preset: string | null;
   overrides: Record<string, number>;
+  /** Pedal ids in signal order; null keeps the preset's board. */
+  board: string[] | null;
   freeze: boolean;
   demo: boolean;
   grain: boolean;
@@ -63,6 +66,12 @@ export function readDemoFlags(
     errors: errors && errors.length ? errors : undefined,
     preset: q.get('preset'),
     overrides: parseOverrides(q.get('set')),
+    board: q.has('board')
+      ? (q.get('board') ?? '')
+          .split(',')
+          .map((id) => id.trim())
+          .filter(Boolean)
+      : null,
     freeze: q.has('freeze'),
     demo: q.has('demo'),
     grain: q.get('grain') !== '0',

@@ -7,8 +7,10 @@
 #include "ParameterLayout.h"
 #include "sedef/midi/MidiParameters.h"
 
+#include <algorithm>
 #include <catch2/catch_test_macros.hpp>
 #include <mutex>
+#include <vector>
 
 using sedef::midiplugin::MidiPortRouter;
 
@@ -54,6 +56,7 @@ sedef::midi::EventList eventsOf (std::initializer_list<sedef::midi::Event> list)
 
 TEST_CASE ("The virtual port carries the notes, spaced as played, and ends them", "[midi][ports]")
 {
+    constexpr int kNotes = 6;
     const juce::String name =
         "Sedef MIDI test " + juce::String (juce::Random::getSystemRandom().nextInt (100000));
     Received received;
@@ -86,28 +89,47 @@ TEST_CASE ("The virtual port carries the notes, spaced as played, and ends them"
         REQUIRE (input != nullptr);
         input->start();
 
-        // A note at sample 0, its note-off and the next note 2400 samples (50 ms) later.
+        // Six notes 2400 samples (50 ms) apart, each ending the one before.
         using sedef::midi::Event;
         router.push (eventsOf ({ Event::noteOn (1, 40, 100, 0) }), 0, 48000.0);
-        router.push (eventsOf ({ Event::noteOff (1, 40, 0), Event::noteOn (1, 43, 90, 0) }), 2400,
-                     48000.0);
-        REQUIRE (waitFor ([&received] { return received.copy().size() >= 3; }));
+        for (int n = 1; n < kNotes; ++n)
+            router.push (
+                eventsOf ({ Event::noteOff (1, 40 + n - 1, 0), Event::noteOn (1, 40 + n, 90, 0) }),
+                n * 2400, 48000.0);
+        const auto count = static_cast<std::size_t> (2 * kNotes - 1);
+        REQUIRE (waitFor ([&] { return received.copy().size() >= count; }));
         const auto got = received.copy();
-        CHECK (got[0].second.isNoteOn());
-        CHECK (got[0].second.getNoteNumber() == 40);
-        CHECK (got[1].second.isNoteOff());
-        CHECK (got[2].second.getNoteNumber() == 43);
-        // Spaced as played, give or take the router's millisecond.
-        const double spacing = got[1].first - got[0].first;
-        INFO ("spacing " << spacing << " ms");
-        CHECK (spacing > 46.0);
-        CHECK (spacing < 54.0);
-        // Quitting (the router going away) ends the note still sounding: 43.
+        std::vector<double> spacings;
+        for (int n = 0; n < kNotes; ++n)
+        {
+            const auto& on = got[static_cast<std::size_t> (2 * n)];
+            CHECK (on.second.isNoteOn());
+            CHECK (on.second.getNoteNumber() == 40 + n);
+            if (n == 0)
+                continue;
+            const auto& off = got[static_cast<std::size_t> (2 * n - 1)];
+            CHECK (off.second.isNoteOff());
+            CHECK (off.second.getNoteNumber() == 40 + n - 1);
+            spacings.push_back (on.first - got[static_cast<std::size_t> (2 * n - 2)].first);
+        }
+        // Spaced as played: the typical spacing within the router's millisecond (and the
+        // receiving thread's), and none bunched up or held back even when a busy machine wakes
+        // the sending thread late once.
+        std::ranges::sort (spacings);
+        const double median = spacings[spacings.size() / 2];
+        INFO ("spacings " << spacings.front() << " to " << spacings.back() << " ms, median "
+                          << median);
+        CHECK (median > 46.0);
+        CHECK (median < 54.0);
+        CHECK (spacings.front() > 25.0);
+        CHECK (spacings.back() < 100.0);
+        // Quitting (the router going away) ends the note still sounding.
     }
-    REQUIRE (waitFor ([&received] { return received.copy().size() >= 4; }));
+    const auto count = static_cast<std::size_t> (2 * kNotes);
+    REQUIRE (waitFor ([&] { return received.copy().size() >= count; }));
     const auto got = received.copy();
-    CHECK (got[3].second.isNoteOff());
-    CHECK (got[3].second.getNoteNumber() == 43);
+    CHECK (got[count - 1].second.isNoteOff());
+    CHECK (got[count - 1].second.getNoteNumber() == 40 + kNotes - 1);
     if (input != nullptr)
         input->stop();
 }

@@ -290,6 +290,48 @@ TEST_CASE ("Factory presets saved with a board load it")
     }
 }
 
+TEST_CASE ("A renamed factory preset keeps its id, and the library lists clean to ambient")
+{
+    Fixture f;
+    SedefProcessor p;
+    auto& presets = p.presets();
+
+    // 0.5.0 called it Nacre; favourites, Recent and sessions name it by id.
+    REQUIRE (presets.load ("factory:nacre", false));
+    CHECK (presets.currentName() == "Chorus Clean");
+    const auto state = presets.stateAsVar();
+    CHECK (state["recent"][0].toString() == "factory:nacre");
+
+    // A session saved by 0.5.0 names the preset as it was called then: the id finds it, and it
+    // shows the name the library has now.
+    {
+        const auto lock = presets.lockParameters();
+        presets.hostRestored ("factory:nacre", "Nacre");
+    }
+    presets.sync();
+    CHECK (presets.currentId() == "factory:nacre");
+    CHECK (presets.currentName() == "Chorus Clean");
+    CHECK_FALSE (presets.isDirty());
+    // A preset this machine doesn't have keeps the name the session gives it.
+    {
+        const auto lock = presets.lockParameters();
+        presets.hostRestored ("user:Gone.sedefpreset", "Gone");
+    }
+    presets.sync();
+    CHECK (presets.currentName() == "Gone");
+
+    // The order the browser lists and previous/next step through.
+    juce::StringArray folders;
+    for (const auto& item : *state["items"].getArray())
+        folders.addIfNotAlreadyThere (item["folder"].toString());
+    CHECK (folders == juce::StringArray { "Clean", "Crunch", "High Gain", "Lead", "Ambient" });
+    REQUIRE (presets.load ("factory:nacre", true));
+    presets.step (-1);
+    CHECK (presets.currentName() == "Auto-Wah Funk");
+    presets.step (-1);
+    CHECK (presets.currentName() == "Vibrato Swell Wash");
+}
+
 TEST_CASE ("A preset file without a board gets the pedals it switches on")
 {
     // As a preset written by hand or by a build before the board: the legacy board, plus any

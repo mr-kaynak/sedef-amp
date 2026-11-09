@@ -1,14 +1,11 @@
 {
   "format": "sedef-preset",
   "version": 1,
-  "name": "Morning Ritual",
+  "id": "morning-ritual",
+  "name": "Edge of Breakup",
   "folder": "Crunch",
   "author": "Sedef",
-  "tags": [
-    "edge of breakup",
-    "overdrive",
-    "blues"
-  ],
+  "tags": ["overdrive", "blues"],
   "description": "Edge of breakup: dig in for grit, roll the volume back to clean up.",
   "board": ["gate", "pearl"],
   "parameters": {
@@ -20,7 +17,7 @@
     "micBLevel": -5.0,
     "lagoonVolume": 0.58,
     "lagoonMaster": 0.62,
-    "lagoonOutput": 0.3021,
+    "lagoonOutput": 0.3042,
     "pearlEnabled": 1,
     "pearlGain": 0.22,
     "pearlTone": 0.55,

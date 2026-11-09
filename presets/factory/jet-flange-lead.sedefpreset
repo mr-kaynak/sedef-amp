@@ -1,0 +1,27 @@
+{
+  "format": "sedef-preset",
+  "version": 1,
+  "id": "jet-flange-lead",
+  "name": "Jet Flange Lead",
+  "folder": "Lead",
+  "author": "Sedef",
+  "tags": ["flanger", "delay", "solo"],
+  "description": "High-gain lead with a slow jet sweep across it. Held bends and dive bombs.",
+  "board": ["gate", "jetty"],
+  "parameters": {
+    "ampModel": 2,
+    "abyssGain": 0.65,
+    "abyssMid": 0.55,
+    "jettyEnabled": 1,
+    "jettySpeed": 0.25,
+    "jettyDepth": 0.6,
+    "jettyDelay": 2.0,
+    "jettyFeedback": 55.0,
+    "driftEnabled": 1,
+    "driftNote": 13,
+    "driftFeedback": 0.3,
+    "driftMix": 0.18,
+    "gateThreshold": -62.0,
+    "abyssOutput": 0.2896
+  }
+}

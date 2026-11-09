@@ -21,7 +21,7 @@ Neither mode shifts pitch with a delay line: the removed Transpose shifter (see
 [transpose.md](transpose.md)) is not used, and the direct path has no latency.
 
 Mono is the default, so sessions and presets saved before the switch existed sound as they were
-voiced (the Benthic preset, for one, is written for single-note riffs).
+voiced (the Sub Octave Riff preset, for one, is written for single-note riffs).
 
 ## Signal flow
 

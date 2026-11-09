@@ -1,0 +1,31 @@
+{
+  "format": "sedef-preset",
+  "version": 1,
+  "id": "slow-flange-pad",
+  "name": "Slow Flange Pad",
+  "folder": "Ambient",
+  "author": "Sedef",
+  "tags": ["flanger", "delay", "hall", "pad"],
+  "description": "A very slow, deep flanger turning under clean chords, with echoes and a long hall.",
+  "board": ["gate", "jetty"],
+  "parameters": {
+    "ampModel": 1,
+    "reefVoice": 1,
+    "reefGain": 0.1,
+    "jettyEnabled": 1,
+    "jettySpeed": 0.08,
+    "jettyDepth": 0.8,
+    "jettyDelay": 3.0,
+    "jettyFeedback": 60.0,
+    "driftEnabled": 1,
+    "driftHeads": 1,
+    "driftNote": 13,
+    "driftFeedback": 0.4,
+    "driftMix": 0.25,
+    "fathomEnabled": 1,
+    "fathomMode": 1,
+    "fathomMix": 0.4,
+    "fathomDecay": 7.0,
+    "reefOutput": 0.5208
+  }
+}

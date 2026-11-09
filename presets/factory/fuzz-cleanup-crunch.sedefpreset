@@ -1,0 +1,23 @@
+{
+  "format": "sedef-preset",
+  "version": 1,
+  "id": "fuzz-cleanup-crunch",
+  "name": "Fuzz Cleanup Crunch",
+  "folder": "Crunch",
+  "author": "Sedef",
+  "tags": ["fuzz", "blues"],
+  "description": "Germanium fuzz with the guitar rolled back: glassy and chewy, dirtier as you dig in.",
+  "board": ["gate", "remora"],
+  "parameters": {
+    "ampModel": 0,
+    "lagoonVolume": 0.7,
+    "lagoonCut": 0.4,
+    "remoraEnabled": 1,
+    "remoraFuzz": 0.8,
+    "remoraVolume": 0.5,
+    "remoraBias": 0.5,
+    "remoraGuitarVolume": 0.9,
+    "remoraTransistor": 0,
+    "lagoonOutput": 0.3458
+  }
+}

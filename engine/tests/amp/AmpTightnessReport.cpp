@@ -306,14 +306,14 @@ TEST_CASE ("High-gain tightness report", "[.tight]")
             { "bass 1", [] (auto& s) { s.abyss.bass = 1.0f; } },
             { "bright off", [] (auto& s) { s.abyss.bright = false; } },
             { "shift on", [] (auto& s) { s.abyss.shift = true; } },
-            { "Mariana",
+            { "Modern Metal Rhythm",
               [] (auto& s) {
                   s.abyss.gain = 0.65f;
                   s.abyss.shift = true;
                   s.abyss.mid = 0.4f;
                   s.abyss.bass = 0.55f;
               } },
-            { "Riptide",
+            { "Singing Echo Lead",
               [] (auto& s) {
                   s.abyss.gain = 0.55f;
                   s.abyss.mid = 0.55f;

@@ -1,0 +1,29 @@
+{
+  "format": "sedef-preset",
+  "version": 1,
+  "id": "chime-boost-lead",
+  "name": "Chime Boost Lead",
+  "folder": "Lead",
+  "author": "Sedef",
+  "tags": ["boost", "delay", "plate", "solo"],
+  "description": "Full-range boost into a cranked small amp: a fat, harmonically rich lead with echo.",
+  "board": ["gate", "breaker"],
+  "parameters": {
+    "ampModel": 0,
+    "lagoonVolume": 0.9,
+    "lagoonCut": 0.45,
+    "lagoonMaster": 0.65,
+    "breakerEnabled": 1,
+    "breakerBoost": 0.7,
+    "breakerRange": 1,
+    "driftEnabled": 1,
+    "driftNote": 12,
+    "driftFeedback": 0.3,
+    "driftMix": 0.2,
+    "fathomEnabled": 1,
+    "fathomMix": 0.15,
+    "fathomDecay": 2.0,
+    "gateThreshold": -64.0,
+    "lagoonOutput": 0.175
+  }
+}

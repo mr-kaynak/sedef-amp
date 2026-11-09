@@ -1,15 +1,11 @@
 {
   "format": "sedef-preset",
   "version": 1,
-  "name": "Sea Lantern",
+  "id": "sea-lantern",
+  "name": "Blues Vibe Lead",
   "folder": "Lead",
   "author": "Sedef",
-  "tags": [
-    "distortion",
-    "vibe",
-    "plate",
-    "blues"
-  ],
+  "tags": ["distortion", "vibe", "plate", "blues"],
   "description": "Raw distortion into a slow, throbbing photocell vibe, for singing blues leads.",
   "board": ["gate", "coral", "beacon"],
   "parameters": {

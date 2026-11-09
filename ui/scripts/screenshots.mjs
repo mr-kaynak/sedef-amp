@@ -13,7 +13,7 @@ mkdirSync(outDir, { recursive: true });
 
 const SHOTS = {
   amp: { query: 'section=amp' },
-  // 0.3.0's five pedals with Pearl on (Nacre, the start-up preset, has only the three it uses).
+  // 0.3.0's five pedals with Pearl on (Chorus Clean, the start-up preset, has only the three it uses).
   pedals: { query: 'section=pedals&board=gate,tide,pearl,coral,ripple&set=pearlEnabled:1' },
   // Add pedal's picker over a board with room on it.
   'pedal-picker': {
@@ -92,21 +92,11 @@ const SHOTS = {
   presets: {
     query: 'section=amp',
     async prepare(page) {
-      // Audition the next preset, so the footer offers the way back to Nacre.
+      // Audition the next preset, so the action row offers the way back to the first one.
       await page.getByRole('button', { name: /Open preset browser/ }).click();
       await page.getByRole('combobox', { name: 'Search presets' }).press('ArrowDown');
-      await page.getByRole('option', { name: /^Riptide, playing/ }).waitFor();
+      await page.getByRole('option', { name: /^Country Snap, playing/ }).waitFor();
       await page.waitForTimeout(400);
-      // Centring the playing row can leave the list cut mid-row; start it on a whole row.
-      await page.getByRole('listbox', { name: 'Presets' }).evaluate((list) => {
-        const scroller = list.parentElement;
-        const top =
-          scroller.getBoundingClientRect().top + parseFloat(getComputedStyle(scroller).paddingTop);
-        const rows = [...list.querySelectorAll('[role="option"]')];
-        const first = rows.find((row) => row.getBoundingClientRect().bottom > top + 1);
-        if (first) scroller.scrollTop += first.getBoundingClientRect().top - top;
-      });
-      await page.waitForTimeout(100);
     },
   },
   updates: {

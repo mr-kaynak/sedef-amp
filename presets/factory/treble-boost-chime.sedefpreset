@@ -1,0 +1,23 @@
+{
+  "format": "sedef-preset",
+  "version": 1,
+  "id": "treble-boost-chime",
+  "name": "Treble Boost Chime",
+  "folder": "Crunch",
+  "author": "Sedef",
+  "tags": ["boost", "rock"],
+  "description": "Treble booster into a cranked amp: bright, biting upper mids. Classic rock riffs and leads.",
+  "board": ["gate", "breaker"],
+  "parameters": {
+    "ampModel": 0,
+    "lagoonVolume": 0.85,
+    "lagoonBass": 0.65,
+    "lagoonCut": 0.6,
+    "lagoonMaster": 0.6,
+    "breakerEnabled": 1,
+    "breakerBoost": 0.4,
+    "breakerRange": 0,
+    "gateThreshold": -66.0,
+    "lagoonOutput": 0.1896
+  }
+}

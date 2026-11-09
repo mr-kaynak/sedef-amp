@@ -1,0 +1,22 @@
+{
+  "format": "sedef-preset",
+  "version": 1,
+  "id": "stack-crunch",
+  "name": "Stack Crunch",
+  "folder": "Crunch",
+  "author": "Sedef",
+  "tags": ["rhythm", "rock"],
+  "description": "Loud, open stack crunch through a closed 4x12. Power chords and classic rock rhythm.",
+  "board": ["gate"],
+  "parameters": {
+    "ampModel": 1,
+    "ampCabLink": 0,
+    "cabModel": 2,
+    "reefGain": 0.6,
+    "reefMid": 0.6,
+    "reefTreble": 0.55,
+    "reefPresence": 0.55,
+    "gateThreshold": -66.0,
+    "reefOutput": 0.3333
+  }
+}

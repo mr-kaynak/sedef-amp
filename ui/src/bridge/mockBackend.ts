@@ -24,6 +24,7 @@ import { cleanDetails, renameClashes, renamedPresetId, savedPresetId } from '../
 import { bundledSchema, defaultValues, indexSchema } from '../params/schema';
 import { snapValue } from '../params/normalise';
 import { isGlobalParam, sameValue } from '../params/presetScope';
+import { comparePresets } from '../features/presets/library';
 import {
   DEFAULT_PRESET_ID,
   FACTORY_PRESETS,
@@ -55,7 +56,7 @@ export interface MockOptions {
   uiState?: UiState | null;
   /** localStorage key used to keep UI state across reloads in the browser; null disables. */
   persistKey?: string | null;
-  /** Preset loaded at startup; null starts from Init. Defaults to Nacre. */
+  /** Preset loaded at startup; null starts from Init. Defaults to Chorus Clean (factory:nacre). */
   initialPresetId?: string | null;
   /**
    * Values applied on top of the initial preset as if they were part of it (no dirty dot).
@@ -98,15 +99,9 @@ interface Snapshot {
   dirty: boolean;
 }
 
-const natural = (a: string, b: string) =>
-  a.localeCompare(b, 'en', { numeric: true, sensitivity: 'base' });
-
-/** Factory first, then folder, then name (PresetManager::scan). */
+/** Library order (PresetManager::scan); previous and next step through it. */
 function sortPresets(items: PresetInfo[]): PresetInfo[] {
-  const cat = (p: PresetInfo) => (p.category === 'Factory' ? 0 : 1);
-  return [...items].sort(
-    (a, b) => cat(a) - cat(b) || natural(a.folder, b.folder) || natural(a.name, b.name),
-  );
+  return [...items].sort(comparePresets);
 }
 
 export class MockBackend implements Backend {

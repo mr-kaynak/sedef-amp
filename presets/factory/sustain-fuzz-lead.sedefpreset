@@ -1,0 +1,30 @@
+{
+  "format": "sedef-preset",
+  "version": 1,
+  "id": "sustain-fuzz-lead",
+  "name": "Sustain Fuzz Lead",
+  "folder": "Lead",
+  "author": "Sedef",
+  "tags": ["fuzz", "delay", "hall", "solo"],
+  "description": "Smooth, violin-like fuzz that holds a note for bars, with echo and a little hall.",
+  "board": ["gate", "sargasso"],
+  "parameters": {
+    "ampModel": 0,
+    "lagoonVolume": 0.5,
+    "lagoonCut": 0.5,
+    "sargassoEnabled": 1,
+    "sargassoSustain": 0.8,
+    "sargassoTone": 0.45,
+    "sargassoVolume": 0.5,
+    "driftEnabled": 1,
+    "driftNote": 13,
+    "driftFeedback": 0.3,
+    "driftMix": 0.2,
+    "fathomEnabled": 1,
+    "fathomMode": 1,
+    "fathomMix": 0.15,
+    "fathomDecay": 3.0,
+    "gateThreshold": -62.0,
+    "lagoonOutput": 0.3375
+  }
+}

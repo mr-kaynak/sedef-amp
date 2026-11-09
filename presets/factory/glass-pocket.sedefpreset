@@ -1,15 +1,11 @@
 {
   "format": "sedef-preset",
   "version": 1,
-  "name": "Glass Pocket",
+  "id": "glass-pocket",
+  "name": "Funk Comp Clean",
   "folder": "Clean",
   "author": "Sedef",
-  "tags": [
-    "compressor",
-    "delay",
-    "neo-soul",
-    "funk"
-  ],
+  "tags": ["compressor", "delay", "neo-soul", "funk"],
   "description": "Snappy compressed clean for funk comping, dotted-eighth echo underneath.",
   "board": ["gate", "tide"],
   "parameters": {

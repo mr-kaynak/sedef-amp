@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // The real factory presets (presets/factory/*.sedefpreset), bundled at build time so the browser
-// mock offers exactly what the plugin ships. Ids follow PresetManager: "factory:<slug>".
+// mock offers exactly what the plugin ships. Ids follow PresetManager: "factory:<slug>", the slug
+// from the file's "id" (it survives a rename), else from its name.
 import type { PresetInfo } from '../protocol';
 import { isGlobalParam, slugify } from '../../params/presetScope';
 import { bundledSchema, indexSchema } from '../../params/schema';
@@ -17,6 +18,7 @@ export interface MockPreset {
 
 interface PresetFile {
   format?: unknown;
+  id?: unknown;
   name?: unknown;
   folder?: unknown;
   author?: unknown;
@@ -53,10 +55,11 @@ export function parsePresetFile(json: string): MockPreset | null {
       values[id] = value;
   }
   const board = Array.isArray(file.board) ? sanitiseBoard(file.board) : undefined;
+  const slug = (typeof file.id === 'string' && slugify(file.id)) || slugify(file.name);
   return {
     info: presetInfo(
       {
-        id: `factory:${slugify(file.name)}`,
+        id: `factory:${slug}`,
         name: file.name,
         category: 'Factory',
         folder: typeof file.folder === 'string' ? file.folder : '',

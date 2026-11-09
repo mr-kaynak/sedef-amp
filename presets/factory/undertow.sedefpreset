@@ -1,15 +1,11 @@
 {
   "format": "sedef-preset",
   "version": 1,
-  "name": "Undertow",
+  "id": "undertow",
+  "name": "Dark Drone",
   "folder": "Ambient",
   "author": "Sedef",
-  "tags": [
-    "vibrato",
-    "delay",
-    "hall",
-    "drone"
-  ],
+  "tags": ["vibrato", "delay", "hall", "drone"],
   "description": "Dark, slowly churning drone: four tape heads into a 12-second hall.",
   "board": ["gate", "ripple"],
   "parameters": {

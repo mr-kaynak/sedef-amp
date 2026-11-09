@@ -1,0 +1,21 @@
+{
+  "format": "sedef-preset",
+  "version": 1,
+  "id": "octave-fuzz-riff",
+  "name": "Octave Fuzz Riff",
+  "folder": "High Gain",
+  "author": "Sedef",
+  "tags": ["octave", "fuzz", "garage"],
+  "description": "Splatty fuzz with an octave above ringing through it. Riffs on the neck pickup, high up.",
+  "board": ["gate", "urchin"],
+  "parameters": {
+    "ampModel": 1,
+    "reefGain": 0.4,
+    "urchinEnabled": 1,
+    "urchinFuzz": 0.8,
+    "urchinOctave": 0.7,
+    "urchinTone": 0.5,
+    "gateThreshold": -62.0,
+    "reefOutput": 0.3229
+  }
+}

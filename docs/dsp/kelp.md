@@ -107,7 +107,7 @@ ordinary picking level (330 Hz, −26 dBFS peak, 50 mV) has 1.7 % THD, and Level
 the clean, mid-pushed boost. Aliasing at full drive: inharmonic products of a 1.3 kHz / 2.6 kHz
 note at −91 / −82 dB re the fundamental.
 
-In front of Abyss at gain 5.5 (Holdfast's pedal setting: drive 0, tone 5.5, level 8),
+In front of Abyss at gain 5.5 (Tight Metal Boost's pedal setting: drive 0, tone 5.5, level 8),
 the output loudness stays within 0.7 dB of Abyss alone. On a low single-note riff the amp's
 400 Hz–1.5 kHz band rises by 2.0 dB and 150–400 Hz drops by 1.0 dB: the amp is driven by the
 mids rather than the low strings.

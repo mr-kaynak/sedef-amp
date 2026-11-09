@@ -1,0 +1,26 @@
+{
+  "format": "sedef-preset",
+  "version": 1,
+  "id": "wide-glass-clean",
+  "name": "Wide Glass Clean",
+  "folder": "Clean",
+  "author": "Sedef",
+  "tags": ["doubler", "plate"],
+  "description": "Bright, tight clean doubled left and right. Arpeggios and big open chords.",
+  "board": ["gate"],
+  "parameters": {
+    "ampModel": 2,
+    "abyssGain": 0.0,
+    "abyssBass": 0.45,
+    "abyssMid": 0.45,
+    "abyssTreble": 0.55,
+    "abyssPresence": 0.4,
+    "abyssMaster": 0.35,
+    "doublerEnabled": 1,
+    "doublerSpread": 8.0,
+    "fathomEnabled": 1,
+    "fathomMix": 0.2,
+    "fathomDecay": 2.0,
+    "abyssOutput": 0.4708
+  }
+}

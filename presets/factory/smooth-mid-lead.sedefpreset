@@ -1,0 +1,32 @@
+{
+  "format": "sedef-preset",
+  "version": 1,
+  "id": "smooth-mid-lead",
+  "name": "Smooth Mid Lead",
+  "folder": "Lead",
+  "author": "Sedef",
+  "tags": ["overdrive", "delay", "plate", "solo"],
+  "description": "Thick, rounded lead with pushed mids and a quarter-note echo. Long, singing melodies.",
+  "board": ["gate", "kelp"],
+  "parameters": {
+    "ampModel": 1,
+    "reefVoice": 1,
+    "reefGain": 0.75,
+    "reefMid": 0.65,
+    "reefTreble": 0.45,
+    "reefPresence": 0.4,
+    "kelpEnabled": 1,
+    "kelpDrive": 0.3,
+    "kelpTone": 0.45,
+    "kelpLevel": 0.6,
+    "driftEnabled": 1,
+    "driftNote": 13,
+    "driftFeedback": 0.3,
+    "driftMix": 0.2,
+    "fathomEnabled": 1,
+    "fathomMix": 0.15,
+    "fathomDecay": 2.2,
+    "gateThreshold": -62.0,
+    "reefOutput": 0.3292
+  }
+}

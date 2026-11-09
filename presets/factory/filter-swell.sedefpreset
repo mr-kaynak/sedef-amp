@@ -1,0 +1,33 @@
+{
+  "format": "sedef-preset",
+  "version": 1,
+  "id": "filter-swell",
+  "name": "Filter Swell",
+  "folder": "Ambient",
+  "author": "Sedef",
+  "tags": ["envelope filter", "delay", "hall", "swell"],
+  "description": "Each note starts dark and blooms open as it fades, into echoes and a ten-second hall.",
+  "board": ["gate", "anemone"],
+  "parameters": {
+    "ampModel": 0,
+    "micAPosition": 0.4,
+    "micBDistance": 0.25,
+    "micBLevel": -5.0,
+    "lagoonVolume": 0.45,
+    "anemoneEnabled": 1,
+    "anemoneSensitivity": 0.3,
+    "anemoneRange": 0.7,
+    "anemoneResonance": 0.4,
+    "anemoneMode": 0,
+    "anemoneDirection": 1,
+    "driftEnabled": 1,
+    "driftNote": 13,
+    "driftFeedback": 0.4,
+    "driftMix": 0.25,
+    "fathomEnabled": 1,
+    "fathomMode": 1,
+    "fathomMix": 0.45,
+    "fathomDecay": 10.0,
+    "lagoonOutput": 0.6333
+  }
+}

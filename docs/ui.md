@@ -32,7 +32,7 @@ chromium-headless-shell`.
 | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
 | `?section=pedals\|amp\|eq\|cab\|fx` | open a section                                                                                                      |
 | `?overlay=tuner\|intonation`        | open the tuner or the intonation workbench                                                                          |
-| `?preset=soft-focus`                | start from a factory preset (slug; default `nacre`)                                                                 |
+| `?preset=soft-focus`                | start from a factory preset (the id in its file, here Vibrato Swell Wash; default `nacre`, Chorus Clean)            |
 | `?set=pearlEnabled:1,pearlGain:0.4` | parameter values applied as part of that preset (no dirty dot)                                                      |
 | `?board=gate,pearl,ripple`          | the pedalboard, as part of that preset (empty: no pedals)                                                           |
 | `?freeze`                           | no simulation: static meters, pitch only from the demo hook                                                         |
@@ -67,8 +67,8 @@ ui/src/
                         Led, Popover, Icon
   features/
     header/             brand, preset bar with A/B compare, gain + level meters
-    presets/            preset browser: library model, list, Save as/Rename, session (audition,
-                        Esc, Undo); see ui/presets.md
+    presets/            preset browser: library model (order, groups, search), the list, the strip
+                        under it, Save as/Rename, session (audition, Esc, Undo); see ui/presets.md
     pedals/             the pedalboard: registry.ts (the engine's pedal table, generated), catalog.ts
                         (each pedal's panel and picker line), the panels (panels/, *Pedal.tsx),
                         PedalBoard, PedalPicker, useBoardDrag; the board lives in
@@ -156,10 +156,11 @@ validates everything, because state may come from an older build.
 factory presets (`presets/factory/*.sedefpreset`, bundled at build time with `import.meta.glob`)
 plus one user preset, IR slots, UI state (in `localStorage` when running in a browser), tap tempo,
 and simulators. Preset handling mirrors `plugin/src/PresetManager.cpp`: ids are
-`factory:<slug>` with the same slugify, global parameters (gains, transpose, stereo mode, tempo,
+`factory:<slug>` with the same slugify (of the file's `id`, else its name), global parameters
+(gains, transpose, stereo mode, tempo,
 tuner, metronome, preset stepping) are never stored, loaded or counted as changes, missing values
 fall back to the schema default, and "dirty" compares against the loaded preset with the same
-tolerance. The mock starts on Nacre.
+tolerance. The mock starts on Chorus Clean (`factory:nacre`).
 
 - **Telemetry**: a player strumming every couple of seconds, shaped by input/output gain, the gate
   threshold and the compressor; metronome steps at the current tempo and signature; the effective
@@ -199,7 +200,7 @@ browser the canvas fits the window. Everything is vector or text, so it stays cr
 | Screen     | Notes                                                                                                                                                                                                                            |
 | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Header     | logo, preset bar (prev/next, category chip, name with dirty dot, A/B with copy, Save), input/output gain with peak meters, clip latches and the Doubler switch, Tuner, Intonation, Metronome (standalone only), Settings         |
-| Presets    | browser over the rig ([details](ui/presets.md)): rail, list with tag chips and search, detail pane with the chain by stage; click or arrows audition, Enter keeps, Esc goes back exactly; `[` `]` `P` `A` `B`                    |
+| Presets    | browser over the rig ([details](ui/presets.md)): search, the library switch, one list of one-line rows under category headers, a strip with the note of the row under the pointer; click or arrows audition, Enter keeps, Esc goes back exactly; `[` `]` `P` `A` `B` |
 | Tabs       | Pedals · Amp · EQ · Cab · FX, keys 1–5 and arrow keys; each tab shows what is switched on inside it                                                                                                                              |
 | Pedals     | the pedalboard ([below](#pedalboard)): pedals in signal order, left to right and row by row; drag, arrow keys or move buttons to reorder; Remove with Undo; Add pedal picker by category. Gate (threshold, open/closed lamp); Trench Mono/Poly, Remora Germanium/Silicon, Breaker Treble/Full, Conch Manual/Auto, Anemone mode and direction, Gyre stages and Beacon Chorus/Vibrato switches; Tide gain reduction, Ripple rate lamp, Beacon lamp and Gyre/Jetty sweep LEDs; playing hints on Trench (it follows the mode: "One note at a time" in Mono, "Chords and single notes" in Poly) and Urchin, read with their footswitch |
 | Amp        | Lagoon/Reef/Abyss faceplates; Reef voice lever; Abyss bright/shift levers; amp/cab link; Capture: load or drop a .nam file, gear/author/model, trims, through-cab, interface level, recent, missing file                         |
@@ -335,7 +336,7 @@ something is alive.
 - The window-size setting only resizes inside the plugin; in a browser the canvas always fits.
 - Intonation keeps one instrument profile (with its results), not a library of named guitars.
 - The mock has no host transport; Drift's Host sync assumes 120 bpm.
-- No factory preset sets EQ values yet, so the EQ screenshot shapes its curve with `?set=`.
+- The EQ screenshot shapes its curve with `?set=`; only a few factory presets move the EQ.
 - Screenshots are full-fidelity PNGs (the lacquer grain does not compress well).
 - A switched-off FX unit fades its body to 62 % opacity, which takes its quiet text below 4.5:1.
   Its controls still work, so this is a deliberate exception to the contrast rule above.

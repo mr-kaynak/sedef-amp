@@ -5,23 +5,17 @@
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 2px 12px 12px;
+  padding: 0 12px 10px;
+  /* One flat surface, the colour the sticky headers are painted in. */
+  border-top: 1px solid var(--line);
+  background: var(--ink-1);
   scrollbar-width: thin;
   scrollbar-color: var(--ink-4) transparent;
-  /* Rows fade at the edges instead of being cut by the header and footer. */
-  mask-image: linear-gradient(
-    180deg,
-    transparent 0,
-    #000 14px,
-    #000 calc(100% - 18px),
-    transparent
-  );
+  /* The last row fades out instead of being cut by the strip below. */
+  mask-image: linear-gradient(180deg, #000 calc(100% - 14px), transparent);
 }
 
 .list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
   border-radius: var(--r-panel);
 }
 
@@ -30,52 +24,73 @@
   box-shadow: none;
 }
 
+/* Category headers --------------------------------------------------------------------------- */
+
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  height: 28px;
+  padding: 9px 12px 0 10px;
+  /* Opaque, so rows pass under it; the panel's own colour at this height. */
+  border-bottom: 1px solid var(--line);
+  background: var(--ink-1);
+}
+
+.group + .group .header {
+  margin-top: 6px;
+}
+
+.headerName {
+  color: var(--bone);
+  font-family: var(--font-display);
+  font-size: var(--t-14);
+  font-style: italic;
+  font-weight: 560;
+  line-height: 1;
+}
+
+.headerCount {
+  color: var(--bone-3);
+  font-size: var(--t-10);
+  font-variant-numeric: tabular-nums;
+}
+
+.group .row:first-of-type {
+  margin-top: 3px;
+}
+
+/* Rows ---------------------------------------------------------------------------------------- */
+
 .row {
   position: relative;
   display: grid;
-  grid-template-columns: 24px minmax(0, 1.05fr) minmax(0, 1fr) 68px;
+  grid-template-columns: 22px minmax(0, 272px) minmax(0, 1fr) minmax(0, auto);
   align-items: center;
-  gap: 12px;
-  min-height: 60px;
-  padding: 9px 12px 9px 6px;
-  border-radius: var(--r-panel);
+  gap: 10px;
+  height: 26px;
+  padding: 0 11px 0 3px;
+  /* Under the playing row's shadow ring, so forced colors still draw its edge. */
+  border: 1px solid transparent;
+  border-radius: var(--r-ctl);
   cursor: pointer;
+  /* An arrow key keeps the row clear of the sticky header. */
+  scroll-margin-top: 32px;
   transition: background-color var(--dur-1) var(--ease-out);
-}
-
-.row + .row::before {
-  content: '';
-  position: absolute;
-  left: 42px;
-  right: 12px;
-  top: 0;
-  height: 1px;
-  background: var(--line);
-  transition: opacity var(--dur-1) var(--ease-out);
 }
 
 @media (hover: hover) {
   .row:hover {
-    background: rgb(237 230 214 / 0.04);
+    background: rgb(237 230 214 / 0.05);
   }
-
-  .row:hover::before,
-  .row:hover + .row::before {
-    opacity: 0;
-  }
-}
-
-.row[aria-selected='true']::before,
-.row[aria-selected='true'] + .row::before,
-.row[data-current]::before,
-.row[data-current] + .row::before {
-  opacity: 0;
 }
 
 .row[data-current] {
   background:
-    linear-gradient(90deg, rgb(205 238 238 / 0.09), rgb(205 238 238 / 0.03) 70%),
-    rgb(6 17 25 / 0.35);
+    linear-gradient(90deg, rgb(205 238 238 / 0.1), rgb(205 238 238 / 0.03) 70%), rgb(6 17 25 / 0.35);
   box-shadow: inset 0 0 0 1px rgb(205 238 238 / 0.14);
 }
 
@@ -83,9 +98,9 @@
 .row[data-current]::after {
   content: '';
   position: absolute;
-  left: 0;
-  top: 10px;
-  bottom: 10px;
+  left: -1px;
+  top: 5px;
+  bottom: 5px;
   width: 3px;
   border-radius: 2px;
   background: var(--nacre);
@@ -96,8 +111,7 @@
   box-shadow: var(--focus);
 }
 
-/* Forced colors drop the row's tint and the focus shadow: outline the selected row instead (an
-   outline, so the dividers and the nacre edge keep their places). */
+/* Forced colors drop the row's tint and the focus shadow: outline the selected row instead. */
 @media (forced-colors: active) {
   .row[aria-selected='true'] {
     outline: 2px solid Highlight;
@@ -108,9 +122,9 @@
 .star {
   display: grid;
   place-items: center;
-  width: 26px;
-  height: 26px;
-  border-radius: var(--r-ctl);
+  width: 22px;
+  height: 22px;
+  border-radius: var(--r-hw);
   color: var(--bone-4);
   transition: color var(--dur-1) var(--ease-out);
 }
@@ -130,13 +144,6 @@
   color: var(--nacre-gold);
 }
 
-.main {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-}
-
 .nameLine {
   display: flex;
   align-items: baseline;
@@ -149,8 +156,8 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--bone);
-  font-size: var(--t-14);
-  font-weight: 580;
+  font-size: var(--t-12);
+  font-weight: 560;
   letter-spacing: 0.005em;
 }
 
@@ -174,23 +181,6 @@
   white-space: pre;
 }
 
-.description {
-  display: -webkit-box;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  color: var(--bone-3);
-  font-size: var(--t-12);
-  line-height: 1.35;
-}
-
-.sound {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  min-width: 0;
-}
-
 .chain {
   display: flex;
   align-items: center;
@@ -210,7 +200,7 @@
 }
 
 .arrow {
-  margin: 0 6px;
+  margin: 0 5px;
   color: var(--bone-4);
 }
 
@@ -218,9 +208,11 @@
   color: var(--bone-2);
 }
 
-.tags {
+.meta {
   display: flex;
-  gap: 8px;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 9px;
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
@@ -238,28 +230,16 @@
   color: var(--bone-4);
 }
 
-.meta {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 3px;
-  min-width: 0;
-  text-align: right;
-}
-
 .folder {
-  color: var(--bone-2);
+  color: var(--bone-3);
   font-size: var(--t-11);
   font-stretch: var(--legend-stretch);
 }
 
-.source {
-  color: var(--bone-3);
-  font-size: var(--t-10);
-}
-
-.source[data-user] {
+.user {
   color: var(--nacre-lilac);
+  font-size: var(--t-10);
+  font-stretch: var(--legend-stretch);
 }
 
 .empty {

@@ -1,13 +1,11 @@
 {
   "format": "sedef-preset",
   "version": 1,
-  "name": "Brine",
+  "id": "brine",
+  "name": "Thick Crunch",
   "folder": "Crunch",
   "author": "Sedef",
-  "tags": [
-    "rhythm",
-    "rock"
-  ],
+  "tags": ["rhythm", "rock"],
   "description": "Thick, mid-forward crunch for chords and riffs.",
   "board": ["gate"],
   "parameters": {

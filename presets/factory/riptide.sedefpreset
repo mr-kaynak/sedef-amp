@@ -1,14 +1,11 @@
 {
   "format": "sedef-preset",
   "version": 1,
-  "name": "Riptide",
+  "id": "riptide",
+  "name": "Singing Echo Lead",
   "folder": "Lead",
   "author": "Sedef",
-  "tags": [
-    "delay",
-    "hall",
-    "solo"
-  ],
+  "tags": ["delay", "hall", "solo"],
   "description": "Singing lead with a quarter-note echo and a little hall.",
   "board": ["gate"],
   "parameters": {

@@ -1,15 +1,11 @@
 {
   "format": "sedef-preset",
   "version": 1,
-  "name": "Bioluminescence",
+  "id": "bioluminescence",
+  "name": "Chorus Echo Lead",
   "folder": "Lead",
   "author": "Sedef",
-  "tags": [
-    "boost",
-    "chorus",
-    "delay",
-    "solo"
-  ],
+  "tags": ["boost", "chorus", "delay", "solo"],
   "description": "Boosted lead with a hint of chorus and a dotted-eighth echo.",
   "board": ["gate", "pearl", "ripple"],
   "parameters": {

@@ -1,102 +1,69 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// The browser's right pane: the highlighted preset in full (category and author, the name in the
-// display face, its note, the chain by stage, tags) and what you can do with it.
+// The strip under the list: what a one-line row leaves out (the note, the author, the cab) for
+// the row under the pointer, else the highlighted one, and what you can do with the highlighted
+// one.
+import type { ReactNode } from 'react';
 import { Icon, ICON_STROKE_LABEL } from '../../controls/Icon';
 import { Led } from '../../controls/Led';
 import buttons from '../../controls/Button.module.css';
-import nacre from '../../controls/NacreFill.module.css';
 import type { PresetInfo } from '../../bridge/protocol';
 import { presetActions, usePresetStore } from '../../state/presetStore';
 import { modKey } from '../../app/platform';
-import { AmpBadge } from './AmpBadge';
-import { chainGroups } from './library';
-import { deletePreset, presetBrowser, saveCurrent, useBrowserStore } from './session';
+import { CAB_NAMES } from './library';
+import { deletePreset, presetBrowser, saveCurrent } from './session';
 import styles from './PresetDetail.module.css';
 
-function Chain({ p }: { p: PresetInfo }) {
-  const g = chainGroups(p);
-  const list = (items: string[]) => (items.length ? items.join(' → ') : 'None');
-  return (
-    <dl className={styles.chain}>
-      <dt>Pedals</dt>
-      <dd>{list(g.pedals)}</dd>
-      <dt>Amp</dt>
-      <dd>
-        <AmpBadge p={p} />
-      </dd>
-      <dt>Cab</dt>
-      <dd>{g.cab}</dd>
-      <dt>FX</dt>
-      <dd>{list(g.fx)}</dd>
-    </dl>
-  );
+export interface PresetDetailProps {
+  /** The highlighted row's preset: the one the actions are about. */
+  preset: PresetInfo | undefined;
+  /** The row under the pointer, when it is another one: only its description shows. */
+  hovered?: PresetInfo | undefined;
+  /** The way back (Esc), at the start of the action row. */
+  back: ReactNode;
 }
 
-export function PresetDetail({ preset }: { preset: PresetInfo | undefined }) {
+export function PresetDetail({ preset, hovered, back }: PresetDetailProps) {
   const state = usePresetStore((s) => s.state);
-  const filterTags = useBrowserStore((s) => s.filter.tags);
   const mod = modKey();
   const loaded = !preset || preset.id === state.currentId;
   const isUser = loaded && preset?.category === 'User';
-
-  const toggleTag = (tag: string) =>
-    presetBrowser.setFilter({
-      tags: filterTags.includes(tag) ? filterTags.filter((t) => t !== tag) : [...filterTags, tag],
-    });
+  const shown = hovered ?? preset;
+  const playing = shown !== undefined && shown.id === state.currentId;
 
   return (
     <aside className={styles.detail} aria-label="Preset details">
-      <div className={styles.scroll}>
-        {preset ? (
+      <div className={styles.info}>
+        {shown ? (
           <>
-            <p className={styles.kicker}>
-              {[preset.folder || 'No category', preset.author || preset.category].join(' · ')}
+            <div className={styles.titleLine}>
+              <h3 className={styles.name}>{shown.name}</h3>
+              <p className={styles.facts}>
+                <span>{shown.folder || 'No category'}</span>
+                <span>{shown.author || shown.category}</span>
+                <span>{CAB_NAMES[shown.cab] ?? ''}</span>
+              </p>
+              <p className={styles.state}>
+                <Led on={playing} size={6} />
+                {playing ? (
+                  <span className={styles.playing}>
+                    Playing
+                    {state.dirty && <span className={styles.edited}> · edited</span>}
+                  </span>
+                ) : (
+                  <span>{hovered ? 'Click to audition' : 'Loading'}</span>
+                )}
+              </p>
+            </div>
+            <p className={styles.description}>
+              {shown.description || (shown.category === 'User' ? 'Your preset.' : '')}
             </p>
-            <h3 className={styles.name}>{preset.name}</h3>
-            <p className={styles.state}>
-              <Led on={loaded} size={6} />
-              {loaded ? (
-                <span>
-                  Playing
-                  {state.dirty && <span className={styles.edited}> · edited</span>}
-                </span>
-              ) : (
-                <span>Not loaded</span>
-              )}
-              <span className={styles.source}>{preset.category}</span>
-            </p>
-            {preset.description && <p className={styles.description}>{preset.description}</p>}
-            <Chain p={preset} />
-            {preset.tags.length > 0 && (
-              <div className={styles.tags} role="group" aria-label="Tags (filter by tag)">
-                {preset.tags.map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    className={`${buttons.press} ${nacre.fill} ${styles.tag}`}
-                    aria-pressed={filterTags.includes(t)}
-                    onClick={() => toggleTag(t)}
-                  >
-                    {t}
-                  </button>
-                ))}
-              </div>
-            )}
-            <button
-              type="button"
-              className={`${buttons.ghost} ${buttons.small} ${buttons.lead} ${styles.favourite}`}
-              aria-pressed={preset.favorite}
-              aria-keyshortcuts="F"
-              onClick={() => void presetActions.setFavorite(preset.id, !preset.favorite)}
-            >
-              <Icon name="star" size={13} filled={preset.favorite} stroke={ICON_STROKE_LABEL} />
-              {preset.favorite ? 'Favourite' : 'Add to favourites'}
-            </button>
           </>
         ) : (
           <>
-            <p className={styles.kicker}>Not saved as a preset</p>
-            <h3 className={styles.name}>{state.currentName}</h3>
+            <div className={styles.titleLine}>
+              <h3 className={styles.name}>{state.currentName}</h3>
+              <p className={styles.state}>Not saved as a preset</p>
+            </div>
             <p className={styles.description}>
               The sound playing now isn't a preset yet. Save it to find it here later.
             </p>
@@ -105,27 +72,22 @@ export function PresetDetail({ preset }: { preset: PresetInfo | undefined }) {
       </div>
 
       <div className={styles.actions}>
-        {loaded ? (
+        {back}
+        <span className={styles.spacer} />
+        {preset && (
           <button
             type="button"
-            className={`${buttons.nacre} ${styles.primary}`}
-            aria-keyshortcuts="Enter"
-            onClick={() => presetBrowser.keep()}
+            className={`${buttons.ghost} ${buttons.small} ${buttons.lead} ${styles.favourite}`}
+            aria-pressed={preset.favorite}
+            aria-keyshortcuts="F"
+            onClick={() => void presetActions.setFavorite(preset.id, !preset.favorite)}
           >
-            Use &amp; close
-            <kbd aria-hidden="true">↵</kbd>
-          </button>
-        ) : (
-          <button
-            type="button"
-            className={`${buttons.nacre} ${styles.primary}`}
-            onClick={() => preset && void presetBrowser.audition(preset.id)}
-          >
-            Load preset
+            <Icon name="star" size={13} filled={preset.favorite} stroke={ICON_STROKE_LABEL} />
+            {preset.favorite ? 'Favourite' : 'Add to favourites'}
           </button>
         )}
         {loaded && (
-          <div className={styles.row}>
+          <>
             <button
               type="button"
               className={`${state.dirty ? buttons.solid : buttons.ghost} ${buttons.small}`}
@@ -166,7 +128,26 @@ export function PresetDetail({ preset }: { preset: PresetInfo | undefined }) {
                 </button>
               </>
             )}
-          </div>
+          </>
+        )}
+        {loaded ? (
+          <button
+            type="button"
+            className={`${buttons.nacre} ${buttons.small} ${styles.primary}`}
+            aria-keyshortcuts="Enter"
+            onClick={() => presetBrowser.keep()}
+          >
+            Use &amp; close
+            <kbd aria-hidden="true">↵</kbd>
+          </button>
+        ) : (
+          <button
+            type="button"
+            className={`${buttons.nacre} ${buttons.small} ${styles.primary}`}
+            onClick={() => preset && void presetBrowser.audition(preset.id)}
+          >
+            Load preset
+          </button>
         )}
       </div>
     </aside>

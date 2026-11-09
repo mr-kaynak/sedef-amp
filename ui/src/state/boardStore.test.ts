@@ -13,7 +13,7 @@ import { useToastStore } from './toastStore';
 const LEGACY = [...LEGACY_BOARD];
 /** 0.3.0's pedals, a short board to edit. */
 const FIVE = ['gate', 'tide', 'pearl', 'coral', 'ripple'];
-/** The board Nacre (the mock's start-up preset) carries: the pedals it switches on. */
+/** The board Chorus Clean (the mock's start-up preset) carries: the pedals it switches on. */
 const NACRE = ['gate', 'tide', 'ripple'];
 const pedals = () => useBoardStore.getState().pedals;
 const dirty = () => usePresetStore.getState().state.dirty;

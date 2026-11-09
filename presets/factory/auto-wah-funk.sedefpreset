@@ -1,0 +1,29 @@
+{
+  "format": "sedef-preset",
+  "version": 1,
+  "id": "auto-wah-funk",
+  "name": "Auto-Wah Funk",
+  "folder": "Clean",
+  "author": "Sedef",
+  "tags": ["envelope filter", "compressor", "funk"],
+  "description": "Clean that quacks when you dig in: the filter opens with your pick. Funk lines and stabs.",
+  "board": ["gate", "anemone", "tide"],
+  "parameters": {
+    "ampModel": 0,
+    "micAPosition": 0.4,
+    "micBDistance": 0.25,
+    "micBLevel": -5.0,
+    "lagoonVolume": 0.45,
+    "lagoonCut": 0.35,
+    "anemoneEnabled": 1,
+    "anemoneSensitivity": 0.55,
+    "anemoneRange": 0.6,
+    "anemoneResonance": 0.62,
+    "anemoneMode": 0,
+    "anemoneDirection": 0,
+    "tideEnabled": 1,
+    "tideComp": 0.4,
+    "tideBlend": 0.6,
+    "lagoonOutput": 0.8667
+  }
+}

@@ -6,6 +6,33 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **32 new factory presets**, 49 in all: Clean 10, Crunch 11, High Gain 10, Lead 10, Ambient 8.
+  Every pedal is now in at least two (Remora, Sargasso, Breaker, Anemone, Conch, Gyre and Jetty
+  were in none), and each amp is covered from clean to its highest gain. A few use the EQ and
+  the Doubler.
+- `sedef-render --check` also plays every factory preset a quiet guitar (a DI peaking at
+  -30 dBFS that dies away) and fails one whose gate cuts the note less than 24 dB under its
+  peak. `sedef-render --di-gain DB` renders from a quieter or hotter DI.
+
+### Changed
+
+- **Factory presets are named for their sound**: "Chorus Clean", "Tight Metal Boost", "Surf
+  Tremolo" instead of Nacre, Holdfast, Tidewater. The 17 presets of 0.5.0 sound as they did and
+  keep their ids, so favourites, Recent and saved sessions still find them and show the new
+  name.
+- **The preset browser is one dense list.** One line per preset (name, chain with the amp, tags),
+  grouped under category headers from clean to ambient, with 17 rows in view where there were
+  7. The description, author and cab show in a strip under the list for the row under the
+  pointer or the highlighted one. Search, favourites, Recent and keyboard audition stay; the
+  rail, the tag chips, the sort control and the detail pane are gone (search finds a tag, an
+  amp or a pedal).
+- Previous and next step through presets in the order the browser lists them: Clean, Crunch,
+  High Gain, Lead, Ambient, then your own folders.
+- Tight Metal Boost (was Holdfast) is 0.6 dB quieter: it was the one preset above the -16 LUFS
+  the library is balanced to.
+
 ## [0.5.0] - 2026-11-09
 
 The Pedals page is a pedalboard you build yourself, with five new filter and modulation pedals;

@@ -796,12 +796,14 @@ TEST_CASE ("Guitar to MIDI velocity follows the pick", "[midi][velocity]")
     // around it give five rising velocities on every string, with each curve, and a note at the
     // player's level gets about 88; at no dynamics every note gets the same velocity.
     const auto stream = [] (double hz, const std::vector<float>& peaks) {
-        std::vector<float> x (static_cast<std::size_t> ((0.2 + 0.5 * peaks.size()) * kFs), 0.0f);
+        const auto n = static_cast<double> (peaks.size());
+        std::vector<float> x (static_cast<std::size_t> ((0.2 + 0.5 * n) * kFs), 0.0f);
         for (std::size_t k = 0; k < peaks.size(); ++k)
         {
             auto p = pluckFor (Pickup::bridge, hz, peaks[k], 9u + static_cast<std::uint32_t> (k));
             p.muteAt = 0.4;
-            test::addPluck (x, kFs, static_cast<std::size_t> ((0.1 + 0.5 * k) * kFs), p);
+            test::addPluck (
+                x, kFs, static_cast<std::size_t> ((0.1 + 0.5 * static_cast<double> (k)) * kFs), p);
         }
         test::addNoise (x, -80.0f, 9);
         return x;

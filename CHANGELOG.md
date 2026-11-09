@@ -6,6 +6,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-10
+
+Sedef MIDI comes with Sedef Amp: play MIDI instruments from your guitar, one note at a time. The
+Doubler now hears quiet playing.
+
 ### Added
 
 - **Sedef MIDI:** a companion that plays MIDI instruments from your guitar. It turns the guitar's
@@ -29,6 +34,8 @@ All notable changes to this project are documented here. The format follows
   too, or only it with `--midi` ([docs/install.md](docs/install.md)).
 - **Updates** keep Sedef MIDI when it is installed and leave it out when it isn't
   ([docs/updates.md](docs/updates.md)).
+- Updating from 0.5.0 or earlier with **Update now** adds Sedef MIDI on macOS and Linux. On
+  Windows it doesn't: run the new setup once to add it.
 
 ### Fixed
 
@@ -391,7 +398,8 @@ The first public build: a complete guitar rig with a tuner and an intonation wor
 - Every CI build is checked with pluginval (strictness 8), clap-validator and auval, and a smoke
   test opens the editor in a real host and WebView on every OS.
 
-[Unreleased]: https://github.com/mr-kaynak/sedef-amp/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/mr-kaynak/sedef-amp/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.2.0...v0.3.0

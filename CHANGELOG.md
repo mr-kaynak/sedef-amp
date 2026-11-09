@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-09
+
+The Pedals page is a pedalboard you build yourself, with five new filter and modulation pedals;
+latency is down to 0.85 ms; updates install themselves; and Trench divides chords and works at
+any input level.
+
 ### Added
 
 - **Settings > Latency:** Low latency, the default, or **Linear phase**, the 0.4.0 filters, which
@@ -351,7 +357,8 @@ The first public build: a complete guitar rig with a tuner and an intonation wor
 - Every CI build is checked with pluginval (strictness 8), clap-validator and auval, and a smoke
   test opens the editor in a real host and WebView on every OS.
 
-[Unreleased]: https://github.com/mr-kaynak/sedef-amp/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/mr-kaynak/sedef-amp/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.1.0...v0.2.0

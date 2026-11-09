@@ -264,29 +264,40 @@ come from the tracker's detector, from the note losing its own period (soft pick
 note, the same note picked again) and from a lock that comes with a level rise, and each is dated
 to the sample from its click or the broken period. A picked note goes out once its pitch has
 settled, its own period is periodic since the pick, and no lower note can be under it (above A3,
-that means waiting one period of the low E). Legato changes must sit on their semitone; octave
-corrections need the input to repeat clearly better at the longer period. Note-offs come from the
-level (gate, mute). The MIDI layer adds 2 ms to the tracker's lock below A3.
+that means waiting one period of the low E). Legato changes must sit on their semitone (12 ms for
+a change of one semitone, 3 ms for more); octave corrections need the input to repeat clearly
+better at the longer period, and a picked note is taken an octave above what the tracker reads
+when the input also repeats cleanly at half that period (a string ringing an octave under it).
+The same note picked again needs a new waveform: its periodicity breaks and the input then repeats
+at its own period again, so pick noise or a scrape over a sounding note is not a repick. A
+detector pick replaces a weak pick still waiting for its level check. Note-offs come from the
+level (gate, and a mute judged against the note's own level from 3 ms after its pick). In Steady, a
+note that would sound under 40 ms while its note-on still waits is dropped, and the note it
+interrupted sounds on; a note-on that has gone out is never taken back. The MIDI layer adds 2 ms to
+the tracker's lock below A3.
 
 **Accuracy** (synthetic DI, 48 kHz; the tests in engine/tests/midi gate it):
 
 | Material | Notes | Right | Wrong (octave) | Missed | Extra |
 |---|---:|---:|---:|---:|---:|
-| Bass lines, bridge, neck and piezo pickups, 6 seeds, open strings damped | 864 | 99.4 % | 0 (0) | 5 | 2 |
-| The same with open strings left ringing (reported) | 864 | 99.1 % | 3 (3) | 5 | 2 |
+| Bass lines, bridge, neck and piezo pickups, 6 seeds, open strings damped | 864 | 99.5 % | 0 (0) | 4 | 2 |
+| A sloppy player's bass lines (below), Fastest | 864 | 98.8 % | 4 (0) | 6 | 20 |
+| The same in Steady (the note within 120 ms of its pick) | 864 | 98.0 % | 4 (0) | 13 | 15 |
 | Palm-muted eighths and sixteenths, 120 and 140 bpm, E2 and A2 | 256 | 100 % | 0 | 0 | 0 |
 | Hammer-ons, pull-offs, slides | 69 | 100 % | 0 | 0 | 0 |
 | Vibrato and slight bends | 8 | 100 % | 0 | 0 | 0 |
 | A new note over the previous one ringing | 12 | 100 % | 0 | 0 | 0 |
 
-The three octave errors with ringing open strings are an open string an octave below the played
-note: the input then really repeats at the lower period.
+The sloppy player's lines are the bass lines played the way a guitarist plays them: the previous
+note left ringing 6-20 dB under the next (55 % of notes), open strings that share a partial with
+the note ringing in sympathy 20-30 dB under it, loud pick noise, picks scraping damped strings
+(12 %), and uneven muting (−30 to +60 ms). They gate the rules above: at least 98.5 % right in
+Fastest (97.5 % in Steady), at most 2.5 extra notes per 100 (2 in Steady), at most 2 notes
+shorter than 40 ms per 100 (1 in Steady), no octave errors. Measured: 13 notes under 40 ms in
+Fastest and 7 in Steady (1.5 and 0.8 per 100).
 
-**Real piezo DI** (reported, not a gate). The only real DI available is fingerstyle playing with
-strings ringing into each other, outside the single-note design. It fragments: in a hand-checked
-eight-note scale, three notes come out right within 80 ms of their picks, three right but 60-120 ms
-late, two an octave low, with six short wrong or repeated notes besides. Real single-note bass
-lines are untested until the musician plays them.
+**Real piezo DI** (reported, not a gate): fingerstyle chords on a nylon-string piezo, outside the
+single-note design; measured below, in [What split the notes](#what-split-the-notes-2026-11-09).
 
 **Latency**, pick to note-on, 48 kHz (identical at 64 and 256-sample blocks: events carry their
 sample offsets; a live instrument adds one audio buffer):
@@ -302,11 +313,33 @@ On one synthetic piezo E2 the tracker itself locks at 47 ms (its body swell read
 25 ms in); the MIDI layer follows 2 ms later.
 
 **Steady.** The lag is 38 ms: 99.83 % of picked notes in the test material are sure within it.
-Single picks on every string land 37.8 ms after the pick, within the 1 ms bar. Across bass lines,
-86 % land within 1 ms of the lag, 95 % within 3 ms and all within 6 ms: a soft pick over a ringing
-note shows only as the note losing its period, which dates it to a few milliseconds, and a mute
-just before a pick can be taken for the pick. This misses the design's "constant within 1 ms" for
-those notes.
+Single picks on every string land 37.8 ms after the pick, within the 1 ms bar. On the latency
+test's lines, 88.9 % land within 1 ms of the lag, 97.2 % within 3 ms and all within 6 ms (before
+the onset search below: 86, 95 and 100 %). By note type, the error from pick + 38 ms:
+
+| Material, note type | Notes | Within 1 ms | p50 | p95 | p99 | Max | > 3 ms early | > 3 ms late |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Bass lines, clean pick | 797 | 87.8 % | 0.2 ms | 2.1 ms | 5.9 ms | 27.3 ms | 16 | 13 |
+| Bass lines, soft pick over a ringing note | 63 | 92.1 % | 0.2 | 1.5 | 1.9 | 4.1 | 0 | 1 |
+| Sloppy lines, clean pick | 712 | 95.8 % | 0.2 | 0.5 | 21.5 | 25.6 | 19 | 4 |
+| Sloppy lines, soft pick over a ringing note | 135 | 82.2 % | 0.2 | 26.3 | 34.5 | 36.0 | 0 | 23 |
+| Legato (hammer-ons, pull-offs, slides) | 36 | 22.2 % | 1.8 | 3.6 | 7.2 | 7.2 | 0 | 3 |
+
+The bar was clean picks within 1 ms, the rest p99 within 3 ms, and nothing later than the lag.
+**This is a deviation**, for three reasons:
+- *Early.* A clean pick right after the previous note's mute or a scrape is dated to that break
+  in the period, a few to 27 ms early (16 and 19 notes).
+- *Late.* A note that is not sure within the 38 ms goes out when it is sure, not dropped: on the
+  sloppy lines a soft pick over a still-ringing string can take up to 74 ms in Fastest, so 20 of
+  those 135 notes land 10-36 ms after the lag. A lag that covered them would double every note's
+  latency.
+- *Legato* is dated where the tracker sees the pitch change, about 2 ms after it.
+
+Tried: once a note's pitch is known (inside the look-ahead), find where its fundamental rises
+(complex demodulation at the note's frequency, summed over one period) and date the pick there.
+Used directly it made timing worse: one period cannot tell a note from its neighbouring semitone
+(that takes about 18 periods), so over a ringing note it found the old note. Kept: the onset only
+narrows where to look for the pick's click, and the click dates it, which helps clean picks.
 
 **Velocity** rises with picking strength over five strengths spanning 18 dB, on every string and
 with each curve; at 0 % sensitivity every note has velocity 100.
@@ -325,6 +358,71 @@ of which the tracker is 80 ns; `process()` never allocates (tested).
   standalone app's port: a virtual source is an output only its owner can send to.
 - MIDI ports are opened on the message thread. JUCE 9 creates a virtual port that no other app
   can see when this happens on another thread.
-- Steady's constant-latency bar holds for clearly dated picks only (above).
+- Steady's constant-latency bar holds for clearly dated picks only: early after a mute, late for
+  a soft pick over a ringing string, and legato about 2 ms after the change (above).
+- The sloppy player's lines, harsher than the acceptance material (several strings ringing at
+  once, scrapes), reach 98.8 % right with 2.3 extra notes per 100 in Fastest, short of the 99 %
+  and 1 per 100 the bass lines meet.
 - The standalone app sends only through its own port, never through JUCE's MIDI output setting,
   which would send from the audio thread.
+
+### What split the notes (2026-11-09)
+
+The flicker reported on real DI (short wrong notes between the right ones) was taken apart note by
+note with `sedef-midi-render why`, which lists why each note started and ended and how its pick
+was seen. On the sloppy lines the extra and short notes came from four rules in the MIDI layer,
+not from level note-offs:
+
+| Cause | Layer | Fix |
+|---|---|---|
+| "The same note picked again" fired on any 2 dB level rise: pick noise and scrapes over a sounding note re-triggered it (most of the extras) | MIDI | A repick needs a new waveform and the input repeating at the note's own period again |
+| A string ringing an octave under the played note (left ringing, or in sympathy) made the tracker read the lower octave | tracker, kept by MIDI | The octave-up check (under "How notes are made"), also as a later correction |
+| A note was judged muted against the previous, louder string's level | MIDI | The mute is judged against the note's own level |
+| A break of periodicity at the previous note's mute dated the next pick | MIDI | A detector pick replaces a weak pick still waiting |
+
+| Sloppy lines, 864 notes | Fastest before | Fastest after | Steady before | Steady after |
+|---|---:|---:|---:|---:|
+| Right | 97.7 % | 98.8 % | 97.9 % | 98.0 % |
+| Octave errors | 6 | 0 | 6 | 0 |
+| Extra notes per 100 | 8.7 | 2.3 | 8.4 | 1.7 |
+| Notes under 40 ms per 100 | 5.0 | 1.5 | 5.1 | 0.8 |
+| Missed | 10 | 6 | 8 | 13 |
+
+Steady misses more because its glitch drop also drops a right note that a wrong correction
+replaced within 40 ms. Bridging dropouts was not needed: in the real excerpts no note starts from
+silence without a pick. MonoTracker gained only a pick counter that nothing in Trench reads;
+Trench renders stay byte-identical (57 renders: every factory preset, and Trench Mono and Poly in
+four settings on the synthetic DI and seven real piezo DIs, against main).
+
+**Real piezo DI** (reported, not a gate). The only real DI available is fingerstyle playing on a
+nylon-string piezo, with chords and strings ringing into each other, outside the single-note
+design. Five excerpts, octave 0, before and after these fixes:
+
+| Real piezo DI, 5 excerpts | Fastest before | Fastest after | Steady before | Steady after |
+|---|---:|---:|---:|---:|
+| Notes out | 561 | 523 | 560 | 494 |
+| Notes under 40 ms | 141 (25.1 %) | 125 (23.9 %) | 134 (23.9 %) | 93 (18.8 %) |
+| Hand-checked scale, 8 notes: right within 80 ms of the pick | 6 | 8 | 6 | 8 |
+| The scale's 1.2 s: other notes | 10 | 9 | 10 | 8 |
+
+Every split in the scale (D3 E3 F3 G3 A3 B♭3 C4 D4, picked at 0.122, 0.325, 0.452, 0.588, 0.749,
+0.876, 1.024 and 1.160 s), after, in Fastest:
+
+| Time (s) | Note out | Length | Cause | Layer |
+|---|---|---:|---|---|
+| 0.336 | D3 again | 10 ms | E3 is plucked while the tracker still reads D3; the break in D3's period reads as a repick | MIDI, on the tracker's lag |
+| 0.346 | D♯3 | 47 ms | The tracker's period blends D3 and E3 (151 to 165 Hz) and is taken as a correction | tracker |
+| 0.394 | E3 | right | 69 ms after its pick | |
+| 0.568 | D♯3 | 54 ms | A weak pick as F3 is released, with another string ringing | MIDI weak pick, tracker |
+| 0.869 | C5 | 42 ms | B♭3's attack partials (506 and 557 Hz) read as the note | tracker |
+| 0.911, 0.923 | D♯2, A♯2 | 12, 19 ms | The tracker locks an octave low (116 Hz, the body's resonance); the octave-up check corrects it to B♭3 at 0.942 (before: A♯2 for 108 ms, never corrected) | tracker |
+| 1.149-1.232 | C♯3, D4, D3, D4 | 15, 15, 53 ms, then right | The change from C4 to D4 reads an octave low (139-147 Hz) twice before it settles | tracker |
+
+What is left is a mono tracker reading two strings at once. Of the 124 notes under 40 ms across the
+excerpts, 107 end because another note replaces them (not the level); 48 are a semitone from a
+neighbouring note (two adjacent notes sounding together), 20 an octave or a twelfth from one (the
+body resonance near 100 Hz pulls the lock an octave low), 13 go back to the note before. Neither
+the MIDI layer nor the tracker can tell which of two strings at similar levels is the note; where
+the new note is 6-20 dB above the ringing one, as in the sloppy lines, 98.8 % come out right. This
+is inherent to fingerstyle chords on a piezo, and real single-note bass lines are untested until
+the musician plays them.

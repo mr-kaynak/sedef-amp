@@ -98,14 +98,18 @@ host at their exact sample.
 
 ## Playing tips
 
-- **One note at a time.** Damp the strings you aren't playing. A string ringing under the note you
-  play, above all an open string an octave below, can take over.
+- **One note at a time.** Damp the strings you aren't playing. A string left ringing under the
+  next note is usually fine when the new note is clearly louder; two strings at a similar level
+  (a chord, or fingerstyle with strings ringing into each other) give short wrong notes between
+  the right ones.
 - **Play higher with −2.** A bass line played higher on the neck with the octave at −2 is recognised
   faster than the same line on the low strings with −1 (see the latency table).
 - **Set the gate** with the guitar's volume where you play. Too low and the noise of a string you
   lift can start a note; too high and soft notes go missing.
 - **Steady for recording.** Record in Steady with a −38 ms track delay and every note sits on its
-  pick. For playing live, Fastest feels quicker.
+  pick. A note picked softly over a string still ringing can land a little late, and a pick right
+  after a mute a little early; damping the previous string keeps them on the pick. For playing
+  live, Fastest feels quicker.
 - **Velocity.** Keep the sensitivity high if you play with dynamics; lower it, or set the curve to
   Soft, if quiet notes come out too soft.
 

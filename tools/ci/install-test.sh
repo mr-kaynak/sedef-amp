@@ -351,13 +351,21 @@ MINGW* | MSYS* | CYGWIN*)
         done
     }
     check_midi_files
-    "$tool" --install "$setup" --expect "$version" >"$work/tool-midi.log" 2>&1 || fail "the install failed"
+    # The updater makes Setup wait for a process (the DAW; without --waitpid, this tool itself,
+    # which waits for Setup): a short-lived dummy.
+    pid="$(dummy 2)"
+    dummies+=("$pid")
+    "$tool" --install "$setup" --expect "$version" --waitpid "$pid" >"$work/tool-midi.log" 2>&1 ||
+        fail "the install failed"
     cat "$work/tool-midi.log"
     grep -q '^components: .*midi' "$work/tool-midi.log" && echo "ok: the update keeps Sedef MIDI" ||
         fail "the update left Sedef MIDI out"
     check_midi_files
     rm -rf "$common/VST3/Sedef MIDI.vst3" "$midi_clap" "$midi_app"
-    "$tool" --install "$setup" --expect "$version" >"$work/tool-nomidi.log" 2>&1 || fail "the install failed"
+    pid="$(dummy 2)"
+    dummies+=("$pid")
+    "$tool" --install "$setup" --expect "$version" --waitpid "$pid" >"$work/tool-nomidi.log" 2>&1 ||
+        fail "the install failed"
     cat "$work/tool-nomidi.log"
     grep -q '^components: .*midi' "$work/tool-nomidi.log" && fail "the update chose Sedef MIDI" ||
         echo "ok: the update leaves Sedef MIDI out once it is removed"

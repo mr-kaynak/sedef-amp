@@ -345,7 +345,8 @@ inline Scenario sloppyLine (std::uint32_t seed, Pickup pickup, double bpm, doubl
             if (c == p.string || !(d == 0 || d == 12 || d == 19 || d == 24) || dice.unit() < 0.4)
                 continue;
             Pluck q = pluckFor (pickup, hzOf (kOpenStrings[c]), 0.0f,
-                                900u + seed * 31u + static_cast<std::uint32_t> (k * 6 + c));
+                                900u + seed * 31u + static_cast<std::uint32_t> (k) * 6u +
+                                    static_cast<std::uint32_t> (c));
             q.peak = static_cast<float> (p.pluck.peak *
                                          std::pow (10.0, -dice.between (20.0, 30.0) / 20.0));
             q.pickNoise = 0.0f;

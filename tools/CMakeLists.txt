@@ -24,6 +24,10 @@ if(SEDEF_BUILD_TESTS)
         COMMAND ${CMAKE_COMMAND} -DTOOL=$<TARGET_FILE:sedef-params> -DARGS=--pedals
                 -DEXPECTED=${PROJECT_SOURCE_DIR}/ui/src/generated/pedals.json
                 -P ${CMAKE_CURRENT_SOURCE_DIR}/CheckSchema.cmake)
+    add_test(NAME ui-midi-schema-in-sync
+        COMMAND ${CMAKE_COMMAND} -DTOOL=$<TARGET_FILE:sedef-params> -DARGS=--midi
+                -DEXPECTED=${PROJECT_SOURCE_DIR}/ui/src/generated/midi-parameters.json
+                -P ${CMAKE_CURRENT_SOURCE_DIR}/CheckSchema.cmake)
 endif()
 
 if(SEDEF_BUILD_TESTS)
@@ -54,4 +58,12 @@ if(SEDEF_BUILD_TESTS)
             ${signalsmith_linear_SOURCE_DIR})
         target_compile_definitions(sedef-transpose-bench PRIVATE SEDEF_HAVE_STRETCH=1)
     endif()
+endif()
+
+if(SEDEF_BUILD_TESTS)
+    # Guitar-to-MIDI renders, scenario dumps and CPU bench (docs/design/guitar-to-midi.md). Not
+    # shipped.
+    add_executable(sedef-midi-render midi/sedef_midi_render.cpp)
+    target_include_directories(sedef-midi-render PRIVATE ${PROJECT_SOURCE_DIR}/engine/tests)
+    target_link_libraries(sedef-midi-render PRIVATE sedef::engine sedef::compiler_settings Catch2::Catch2)
 endif()

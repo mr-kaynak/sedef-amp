@@ -22,6 +22,46 @@ All notable changes to this project are documented here. The format follows
   ones on the board marked. Pointing at a pedal shows where on the board it will land and what
   it does. The shelf stays open after you add a pedal.
 
+## [0.6.0] - 2026-11-10
+
+Sedef MIDI comes with Sedef Amp: play MIDI instruments from your guitar, one note at a time. The
+Doubler now hears quiet playing.
+
+### Added
+
+- **Sedef MIDI:** a companion that plays MIDI instruments from your guitar. It turns the guitar's
+  DI into MIDI notes in real time, one note at a time, so you can play a bass line on the guitar,
+  hear it on a bass instrument and record it as MIDI. A standalone app with its own MIDI port
+  ("Sedef MIDI"; on Windows it sends to an output you pick), a plug-in (VST3, CLAP, AU) for the
+  guitar track, and on macOS an instrument AU that takes the guitar on its side chain, so Logic's
+  instrument tracks can record its notes. Octave −2 to +1, Notes or Notes + Bend, Fastest or
+  Steady timing (every note 38 ms after you play it, for one track delay), velocity sensitivity
+  and curve, MIDI channel, Panic; no stuck notes on stop, bypass, port change or quit. It works
+  the same with the interface set low or high (peaks from about −40 to −6 dBFS) with every
+  setting at its default: the gate follows the input's own noise (Auto; Manual sets it by hand),
+  and velocity follows how hard you play, over about your last 16 notes. Made for fingers as much
+  as for a pick: nothing waits for a pick's click, a finger touching the string before it plucks
+  it is not a note, and a note after a rest comes as quickly as any other. Its own parameter
+  list, separate from Sedef Amp's ([docs/midi.md](docs/midi.md),
+  [design](docs/design/guitar-to-midi.md)).
+- **Installers:** Sedef MIDI comes with Sedef Amp on every OS, selected by default: its own choice
+  in the macOS installer, a component in the Windows setup (with a Start menu entry), and part of
+  the Linux archive (`./install.sh --no-midi` leaves it out). The macOS uninstaller removes it
+  too, or only it with `--midi` ([docs/install.md](docs/install.md)).
+- **Updates** keep Sedef MIDI when it is installed and leave it out when it isn't
+  ([docs/updates.md](docs/updates.md)).
+- Updating from 0.5.0 or earlier with **Update now** adds Sedef MIDI on macOS and Linux. On
+  Windows it doesn't: run the new setup once to add it.
+
+### Fixed
+
+- **The Doubler hears quiet playing.** Its onset detector judged attacks against a fixed level,
+  so a player peaking around −30 dBFS with soft attacks (fingerstyle, a neck pickup) got few or no
+  new takes per note. It now judges them against the input's own hiss, hum and buzz, the way
+  Trench's gate does: the same playing 36 dB quieter gives the same onsets, and hiss, hum and buzz
+  alone still give none. At normal levels nothing changes; the factory presets render the same
+  ([docs/dsp/doubler.md](docs/dsp/doubler.md)).
+
 ## [0.5.0] - 2026-11-09
 
 The Pedals page is a pedalboard you build yourself, with five new filter and modulation pedals;
@@ -50,6 +90,7 @@ any input level.
   By default Anemone and Conch go between Trench and Remora, before the drives; Beacon, Gyre and
   Jetty after the drives, before Ripple. All five are off by default and add no latency, so
   existing sessions and presets sound the same.
+
 - New parameters (177 → 202): `anemoneEnabled`, `anemoneSensitivity`, `anemoneRange`,
   `anemoneResonance`, `anemoneMode`, `anemoneDirection`, `conchEnabled`, `conchMode`,
   `conchPosition`, `conchResonance`, `conchSensitivity`, `beaconEnabled`, `beaconSpeed`,
@@ -373,7 +414,8 @@ The first public build: a complete guitar rig with a tuner and an intonation wor
 - Every CI build is checked with pluginval (strictness 8), clap-validator and auval, and a smoke
   test opens the editor in a real host and WebView on every OS.
 
-[Unreleased]: https://github.com/mr-kaynak/sedef-amp/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/mr-kaynak/sedef-amp/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.2.0...v0.3.0

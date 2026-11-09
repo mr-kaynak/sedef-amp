@@ -44,6 +44,10 @@ public:
 
     /// Note onsets that re-timed the second take since reset() (diagnostics and tests).
     int retimedNotes() const noexcept { return retimed_; }
+    /// Onsets the detector found since reset(), and the sample (counted from reset()) the last
+    /// one was found at, -1 before the first (diagnostics and tests).
+    int onsetsDetected() const noexcept { return onsets_; }
+    std::int64_t lastOnsetSample() const noexcept { return lastOnset_; }
 
 private:
     // A voice is one read position on the double's delay line. The active voice carries the take.
@@ -92,6 +96,12 @@ private:
     float lead_ = 0.0f;
     Biquad detectorHp_;
     float fastCoeff_ = 0.0f, slowCoeff_ = 0.0f, fast_ = 0.0f, slow_ = 0.0f;
+    // The input's own background (hiss, hum, buzz) as high-frequency power, which onsets must
+    // stand over whatever the input level: the fast envelope's peaks, held, and how long they
+    // have held still.
+    float peakHold_ = 0.0f, peakDecay_ = 1.0f, background_ = 0.0f, backgroundRise_ = 1.0f;
+    float holdAverage_ = 0.0f, holdAverageCoeff_ = 0.0f;
+    int steadyFor_ = 0, steadySamples_ = 1;
     int sinceRise_ = 0, refractory_ = 0, refractoryLength_ = 0;
     int holdoff_ = 0,
         holdoffLength_ = 0; ///< after a reset the envelopes settle before onsets count
@@ -101,7 +111,8 @@ private:
     // Every attack is timed, including those the detector ignores, so a re-timing can wait for
     // the previous one to have passed both read positions (else it would be heard twice or not
     // at all). Times count samples since reset().
-    std::int64_t clock_ = 0, lastAttackRise_ = 0;
+    std::int64_t clock_ = 0, lastAttackRise_ = 0, lastOnset_ = -1;
+    int onsets_ = 0;
     int lookahead_ = 0;
     float attackGuard_ = 0.0f;
     std::array<PendingOnset, 4> pending_ {};

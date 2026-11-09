@@ -12,15 +12,20 @@
 #   macOS    installs over the real $OLD_TAG release (all four formats) and checks that every
 #            bundle was replaced and has the new version; then removes the AU, puts $OLD_TAG's
 #            VST3 back and installs again: the VST3 is replaced and the AU stays removed. The
-#            install script leaves no folder and no attached image behind.
+#            install script leaves no folder and no attached image behind. Then Sedef MIDI: the
+#            new pkg as its read-me says installs it; an update keeps it, and once it is removed
+#            an update leaves it out.
 #   Windows  installs $OLD_TAG with VST3 and CLAP only and with the update's switches (which that
 #            setup does not know), then the new setup through the updater, waiting for a dummy
 #            process like it waits for the DAW, while nothing can change the setup file. Checks the
 #            wait, the files and that the standalone app stays uninstalled (/COMPONENTS). Then runs
 #            the setup alone: it holds its own file while it waits, and does not wait for a process
-#            whose id now belongs to a process created at another time.
+#            whose id now belongs to a process created at another time. Then Sedef MIDI: what the
+#            setup does run alone over an install without it, its files once installed, an update
+#            that keeps it, and one that leaves it out once it is removed.
 #   Linux    installs $OLD_TAG for the user and system-wide, then the new archive through the
-#            updater, in your home folder and then system-wide, through the root script.
+#            updater, in your home folder and then system-wide, through the root script (Sedef MIDI
+#            comes with it); then install.sh --no-midi, an update that keeps it out, and --midi.
 #
 # Needs GH_TOKEN for `gh release download`.
 
@@ -29,6 +34,7 @@ set -euo pipefail
 dist="$(cd "${1:?usage: install-test.sh <dist> <artefacts> <sedef-update-check>}" && pwd)"
 artefacts="$(cd "${2:?}" && pwd)"
 tool="${3:?}"
+midi_artefacts="$(cd "$artefacts/../../SedefMidi_artefacts/$(basename "$artefacts")" && pwd)"
 repo="${GITHUB_REPOSITORY:-mr-kaynak/sedef-amp}"
 # The release users update from: the latest one published.
 OLD_TAG="${OLD_TAG:-$(gh release view --repo "$repo" --json tagName --jq .tagName)}"
@@ -147,6 +153,51 @@ Darwin)
     grep -q '^formats: app, vst3, clap$' "$work/second.log" && echo "ok: formats app, vst3, clap" ||
         fail "the second install chose other formats"
     check_bundles 2
+
+    midi=("/Applications/Sedef MIDI.app" "/Library/Audio/Plug-Ins/VST3/Sedef MIDI.vst3"
+        "/Library/Audio/Plug-Ins/Components/Sedef MIDI.component"
+        "/Library/Audio/Plug-Ins/Components/Sedef MIDI Instrument.component"
+        "/Library/Audio/Plug-Ins/CLAP/Sedef MIDI.clap")
+    midi_payloads=(midi-app midi-vst3 midi-au midi-instrument midi-clap)
+    executable() { plutil -extract CFBundleExecutable raw "$1/Contents/Info.plist"; }
+    check_midi() { # present | absent
+        for i in "${!midi[@]}"; do
+            b="${midi[$i]}"
+            if [[ "$1" == absent ]]; then
+                [[ -e "$b" ]] && fail "$b came back" || echo "ok: $b stays out"
+                continue
+            fi
+            p="$work/expanded/sedef-amp-${midi_payloads[$i]}.pkg/Payload/$(basename "$b")"
+            check_equal "$b version" "$version" "$(bundle_version "$b")"
+            check_equal "$b binary" "$(sha "$p/Contents/MacOS/$(executable "$p")")" \
+                "$(sha "$b/Contents/MacOS/$(executable "$b")")"
+        done
+        leftovers
+    }
+    [[ ! -e "${midi[0]}" ]] && echo "ok: the updates over $OLD_TAG left Sedef MIDI out (it was not installed)" ||
+        fail "an update over $OLD_TAG installed Sedef MIDI"
+
+    say "5. The new pkg as its read-me says (every choice): Sedef MIDI is installed"
+    hdiutil attach -nobrowse -readonly -mountpoint "$work/new-image" "$dist/Sedef-Amp-macOS.dmg" >/dev/null
+    sudo /usr/sbin/installer -pkg "$work/new-image/Install Sedef Amp.pkg" -target /
+    hdiutil detach "$work/new-image" >/dev/null
+    for b in "${midi[@]}"; do ls -ld "$b" || true; done
+    check_midi present
+
+    say "6. Update now keeps Sedef MIDI"
+    "$tool" --install "$dist/Sedef-Amp-macOS.dmg" --expect "$version" | tee "$work/third.log" ||
+        fail "the third install failed"
+    grep -q '^formats: app, vst3, au, clap, midi$' "$work/third.log" &&
+        echo "ok: formats app, vst3, au, clap, midi" || fail "the third install chose other formats"
+    check_midi present
+
+    say "7. Sedef MIDI removed: Update now leaves it out"
+    for b in "${midi[@]}"; do sudo rm -rf "$b"; done
+    "$tool" --install "$dist/Sedef-Amp-macOS.dmg" --expect "$version" | tee "$work/fourth.log" ||
+        fail "the fourth install failed"
+    grep -q '^formats: app, vst3, au, clap$' "$work/fourth.log" &&
+        echo "ok: formats app, vst3, au, clap" || fail "the fourth install chose other formats"
+    check_midi absent
     ;;
 
 MINGW* | MSYS* | CYGWIN*)
@@ -270,8 +321,57 @@ MINGW* | MSYS* | CYGWIN*)
     grep -aq "No /WAITPIDTIME for process $pid" "$work/untimed.log" && echo "ok: the log says why" ||
         fail "the setup log does not say why it did not wait"
     stop "$pid"
+
+    say "5. Sedef MIDI"
+    midi_vst3="$common/VST3/Sedef MIDI.vst3/Contents/x86_64-win/Sedef MIDI.vst3"
+    midi_clap="$common/CLAP/Sedef MIDI.clap"
+    midi_app="/c/Program Files/Sedef Amp/Sedef MIDI.exe"
+    midi_files=("$midi_vst3" "$midi_clap" "$midi_app")
+    midi_built=("$midi_artefacts/VST3/Sedef MIDI.vst3/Contents/x86_64-win/Sedef MIDI.vst3"
+        "$midi_artefacts/CLAP/Sedef MIDI.clap" "$midi_artefacts/Standalone/Sedef MIDI.exe")
+    [[ ! -e "$midi_vst3" ]] && echo "ok: the updates over $OLD_TAG left Sedef MIDI out (it was not installed)" ||
+        fail "an update over $OLD_TAG installed Sedef MIDI"
+    # Setup run by hand over an installation without Sedef MIDI starts from the components chosen
+    # last time; what it does with a component that did not exist then is reported, not checked.
+    MSYS2_ARG_CONV_EXCL='*' "$(cygpath -w "$setup")" "${setup_args[@]}" \
+        "/LOG=$(cygpath -w "$work/plain.log")" || fail "Setup without /COMPONENTS failed"
+    echo "info: Setup without /COMPONENTS over vst3, clap installed Sedef MIDI: $([[ -e "$midi_vst3" ]] && echo yes || echo no)," \
+        "the standalone app: $([[ -e "$app" ]] && echo yes || echo no)"
+    if [[ ! -e "$midi_vst3" ]]; then
+        MSYS2_ARG_CONV_EXCL='*' "$(cygpath -w "$setup")" "${setup_args[@]}" '/COMPONENTS=vst3,clap,midi' \
+            "/LOG=$(cygpath -w "$work/midi.log")" || fail "Setup with /COMPONENTS=vst3,clap,midi failed"
+    fi
+    echo "Sedef MIDI's files:"
+    ls -l "$common/VST3/Sedef MIDI.vst3/Contents/x86_64-win" "$midi_clap" "$midi_app" "$(dirname "$midi_app")" ||
+        fail "Sedef MIDI's files are missing"
+    ls "/c/ProgramData/Microsoft/Windows/Start Menu/Programs" | grep -i sedef || true
+    check_midi_files() {
+        for i in "${!midi_files[@]}"; do
+            check_equal "${midi_files[$i]}" "$(sha "${midi_built[$i]}")" "$(sha "${midi_files[$i]}")"
+        done
+    }
+    check_midi_files
+    # The updater makes Setup wait for a process (the DAW; without --waitpid, this tool itself,
+    # which waits for Setup): a short-lived dummy.
+    pid="$(dummy 2)"
+    dummies+=("$pid")
+    "$tool" --install "$setup" --expect "$version" --waitpid "$pid" >"$work/tool-midi.log" 2>&1 ||
+        fail "the install failed"
+    cat "$work/tool-midi.log"
+    grep -q '^components: .*midi' "$work/tool-midi.log" && echo "ok: the update keeps Sedef MIDI" ||
+        fail "the update left Sedef MIDI out"
+    check_midi_files
+    rm -rf "$common/VST3/Sedef MIDI.vst3" "$midi_clap" "$midi_app"
+    pid="$(dummy 2)"
+    dummies+=("$pid")
+    "$tool" --install "$setup" --expect "$version" --waitpid "$pid" >"$work/tool-nomidi.log" 2>&1 ||
+        fail "the install failed"
+    cat "$work/tool-nomidi.log"
+    grep -q '^components: .*midi' "$work/tool-nomidi.log" && fail "the update chose Sedef MIDI" ||
+        echo "ok: the update leaves Sedef MIDI out once it is removed"
+    for f in "${midi_files[@]}"; do [[ -e "$f" ]] && fail "$f came back" || echo "ok: $f stays out"; done
     if ((failures > 0)); then
-        for log in new alone reused untimed; do
+        for log in new alone reused untimed plain midi; do
             echo "--- $log.log"
             tail -n 40 "$work/$log.log" || true
         done
@@ -303,11 +403,26 @@ MINGW* | MSYS* | CYGWIN*)
     so="VST3/Sedef Amp.vst3/Contents/x86_64-linux/Sedef Amp.so"
     check_differ "$OLD_TAG's and the new VST3 binaries" "$(sha "$(echo "$work"/old-unpacked/*)/$so")" \
         "$(sha "$new/$so")"
+    midi_so="VST3/Sedef MIDI.vst3/Contents/x86_64-linux/Sedef MIDI.so"
+    check_midi() { # <vst3 dir> <clap dir> <bin dir> present|absent
+        if [[ "$4" == absent ]]; then
+            for f in "$1/Sedef MIDI.vst3" "$2/Sedef MIDI.clap" "$3/sedef-midi"; do
+                [[ -e "$f" ]] && fail "$f is installed" || echo "ok: $f stays out"
+            done
+            return
+        fi
+        check_equal "$1 Sedef MIDI version" "$version" "$(module_version "$1/Sedef MIDI.vst3")"
+        check_equal "$1 Sedef MIDI binary" "$(sha "$new/$midi_so")" "$(sha "$1/${midi_so#VST3/}")"
+        check_equal "$2 Sedef MIDI binary" "$(sha "$new/CLAP/Sedef MIDI.clap")" "$(sha "$2/Sedef MIDI.clap")"
+        check_equal "$3 Sedef MIDI binary" "$(sha "$new/Standalone/Sedef MIDI")" "$(sha "$3/sedef-midi")"
+    }
     check_scope() { # <vst3 dir> <clap dir> <bin dir>
         check_equal "$1 version" "$version" "$(module_version "$1/Sedef Amp.vst3")"
         check_equal "$1 binary" "$(sha "$new/$so")" "$(sha "$1/${so#VST3/}")"
         check_equal "$2 binary" "$(sha "$new/CLAP/Sedef Amp.clap")" "$(sha "$2/Sedef Amp.clap")"
         check_equal "$3 binary" "$(sha "$new/Standalone/Sedef Amp")" "$(sha "$3/sedef-amp")"
+        # Sedef MIDI comes with an update from a version that did not have it.
+        check_midi "$1" "$2" "$3" present
         leftovers
     }
 
@@ -320,10 +435,19 @@ MINGW* | MSYS* | CYGWIN*)
         fail "the system-wide install failed"
     check_scope /usr/lib/vst3 /usr/lib/clap /usr/local/bin
     check_equal "the system VST3's owner" root "$(stat -c %U "/usr/lib/vst3/${so#VST3/}")"
-    for f in "/usr/lib/vst3/${so#VST3/}" "/usr/lib/clap/Sedef Amp.clap" /usr/local/bin/sedef-amp; do
+    for f in "/usr/lib/vst3/${so#VST3/}" "/usr/lib/clap/Sedef Amp.clap" /usr/local/bin/sedef-amp \
+        "/usr/lib/vst3/${midi_so#VST3/}" "/usr/lib/clap/Sedef MIDI.clap" /usr/local/bin/sedef-midi; do
         sudo -n -u nobody test -r "$f" && echo "ok: every user can read $f" ||
             fail "another user can't read $f"
     done
+
+    say "4. install.sh --no-midi, then Update now: Sedef MIDI stays out until install.sh --midi"
+    "$new/install.sh" --no-midi
+    check_midi "$HOME/.vst3" "$HOME/.clap" "$HOME/.local/bin" absent
+    "$tool" --install "$dist/Sedef-Amp-Linux-x86_64.tar.gz" --expect "$version" || fail "the install failed"
+    check_midi "$HOME/.vst3" "$HOME/.clap" "$HOME/.local/bin" absent
+    "$new/install.sh" --midi >/dev/null
+    check_midi "$HOME/.vst3" "$HOME/.clap" "$HOME/.local/bin" present
     ;;
 esac
 

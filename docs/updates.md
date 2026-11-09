@@ -38,6 +38,16 @@ for their next update; once a newer release is installed, every later update ins
    | Windows | `Sedef-Amp-Windows-Setup.exe` | starts the setup program elevated and silent with the formats installed now (plus the one Sedef runs as), told to wait until your DAW (this process) has exited, because Windows keeps a loaded plug-in locked | Windows asks for permission (UAC). The panel says *It installs when you close your DAW.*; Setup installs once you do |
    | Linux (x86-64) | `Sedef-Amp-Linux-x86_64.tar.gz` | checks what the archive holds (no links, devices or paths outside it), then runs one fixed install script, which copies the archive into a folder of its own, checks the copy's SHA-256, unpacks it and runs its `install.sh`: as you for a copy in `~/.vst3`, `~/.clap` and `~/.local/bin`, or as root through `pkexec` with `--system` for one in `/usr/lib` | nothing for your own copy; your desktop's password prompt (polkit) for a system-wide one. Then Sedef checks every file it installed |
 
+   **Sedef MIDI** comes in the same package and is updated with Sedef Amp:
+
+   | OS | When Sedef MIDI is installed | When it isn't (left out, or removed) | Updating from 0.5.0 or earlier |
+   | --- | --- | --- | --- |
+   | macOS | the pkg's `midi` choice is selected: all of it is updated | the `midi` choice is deselected: nothing is added | that updater doesn't know the choice, so the pkg's default applies: Sedef MIDI is installed |
+   | Windows | the `midi` component is passed to Setup: all of it is updated | not passed: nothing is added | that updater names only the formats it knows: Sedef MIDI is not installed (run the setup once to add it) |
+   | Linux | `install.sh` updates it | `install.sh --no-midi` left a mark that keeps it out; a copy removed by hand comes back | the new `install.sh` runs: Sedef MIDI is installed |
+
+   Sedef MIDI has no updater of its own: it is updated when Sedef Amp is.
+
 5. **Restart.** The panel ends on *Sedef Amp 0.5.0 is installed. Restart \<your DAW\> to use it.*
    (Sedef names the host when it knows it.) The pill now reads "Restart to update", in this window
    and in every other process that still runs the old version: another DAW, a new window. The first
@@ -85,7 +95,7 @@ One HTTPS request per check, and nothing else:
 GET https://api.github.com/repos/mr-kaynak/sedef-amp/releases/latest
 Accept: application/vnd.github+json
 X-GitHub-Api-Version: 2022-11-28
-User-Agent: SedefAmp/0.5.0 (macOS)
+User-Agent: SedefAmp/0.6.0 (macOS)
 ```
 
 The User-Agent carries the Sedef version and the OS family, nothing more: no identifier, no OS
@@ -302,7 +312,8 @@ password dialog is cancelled), `installfail`, `elsewhere`, `installed` (by anoth
 
 The installer names above are a contract with every installed copy of Sedef: renaming an asset in
 `.github/workflows/release.yml` breaks one-click updates for everyone who has not updated yet
-(they fall back to the releases page). So are the pkg's choice ids (`app`, `vst3`, `au`, `clap`),
-the Inno Setup `AppId`, its component names (`vst3`, `clap`, `standalone`) and the `/WAITPID`,
+(they fall back to the releases page). So are the pkg's choice ids (`app`, `vst3`, `au`, `clap`,
+`midi`), the Inno Setup `AppId`, its component names (`vst3`, `clap`, `standalone`, `midi`), the
+Linux `install.sh` options and its `no-midi` mark, and the `/WAITPID`,
 `/WAITPIDTIME` and `/RELAUNCH` switches, which the installed copies pass to the next release's
 installer.

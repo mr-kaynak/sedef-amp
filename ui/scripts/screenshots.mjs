@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Renders the built UI (vite preview) against the mock backend and saves screenshots to
-// docs/images at 1200x760 @2x. Also fails on console errors, so it doubles as a smoke test.
-//   pnpm build && pnpm screenshots [--out <dir>] [name ...]
+// docs/images at 1200x760 @2x; Sedef MIDI's ("midi") at its window's 760x540 @2x. Also fails on
+// console errors, so it doubles as a smoke test.
+//   pnpm build && pnpm build:midi && pnpm screenshots [--out <dir>] [name ...]
 import { mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -20,7 +21,16 @@ const BOARD_8 = 'gate,trench,conch,tide,pearl,kelp,gyre,ripple';
 const BOARD_16 =
   'gate,trench,anemone,conch,remora,tide,urchin,sargasso,pearl,kelp,coral,beacon,gyre,jetty,ripple,breaker';
 
+// Sedef MIDI's own build and page, at its window's size.
+const MIDI = {
+  configFile: resolve(root, 'vite.midi.config.ts'),
+  page: 'midi.html',
+  canvas: { width: 760, height: 540 },
+};
+
 const SHOTS = {
+  // The standalone app, the demo bass line held on a sounding note.
+  midi: { app: MIDI, query: 'host=standalone&frame=1450' },
   amp: { query: 'section=amp' },
   // 0.3.0's five pedals with Pearl on (Nacre, the start-up preset, has only the three it uses).
   pedals: { query: 'section=pedals&board=gate,tide,pearl,coral,ripple&set=pearlEnabled:1' },
@@ -135,26 +145,34 @@ const SHOTS = {
 const wanted = args;
 const names = wanted.length
   ? wanted
-  : ['amp', 'pedals', 'eq', 'cab', 'fx', 'presets', 'tuner', 'intonation'];
+  : ['amp', 'pedals', 'eq', 'cab', 'fx', 'presets', 'tuner', 'intonation', 'midi'];
 
-const session = await startSession(root, { scale: 2 });
-try {
-  for (const name of names) {
-    const shot = SHOTS[name];
-    if (!shot) throw new Error(`Unknown screenshot "${name}"`);
-    const page = await session.open(name, `fresh&${shot.query}`, shot.prepare, {
-      keepPointer: shot.keepPointer,
-    });
-    const file = resolve(outDir, `${name}.png`);
-    await page.screenshot({ path: file });
-    console.log(`saved ${file}`);
-    await page.close();
+for (const name of names) if (!SHOTS[name]) throw new Error(`Unknown screenshot "${name}"`);
+
+const problems = [];
+// One session per build: Sedef Amp's, then Sedef MIDI's.
+for (const app of [undefined, MIDI]) {
+  const batch = names.filter((name) => SHOTS[name].app === app);
+  if (!batch.length) continue;
+  const session = await startSession(root, { scale: 2, ...(app ?? {}) });
+  try {
+    for (const name of batch) {
+      const shot = SHOTS[name];
+      const page = await session.open(name, `fresh&${shot.query}`, shot.prepare, {
+        keepPointer: shot.keepPointer,
+      });
+      const file = resolve(outDir, `${name}.png`);
+      await page.screenshot({ path: file });
+      console.log(`saved ${file}`);
+      await page.close();
+    }
+  } finally {
+    await session.close();
   }
-} finally {
-  await session.close();
+  problems.push(...session.problems);
 }
 
-if (session.problems.length) {
-  console.error(session.problems.join('\n'));
+if (problems.length) {
+  console.error(problems.join('\n'));
   process.exit(1);
 }

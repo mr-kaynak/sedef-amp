@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# Removes Sedef Amp installed by install.sh.
+# Removes Sedef Amp and Sedef MIDI installed by install.sh.
 #
 #   ./uninstall.sh            remove the per-user installation
 #   ./uninstall.sh --system   remove the installation for every user (asks for sudo)
@@ -49,6 +49,10 @@ items=(
     "$share_dir/icons/hicolor/scalable/apps/sedef-amp.svg"
     "$share_dir/icons/hicolor/256x256/apps/sedef-amp.png"
     "$share_dir/sedef-amp"
+    "$vst3_dir/Sedef MIDI.vst3"
+    "$clap_dir/Sedef MIDI.clap"
+    "$bin_dir/sedef-midi"
+    "$share_dir/applications/sedef-midi.desktop"
 )
 removed=0
 for item in "${items[@]}"; do
@@ -67,7 +71,7 @@ if command -v gtk-update-icon-cache >/dev/null 2>&1; then
 fi
 
 if [[ $removed == 1 ]]; then
-    echo "Sedef Amp is uninstalled. Presets and settings in ~/.config/Sedef are kept."
+    echo "Sedef Amp and Sedef MIDI are uninstalled. Presets and settings in ~/.config/Sedef are kept."
 else
     echo "Sedef Amp was not installed$([[ $system == 1 ]] || echo ' for you') here. Nothing to do."
 fi

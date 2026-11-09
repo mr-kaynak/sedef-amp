@@ -1,24 +1,29 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# Installs Sedef Amp from this folder.
+# Installs Sedef Amp and Sedef MIDI from this folder.
 #
 #   ./install.sh            for you only: ~/.vst3, ~/.clap, ~/.local/bin, ~/.local/share
 #   ./install.sh --system   for every user (asks for sudo): /usr/lib/vst3, /usr/lib/clap,
 #                           /usr/local/bin, /usr/local/share
+#   --no-midi               leave Sedef MIDI out (and remove it if it is installed)
+#   --midi                  install Sedef MIDI after an earlier --no-midi
 #
-# Running it again updates an existing installation. To remove it, run uninstall.sh with the
-# same option (a copy is installed in <share>/sedef-amp/).
+# Running it again updates an existing installation and keeps your choice about Sedef MIDI. To
+# remove it, run uninstall.sh with the same option (a copy is installed in <share>/sedef-amp/).
 
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
 system=0
+midi=keep
 for arg in "$@"; do
     case "$arg" in
         --system) system=1 ;;
+        --midi) midi=1 ;;
+        --no-midi) midi=0 ;;
         -h | --help)
-            sed -n '4,11p' "$0" | sed 's/^# \{0,1\}//'
+            sed -n '4,13p' "$0" | sed 's/^# \{0,1\}//'
             exit 0
             ;;
         *)
@@ -48,7 +53,8 @@ else
 fi
 
 for item in "VST3/Sedef Amp.vst3" "CLAP/Sedef Amp.clap" "Standalone/Sedef Amp" sedef-amp.svg \
-    sedef-amp.png sedef-amp.desktop uninstall.sh; do
+    sedef-amp.png sedef-amp.desktop uninstall.sh "VST3/Sedef MIDI.vst3" "CLAP/Sedef MIDI.clap" \
+    "Standalone/Sedef MIDI" sedef-midi.desktop; do
     if [[ ! -e "$here/$item" ]]; then
         echo "error: $here/$item is missing; unpack the whole archive first." >&2
         exit 1
@@ -70,6 +76,32 @@ install -m 755 "$here/uninstall.sh" "$share_dir/sedef-amp/uninstall.sh"
 sed "s|@EXEC@|$bin_dir/sedef-amp|" "$here/sedef-amp.desktop" >"$share_dir/applications/sedef-amp.desktop"
 chmod 644 "$share_dir/applications/sedef-amp.desktop"
 
+# Sedef MIDI, unless it was left out: --no-midi leaves a mark that later runs (and Sedef's
+# updates, which run this script) keep, until --midi.
+no_midi_mark="$share_dir/sedef-amp/no-midi"
+if [[ $midi == keep ]]; then
+    if [[ -e "$no_midi_mark" ]]; then midi=0; else midi=1; fi
+fi
+midi_items=(
+    "$vst3_dir/Sedef MIDI.vst3"
+    "$clap_dir/Sedef MIDI.clap"
+    "$bin_dir/sedef-midi"
+    "$share_dir/applications/sedef-midi.desktop"
+)
+if [[ $midi == 1 ]]; then
+    rm -rf "${vst3_dir:?}/Sedef MIDI.vst3"
+    cp -R "$here/VST3/Sedef MIDI.vst3" "$vst3_dir/"
+    install -m 755 "$here/CLAP/Sedef MIDI.clap" "$clap_dir/Sedef MIDI.clap"
+    install -m 755 "$here/Standalone/Sedef MIDI" "$bin_dir/sedef-midi"
+    sed "s|@EXEC@|$bin_dir/sedef-midi|" "$here/sedef-midi.desktop" \
+        >"$share_dir/applications/sedef-midi.desktop"
+    chmod 644 "$share_dir/applications/sedef-midi.desktop"
+    rm -f "$no_midi_mark"
+else
+    rm -rf "${midi_items[@]}"
+    : >"$no_midi_mark"
+fi
+
 if command -v update-desktop-database >/dev/null 2>&1; then
     update-desktop-database -q "$share_dir/applications" 2>/dev/null || true
 fi
@@ -81,6 +113,14 @@ echo "Installed Sedef Amp:"
 echo "  VST3        $vst3_dir/Sedef Amp.vst3"
 echo "  CLAP        $clap_dir/Sedef Amp.clap"
 echo "  Standalone  $bin_dir/sedef-amp (and Sedef Amp in your app menu)"
+if [[ $midi == 1 ]]; then
+    echo "Installed Sedef MIDI:"
+    echo "  VST3        $vst3_dir/Sedef MIDI.vst3"
+    echo "  CLAP        $clap_dir/Sedef MIDI.clap"
+    echo "  Standalone  $bin_dir/sedef-midi (and Sedef MIDI in your app menu)"
+else
+    echo "Sedef MIDI is left out (./install.sh --midi adds it)."
+fi
 echo "Rescan plugins in your DAW. To uninstall: $share_dir/sedef-amp/uninstall.sh$([[ $system == 1 ]] && echo ' --system')"
 
 # The UI needs WebKitGTK 4.1; say so now rather than show an empty window later.

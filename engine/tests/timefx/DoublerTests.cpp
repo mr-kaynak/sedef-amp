@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
+#include "../analysis/PitchTestSignals.h"
 #include "TimeFxTestUtils.h"
 #include "sedef/Engine.h"
 #include "sedef/core/BypassFader.h"
@@ -1085,6 +1086,263 @@ TEST_CASE ("In the engine, the Doubler stays out of a mono output", "[timefx][do
         return out;
     };
     CHECK (render (true) == render (false));
+}
+
+namespace
+{
+/// Onset times (samples since reset) the detector finds in `x`, given as the onset source.
+std::vector<long> onsetTimes (const std::vector<float>& x)
+{
+    Doubler d;
+    d.prepare ({ kFs, 512, 2 });
+    d.setSettings ({ 6.0f, 0.5f });
+    Buffer b (2, static_cast<int> (x.size()));
+    std::copy (x.begin(), x.end(), b[0].begin());
+    std::copy (x.begin(), x.end(), b[1].begin());
+    std::vector<long> times;
+    int seen = 0;
+    // Blocks shorter than the detector's 70 ms rest: at most one onset per block.
+    forEachBlock (b.view(), 64, [&] (AudioView v, int start) {
+        d.setOnsetSource (x.data() + start, 0);
+        d.process (v);
+        if (d.onsetsDetected() != seen)
+        {
+            seen = d.onsetsDetected();
+            times.push_back (static_cast<long> (d.lastOnsetSample()));
+        }
+    });
+    return times;
+}
+
+void scaleTo (std::vector<float>& x, float peakDb)
+{
+    const float g = dbToGain (peakDb) / peak (x);
+    for (auto& v : x)
+        v *= g;
+}
+
+/// Fingerstyle on a neck pickup: no pick click, soft attacks, notes ringing into each other.
+/// Peaks at -6 dBFS.
+std::vector<float> fingerstyle (std::vector<size_t>& at)
+{
+    const double notes[] = { 82.41, 123.47, 164.81, 196.0, 246.94, 196.0, 164.81, 123.47,
+                             110.0, 130.81, 164.81, 220.0, 261.63, 220.0, 164.81, 130.81 };
+    std::vector<float> x (static_cast<size_t> (kFs * 9.0), 0.0f);
+    Random r (4);
+    double t = 0.3;
+    for (int k = 0; k < 28; ++k)
+    {
+        Pluck p;
+        p.f1 = notes[k % 16];
+        p.pluckPosition = 0.28 + 0.06 * r.unipolar();
+        p.pickupPosition = 0.22;
+        p.pickNoise = 0.0f;
+        p.peak = 0.25f;
+        p.maxPartialHz = 6000.0;
+        p.seed = static_cast<std::uint32_t> (k + 1);
+        at.push_back (static_cast<size_t> (t * kFs));
+        addPluck (x, kFs, at.back(), p);
+        t += 0.22 + 0.12 * r.unipolar();
+    }
+    scaleTo (x, -6.0f);
+    return x;
+}
+
+/// Picked, palm-muted sixteenths at 120 bpm on a bridge pickup, accented on the beat, with an
+/// open note every half bar. Peaks at -6 dBFS.
+std::vector<float> pickedSixteenths (std::vector<size_t>& at)
+{
+    std::vector<float> x (static_cast<size_t> (kFs * 8.0), 0.0f);
+    Random r (2);
+    double t = 0.3;
+    for (int k = 0; k < 56; ++k)
+    {
+        Pluck p;
+        p.f1 = k % 8 == 6 ? 110.0 : 82.41;
+        p.pluckPosition = 0.1;
+        p.pickupPosition = 0.07;
+        p.pickNoise = 0.06f;
+        p.peak = k % 4 == 0 ? 0.3f : 0.16f;
+        p.muteAt = k % 8 == 6 ? -1.0 : 0.1;
+        p.seed = static_cast<std::uint32_t> (k + 3);
+        at.push_back (static_cast<size_t> (t * kFs));
+        addPluck (x, kFs, at.back(), p);
+        t += 0.125 + 0.004 * r.bipolar();
+    }
+    scaleTo (x, -6.0f);
+    return x;
+}
+
+/// Notes with an onset within 20 ms after their pick.
+int notesHeard (const std::vector<size_t>& picks, const std::vector<long>& times)
+{
+    int heard = 0;
+    for (const size_t pick : picks)
+        heard +=
+            std::any_of (times.begin(), times.end(),
+                         [&] (long t) {
+                             return t >= static_cast<long> (pick) &&
+                                    t < static_cast<long> (pick) + static_cast<long> (0.02 * kFs);
+                         })
+                ? 1
+                : 0;
+    return heard;
+}
+
+/// A 50 Hz sawtooth (a step every period, as from a dimmer) or a 60 Hz click train, from `from`.
+void addBuzz (std::vector<float>& x, bool clicks, float db, size_t from = 0)
+{
+    const float a = dbToGain (db);
+    for (size_t i = from; i < x.size(); ++i)
+        x[i] += clicks ? (i % 800 == 0 ? a : 0.0f)
+                       : a * static_cast<float> (
+                                 2.0 * std::fmod (50.0 * static_cast<double> (i) / kFs, 1.0) - 1.0);
+}
+} // namespace
+
+TEST_CASE ("Doubler finds the same onsets at any input level", "[timefx][doubler]")
+{
+    // The same playing at its normal level (peaks at -6 dBFS) and 24 and 36 dB lower, with hiss
+    // 80 dB under the peaks moving with it (an interface's gain moves its noise with the
+    // playing): the same onsets, within two samples. Before, a fixed floor on the detector's
+    // power (about -70 dB) left quiet fingerstyle with almost none.
+    struct Material
+    {
+        const char* name;
+        std::vector<float> x;
+        std::vector<size_t> picks;
+    };
+    std::vector<Material> materials (2);
+    materials[0].name = "fingerstyle";
+    materials[0].x = fingerstyle (materials[0].picks);
+    materials[1].name = "picked sixteenths";
+    materials[1].x = pickedSixteenths (materials[1].picks);
+    for (auto& m : materials)
+    {
+        addNoise (m.x, -86.0f, 5);
+        const auto loud = onsetTimes (m.x);
+        for (float db : { -24.0f, -36.0f })
+        {
+            auto quiet = m.x;
+            const float g = dbToGain (db);
+            for (auto& v : quiet)
+                v *= g;
+            const auto times = onsetTimes (quiet);
+            int moved = 0;
+            for (const long t : loud)
+                moved += std::none_of (times.begin(), times.end(),
+                                       [&] (long u) { return std::abs (u - t) <= 2; })
+                             ? 1
+                             : 0;
+            INFO (m.name << " at " << db << " dB: notes heard " << notesHeard (m.picks, times)
+                         << " of " << m.picks.size() << ", onsets " << times.size() << " against "
+                         << loud.size() << " at full level, " << moved << " not within 2 samples");
+            CHECK (notesHeard (m.picks, loud) >= static_cast<int> (m.picks.size()) * 9 / 10);
+            CHECK (times.size() == loud.size());
+            CHECK (moved == 0);
+        }
+    }
+}
+
+TEST_CASE ("Doubler hears quiet playing over the interface's own hiss", "[timefx][doubler]")
+{
+    // A player whose peaks reach only -30 dBFS, over hiss at -100 dBFS that does not come down
+    // with them: the onsets land where they do at full level, within 1 ms, for all but a couple
+    // of the softest notes. (Before, most came several ms late or not at all.)
+    std::vector<size_t> picks;
+    auto x = fingerstyle (picks);
+    const auto full = onsetTimes (x);
+    scaleTo (x, -30.0f);
+    addNoise (x, -100.0f, 9);
+    const auto quiet = onsetTimes (x);
+    int kept = 0;
+    for (const long t : full)
+        kept += std::any_of (
+                    quiet.begin(), quiet.end(),
+                    [&] (long u) { return std::abs (u - t) <= static_cast<long> (0.001 * kFs); })
+                    ? 1
+                    : 0;
+    INFO ("onsets at full level " << full.size() << ", at -30 dBFS peaks over hiss " << quiet.size()
+                                  << ", of them within 1 ms " << kept);
+    CHECK (kept >= static_cast<int> (full.size()) - 2);
+}
+
+TEST_CASE ("Doubler hears no onsets in hiss, hum or buzz alone", "[timefx][doubler]")
+{
+    // The floor follows the input's own background, so it never comes down far enough for hiss,
+    // mains hum or a buzz's spikes to pass for attacks. (A buzz of -50 dBFS or more, sharp
+    // enough, already did before; the floor stays capped where it was, so it still does.)
+    const auto quiet = [] (std::vector<float> x) {
+        return onsetTimes (x).empty();
+    };
+    const size_t frames = static_cast<size_t> (6.0 * kFs);
+    for (float hiss : { -110.0f, -100.0f, -80.0f, -60.0f, -40.0f })
+    {
+        std::vector<float> x (frames, 0.0f);
+        addNoise (x, hiss, 3);
+        INFO ("hiss " << hiss << " dBFS");
+        CHECK (quiet (x));
+    }
+    for (double mains : { 50.0, 60.0 })
+        for (float hum : { -80.0f, -60.0f, -40.0f, -20.0f })
+        {
+            std::vector<float> x (frames, 0.0f);
+            addHum (x, kFs, mains, hum);
+            addNoise (x, hum - 30.0f, 3);
+            INFO ("hum " << mains << " Hz at " << hum << " dBFS");
+            CHECK (quiet (x));
+        }
+    for (bool clicks : { false, true })
+        for (float buzz : { -90.0f, -75.0f, -60.0f })
+        {
+            std::vector<float> x (frames, 0.0f);
+            addBuzz (x, clicks, buzz);
+            addNoise (x, buzz - 30.0f, 3);
+            INFO ((clicks ? "60 Hz clicks" : "50 Hz sawtooth") << " at " << buzz << " dBFS");
+            CHECK (quiet (x));
+        }
+}
+
+TEST_CASE ("Doubler learns a buzz that starts between notes within a second", "[timefx][doubler]")
+{
+    // A buzz switched on after a while of hiss alone looks like a run of attacks until the
+    // background has learned it: under a second, then nothing. Notes picked over it afterwards
+    // are heard. (The fixed floor ignored a buzz this quiet; one at -50 dBFS or more it heard
+    // for as long as it lasted.)
+    for (bool clicks : { false, true })
+        for (float buzz : { -90.0f, -75.0f, -60.0f })
+        {
+            const auto start = static_cast<size_t> (1.5 * kFs);
+            std::vector<float> x (static_cast<size_t> (8.0 * kFs), 0.0f);
+            addNoise (x, buzz - 30.0f, 3);
+            addBuzz (x, clicks, buzz, start);
+            std::vector<size_t> picks;
+            auto notes = pickedSixteenths (picks);
+            scaleTo (notes, buzz + 40.0f);
+            const auto later = static_cast<size_t> (4.0 * kFs);
+            for (auto& p : picks)
+                p += later;
+            // The phrase runs past the end: keep the notes that fit.
+            picks.erase (std::remove_if (picks.begin(), picks.end(),
+                                         [&] (size_t p) { return p + 4800 > x.size(); }),
+                         picks.end());
+            std::copy (notes.begin(), notes.end() - static_cast<long> (later),
+                       x.begin() + static_cast<long> (later));
+            const auto times = onsetTimes (x);
+            long lastBuzz = -1;
+            for (const long t : times)
+                if (t < static_cast<long> (later))
+                    lastBuzz = t;
+            const double learnt =
+                lastBuzz < 0 ? 0.0
+                             : static_cast<double> (lastBuzz - static_cast<long> (start)) / kFs;
+            INFO ((clicks ? "60 Hz clicks" : "50 Hz sawtooth")
+                  << " at " << buzz << " dBFS: last onset on the buzz alone " << learnt
+                  << " s after it started; notes over it heard " << notesHeard (picks, times)
+                  << " of " << picks.size());
+            CHECK (learnt < 1.0);
+            CHECK (notesHeard (picks, times) >= static_cast<int> (picks.size()) * 9 / 10);
+        }
 }
 
 TEST_CASE ("Doubler benchmark", "[.bench][timefx-bench]")

@@ -41,6 +41,36 @@ public:
     void prepare (double sampleRate, float minHz = kDefaultMinHz, float maxHz = kDefaultMaxHz);
     void reset() noexcept;
 
+    /// Behaviours a caller may turn on. All are off by default, and with all off the tracker
+    /// behaves exactly as it always has (an octave divider's tracking does not move).
+    struct Options
+    {
+        /// Notes whose fundamental is very weak are still notes. A low string plucked near the
+        /// bridge and heard by a bridge pickup can carry only -30 to -40 dB of its energy at the
+        /// fundamental for the first 100 ms or so, under the share that otherwise marks a
+        /// period as a "virtual fundamental" (two notes repeating together at a period no note
+        /// has). Such a period is accepted when its 7th harmonic still carries energy: no pair of
+        /// notes in a ratio of small numbers (an octave, fifth, fourth, third or sixth) has any
+        /// there. Applies to notes up to a seventh of the anti-alias band (about 210 Hz). A
+        /// period with under 1 % of its energy at its fundamental is then judged 2.5 ms later
+        /// than others, once the attack no longer leaks into its fundamental.
+        bool weakFundamentals = false;
+        /// Pick detection for fingers. For 60 ms after a pick only a pick 6 dB louder than its
+        /// peak counts, even inside the refractory time, dated from where its climb began: a
+        /// finger touching the string just before it plucks it does not hide the pluck, and the
+        /// attack of a low note plucked near the bridge (whose 2 ms power swings by 10-20 dB
+        /// with every period while the 40 ms power catches up) is not picked again and again.
+        bool fingerPicks = false;
+        /// The quietest a pick may be: its 2 ms power in the band (linear, 1 is full scale),
+        /// and its click's above 2 kHz. A caller that tracks the input's noise floor can keep
+        /// them just over it.
+        float onsetFloor = 1.0e-7f; ///< -70 dBFS
+        float clickFloor = 1.0e-8f; ///< -80 dBFS
+    };
+    /// Real-time safe; takes effect from the next sample.
+    void setOptions (const Options& options) noexcept { options_ = options; }
+    const Options& options() const noexcept { return options_; }
+
     /// Feeds one input sample.
     void push (float x) noexcept;
 
@@ -81,6 +111,9 @@ public:
     /// Level of the latest pick, for velocity: the highest 2 ms RMS of the band-limited input
     /// (40 Hz to 1.5 kHz) over the 10 ms after it, as a linear amplitude. 0 before any pick.
     float pickLevel() const noexcept;
+    /// Increments on every pick (reset() starts it again from 0): a layer that compares it from
+    /// one sample to the next sees each pick once, on the push that detected it.
+    std::uint32_t pickCount() const noexcept { return pickCount_; }
 
 private:
     struct KeyMax
@@ -95,6 +128,12 @@ private:
     void steer (float hz) noexcept;
     void measurePartial() noexcept;
     float fundamentalShare (float lag) const noexcept;
+    /// Share of the last two periods' energy at the given harmonic of the period.
+    float partialShare (float lag, int harmonic) const noexcept;
+    /// The period's own frequency sounds: it is a note, not a virtual fundamental.
+    bool fundamentalSounds (float lag) const noexcept;
+
+    Options options_;
 
     // Rates and ranges.
     double sampleRate_ = 48000.0;
@@ -130,6 +169,7 @@ private:
     // Estimate and note logic.
     float estimateHz_ = 0.0f, clarity_ = 0.0f;
     float heldHz_ = 0.0f, heldClarity_ = 0.0f; ///< the key maximum of the locked note, if any
+    bool estimateWeak_ = false; ///< the estimate's fundamental is weak (Options::weakFundamentals)
 
     // Picks.
     float fastPower_ = 0.0f, slowPower_ = 0.0f, fastCoeff_ = 0.0f, slowCoeff_ = 0.0f;
@@ -138,10 +178,12 @@ private:
     int onsetHops_ = 0, onsetWindowHops_ = 0;
     int samplesSinceOnset_ = 0; ///< decimated samples since the last pick
     bool picked_ = false;       ///< a pick has been seen since the last reset
-    float pickPeak_ = 0.0f;     ///< highest fast power since the last pick, within its window
+    std::uint32_t pickCount_ = 0;
+    float pickPeak_ = 0.0f; ///< highest fast power since the last pick, within its window
     int pickWindow_ = 0, pickWindowSamples_ = 0; ///< decimated samples left / in the window
     Event event_ = Event::none;
     int rising_ = 0; ///< decimated samples the power has been rising
+    int climb_ = 0;  ///< decimated samples the 2 ms power has been climbing without a break
     float candidateHz_ = 0.0f;
     int candidateHops_ = 0;
     bool locked_ = false;

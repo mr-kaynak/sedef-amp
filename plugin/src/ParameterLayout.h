@@ -4,12 +4,16 @@
 #include "sedef/params/Parameters.h"
 
 #include <juce_audio_processors/juce_audio_processors.h>
+#include <span>
 
 namespace sedef::plugin
 {
 
 /// Builds the host-facing parameter layout from the engine schema (ADR-0004).
 juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
+/// The same for another product's schema (Sedef MIDI's). The specs must outlive the layout.
+juce::AudioProcessorValueTreeState::ParameterLayout
+createParameterLayout (std::span<const ParamSpec> specs);
 
 /// Human-readable value text for a parameter, used by hosts and the preset browser.
 juce::String formatValue (const ParamSpec& spec, float value, int maxLength = 0);

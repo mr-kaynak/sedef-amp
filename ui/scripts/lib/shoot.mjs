@@ -7,9 +7,17 @@ import { preview } from 'vite';
 
 export const CANVAS = { width: 1200, height: 760 };
 
-export async function startSession(root, { scale = 2 } = {}) {
+/**
+ * `configFile` picks the build to serve (Sedef MIDI's is vite.midi.config.ts, with its own page),
+ * `page` the HTML file to open and `canvas` the viewport.
+ */
+export async function startSession(
+  root,
+  { scale = 2, configFile = undefined, page: html = '', canvas = CANVAS } = {},
+) {
   const server = await preview({
     root,
+    ...(configFile ? { configFile } : {}),
     preview: { port: 4179, strictPort: false },
     logLevel: 'error',
   });
@@ -22,18 +30,18 @@ export async function startSession(root, { scale = 2 } = {}) {
    * pointer is then parked in a corner, unless the shot shows what it points at (keepPointer).
    */
   async function open(name, query, prepare, { keepPointer = false } = {}) {
-    const page = await browser.newPage({ viewport: CANVAS, deviceScaleFactor: scale });
+    const page = await browser.newPage({ viewport: canvas, deviceScaleFactor: scale });
     page.on('console', (msg) => {
       if (msg.type() === 'error' || msg.type() === 'warning')
         problems.push(`${name}: ${msg.type()}: ${msg.text()}`);
     });
     page.on('pageerror', (err) => problems.push(`${name}: pageerror: ${err.message}`));
-    await page.goto(`${base}?${query}`);
+    await page.goto(`${base}${html}?${query}`);
     await page.waitForSelector('header');
     await page.evaluate(() => document.fonts.ready);
     await page.waitForTimeout(500);
     if (prepare) await prepare(page);
-    if (!keepPointer) await page.mouse.move(CANVAS.width - 1, CANVAS.height - 1);
+    if (!keepPointer) await page.mouse.move(canvas.width - 1, canvas.height - 1);
     return page;
   }
 

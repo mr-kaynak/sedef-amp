@@ -1,0 +1,20 @@
+#!/bin/sh
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Runs before each Sedef MIDI component installs. Removes the bundle being replaced so files from
+# an older version can't linger inside it and break its code signature. build-pkg.sh fills in
+# the bundle: only this component's own, since two of Sedef MIDI's go into the same folder.
+# Installer passes the component's install location as $2.
+
+dest="${2:-}"
+bundle="@BUNDLE@"
+case "$dest" in
+    */Applications | */Library/Audio/Plug-Ins/VST3 | */Library/Audio/Plug-Ins/Components | \
+        */Library/Audio/Plug-Ins/CLAP) ;;
+    *) exit 0 ;;
+esac
+
+if [ -d "$dest/$bundle" ]; then
+    rm -rf "${dest:?}/$bundle"
+fi
+exit 0

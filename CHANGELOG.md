@@ -8,6 +8,28 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **Sedef MIDI (preview):** a companion that turns a guitar's DI into MIDI notes in real time,
+  one note at a time, to play and record MIDI instruments from the guitar. A standalone app with
+  its own MIDI port ("Sedef MIDI"), a plug-in (AU, VST3, CLAP) for the guitar track, and an
+  instrument AU that takes the guitar through Logic's side chain. Octave −2 to +1, Notes or
+  Notes + Bend, Fastest or Steady timing, velocity sensitivity and curve, MIDI channel, Panic; no
+  stuck notes on stop, bypass, port change or quit. Works the same with the interface set low or
+  high (peaks from about −40 to −6 dBFS) with every setting at its default: the gate follows the
+  input's own noise (Auto; Manual sets it by hand), and velocity follows how hard you play on
+  your input, about your last 16 notes. Made for fingers as much as for a pick: nothing waits for
+  a pick's click, a finger touching the string before it plucks it is not a note, and a note
+  after a rest comes as quickly as any other. Its own parameter list, separate from Sedef Amp's.
+  Not in the installers yet: CI builds a macOS test build
+  ([docs/midi.md](docs/midi.md), [design](docs/design/guitar-to-midi.md)).
+
+## [0.5.0] - 2026-11-09
+
+The Pedals page is a pedalboard you build yourself, with five new filter and modulation pedals;
+latency is down to 0.85 ms; updates install themselves; and Trench divides chords and works at
+any input level.
+
+### Added
+
 - **Settings > Latency:** Low latency, the default, or **Linear phase**, the 0.4.0 filters, which
   keep every frequency in time for mixing and re-amping and add about 5 ms at 48 kHz. Switching
   restarts the audio for a moment and tells the host the new latency; the status bar and About
@@ -51,19 +73,6 @@ All notable changes to this project are documented here. The format follows
   sessions and presets made before keep their sound
   ([docs/dsp/trench.md](docs/dsp/trench.md)).
 - New parameter (202 → 203): `trenchMode` (automatable; Mono by default).
-- **Sedef MIDI (preview):** a companion that turns a guitar's DI into MIDI notes in real time,
-  one note at a time, to play and record MIDI instruments from the guitar. A standalone app with
-  its own MIDI port ("Sedef MIDI"), a plug-in (AU, VST3, CLAP) for the guitar track, and an
-  instrument AU that takes the guitar through Logic's side chain. Octave −2 to +1, Notes or
-  Notes + Bend, Fastest or Steady timing, velocity sensitivity and curve, MIDI channel, Panic; no
-  stuck notes on stop, bypass, port change or quit. Works the same with the interface set low or
-  high (peaks from about −40 to −6 dBFS) with every setting at its default: the gate follows the
-  input's own noise (Auto; Manual sets it by hand), and velocity follows how hard you play on
-  your input, about your last 16 notes. Made for fingers as much as for a pick: nothing waits for
-  a pick's click, a finger touching the string before it plucks it is not a note, and a note
-  after a rest comes as quickly as any other. Its own parameter list, separate from Sedef Amp's.
-  Not in the installers yet: CI builds a macOS test build
-  ([docs/midi.md](docs/midi.md), [design](docs/design/guitar-to-midi.md)).
 
 ### Changed
 
@@ -109,6 +118,11 @@ All notable changes to this project are documented here. The format follows
   fingerstyle piece the sub is on 97 % of the time instead of 69 %, with 1.3 flips a second
   instead of 19.6. It locks in about two periods of the note (28 ms on the low E, 11 ms from E4
   up), follows vibrato, bends and hammer-ons, and keeps palm-muted sixteenths at an even level.
+- **Trench works at any input level.** Its gate, which keeps hiss and hum from being divided,
+  was a fixed level, and with the interface gain set low it stayed shut: on a fingerstyle DI
+  peaking at −30 dBFS the sub spoke on a fifth of the notes. The gate now follows the input's
+  own noise floor, so that DI gets a sub on every note in Mono and Poly, as it did at −6 dBFS.
+  Silence, hiss and hum still get no sub ([docs/dsp/trench.md](docs/dsp/trench.md#the-level-gate)).
 
 ## [0.4.0] - 2026-11-04
 
@@ -359,7 +373,8 @@ The first public build: a complete guitar rig with a tuner and an intonation wor
 - Every CI build is checked with pluginval (strictness 8), clap-validator and auval, and a smoke
   test opens the editor in a real host and WebView on every OS.
 
-[Unreleased]: https://github.com/mr-kaynak/sedef-amp/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/mr-kaynak/sedef-amp/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.1.0...v0.2.0

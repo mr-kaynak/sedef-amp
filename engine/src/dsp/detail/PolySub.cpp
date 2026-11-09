@@ -33,7 +33,9 @@ constexpr float kPickRatio = 4.0f; // 2 ms power over 40 ms power
 constexpr float kRearmRatio = 2.0f;
 constexpr float kDropRatio = 1.0f / 16.0f;
 constexpr float kDropRearmRatio = 0.5f;
-constexpr float kMinDetectPower = 1.0e-8f; // -80 dBFS
+// Numerical floors only, far under any real input (24-bit audio's own noise is near -144 dBFS):
+// what is noise and what is played is Trench's level gate's call, against the input's own floor.
+constexpr float kMinDetectPower = 1.0e-18f; // -180 dBFS
 constexpr double kRefractorySeconds = 0.05;
 constexpr int kWidthUpdateSteps = 4; // 1 ms
 constexpr float kWidthTolerance = 0.02f;
@@ -42,7 +44,7 @@ constexpr float kWidthTolerance = 0.02f;
 constexpr float kKeep = 0.5f;              // an owner hands over when a neighbour is 3 dB stronger
 constexpr float kRadiusScale = 0.7f;       // owners closer than this many (widened) bands merge
 constexpr float kRelativeFloor = 1.0e-5f;  // -50 dB under the strongest band
-constexpr float kAbsoluteFloor = 1.0e-10f; // band amplitude 1e-5: a -94 dBFS sine
+constexpr float kAbsoluteFloor = 1.0e-18f; // band amplitude 1e-9 (-180 dBFS)
 constexpr double kFadeSeconds = 0.003;
 constexpr float kMinResponse = 0.8f; // level correction is at most +1.9 dB
 
@@ -274,7 +276,7 @@ void PolySub::step (float x) noexcept
             const float ci = zi * lastRe_[k] - zr * lastIm_[k];
             const float m2 = cr * cr + ci * ci;
             float response = 1.0f;
-            if (m2 > 1.0e-30f)
+            if (m2 > 1.0e-36f) // the floor's band power squared: still a normal float
             {
                 const float inv = 1.0f / std::sqrt (m2);
                 const float ur = cr * inv, ui = ci * inv;

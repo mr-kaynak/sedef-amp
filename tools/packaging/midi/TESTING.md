@@ -105,9 +105,10 @@ the MIDI it produced helps us most.
 
 ## Known limits
 
-- Monophonic: one note at a time. Chords and strings ringing into each other confuse it; damp the
-  strings you're not playing.
-- An open string ringing an octave below the note you play can make Sedef MIDI choose the open
-  string's octave. Damp it.
+- Monophonic: one note at a time. A string left ringing under a clearly louder new note is
+  usually fine; chords, or two strings ringing at a similar level, give short wrong notes between
+  the right ones. Damp the strings you're not playing.
+- In **Steady**, a note picked softly over a string still ringing can land a little late, and a
+  pick right after a mute a little early.
 - Delay from the pick to the note is about 28 ms on the low E, 22 ms on the A, 17 ms on the D and
   16 ms from the G string up, plus your audio buffer.

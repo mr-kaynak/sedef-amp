@@ -110,6 +110,9 @@ Darwin)
     say "1. $OLD_TAG, installed as its read-me says"
     hdiutil attach -nobrowse -readonly -mountpoint "$work/old-image" "$(old Sedef-Amp-macOS.dmg)" >/dev/null
     sudo /usr/sbin/installer -pkg "$work/old-image/Install Sedef Amp.pkg" -target /
+    # From 0.6.0 the old release installs Sedef MIDI too, so the updates below keep it.
+    old_midi=""
+    [[ -e "/Applications/Sedef MIDI.app" ]] && old_midi=", midi"
     pkgutil --expand-full "$work/old-image/Install Sedef Amp.pkg" "$work/old-expanded"
     hdiutil detach "$work/old-image" >/dev/null
     for b in "${bundles[@]}"; do
@@ -150,7 +153,8 @@ Darwin)
     check_equal "the VST3 put back" "$(sha "$(binary "$old_vst3")")" "$(sha "$(binary "${bundles[1]}")")"
     "$tool" --install "$dist/Sedef-Amp-macOS.dmg" --expect "$version" | tee "$work/second.log" ||
         fail "the second install failed"
-    grep -q '^formats: app, vst3, clap$' "$work/second.log" && echo "ok: formats app, vst3, clap" ||
+    grep -q "^formats: app, vst3, clap$old_midi\$" "$work/second.log" &&
+        echo "ok: formats app, vst3, clap$old_midi" ||
         fail "the second install chose other formats"
     check_bundles 2
 
@@ -174,8 +178,14 @@ Darwin)
         done
         leftovers
     }
-    [[ ! -e "${midi[0]}" ]] && echo "ok: the updates over $OLD_TAG left Sedef MIDI out (it was not installed)" ||
-        fail "an update over $OLD_TAG installed Sedef MIDI"
+    if [[ -n "$old_midi" ]]; then
+        echo "The updates over $OLD_TAG keep its Sedef MIDI:"
+        check_midi present
+    else
+        [[ ! -e "${midi[0]}" ]] &&
+            echo "ok: the updates over $OLD_TAG left Sedef MIDI out (it was not installed)" ||
+            fail "an update over $OLD_TAG installed Sedef MIDI"
+    fi
 
     say "5. The new pkg as its read-me says (every choice): Sedef MIDI is installed"
     hdiutil attach -nobrowse -readonly -mountpoint "$work/new-image" "$dist/Sedef-Amp-macOS.dmg" >/dev/null

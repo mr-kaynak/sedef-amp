@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import { Knob } from '../../controls/Knob';
-import styles from './KelpPedal.module.css';
-import { Pedal, type PedalFinish } from './Pedal';
+import { Pedal, PedalRow, type PedalFinish } from './Pedal';
+import { PedalKnob } from './PedalKnob';
 
 // Kelp's olive brown-green (4.8:1 for the dim legend at the lighter top).
 const FINISH: PedalFinish = {
@@ -13,10 +12,14 @@ const FINISH: PedalFinish = {
 /** Kelp, the mid-hump overdrive: a warm drive, or with Drive down and Level up, a tight boost. */
 export function KelpPedal() {
   return (
-    <Pedal name="Kelp" kind="Mid overdrive" enableParam="kelpEnabled" finish={FINISH}>
-      <Knob param="kelpDrive" label="Drive" />
-      <Knob param="kelpTone" label="Tone" />
-      <Knob param="kelpLevel" label="Level" className={styles.level} />
+    <Pedal id="kelp" name="Kelp" kind="Mid overdrive" enableParam="kelpEnabled" finish={FINISH}>
+      <PedalRow>
+        <PedalKnob param="kelpDrive" label="Drive" weight="big" />
+      </PedalRow>
+      <PedalRow>
+        <PedalKnob param="kelpTone" label="Tone" />
+        <PedalKnob param="kelpLevel" label="Level" />
+      </PedalRow>
     </Pedal>
   );
 }

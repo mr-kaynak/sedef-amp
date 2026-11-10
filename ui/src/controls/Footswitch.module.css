@@ -1,8 +1,10 @@
 /* SPDX-License-Identifier: AGPL-3.0-or-later */
 .footswitch {
   position: relative;
-  width: 58px;
-  height: 58px;
+  /* An enclosure drawn small sets its own size. */
+  width: var(--footswitch, 58px);
+  height: var(--footswitch, 58px);
+  flex: none;
   padding: 0;
   border: none;
   border-radius: 50%;

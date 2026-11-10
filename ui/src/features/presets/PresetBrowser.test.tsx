@@ -73,7 +73,7 @@ describe('PresetBrowser', () => {
     expect(nacre.textContent).not.toContain('compressor');
     const strip = within(screen.getByRole('complementary', { name: 'Preset details' }));
     expect(strip.getByText('compressor')).toBeInTheDocument();
-    expect(within(nacre).queryByText(/Glassy/)).toBeNull();
+    expect(within(nacre).queryByText(/lightly squeezed/)).toBeNull();
     expect(screen.getByRole('group', { name: 'Clean' })).toContainElement(nacre);
     expect(search()).toHaveFocus();
     expect(search()).toHaveAttribute('aria-activedescendant', nacre.id);

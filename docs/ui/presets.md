@@ -38,7 +38,7 @@ We studied a few well-liked libraries for interaction patterns only (no code or 
 | Esc returns exactly to where you were                                                                  | Auditioning is only free if the way back is certain, including unsaved tweaks. The action row says so: "Esc returns to Glassy Chorus with your edits".                                                | plugin snapshots, `session.ts` `cancel` |
 | Undo instead of confirmations                                                                          | A dialog interrupts and trains people to click through. Loads that drop edits and deletions are instant and offer Undo in a toast (also ⌘/Ctrl+Z).                                     | `Toasts.tsx`, `session.ts`              |
 | One list grouped by category, with a library switch | A factory library of some fifty presets reads best as one dense list: a category header, then one line per preset. _Whose_ presets (all, favourites, recent, yours) is a four-way switch; _what kind_ is the header you scroll to. A rail, tag chips and a sort control cost a third of the window and answered questions a list this size doesn't raise. | `PresetBrowser`, `PresetList`, `library.ts` |
-| One line per preset that says what it is | The name says the sound; then the switched-on chain with the amp badge in the amp's own finish (`Tide → Ripple → Lagoon → Fathom`) and the tags. The note, the author and the cab show in a strip under the list for the row under the pointer, else the highlighted row, so the list never moves. | `PresetList.tsx`, `PresetDetail.tsx` |
+| One line per preset that says what it is | The name says the sound; then the switched-on chain with the amp badge in the amp's own finish (`Tide → Ripple → Lagoon → Fathom`). Two columns put most of the library in view. The note, the tags, the author and the cab show in a strip under the list for the row under the pointer, else the highlighted row, so the list never moves. | `PresetList.tsx`, `PresetDetail.tsx` |
 | A/B compare in the preset bar                                                                          | Comparing two settings by ear is the most common reason to keep two versions of a sound.                                                                                               | `PresetBar.tsx`, plugin `compareSwitch` |
 | Save as with a category, tags and a note                                                               | Your presets should be as findable as the factory ones.                                                                                                                                | `PresetForm.tsx`                        |
 
@@ -62,8 +62,8 @@ and the detail pane: search finds a tag, an amp or a pedal as you type it.
     only) and **Shortcuts**, which lists every key;
   - the list (see below); the current preset starts in the middle, highlighted with a nacre edge
     and a lit "Playing" lamp ("· edited" in amber when dirty);
-  - the strip: the name in Bodoni italic, the note, and "Category · Author · Cab", for the row
-    under the pointer ("Click to audition"), else the highlighted one;
+  - the strip: the name in Bodoni italic, the note, and "Category · Author · Cab · #tags", for
+    the row under the pointer ("Click to audition"), else the highlighted one;
   - the action row: the hint box, "Click or ↑↓ to audition", whose "Esc returns to Chorus
     Clean" part is itself the Back button; the favourite toggle; Save, Save as…, and for your
     own presets Rename and Delete; and **Use & close** (or **Load preset** while the
@@ -110,9 +110,13 @@ With the browser closed, prev/next on an edited sound keep an **undo snapshot** 
 
 ### The list
 
-- One line per preset, 26 px tall, so at least 14 rows show at 1200 × 760 (17 with two headers
-  in view): the favourite star, the name, the chain (pedals → amp badge → effects; the gate and
-  the cab are left out) and the tags.
+- One line per preset, 26 px tall, in two columns: the name, then the chain (pedals → amp badge
+  → effects; the gate and the cab are left out). About 30 presets show at 1200 × 760, so most
+  of the factory library is in view at once. A category reads down its first column and then
+  its second, which is also the order the arrow keys take.
+- The favourite star shows on the row under the pointer and on favourites (always, faintly, on
+  a touch screen), so a column of empty stars doesn't compete with the names.
+- Names don't repeat their header: under Clean it is "Glassy Chorus", not "Chorus Clean".
 - Rows sit under a header per category with its count. Headers stick to the top of the list
   while their rows scroll under them. The factory categories come first, from clean to ambient
   (Clean, Crunch, High Gain, Lead, Ambient), then your own folders by name, then presets

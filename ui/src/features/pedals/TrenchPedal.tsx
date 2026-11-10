@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import { Knob } from '../../controls/Knob';
-import { Segmented } from '../../controls/Segmented';
 import { useParamValue } from '../../params/useParam';
-import { Pedal, type PedalFinish } from './Pedal';
-import styles from './TrenchPedal.module.css';
+import { Pedal, PedalRow, type PedalFinish } from './Pedal';
+import { PedalKnob } from './PedalKnob';
+import { PedalSwitch } from './PedalSwitch';
 
 // The deepest water: navy, lifted enough to stand off the page's lacquer.
 const FINISH: PedalFinish = {
@@ -23,17 +22,23 @@ export function TrenchPedal() {
   const poly = Math.round(useParamValue('trenchMode')) === 1;
   return (
     <Pedal
+      id="trench"
       name="Trench"
       kind="Octave down"
       enableParam="trenchEnabled"
       finish={FINISH}
-      status={<Segmented param="trenchMode" size="sm" className={styles.well} />}
+      status={<PedalSwitch param="trenchMode" />}
       hint={HINTS[poly ? 1 : 0]}
+      lamp="beside"
     >
-      <Knob param="trenchSub1" label="Sub −1" />
-      <Knob param="trenchSub2" label="Sub −2" />
-      <Knob param="trenchDirect" label="Direct" />
-      <Knob param="trenchTone" label="Tone" />
+      <PedalRow>
+        <PedalKnob param="trenchSub1" label="Sub −1" />
+        <PedalKnob param="trenchSub2" label="Sub −2" />
+      </PedalRow>
+      <PedalRow>
+        <PedalKnob param="trenchDirect" label="Direct" />
+        <PedalKnob param="trenchTone" label="Tone" />
+      </PedalRow>
     </Pedal>
   );
 }

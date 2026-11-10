@@ -1,11 +1,7 @@
 /* SPDX-License-Identifier: AGPL-3.0-or-later */
-.span2 {
-  grid-column: span 2;
-}
-
 /* Tide's gain-reduction ladder. */
 .gr {
-  width: 96px;
+  width: calc(80 * var(--u, 1px));
   height: 4px;
   border-radius: 2px;
   background: rgb(0 0 0 / 0.3);
@@ -26,7 +22,8 @@
   align-items: center;
   gap: 6px;
   color: var(--legend-dim);
-  font-size: var(--t-11);
+  font-size: var(--small-type, var(--t-11));
+  line-height: 1.1;
 }
 
 /* The blink's brightness is written every frame from the Speed knob (--blink, RipplePanel.tsx).

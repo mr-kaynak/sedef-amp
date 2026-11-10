@@ -25,8 +25,11 @@ export async function startSession(
   const browser = await chromium.launch();
   const problems = [];
 
-  /** Opens a page at ?<query>, waits for fonts and the first frames, runs prepare(page). */
-  async function open(name, query, prepare) {
+  /**
+   * Opens a page at ?<query>, waits for fonts and the first frames, runs prepare(page). The
+   * pointer is then parked in a corner, unless the shot shows what it points at (keepPointer).
+   */
+  async function open(name, query, prepare, { keepPointer = false } = {}) {
     const page = await browser.newPage({ viewport: canvas, deviceScaleFactor: scale });
     page.on('console', (msg) => {
       if (msg.type() === 'error' || msg.type() === 'warning')
@@ -38,7 +41,7 @@ export async function startSession(
     await page.evaluate(() => document.fonts.ready);
     await page.waitForTimeout(500);
     if (prepare) await prepare(page);
-    await page.mouse.move(canvas.width - 1, canvas.height - 1);
+    if (!keepPointer) await page.mouse.move(canvas.width - 1, canvas.height - 1);
     return page;
   }
 

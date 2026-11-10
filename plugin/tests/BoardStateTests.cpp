@@ -326,10 +326,11 @@ TEST_CASE ("A renamed factory preset keeps its id, and the library lists clean t
         folders.addIfNotAlreadyThere (item["folder"].toString());
     CHECK (folders == juce::StringArray { "Clean", "Crunch", "High Gain", "Lead", "Ambient" });
     REQUIRE (presets.load ("factory:nacre", true));
+    presets.step (1);
+    CHECK (presets.currentName() == "Jazz Warm");
     presets.step (-1);
-    CHECK (presets.currentName() == "Auto-Wah Funk");
     presets.step (-1);
-    CHECK (presets.currentName() == "Vibrato Swell Wash");
+    CHECK (presets.currentName() == "Funk Compressor");
 }
 
 TEST_CASE ("A preset file without a board gets the pedals it switches on")

@@ -2,15 +2,24 @@
 // Renders the built UI (vite preview) against the mock backend and saves screenshots to
 // docs/images at 1200x760 @2x; Sedef MIDI's ("midi") at its window's 760x540 @2x. Also fails on
 // console errors, so it doubles as a smoke test.
-//   pnpm build && pnpm build:midi && pnpm screenshots [name ...]
+//   pnpm build && pnpm build:midi && pnpm screenshots [--out <dir>] [name ...]
 import { mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { startSession } from './lib/shoot.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const outDir = resolve(root, '../docs/images');
+const args = process.argv.slice(2);
+const outAt = args.indexOf('--out');
+const outDir = resolve(outAt >= 0 ? (args[outAt + 1] ?? '') : resolve(root, '../docs/images'));
+if (outAt >= 0) args.splice(outAt, 2);
 mkdirSync(outDir, { recursive: true });
+
+// Boards of three sizes for the pedalboard's layout: a factory preset's few, a busy one, and
+// every pedal there is (the legacy order).
+const BOARD_8 = 'gate,trench,conch,tide,pearl,kelp,gyre,ripple';
+const BOARD_16 =
+  'gate,trench,anemone,conch,remora,tide,urchin,sargasso,pearl,kelp,coral,beacon,gyre,jetty,ripple,breaker';
 
 // Sedef MIDI's own build and page, at its window's size.
 const MIDI = {
@@ -25,16 +34,21 @@ const SHOTS = {
   amp: { query: 'section=amp' },
   // 0.3.0's five pedals with Pearl on (Glassy Chorus, the start-up preset, has only the three it uses).
   pedals: { query: 'section=pedals&board=gate,tide,pearl,coral,ripple&set=pearlEnabled:1' },
-  // Add pedal's picker over a board with room on it.
+  // Add pedal's shelf under a board with room on it, pointing at Kelp: the bar on the board
+  // shows where it would land.
   'pedal-picker': {
     query: 'section=pedals&board=gate,pearl,ripple&set=pearlEnabled:1',
+    keepPointer: true,
     async prepare(page) {
       await page.getByRole('button', { name: 'Add pedal' }).click();
       await page.getByRole('dialog', { name: 'Add a pedal' }).waitFor();
-      await page.mouse.move(1199, 759);
-      await page.waitForTimeout(300);
+      await page.getByRole('button', { name: 'Add Kelp, mid overdrive' }).hover();
+      await page.waitForTimeout(400);
     },
   },
+  'board-3': { query: 'section=pedals&board=gate,pearl,ripple&set=pearlEnabled:1' },
+  'board-8': { query: `section=pedals&board=${BOARD_8}&set=pearlEnabled:1,tideEnabled:1` },
+  'board-16': { query: `section=pedals&board=${BOARD_16}&set=pearlEnabled:1,tideEnabled:1` },
   eq: {
     query:
       'section=eq&set=eqLagoonBand2:-2,eqLagoonBand3:-1,eqLagoonBand5:1.5,eqLagoonBand7:2.5,eqLagoonBand8:1,eqLagoonLowCut:70,eqLagoonHighCut:11000',
@@ -118,7 +132,7 @@ const SHOTS = {
   },
 };
 
-const wanted = process.argv.slice(2);
+const wanted = args;
 const names = wanted.length
   ? wanted
   : ['amp', 'pedals', 'eq', 'cab', 'fx', 'presets', 'tuner', 'intonation', 'midi'];
@@ -134,7 +148,9 @@ for (const app of [undefined, MIDI]) {
   try {
     for (const name of batch) {
       const shot = SHOTS[name];
-      const page = await session.open(name, `fresh&${shot.query}`, shot.prepare);
+      const page = await session.open(name, `fresh&${shot.query}`, shot.prepare, {
+        keepPointer: shot.keepPointer,
+      });
       const file = resolve(outDir, `${name}.png`);
       await page.screenshot({ path: file });
       console.log(`saved ${file}`);

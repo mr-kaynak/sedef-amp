@@ -320,12 +320,15 @@ applies a board only at a block boundary.
 4. **Generated tables.** Rebuild, then run `build/engine/tools/sedef-params` to regenerate
    `ui/src/generated/parameters.json` and `sedef-params --pedals` for
    `ui/src/generated/pedals.json`.
-5. **UI.** Add its panel next to the others in `ui/src/features/pedals/` (a `<Pedal>` with its
-   knobs and switch; it renders on its own in any container), and one entry in
+5. **UI.** Add its panel next to the others in `ui/src/features/pedals/` (a `<Pedal>` with rows
+   of `<PedalKnob>` and a `<PedalSwitch>`; it renders on its own in any container), its box in
+   `sizes.ts` (compact, regular or wide by what it carries, and the height its controls need),
+   a line figure for its enclosure in `art.tsx`, and one entry in
    `ui/src/features/pedals/catalog.ts`: the panel, the kind of pedal and a one-line
-   description for the picker.
-6. **Tests and docs.** The registry tests check every pedal has a switch, a panel and a
-   description. Add the pedal to the README Pedals row, `docs/ui.md` and the CHANGELOG.
+   description for the picker. The board's layout test (`layout.test.ts`) fails if every pedal
+   no longer fits two rows.
+6. **Tests and docs.** The registry and layout tests check every pedal has a switch, a panel, a
+   description and a box. Add the pedal to the README Pedals row, `docs/ui.md` and the CHANGELOG.
 
 The default order (the ranks in `PedalList.inc`, which also give the legacy board) follows each
 pedal's page ("Where it goes in the chain"); the player can change it on the board. In short:

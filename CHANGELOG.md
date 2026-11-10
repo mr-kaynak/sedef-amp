@@ -6,6 +6,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-10
+
+The Pedals page is redrawn: every pedal has its own enclosure and a full board fits on one
+screen. There are 49 factory presets, named for their sound, in a preset browser you can scan.
+
 ### Added
 
 - **32 new factory presets**, 49 in all: Clean 10, Crunch 11, High Gain 10, Lead 10, Ambient 8.
@@ -442,7 +447,8 @@ The first public build: a complete guitar rig with a tuner and an intonation wor
 - Every CI build is checked with pluginval (strictness 8), clap-validator and auval, and a smoke
   test opens the editor in a real host and WebView on every OS.
 
-[Unreleased]: https://github.com/mr-kaynak/sedef-amp/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/mr-kaynak/sedef-amp/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.3.0...v0.4.0

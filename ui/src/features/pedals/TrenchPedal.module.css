@@ -1,6 +1,0 @@
-/* SPDX-License-Identifier: AGPL-3.0-or-later */
-/* The mode switch sits on bare paint, as Remora's does: a solid ink well keeps the unselected
-   label legible on the navy. */
-.well[role='radiogroup'] {
-  background: var(--ink-1);
-}

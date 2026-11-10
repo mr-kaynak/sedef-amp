@@ -4,6 +4,9 @@ import type { CSSProperties, ReactNode } from 'react';
 import { Footswitch } from '../../controls/Footswitch';
 import { Led } from '../../controls/Led';
 import { useParamValue } from '../../params/useParam';
+import { PedalArt } from './art';
+import { usePedalScale } from './density';
+import { pedalBox } from './sizes';
 import styles from './Pedal.module.css';
 
 export interface PedalFinish {
@@ -16,23 +19,39 @@ export interface PedalFinish {
 }
 
 export interface PedalProps {
+  /** The pedal's id in the registry: its box (sizes.ts) and its painted figure (art.tsx). */
+  id: string;
   name: string;
   kind: string;
   enableParam: string;
   finish: PedalFinish;
-  /** Knob area. */
+  /** The controls, as rows (PedalRow) from the top. */
   children: ReactNode;
-  /** Optional status element between the name and the footswitch (meters, rate lamps). */
+  /** Optional status element under the name (meters, switches). */
   status?: ReactNode;
   /** Optional engraved instruction in the status area ("One note at a time"). */
   hint?: string;
   led?: ReactNode;
-  /** A narrower enclosure for a pedal with one column of controls. */
-  variant?: 'narrow';
+  /** Where the lamp sits: over the footswitch (default) or beside it, on a full enclosure. */
+  lamp?: 'above' | 'beside';
 }
 
-/** A stompbox enclosure: knobs on top, the name, an LED, and the footswitch. */
+/** One row of an enclosure's controls. `tight` keeps two close, standing on one line. */
+export function PedalRow({ children, set }: { children: ReactNode; set?: 'tight' }) {
+  return <div className={set ? `${styles.row} ${styles[set]}` : styles.row}>{children}</div>;
+}
+
+/** Switches stacked in a row, beside a knob. */
+export function PedalStack({ children }: { children: ReactNode }) {
+  return <div className={styles.stack}>{children}</div>;
+}
+
+/**
+ * A stompbox enclosure: its painted figure, the controls, the name, an LED and the footswitch.
+ * It draws itself at the scale of whatever hosts it (density.ts) and needs nothing else.
+ */
 export function Pedal({
+  id,
   name,
   kind,
   enableParam,
@@ -41,11 +60,18 @@ export function Pedal({
   status,
   hint,
   led,
-  variant,
+  lamp = 'above',
 }: PedalProps) {
   const on = useParamValue(enableParam) >= 0.5;
+  const scale = usePedalScale();
+  // Type steps once, where the enclosure is clearly the larger kind.
+  const density = scale >= 1.25 ? 'large' : 'small';
   const hintId = useId();
+  const box = pedalBox(id);
   const style = {
+    '--u': `${scale}px`,
+    '--w': box.w,
+    '--h': box.h,
     '--paint-top': finish.paint[0],
     '--paint-bottom': finish.paint[1],
     '--legend': finish.legend,
@@ -56,11 +82,14 @@ export function Pedal({
 
   return (
     <section
-      className={[styles.pedal, variant && styles[variant]].filter(Boolean).join(' ')}
+      className={styles.pedal}
       style={style}
       aria-label={`${name} ${kind}`}
       data-on={on || undefined}
+      data-density={density}
+      data-lamp={lamp}
     >
+      <PedalArt id={id} box={box} />
       <span className={`${styles.screw} ${styles.tl}`} aria-hidden="true" />
       <span className={`${styles.screw} ${styles.tr}`} aria-hidden="true" />
       <span className={`${styles.screw} ${styles.bl}`} aria-hidden="true" />
@@ -70,20 +99,26 @@ export function Pedal({
         <h2 className={styles.name}>{name}</h2>
         <p className={styles.kind}>{kind}</p>
       </div>
-      <div className={[styles.status, status && hint && styles.stacked].filter(Boolean).join(' ')}>
-        {status}
-        {hint && (
-          <p id={hintId} className={styles.hint}>
-            {hint}
-          </p>
-        )}
+      {(status || hint) && (
+        <div className={styles.status}>
+          {status}
+          {hint && (
+            <p id={hintId} className={styles.hint}>
+              {hint}
+            </p>
+          )}
+        </div>
+      )}
+      <div className={styles.foot}>
+        <div className={styles.lamp}>
+          {led ?? <Led on={on} size={density === 'large' ? 10 : 8} />}
+        </div>
+        <Footswitch
+          param={enableParam}
+          label={`${name} on/off`}
+          describedBy={hint ? hintId : undefined}
+        />
       </div>
-      <div className={styles.lamp}>{led ?? <Led on={on} size={10} />}</div>
-      <Footswitch
-        param={enableParam}
-        label={`${name} on/off`}
-        describedBy={hint ? hintId : undefined}
-      />
     </section>
   );
 }

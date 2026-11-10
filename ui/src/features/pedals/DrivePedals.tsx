@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// The fuzzes and the booster: Remora, Sargasso and Breaker. Each panel is self-contained (a fixed-size
+// The fuzzes and the booster: Remora, Sargasso and Breaker. Each panel is self-contained (an
 // enclosure with its own parameters), so any page or board can host it.
-import { Knob } from '../../controls/Knob';
-import { Segmented } from '../../controls/Segmented';
-import { Pedal, type PedalFinish } from './Pedal';
-import styles from './DrivePedals.module.css';
+import { Pedal, PedalRow, type PedalFinish } from './Pedal';
+import { PedalKnob } from './PedalKnob';
+import { PedalSwitch } from './PedalSwitch';
 
 // Contrast of every legend against both ends of its paint is at least 4.5:1 (dim legends
 // included), so the small knob labels and values read on each enclosure.
@@ -29,23 +28,22 @@ const FINISH: Record<'remora' | 'sargasso' | 'breaker', PedalFinish> = {
 export function RemoraPedal() {
   return (
     <Pedal
+      id="remora"
       name="Remora"
       kind="Fuzz"
       enableParam="remoraEnabled"
       finish={FINISH.remora}
-      status={
-        <Segmented
-          param="remoraTransistor"
-          size="sm"
-          className={styles.well}
-          labels={['Germanium', 'Silicon']}
-        />
-      }
+      status={<PedalSwitch param="remoraTransistor" labels={['Germanium', 'Silicon']} />}
+      lamp="beside"
     >
-      <Knob param="remoraFuzz" label="Fuzz" />
-      <Knob param="remoraVolume" label="Volume" />
-      <Knob param="remoraBias" label="Bias" />
-      <Knob param="remoraGuitarVolume" label="Guitar volume" />
+      <PedalRow set="tight">
+        <PedalKnob param="remoraFuzz" label="Fuzz" weight="big" />
+        <PedalKnob param="remoraVolume" label="Volume" weight="big" />
+      </PedalRow>
+      <PedalRow>
+        <PedalKnob param="remoraBias" label="Bias" />
+        <PedalKnob param="remoraGuitarVolume" label="Guitar volume" />
+      </PedalRow>
     </Pedal>
   );
 }
@@ -54,14 +52,19 @@ export function RemoraPedal() {
 export function SargassoPedal() {
   return (
     <Pedal
+      id="sargasso"
       name="Sargasso"
       kind="Sustain fuzz"
       enableParam="sargassoEnabled"
       finish={FINISH.sargasso}
     >
-      <Knob param="sargassoSustain" label="Sustain" />
-      <Knob param="sargassoTone" label="Tone" />
-      <Knob param="sargassoVolume" label="Volume" className={styles.span2} />
+      <PedalRow>
+        <PedalKnob param="sargassoSustain" label="Sustain" />
+        <PedalKnob param="sargassoTone" label="Tone" />
+      </PedalRow>
+      <PedalRow>
+        <PedalKnob param="sargassoVolume" label="Volume" />
+      </PedalRow>
     </Pedal>
   );
 }
@@ -70,20 +73,16 @@ export function SargassoPedal() {
 export function BreakerPedal() {
   return (
     <Pedal
+      id="breaker"
       name="Breaker"
       kind="Treble booster"
       enableParam="breakerEnabled"
       finish={FINISH.breaker}
-      status={
-        <Segmented
-          param="breakerRange"
-          size="sm"
-          className={styles.well}
-          labels={['Treble', 'Full']}
-        />
-      }
+      status={<PedalSwitch param="breakerRange" labels={['Treble', 'Full']} />}
     >
-      <Knob param="breakerBoost" label="Boost" size="lg" className={styles.span2} />
+      <PedalRow>
+        <PedalKnob param="breakerBoost" label="Boost" weight="hero" />
+      </PedalRow>
     </Pedal>
   );
 }

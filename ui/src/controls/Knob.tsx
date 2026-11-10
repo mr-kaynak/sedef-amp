@@ -14,7 +14,8 @@ const SIZES: Record<KnobSize, number> = { sm: 36, md: 50, lg: 66, xl: 92 };
 export interface KnobProps {
   param: string;
   label?: string;
-  size?: KnobSize;
+  /** A named size, or the dial's diameter in pixels (an enclosure that scales its knobs). */
+  size?: KnobSize | number;
   /** Hide the numeric readout under the label (the drag tooltip still shows it). */
   hideValue?: boolean;
   disabled?: boolean;
@@ -29,7 +30,10 @@ export function Knob({ param, label, size = 'md', hideValue, disabled, className
   const p = useParam(param);
   const { active, handlers, wheelRef } = useValueControl(p, { disabled });
   const labelId = useId();
-  const px = SIZES[size];
+  const px = typeof size === 'number' ? size : SIZES[size];
+  // A dial by the pixel takes the type of the named size nearest below it.
+  const named: KnobSize =
+    typeof size !== 'number' ? size : size < 44 ? 'sm' : size < 60 ? 'md' : size < 84 ? 'lg' : 'xl';
   const text = label ?? shortLabel(p.spec.name, p.spec.group);
 
   const angle = angleFor(p.normalised);
@@ -49,7 +53,10 @@ export function Knob({ param, label, size = 'md', hideValue, disabled, className
   const style = { '--knob': `${px}px`, '--angle': `${angle}deg` } as CSSProperties;
 
   return (
-    <div className={[styles.knob, styles[size], className].filter(Boolean).join(' ')} style={style}>
+    <div
+      className={[styles.knob, styles[named], className].filter(Boolean).join(' ')}
+      style={style}
+    >
       <div
         ref={wheelRef}
         className={styles.dial}

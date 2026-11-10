@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { useRef } from 'react';
-import { Knob } from '../../../controls/Knob';
 import { useParamValue } from '../../../params/useParam';
 import { telemetry, useLiveFrame } from '../../../state/live';
-import { Pedal } from '../Pedal';
+import { Pedal, PedalRow } from '../Pedal';
+import { PedalKnob } from '../PedalKnob';
 import { TIDE } from './finishes';
 import styles from './Panels.module.css';
 
@@ -27,16 +27,21 @@ function ReductionMeter() {
 export function TidePanel() {
   return (
     <Pedal
+      id="tide"
       name="Tide"
       kind="Compressor"
       enableParam="tideEnabled"
       finish={TIDE}
       status={<ReductionMeter />}
     >
-      <Knob param="tideComp" label="Comp" />
-      <Knob param="tideTone" label="Tone" />
-      <Knob param="tideLevel" label="Level" />
-      <Knob param="tideBlend" label="Blend" />
+      <PedalRow>
+        <PedalKnob param="tideComp" label="Comp" />
+        <PedalKnob param="tideTone" label="Tone" />
+      </PedalRow>
+      <PedalRow>
+        <PedalKnob param="tideLevel" label="Level" />
+        <PedalKnob param="tideBlend" label="Blend" />
+      </PedalRow>
     </Pedal>
   );
 }

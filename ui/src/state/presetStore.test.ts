@@ -21,7 +21,7 @@ describe('preset actions against the mock', () => {
   it('loads a preset and applies its values', async () => {
     await presetActions.load('factory:tidewater');
     await flush();
-    expect(usePresetStore.getState().state.currentName).toBe('Tidewater');
+    expect(usePresetStore.getState().state.currentName).toBe('Surf Tremolo');
     expect(getValue('ampModel')).toBe(0);
     expect(getValue('rippleEnabled')).toBe(1);
     expect(getValue('rippleSpeed')).toBe(4.6);
@@ -75,11 +75,11 @@ describe('applyPresetState', () => {
   const name = () => usePresetStore.getState().state.currentName;
 
   it('drops a state older than the one it has, and takes one without a revision', () => {
-    applyPresetState(at(5, 'Riptide'));
-    applyPresetState(at(4, 'Nacre')); // an answer overtaken by a later broadcast
-    expect(name()).toBe('Riptide');
-    applyPresetState(at(5, 'Riptide again'));
-    expect(name()).toBe('Riptide again');
+    applyPresetState(at(5, 'Singing Echo'));
+    applyPresetState(at(4, 'Glassy Chorus')); // an answer overtaken by a later broadcast
+    expect(name()).toBe('Singing Echo');
+    applyPresetState(at(5, 'Singing Echo again'));
+    expect(name()).toBe('Singing Echo again');
     applyPresetState(at(undefined, 'Old plugin'));
     expect(name()).toBe('Old plugin');
     applyPresetState(at(1, 'Reconnected'));

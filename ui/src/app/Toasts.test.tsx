@@ -12,19 +12,19 @@ describe('toast store', () => {
 
   it('never lets a plain notice push an Undo off the screen', () => {
     showToast('Deleted Sunday set', undo);
-    expect(showToast('Back to Nacre')).toBeNull();
+    expect(showToast('Back to Glassy Chorus')).toBeNull();
     expect(text()).toBe('Deleted Sunday set');
-    showToast('Loaded Riptide', undo, 'browse');
-    expect(text()).toBe('Loaded Riptide');
+    showToast('Loaded Singing Echo', undo, 'browse');
+    expect(text()).toBe('Loaded Singing Echo');
   });
 
   it('drops only the toasts whose snapshot went away', () => {
     showToast('Deleted Sunday set', undo);
     dismissToastRestoring('browse', 'undo');
     expect(text()).toBe('Deleted Sunday set');
-    showToast('Loaded Riptide', undo, 'undo');
+    showToast('Loaded Singing Echo', undo, 'undo');
     dismissToastRestoring('browse');
-    expect(text()).toBe('Loaded Riptide');
+    expect(text()).toBe('Loaded Singing Echo');
     dismissToastRestoring('undo');
     expect(text()).toBeNull();
   });
@@ -40,10 +40,10 @@ describe('Toasts', () => {
 
   it('holds a toast while pointed at, and the next one runs its own timer', () => {
     render(<Toasts />);
-    act(() => void showToast('Loaded Riptide', undo));
-    fireEvent.pointerEnter(screen.getByText('Loaded Riptide').parentElement as HTMLElement);
+    act(() => void showToast('Loaded Singing Echo', undo));
+    fireEvent.pointerEnter(screen.getByText('Loaded Singing Echo').parentElement as HTMLElement);
     act(() => vi.advanceTimersByTime(20_000));
-    expect(text()).toBe('Loaded Riptide');
+    expect(text()).toBe('Loaded Singing Echo');
 
     // Replaced under the pointer: no pointerleave comes for the old one.
     act(() => void showToast('Deleted Sunday set', undo));

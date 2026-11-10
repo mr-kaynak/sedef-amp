@@ -1,0 +1,21 @@
+{
+  "format": "sedef-preset",
+  "version": 1,
+  "id": "hot-rod-rhythm",
+  "name": "Hot-Rod Rhythm",
+  "folder": "High Gain",
+  "author": "Sedef",
+  "tags": ["rhythm", "rock"],
+  "description": "The crunch amp with its gain nearly all the way up: thick, saturated hard rock rhythm.",
+  "board": ["gate"],
+  "parameters": {
+    "ampModel": 1,
+    "reefVoice": 2,
+    "reefGain": 0.88,
+    "reefBass": 0.45,
+    "reefMid": 0.6,
+    "reefTreble": 0.55,
+    "gateThreshold": -60.0,
+    "reefOutput": 0.3479
+  }
+}

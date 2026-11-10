@@ -1,0 +1,27 @@
+{
+  "format": "sedef-preset",
+  "version": 1,
+  "id": "jazz-warm",
+  "name": "Jazz Warm",
+  "folder": "Clean",
+  "author": "Sedef",
+  "tags": ["jazz", "plate"],
+  "description": "Dark, round clean through ribbon mics with a small plate. Chord melody and comping.",
+  "board": ["gate"],
+  "parameters": {
+    "ampModel": 0,
+    "micACab1Type": 8,
+    "micAPosition": 0.6,
+    "micBCab1Type": 9,
+    "micBDistance": 0.3,
+    "micBLevel": -4.0,
+    "lagoonVolume": 0.35,
+    "lagoonBass": 0.6,
+    "lagoonCut": 0.75,
+    "lagoonMaster": 0.45,
+    "fathomEnabled": 1,
+    "fathomMix": 0.14,
+    "fathomDecay": 1.4,
+    "lagoonOutput": 0.6708
+  }
+}

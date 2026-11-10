@@ -398,7 +398,7 @@ conduction bias shift off, halving the power-amp sag, inverting the signal betwe
 stages do, or lowering the interstage low-passes each changed the chug dip by at most 0.3 dB and
 the intermodulation by at most 1 dB; the lower low-passes took 1.4 dB off the fizz. The power amp
 adds little at the default master (master 0.1 instead of 0.5: chug dip 12.1 instead of 10.3 dB);
-presence, bright and bass change the dip by less than 0.6 dB. The Mariana preset, at gain 0.65 with
+presence, bright and bass change the dip by less than 0.6 dB. The Modern Metal Rhythm preset, at gain 0.65 with
 shift on, was the worst of all: a 5.1 dB dip.
 
 ### The fix
@@ -422,9 +422,9 @@ shift on, was the worst of all: a 5.1 dB dip.
   0.8 dB of v0.3.0 on average (largest band difference 2.1 dB), and through the default cab the
   open chord of the listening renders within 2.1 dB per band (0.7 dB on average at gain 0.5,
   1.2 dB at full gain). The change is in how the amp moves, not in its colour.
-- **Presets** were re-voiced: Mariana, the tight palm-mute preset, from gain 0.65 to 0.6; the two
-  lead presets to the gain where they sustain as long as before (Riptide 0.55 → 0.69,
-  Bioluminescence 0.5 → 0.65); Undertow to where it breaks up as much as before (0.21 → 0.33).
+- **Presets** were re-voiced: Modern Metal Rhythm, the tight palm-mute preset, from gain 0.65 to 0.6; the two
+  lead presets to the gain where they sustain as long as before (Singing Echo 0.55 → 0.69,
+  Chorus & Echo 0.5 → 0.65); Dark Drone to where it breaks up as much as before (0.21 → 0.33).
 
 ### Before and after the fix
 

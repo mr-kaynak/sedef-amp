@@ -10,6 +10,7 @@
 //   sedef-render --set pearlEnabled=1 --set coralEnabled=1 --board coral,pearl --out swapped.wav
 //   sedef-render --board gate,pearl,ripple --switch 2.5=ripple,gate,pearl --out reorder.wav
 //   sedef-render --preset presets/factory/nacre.sedefpreset --set oversampling=1 --out lin.wav
+//   sedef-render --preset presets/factory/nacre.sedefpreset --di-gain -18 --out quiet.wav
 //
 // Without --in, a synthetic guitar DI (plucked-string chords and single notes) is used. The
 // pedalboard is --board, else the preset's "board", else the board a preset saved before the
@@ -278,14 +279,66 @@ bool applyParameters (ParamSnapshot& snap, const std::map<std::string, float>& v
     return ok;
 }
 
+// The quiet-guitar part of --check: the DI's first chords peaking at -30 dBFS, then fading out
+// at 12 dB a second, a note left to ring.
+constexpr float kQuietPeakDb = -30.0f;
+constexpr double kQuietPlaySeconds = 2.0;
+constexpr double kQuietFadeSeconds = 3.5;
+constexpr float kQuietFadeDb = 42.0f;
+constexpr float kMinGateHoldDb = 24.0f;
+
+std::vector<float> decayingDi (double fs)
+{
+    auto x = syntheticDi (fs, kQuietPlaySeconds + kQuietFadeSeconds);
+    float peak = 0.0f;
+    for (float v : x)
+        peak = std::max (peak, std::abs (v));
+    const float g = dbToGain (kQuietPeakDb) / std::max (peak, 1.0e-9f);
+    const auto fadeFrom = static_cast<std::size_t> (kQuietPlaySeconds * fs);
+    for (std::size_t i = 0; i < x.size(); ++i)
+    {
+        const double into = i > fadeFrom ? static_cast<double> (i - fadeFrom) / fs : 0.0;
+        x[i] *= g * dbToGain (static_cast<float> (-kQuietFadeDb * into / kQuietFadeSeconds));
+    }
+    return x;
+}
+
+/// How far under its peak the DI has fallen (dB, in 50 ms windows) when the gate first takes
+/// more than 6 dB off the render; kQuietFadeDb when it never does.
+float gateHoldsDb (const std::vector<float>& di, double fs, const RenderResult& gated,
+                   const RenderResult& open)
+{
+    const auto window = static_cast<std::size_t> (fs * 0.05);
+    const auto energy = [] (const std::vector<float>& x, std::size_t from, std::size_t n) {
+        double acc = 1.0e-20;
+        for (std::size_t i = from; i < from + n; ++i)
+            acc += static_cast<double> (x[i]) * x[i];
+        return acc;
+    };
+    for (auto at = static_cast<std::size_t> (kQuietPlaySeconds * fs); at + window <= di.size();
+         at += window)
+    {
+        const double g = energy (gated.left, at, window) + energy (gated.right, at, window);
+        const double o = energy (open.left, at, window) + energy (open.right, at, window);
+        if (g >= o * 0.25)
+            continue;
+        float peak = 0.0f;
+        for (std::size_t i = at; i < at + window; ++i)
+            peak = std::max (peak, std::abs (di[i]));
+        return kQuietPeakDb - gainToDb (peak);
+    }
+    return kQuietFadeDb;
+}
+
 int usage()
 {
-    std::fputs ("usage: sedef-render [--preset FILE] [--in DI.wav] [--out OUT.wav] [--seconds S]\n"
-                "                    [--rate HZ] [--capture FILE.nam] [--set id=value]...\n"
-                "                    [--board id,id,...] [--switch SECONDS=id,id,...]...\n"
-                "       sedef-render --check PRESET...\n"
-                "       sedef-render --check-boards PRESET...\n",
-                stderr);
+    std::fputs (
+        "usage: sedef-render [--preset FILE] [--in DI.wav] [--out OUT.wav] [--seconds S]\n"
+        "                    [--di-gain DB] [--rate HZ] [--capture FILE.nam] [--set id=value]...\n"
+        "                    [--board id,id,...] [--switch SECONDS=id,id,...]...\n"
+        "       sedef-render --check PRESET...\n"
+        "       sedef-render --check-boards PRESET...\n",
+        stderr);
     return 2;
 }
 
@@ -305,7 +358,11 @@ int main (int argc, char** argv)
         // Every factory preset must render finite, with headroom, and inside a narrow level window.
         // Factory presets are balanced to -16 LUFS with this DI (see presets/README.md), which
         // lands between -23 and -19 dBFS RMS depending on how bright and compressed the sound is.
+        // Its gate must also suit a quiet guitar (an interface at minimum gain): on a DI that
+        // peaks at -30 dBFS and then dies away, the gate has to stay open until the guitar is at
+        // least 24 dB under that peak.
         const auto di = syntheticDi (rate, seconds);
+        const auto quietDi = decayingDi (rate);
         int failures = 0;
         for (std::size_t i = 1; i < args.size(); ++i)
         {
@@ -317,13 +374,20 @@ int main (int argc, char** argv)
                 ++failures;
                 continue;
             }
-            const auto r =
-                render (di, rate, snap, readPresetBoard (args[i]).value_or (legacyBoard (snap)));
+            const auto board = readPresetBoard (args[i]).value_or (legacyBoard (snap));
+            const auto r = render (di, rate, snap, board);
             const auto s = measure (r.left, r.right, static_cast<std::size_t> (rate * 0.5));
-            const bool ok = s.finite && s.peakDb < -1.0f && s.rmsDb > -24.0f && s.rmsDb < -18.0f;
-            std::printf ("%s  %-48s rms %6.1f dBFS  peak %6.1f dBFS\n", ok ? "ok  " : "FAIL",
-                         args[i].c_str(), static_cast<double> (s.rmsDb),
-                         static_cast<double> (s.peakDb));
+            auto open = snap;
+            open[ParamId::gateThreshold] = spec (ParamId::gateThreshold).min; // the gate off
+            const float held = gateHoldsDb (quietDi, rate, render (quietDi, rate, snap, board),
+                                            render (quietDi, rate, open, board));
+            const bool ok = s.finite && s.peakDb < -1.0f && s.rmsDb > -24.0f && s.rmsDb < -18.0f &&
+                            held >= kMinGateHoldDb;
+            std::printf ("%s  %-48s rms %6.1f dBFS  peak %6.1f dBFS  gate holds a quiet note "
+                         "%s%.0f dB down\n",
+                         ok ? "ok  " : "FAIL", args[i].c_str(), static_cast<double> (s.rmsDb),
+                         static_cast<double> (s.peakDb), held >= kQuietFadeDb ? "over " : "",
+                         static_cast<double> (std::min (held, kQuietFadeDb)));
             failures += ok ? 0 : 1;
         }
         return failures == 0 ? 0 : 1;
@@ -371,6 +435,7 @@ int main (int argc, char** argv)
     }
 
     std::string presetPath, inPath, outPath, capturePath;
+    float diGainDb = 0.0f; // --di-gain: a quieter or hotter guitar, whatever the DI is
     std::optional<std::string> boardList;
     std::vector<std::pair<double, std::string>> switchLists;
     std::map<std::string, float> overrides;
@@ -389,6 +454,8 @@ int main (int argc, char** argv)
             seconds = std::stod (next());
         else if (args[i] == "--rate")
             rate = std::stod (next());
+        else if (args[i] == "--di-gain")
+            diGainDb = std::stof (next());
         else if (args[i] == "--capture")
             capturePath = next();
         else if (args[i] == "--board")
@@ -465,6 +532,12 @@ int main (int argc, char** argv)
     {
         input = syntheticDi (rate, seconds);
     }
+    float diPeak = 0.0f;
+    for (auto& v : input)
+    {
+        v *= dbToGain (diGainDb);
+        diPeak = std::max (diPeak, std::abs (v));
+    }
 
     std::optional<Board> board;
     if (!presetPath.empty())
@@ -478,9 +551,10 @@ int main (int argc, char** argv)
     const auto r = render (input, rate, snap, board.value_or (legacyBoard (snap)), 256,
                            capture.get(), std::move (switches));
     const auto s = measure (r.left, r.right, 0);
-    std::printf ("{\"rmsDb\": %.2f, \"peakDb\": %.2f, \"finite\": %s, \"latency\": %d}\n",
+    std::printf ("{\"rmsDb\": %.2f, \"peakDb\": %.2f, \"finite\": %s, \"latency\": %d, "
+                 "\"diPeakDb\": %.2f}\n",
                  static_cast<double> (s.rmsDb), static_cast<double> (s.peakDb),
-                 s.finite ? "true" : "false", r.latency);
+                 s.finite ? "true" : "false", r.latency, static_cast<double> (gainToDb (diPeak)));
     if (!outPath.empty())
         writeWav (outPath, r.left, r.right, rate);
     return s.finite ? 0 : 1;

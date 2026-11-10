@@ -1,0 +1,31 @@
+{
+  "format": "sedef-preset",
+  "version": 1,
+  "id": "soft-phaser",
+  "name": "Soft Phaser",
+  "folder": "Clean",
+  "author": "Sedef",
+  "tags": ["phaser", "compressor"],
+  "description": "Clean with a slow, soft phaser sweep and a short plate. Sixteenth-note rhythm.",
+  "board": ["gate", "tide", "gyre"],
+  "parameters": {
+    "ampModel": 0,
+    "micAPosition": 0.4,
+    "micBDistance": 0.25,
+    "micBLevel": -5.0,
+    "lagoonVolume": 0.45,
+    "lagoonCut": 0.3,
+    "tideEnabled": 1,
+    "tideComp": 0.4,
+    "tideBlend": 0.6,
+    "gyreEnabled": 1,
+    "gyreSpeed": 0.6,
+    "gyreDepth": 0.7,
+    "gyreFeedback": 0.25,
+    "gyreStages": 0,
+    "fathomEnabled": 1,
+    "fathomMix": 0.15,
+    "fathomDecay": 1.6,
+    "lagoonOutput": 0.55
+  }
+}

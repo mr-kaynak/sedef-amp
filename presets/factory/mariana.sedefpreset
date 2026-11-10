@@ -1,13 +1,11 @@
 {
   "format": "sedef-preset",
   "version": 1,
-  "name": "Mariana",
+  "id": "mariana",
+  "name": "Modern Metal Rhythm",
   "folder": "High Gain",
   "author": "Sedef",
-  "tags": [
-    "rhythm",
-    "metal"
-  ],
+  "tags": ["rhythm", "metal"],
   "description": "Tight modern high gain with shifted mids, for palm mutes and fast riffs.",
   "board": ["gate"],
   "parameters": {

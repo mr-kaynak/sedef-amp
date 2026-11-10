@@ -1,14 +1,11 @@
 {
   "format": "sedef-preset",
   "version": 1,
-  "name": "Benthic",
+  "id": "benthic",
+  "name": "Sub Octave Riff",
   "folder": "Crunch",
   "author": "Sedef",
-  "tags": [
-    "octave",
-    "rhythm",
-    "rock"
-  ],
+  "tags": ["octave", "rhythm", "rock"],
   "description": "Single-note riffs doubled an octave below, like a baritone. Play one note at a time.",
   "board": ["gate", "trench", "kelp"],
   "parameters": {

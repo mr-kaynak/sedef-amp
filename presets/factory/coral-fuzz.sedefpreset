@@ -1,14 +1,11 @@
 {
   "format": "sedef-preset",
   "version": 1,
-  "name": "Coral Fuzz",
+  "id": "coral-fuzz",
+  "name": "Garage Distortion",
   "folder": "High Gain",
   "author": "Sedef",
-  "tags": [
-    "distortion",
-    "rhythm",
-    "garage"
-  ],
+  "tags": ["distortion", "rhythm", "garage"],
   "description": "Hard-clipped distortion into a gritty amp. Raw, compressed garage riffs.",
   "board": ["gate", "coral"],
   "parameters": {

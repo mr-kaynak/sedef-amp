@@ -1,0 +1,33 @@
+{
+  "format": "sedef-preset",
+  "version": 1,
+  "id": "tape-echo-pad",
+  "name": "Tape Echo Pad",
+  "folder": "Ambient",
+  "author": "Sedef",
+  "tags": ["compressor", "delay", "plate", "pad"],
+  "description": "Clean notes trailing into warm, wobbling triplet tape repeats and a long plate.",
+  "board": ["gate", "tide"],
+  "parameters": {
+    "ampModel": 0,
+    "micAPosition": 0.4,
+    "micBDistance": 0.25,
+    "micBLevel": -5.0,
+    "lagoonVolume": 0.42,
+    "tideEnabled": 1,
+    "tideComp": 0.5,
+    "tideBlend": 0.7,
+    "driftEnabled": 1,
+    "driftHeads": 2,
+    "driftNote": 13,
+    "driftFeedback": 0.5,
+    "driftTapeMod": 0.5,
+    "driftTapeDrive": 0.3,
+    "driftTreble": 0.4,
+    "driftMix": 0.4,
+    "fathomEnabled": 1,
+    "fathomMix": 0.3,
+    "fathomDecay": 4.0,
+    "lagoonOutput": 0.5917
+  }
+}

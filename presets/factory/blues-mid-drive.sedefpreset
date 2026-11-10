@@ -1,0 +1,23 @@
+{
+  "format": "sedef-preset",
+  "version": 1,
+  "id": "blues-mid-drive",
+  "name": "Blues Mid Drive",
+  "folder": "Crunch",
+  "author": "Sedef",
+  "tags": ["overdrive", "blues"],
+  "description": "Mid-hump overdrive into an amp on the edge. Warm, vocal blues rhythm and fills.",
+  "board": ["gate", "kelp"],
+  "parameters": {
+    "ampModel": 1,
+    "reefGain": 0.2,
+    "kelpEnabled": 1,
+    "kelpDrive": 0.35,
+    "kelpTone": 0.5,
+    "kelpLevel": 0.55,
+    "fathomEnabled": 1,
+    "fathomMix": 0.15,
+    "fathomDecay": 1.6,
+    "reefOutput": 0.3917
+  }
+}

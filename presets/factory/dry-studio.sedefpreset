@@ -1,0 +1,20 @@
+{
+  "format": "sedef-preset",
+  "version": 1,
+  "id": "dry-studio",
+  "name": "Dry Studio",
+  "folder": "Clean",
+  "author": "Sedef",
+  "tags": ["rhythm"],
+  "description": "Plain, full clean with nothing on it. A starting point, or a pedal platform.",
+  "board": ["gate"],
+  "parameters": {
+    "ampModel": 0,
+    "micAPosition": 0.4,
+    "micBDistance": 0.25,
+    "micBLevel": -5.0,
+    "lagoonVolume": 0.4,
+    "lagoonCut": 0.4,
+    "lagoonOutput": 0.525
+  }
+}

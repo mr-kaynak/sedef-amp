@@ -1,14 +1,11 @@
 {
   "format": "sedef-preset",
   "version": 1,
-  "name": "Tidewater",
+  "id": "tidewater",
+  "name": "Surf Tremolo",
   "folder": "Clean",
   "author": "Sedef",
-  "tags": [
-    "tremolo",
-    "plate",
-    "surf"
-  ],
+  "tags": ["tremolo", "plate", "surf"],
   "description": "Round clean with a pulsing tremolo. Surf, country and vintage soul.",
   "board": ["gate", "ripple"],
   "parameters": {

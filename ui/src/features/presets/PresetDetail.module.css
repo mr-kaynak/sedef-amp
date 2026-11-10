@@ -1,53 +1,53 @@
 /* SPDX-License-Identifier: AGPL-3.0-or-later */
 .detail {
   flex: none;
+  border-top: 1px solid var(--line);
+  background: rgb(6 17 25 / 0.35);
+}
+
+/* The note: a fixed height, so the list above never moves as the pointer crosses rows. */
+.info {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: center;
+  gap: 5px;
+  height: 62px;
+  padding: 0 22px;
+}
+
+.titleLine {
   display: flex;
-  flex-direction: column;
-  width: 292px;
-  min-height: 0;
-  border-left: 1px solid var(--line);
-  background:
-    radial-gradient(120% 50% at 50% 0%, rgb(205 238 238 / 0.05), rgb(205 238 238 / 0) 70%),
-    rgb(6 17 25 / 0.28);
+  align-items: baseline;
+  gap: 12px;
+  min-width: 0;
 }
 
-.scroll {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding: 22px 22px 12px;
-  scrollbar-width: thin;
-  scrollbar-color: var(--ink-4) transparent;
+.name {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-display);
+  font-size: var(--t-18);
+  font-style: italic;
+  font-weight: 500;
+  line-height: 1.1;
 }
 
-.kicker {
+.state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
   margin: 0;
   color: var(--bone-3);
   font-size: var(--t-10);
   font-stretch: var(--legend-stretch);
   font-weight: 560;
-  letter-spacing: 0.04em;
 }
 
-.name {
-  margin: 6px 0 0;
-  font-family: var(--font-display);
-  font-size: 32px;
-  font-style: italic;
-  font-weight: 500;
-  line-height: 1.05;
-  overflow-wrap: anywhere;
-}
-
-.state {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  margin: 10px 0 0;
+.playing {
   color: var(--nacre-aqua);
-  font-size: var(--t-11);
-  font-stretch: var(--legend-stretch);
 }
 
 .edited {
@@ -55,107 +55,69 @@
   white-space: pre;
 }
 
-.source {
-  margin-left: auto;
-  color: var(--bone-3);
-}
-
 .description {
-  margin: 14px 0 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--bone-2);
-  font-size: var(--t-14);
-  line-height: 1.45;
-}
-
-.chain {
-  display: grid;
-  grid-template-columns: 56px 1fr;
-  gap: 9px 12px;
-  align-items: center;
-  margin: 18px 0 0;
-  padding: 14px 0 0;
-  border-top: 1px solid var(--line);
   font-size: var(--t-12);
+  line-height: 1.35;
 }
 
-.chain dt {
+.facts {
+  display: flex;
+  align-items: baseline;
+  flex: 1;
+  justify-content: flex-end;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
   color: var(--bone-3);
   font-size: var(--t-11);
-  font-stretch: var(--legend-stretch);
+  white-space: nowrap;
 }
 
-.chain dd {
-  margin: 0;
-  color: var(--bone);
+.facts > span:not(:empty) + span:not(:empty)::before {
+  content: '·';
+  margin: 0 7px;
+  color: var(--bone-4);
 }
 
 .tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-  margin-top: 16px;
-}
-
-.tag {
-  position: relative;
-  height: 22px;
-  padding: 0 8px;
-  border: 1px solid var(--line);
-  border-radius: 11px;
-  background: rgb(237 230 214 / 0.05);
-  color: var(--bone-2);
-  font-size: var(--t-11);
-  --fill-inset: -1px;
-  transition:
-    color var(--dur-1) var(--ease-out),
-    background-color var(--dur-1) var(--ease-out),
-    border-color var(--dur-1) var(--ease-out),
-    scale 150ms ease-out;
+  display: inline-flex;
+  gap: 9px;
 }
 
 .tag::before {
   content: '#';
+  margin-right: 1px;
   color: var(--bone-4);
 }
 
-@media (hover: hover) {
-  .tag:hover {
-    color: var(--bone);
-  }
+/* Actions ------------------------------------------------------------------------------------- */
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 46px;
+  padding: 0 16px 0 14px;
+  border-top: 1px solid var(--line);
 }
 
-/* Pressed: the nacre layer (controls/NacreFill.module.css) fades in over the border too. */
-.tag[aria-pressed='true'] {
-  border-color: transparent;
-  color: var(--ink-1);
-}
-
-.tag[aria-pressed='true']::before {
-  color: rgb(11 28 39 / 0.5);
-}
-
-/* The star lines up with the text above: 7px lead padding - 6px. */
-.favourite {
-  margin: 14px 0 0 -6px;
+.spacer {
+  flex: 1;
 }
 
 .favourite[aria-pressed='true'] svg {
   color: var(--nacre-gold);
 }
 
-.actions {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 14px 22px 18px;
-  border-top: 1px solid var(--line);
-}
-
 .primary {
-  width: 100%;
-  height: 36px;
-  gap: 10px;
-  font-size: var(--t-14);
+  gap: 8px;
+  margin-left: 8px;
+  padding: 0 12px 0 14px;
 }
 
 .primary kbd {
@@ -163,12 +125,6 @@
   background: rgb(11 28 39 / 0.12);
   box-shadow: none;
   color: var(--ink-2);
-}
-
-.row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
 }
 
 @media (hover: hover) {

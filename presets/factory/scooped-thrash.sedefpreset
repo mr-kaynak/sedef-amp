@@ -1,0 +1,23 @@
+{
+  "format": "sedef-preset",
+  "version": 1,
+  "id": "scooped-thrash",
+  "name": "Scooped Thrash",
+  "folder": "High Gain",
+  "author": "Sedef",
+  "tags": ["rhythm", "metal"],
+  "description": "Scooped mids, big lows and a sharp pick attack. Fast down-picked thrash riffs.",
+  "board": ["gate"],
+  "parameters": {
+    "ampModel": 2,
+    "abyssGain": 0.72,
+    "abyssBass": 0.6,
+    "abyssMid": 0.25,
+    "abyssTreble": 0.6,
+    "abyssPresence": 0.55,
+    "eqAbyssBand4": -2.0,
+    "eqAbyssLowCut": 70.0,
+    "gateThreshold": -58.0,
+    "abyssOutput": 0.2979
+  }
+}

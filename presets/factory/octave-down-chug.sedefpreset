@@ -1,0 +1,24 @@
+{
+  "format": "sedef-preset",
+  "version": 1,
+  "id": "octave-down-chug",
+  "name": "Octave Down Chug",
+  "folder": "High Gain",
+  "author": "Sedef",
+  "tags": ["octave", "metal", "rhythm"],
+  "description": "High gain with an octave below under every chord, like a second guitar tuned down.",
+  "board": ["gate", "trench"],
+  "parameters": {
+    "ampModel": 2,
+    "abyssGain": 0.6,
+    "abyssBass": 0.45,
+    "trenchEnabled": 1,
+    "trenchMode": 1,
+    "trenchDirect": 0.5,
+    "trenchSub1": 0.4,
+    "trenchTone": 0.4,
+    "eqAbyssLowCut": 60.0,
+    "gateThreshold": -58.0,
+    "abyssOutput": 0.2938
+  }
+}

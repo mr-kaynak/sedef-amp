@@ -1,15 +1,11 @@
 {
   "format": "sedef-preset",
   "version": 1,
-  "name": "Soft Focus",
+  "id": "soft-focus",
+  "name": "Vibrato Swell Wash",
   "folder": "Ambient",
   "author": "Sedef",
-  "tags": [
-    "vibrato",
-    "delay",
-    "hall",
-    "swell"
-  ],
+  "tags": ["vibrato", "delay", "hall", "swell"],
   "description": "A clean wash of vibrato, tape echo and long hall. Swells and pads.",
   "board": ["gate", "ripple"],
   "parameters": {

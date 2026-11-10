@@ -1,0 +1,30 @@
+{
+  "format": "sedef-preset",
+  "version": 1,
+  "id": "touch-wah",
+  "name": "Touch Wah",
+  "folder": "Lead",
+  "author": "Sedef",
+  "tags": ["wah", "delay", "solo"],
+  "description": "High-gain lead through a wah that rocks itself: pick harder and the note opens up.",
+  "board": ["gate", "conch"],
+  "parameters": {
+    "ampModel": 2,
+    "abyssGain": 0.6,
+    "abyssMid": 0.6,
+    "conchEnabled": 1,
+    "conchMode": 1,
+    "conchPosition": 0.3,
+    "conchResonance": 0.5,
+    "conchSensitivity": 0.55,
+    "driftEnabled": 1,
+    "driftNote": 12,
+    "driftFeedback": 0.3,
+    "driftMix": 0.18,
+    "fathomEnabled": 1,
+    "fathomMix": 0.14,
+    "fathomDecay": 2.5,
+    "gateThreshold": -62.0,
+    "abyssOutput": 0.3
+  }
+}

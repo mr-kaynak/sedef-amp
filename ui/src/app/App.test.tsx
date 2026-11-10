@@ -55,9 +55,9 @@ describe('App', () => {
     await act(flush);
     // The rig behind the browser is out of reach until it closes.
     expect(screen.getByRole('tablist', { name: 'Rig sections' }).closest('[inert]')).not.toBeNull();
-    fireEvent.click(screen.getByRole('option', { name: /^Glass Pocket/ }));
+    fireEvent.click(screen.getByRole('option', { name: /^Funk Compressor/ }));
     await act(flush);
-    expect(screen.getByRole('button', { name: /Preset: Glass Pocket/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Preset: Funk Compressor/ })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /^Use & close/ }));
     await act(flush);
     expect(screen.queryByRole('dialog', { name: 'Preset browser' })).toBeNull();

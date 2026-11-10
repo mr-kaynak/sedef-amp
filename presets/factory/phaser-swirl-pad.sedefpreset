@@ -1,0 +1,32 @@
+{
+  "format": "sedef-preset",
+  "version": 1,
+  "id": "phaser-swirl-pad",
+  "name": "Phaser Swirl Pad",
+  "folder": "Ambient",
+  "author": "Sedef",
+  "tags": ["phaser", "delay", "hall", "pad"],
+  "description": "A deep six-stage phaser swirling slowly through dotted echoes and a long hall.",
+  "board": ["gate", "gyre"],
+  "parameters": {
+    "ampModel": 0,
+    "micAPosition": 0.4,
+    "micBDistance": 0.25,
+    "micBLevel": -5.0,
+    "lagoonVolume": 0.42,
+    "gyreEnabled": 1,
+    "gyreSpeed": 0.2,
+    "gyreDepth": 0.9,
+    "gyreFeedback": 0.5,
+    "gyreStages": 1,
+    "driftEnabled": 1,
+    "driftNote": 15,
+    "driftFeedback": 0.45,
+    "driftMix": 0.25,
+    "fathomEnabled": 1,
+    "fathomMode": 1,
+    "fathomMix": 0.4,
+    "fathomDecay": 9.0,
+    "lagoonOutput": 0.4292
+  }
+}

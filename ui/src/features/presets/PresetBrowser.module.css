@@ -49,10 +49,25 @@
   line-height: 1;
 }
 
-/* Search -------------------------------------------------------------------------------------- */
+/* Toolbar -------------------------------------------------------------------------------------- */
+
+.body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 52px;
+  padding: 0 16px 0 22px;
+}
 
 .title {
-  margin: 2px 10px 18px;
+  margin: 0 8px 0 0;
   font-family: var(--font-display);
   font-size: var(--t-24);
   font-style: italic;
@@ -60,24 +75,17 @@
   line-height: 1;
 }
 
-.searchRow {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 16px 18px 12px;
-}
-
 .search {
   position: relative;
-  flex: 1;
+  flex: 0 1 360px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  height: 36px;
-  padding: 0 9px 0 13px;
+  gap: 9px;
+  height: 30px;
+  padding: 0 7px 0 11px;
   /* A real border, like the form inputs: an input's edge survives forced colors. */
   border: 1px solid var(--line);
-  border-radius: var(--r-panel);
+  border-radius: var(--r-ctl);
   background: var(--ink-0);
   color: var(--bone-3);
   box-shadow: inset 0 1px 3px rgb(0 0 0 / 0.55);
@@ -100,7 +108,7 @@
   border: none;
   background: transparent;
   color: var(--bone);
-  font-size: var(--t-14);
+  font-size: var(--t-12);
 }
 
 .search input:focus-visible {
@@ -118,8 +126,8 @@
 .clearSearch {
   display: grid;
   place-items: center;
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   border: none;
   border-radius: 50%;
   background: rgb(237 230 214 / 0.08);
@@ -139,226 +147,43 @@
   color: var(--bone-3);
 }
 
-.sort {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.sortLabel {
-  color: var(--bone-3);
-  font-size: var(--t-11);
-  font-stretch: var(--legend-stretch);
-}
-
-/* Body ---------------------------------------------------------------------------------------- */
-
-.body {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-}
-
-.rail {
-  flex: none;
-  width: 188px;
-  padding: 20px 10px 14px 14px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  border-right: 1px solid var(--line);
-  background: rgb(6 17 25 / 0.32);
-  scrollbar-width: thin;
-  scrollbar-color: var(--ink-4) transparent;
-}
-
-.railHeading {
-  margin: 4px 10px 6px;
-  color: var(--bone-3);
-  font-size: var(--t-10);
-  font-stretch: var(--legend-stretch);
-  font-weight: 560;
-  letter-spacing: 0.04em;
-}
-
-.railHeading:not(:first-child) {
-  margin-top: 20px;
-}
-
-.title + .railHeading {
-  margin-top: 0;
-}
-
-.railItem {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  height: 32px;
-  padding: 0 10px;
-  border: none;
-  border-radius: var(--r-ctl);
-  background: transparent;
-  color: var(--bone-2);
-  font-size: var(--t-12);
-  text-align: left;
-  transition:
-    background-color var(--dur-1) var(--ease-out),
-    color var(--dur-1) var(--ease-out);
-}
-
-@media (hover: hover) {
-  .railItem:hover {
-    color: var(--bone);
-    background: rgb(237 230 214 / 0.04);
-  }
-}
-
-.railItem[aria-checked='true'] {
-  color: var(--bone);
-  background: rgb(205 238 238 / 0.08);
-  font-weight: 560;
-}
-
-.railItem[aria-checked='true']::before {
-  content: '';
-  position: absolute;
-  left: -6px;
-  top: 8px;
-  bottom: 8px;
-  width: 2px;
-  border-radius: 1px;
-  background: var(--nacre-line);
-}
-
-.railIcon {
-  flex: none;
-  color: var(--bone-3);
-}
-
-.railItem[aria-checked='true'] .railIcon {
-  color: var(--nacre-aqua);
-}
-
-.railLabel {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.railCount {
-  color: var(--bone-3);
-  font-size: var(--t-11);
-  font-weight: 450;
-}
-
-.results {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.chips {
-  display: flex;
-  flex-wrap: wrap;
+.library {
+  display: inline-flex;
+  align-items: baseline;
   gap: 6px;
-  padding: 0 18px 2px;
 }
 
-.chip,
-.moreChips {
-  height: 26px;
-  padding: 0 10px;
-  border: 1px solid var(--line);
-  border-radius: 13px;
-  background: rgb(237 230 214 / 0.04);
-  color: var(--bone-2);
-  font-size: var(--t-11);
-  transition:
-    background-color var(--dur-1) var(--ease-out),
-    color var(--dur-1) var(--ease-out),
-    border-color var(--dur-1) var(--ease-out),
-    scale 150ms ease-out;
-}
-
-@media (hover: hover) {
-  .chip:hover {
-    color: var(--bone);
-    background: rgb(237 230 214 / 0.07);
-  }
-}
-
-.chip {
-  position: relative;
-  --fill-inset: -1px;
-}
-
-/* Pressed: the nacre layer (controls/NacreFill.module.css) fades in over the border too. */
-.chip[aria-pressed='true'] {
-  border-color: transparent;
-  color: var(--ink-1);
-  font-weight: 600;
-}
-
-.moreChips {
-  border-color: transparent;
-  background: transparent;
-  color: var(--bone-3);
-  text-decoration: underline;
-  text-decoration-color: var(--bone-4);
-  text-underline-offset: 3px;
-}
-
-@media (hover: hover) {
-  .moreChips:hover {
-    color: var(--bone);
-  }
-}
-
-.resultHead {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  height: 32px;
-  padding: 0 20px;
+.libraryCount {
+  font-size: var(--t-10);
+  font-variant-numeric: tabular-nums;
+  font-weight: 450;
 }
 
 .count {
   color: var(--bone-3);
   font-size: var(--t-11);
   font-stretch: var(--legend-stretch);
+  white-space: nowrap;
 }
 
-.clear {
-  font-size: var(--t-11);
+.spacer {
+  flex: 1;
 }
 
-/* Footer -------------------------------------------------------------------------------------- */
-
-.foot {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  height: 48px;
-  padding: 0 16px 0 14px;
-  border-top: 1px solid var(--line);
-  background: rgb(6 17 25 / 0.35);
-}
+/* The way back, in the action row ------------------------------------------------------------- */
 
 .hint {
   display: flex;
   align-items: center;
   gap: 6px;
-  height: 32px;
-  padding: 0 3px 0 11px;
+  height: 30px;
+  padding: 0 3px 0 10px;
   border: 1px solid var(--line);
   border-radius: var(--r-panel);
   background: rgb(237 230 214 / 0.03);
   color: var(--bone-3);
-  font-size: var(--t-12);
+  font-size: var(--t-11);
+  white-space: nowrap;
 }
 
 .hint > span kbd + kbd {
@@ -369,13 +194,13 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  height: 26px;
+  height: 24px;
   padding: 0 10px 0 6px;
   border: none;
   border-radius: var(--r-ctl);
   background: transparent;
   color: var(--bone-2);
-  font-size: var(--t-12);
+  font-size: var(--t-11);
   transition:
     color var(--dur-1) var(--ease-out),
     background-color var(--dur-1) var(--ease-out),
@@ -403,8 +228,4 @@
 
 .edited {
   color: var(--amber);
-}
-
-.spacer {
-  flex: 1;
 }

@@ -1,52 +1,57 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // The preset browser's model, as pure functions: which presets a library view holds, the
-// categories and tags it offers, search, sorting, and the signal-chain summary of a row.
+// order and grouping by category, search, and the signal-chain summary of a row.
 import type { PostBlock, PresetBlock, PresetInfo } from '../../bridge/protocol';
 import { isPedalId, pedalName } from '../pedals/registry';
 import { AMP_NAMES, bundledSchema } from '../../params/schema';
 
-export type Library = 'all' | 'favorites' | 'recent' | 'factory' | 'user';
-export type SortKey = 'name' | 'recent' | 'category';
+export type Library = 'all' | 'favorites' | 'recent' | 'user';
 
 export interface BrowseFilter {
   library: Library;
-  /** A folder name, or null for every category. */
-  category: string | null;
-  /** Selected tag chips; a preset must carry all of them. */
-  tags: readonly string[];
   query: string;
-  sort: SortKey;
 }
 
-export const DEFAULT_FILTER: BrowseFilter = {
-  library: 'all',
-  category: null,
-  tags: [],
-  query: '',
-  sort: 'name',
-};
+export const DEFAULT_FILTER: BrowseFilter = { library: 'all', query: '' };
 
 export const LIBRARIES: readonly { id: Library; label: string }[] = [
-  { id: 'all', label: 'All presets' },
+  { id: 'all', label: 'All' },
   { id: 'favorites', label: 'Favourites' },
   { id: 'recent', label: 'Recent' },
-  { id: 'factory', label: 'Factory' },
   { id: 'user', label: 'User' },
 ];
 
-export const SORTS: readonly { id: SortKey; label: string }[] = [
-  { id: 'name', label: 'Name' },
-  { id: 'recent', label: 'Recent' },
-  { id: 'category', label: 'Category' },
+/** The factory categories in the order a player reaches for them, from clean to ambient. */
+export const CATEGORY_ORDER: readonly string[] = [
+  'Clean',
+  'Crunch',
+  'High Gain',
+  'Lead',
+  'Ambient',
 ];
-
-export interface Facet {
-  name: string;
-  count: number;
-}
 
 const natural = (a: string, b: string) =>
   a.localeCompare(b, 'en', { numeric: true, sensitivity: 'base' });
+
+/**
+ * Presets in library order (PresetManager::scan): the factory categories from clean to ambient,
+ * then the user's own folders by name, then presets without a folder; inside a category the
+ * factory presets first, each by name. Previous and next step in this order too.
+ */
+export function comparePresets(a: PresetInfo, b: PresetInfo): number {
+  const rank = (folder: string) => {
+    if (!folder) return CATEGORY_ORDER.length + 1;
+    const i = CATEGORY_ORDER.indexOf(folder);
+    return i < 0 ? CATEGORY_ORDER.length : i;
+  };
+  const source = (p: PresetInfo) => (p.category === 'Factory' ? 0 : 1);
+  return (
+    rank(a.folder) - rank(b.folder) ||
+    natural(a.folder, b.folder) ||
+    source(a) - source(b) ||
+    natural(a.name, b.name)
+  );
+}
 
 export function inLibrary(p: PresetInfo, library: Library, recent: readonly string[]): boolean {
   switch (library) {
@@ -56,8 +61,6 @@ export function inLibrary(p: PresetInfo, library: Library, recent: readonly stri
       return p.favorite;
     case 'recent':
       return recent.includes(p.id);
-    case 'factory':
-      return p.category === 'Factory';
     case 'user':
       return p.category === 'User';
   }
@@ -72,24 +75,13 @@ export function libraryCounts(
     all: items.length,
     favorites: count('favorites'),
     recent: count('recent'),
-    factory: count('factory'),
     user: count('user'),
   };
 }
 
-/** The categories (folders) of the presets in a library, alphabetically. Root presets have none. */
-export function categoryFacets(
-  items: readonly PresetInfo[],
-  library: Library,
-  recent: readonly string[],
-): Facet[] {
-  const counts = new Map<string, number>();
-  for (const p of items)
-    if (p.folder && inLibrary(p, library, recent))
-      counts.set(p.folder, (counts.get(p.folder) ?? 0) + 1);
-  return [...counts.entries()]
-    .map(([name, count]) => ({ name, count }))
-    .sort((a, b) => natural(a.name, b.name));
+export interface Facet {
+  name: string;
+  count: number;
 }
 
 /** Tags carried by these presets, most common first. */
@@ -147,23 +139,6 @@ export function chainParts(p: Pick<PresetInfo, 'amp' | 'cab' | 'blocks'>): Chain
   ];
 }
 
-/** The chain as the detail pane lists it: pedals, amp, cab, then EQ and effects. */
-export function chainGroups(p: Pick<PresetInfo, 'amp' | 'cab' | 'blocks'>): {
-  pedals: string[];
-  amp: string;
-  cab: string;
-  fx: string[];
-} {
-  const parts = chainParts(p);
-  const at = parts.findIndex((part) => part.kind === 'amp');
-  return {
-    pedals: parts.slice(0, at).map((part) => part.label),
-    amp: ampName(p),
-    cab: CAB_NAMES[p.cab] ?? '',
-    fx: parts.slice(at + 1).map((part) => part.label),
-  };
-}
-
 /** "Tide → Pearl → Reef 2x12 → Drift → Fathom" */
 export function chainText(p: Pick<PresetInfo, 'amp' | 'cab' | 'blocks'>): string {
   return chainParts(p)
@@ -196,37 +171,36 @@ export function matchesQuery(p: PresetInfo, query: string): boolean {
   return words.every((w) => text.includes(w));
 }
 
-function compare(sort: SortKey, recent: readonly string[]) {
-  const byName = (a: PresetInfo, b: PresetInfo) =>
-    natural(a.name, b.name) || (a.category === b.category ? 0 : a.category === 'Factory' ? -1 : 1);
-  if (sort === 'name') return byName;
-  if (sort === 'category') {
-    // Presets without a folder sort last.
-    return (a: PresetInfo, b: PresetInfo) =>
-      (a.folder ? 0 : 1) - (b.folder ? 0 : 1) || natural(a.folder, b.folder) || byName(a, b);
-  }
-  const rank = (p: PresetInfo) => {
-    const i = recent.indexOf(p.id);
-    return i < 0 ? Number.MAX_SAFE_INTEGER : i;
-  };
-  return (a: PresetInfo, b: PresetInfo) => rank(a) - rank(b) || byName(a, b);
-}
-
-/** The presets a filter shows, in display order. */
+/**
+ * The presets a filter shows, in display order: library order, or newest first in Recent.
+ */
 export function browse(
   items: readonly PresetInfo[],
   filter: BrowseFilter,
   recent: readonly string[],
 ): PresetInfo[] {
-  return items
-    .filter(
-      (p) =>
-        inLibrary(p, filter.library, recent) &&
-        (filter.category === null || p.folder === filter.category) &&
-        filter.tags.every((t) => p.tags.includes(t)) &&
-        matchesQuery(p, filter.query),
-    )
-    .sort(compare(filter.sort, recent));
+  const shown = items.filter(
+    (p) => inLibrary(p, filter.library, recent) && matchesQuery(p, filter.query),
+  );
+  if (filter.library !== 'recent') return shown.sort(comparePresets);
+  return shown.sort((a, b) => recent.indexOf(a.id) - recent.indexOf(b.id));
+}
+
+export interface PresetGroup {
+  /** The category; '' for presets without one. */
+  name: string;
+  items: PresetInfo[];
+}
+
+/** Consecutive presets of one category, as the list shows them under a header. */
+export function groupByCategory(items: readonly PresetInfo[]): PresetGroup[] {
+  const groups: PresetGroup[] = [];
+  for (const p of items) {
+    const last = groups[groups.length - 1];
+    if (last && last.name === p.folder) last.items.push(p);
+    else groups.push({ name: p.folder, items: [p] });
+  }
+  return groups;
 }
 
 /** Every folder in use, for the save form's category picker. */

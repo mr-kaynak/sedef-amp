@@ -50,7 +50,7 @@ describe('PresetBrowser', () => {
     h.dispose();
   });
 
-  /** An unsaved edit on top of Nacre; returns every value as it stands. */
+  /** An unsaved edit on top of Glassy Chorus; returns every value as it stands. */
   async function editNacre() {
     await act(async () => {
       await h.mock.call('sedef_setParam', 'lagoonVolume', 0.81);
@@ -61,15 +61,20 @@ describe('PresetBrowser', () => {
     return (await h.mock.hello()).values;
   }
 
-  it('shows rich rows and starts on the playing preset with the search focused', async () => {
+  it('shows one-line rows under category headers and starts on the playing preset with the search focused', async () => {
     render(<Shell />);
     await openBrowser();
-    const nacre = option('Nacre');
+    const nacre = option('Glassy Chorus');
     expect(nacre).toHaveAttribute('aria-selected', 'true');
     expect(nacre.getAttribute('aria-label')).toContain('Tide → Ripple → Lagoon 1x12 → Fathom');
     expect(nacre.getAttribute('aria-label')).toMatch(/Glassy/);
     expect(within(nacre).getByText('Lagoon')).toBeInTheDocument();
-    expect(within(nacre).getByText('chorus')).toBeInTheDocument();
+    // One line per preset: name and chain; the note and the tags are in the strip under the list.
+    expect(nacre.textContent).not.toContain('compressor');
+    const strip = within(screen.getByRole('complementary', { name: 'Preset details' }));
+    expect(strip.getByText('compressor')).toBeInTheDocument();
+    expect(within(nacre).queryByText(/lightly squeezed/)).toBeNull();
+    expect(screen.getByRole('group', { name: 'Clean' })).toContainElement(nacre);
     expect(search()).toHaveFocus();
     expect(search()).toHaveAttribute('aria-activedescendant', nacre.id);
   });
@@ -78,24 +83,26 @@ describe('PresetBrowser', () => {
     const before = await editNacre();
     render(<Shell />);
     await openBrowser();
-    expect(screen.getByRole('button', { name: /Back to Nacre with your edits/ })).toBeVisible();
+    expect(
+      screen.getByRole('button', { name: /Back to Glassy Chorus with your edits/ }),
+    ).toBeVisible();
 
-    fireEvent.click(option('Mariana'));
+    fireEvent.click(option('Modern Metal Rhythm'));
     await settle();
     expect(h.mock.value('ampModel')).toBe(2);
-    expect(presets().currentName).toBe('Mariana');
+    expect(presets().currentName).toBe('Modern Metal Rhythm');
     expect(dialog()).toBeInTheDocument();
 
     fireEvent.keyDown(search(), { key: 'ArrowDown' });
     await settle();
-    expect(presets().currentName).toBe('Morning Ritual');
+    expect(presets().currentName).toBe('Octave Down Chug');
 
     fireEvent.keyDown(search(), { key: 'Escape' });
     await settle();
     expect(dialog()).toBeNull();
     expect((await h.mock.hello()).values).toEqual(before);
-    expect(presets()).toMatchObject({ currentName: 'Nacre', dirty: true, recent: [] });
-    expect(screen.getByRole('status')).toHaveTextContent('Back to Nacre');
+    expect(presets()).toMatchObject({ currentName: 'Glassy Chorus', dirty: true, recent: [] });
+    expect(screen.getByRole('status')).toHaveTextContent('Back to Glassy Chorus');
     expect(screen.getByRole('button', { name: /Open preset browser/ })).toHaveFocus();
   });
 
@@ -103,71 +110,88 @@ describe('PresetBrowser', () => {
     const before = await editNacre();
     render(<Shell />);
     await openBrowser();
-    // Nacre, then Riptide, Sea Lantern, Silk Road.
+    // Glassy Chorus, then Jazz Warm, Soft Phaser, Surf Tremolo.
     for (let i = 0; i < 3; i++) fireEvent.keyDown(search(), { key: 'ArrowDown' });
     fireEvent.keyDown(search(), { key: 'Enter' });
     await settle();
     expect(dialog()).toBeNull();
-    expect(presets()).toMatchObject({ currentName: 'Silk Road', recent: ['factory:silk-road'] });
-    expect(screen.getByRole('status')).toHaveTextContent('Loaded Silk Road');
+    expect(presets()).toMatchObject({
+      currentName: 'Surf Tremolo',
+      recent: ['factory:tidewater'],
+    });
+    expect(screen.getByRole('status')).toHaveTextContent('Loaded Surf Tremolo');
 
     fireEvent.click(screen.getByRole('button', { name: /Undo/ }));
     await settle();
     expect((await h.mock.hello()).values).toEqual(before);
-    expect(presets()).toMatchObject({ currentName: 'Nacre', dirty: true });
+    expect(presets()).toMatchObject({ currentName: 'Glassy Chorus', dirty: true });
   });
 
   it('keeps on double-click; a clean sound needs no Undo', async () => {
     render(<Shell />);
     await openBrowser();
-    fireEvent.click(option('Brine'));
-    fireEvent.doubleClick(option('Brine'));
+    fireEvent.click(option('Thick Mids'));
+    fireEvent.doubleClick(option('Thick Mids'));
     await settle();
     expect(dialog()).toBeNull();
-    expect(presets()).toMatchObject({ currentName: 'Brine', recent: ['factory:brine'] });
+    expect(presets()).toMatchObject({ currentName: 'Thick Mids', recent: ['factory:brine'] });
     expect(screen.getByRole('status')).toBeEmptyDOMElement();
   });
 
-  it('filters by library, category, tags and search, and sorts', async () => {
+  it('groups by category, filters by library and search, and lists Recent newest first', async () => {
     render(<Shell />);
     await openBrowser();
     const names = () =>
       screen.getAllByRole('option').map((o) => o.getAttribute('aria-label')?.split(/[,.]/)[0]);
-    const rail = within(screen.getByRole('navigation', { name: 'Preset library' }));
-    const sort = within(screen.getByRole('radiogroup', { name: 'Sort' }));
+    const groups = () =>
+      within(screen.getByRole('listbox', { name: 'Presets' }))
+        .queryAllByRole('group')
+        .map((g) => g.getAttribute('aria-labelledby'))
+        .map((id) => document.getElementById(id ?? '')?.textContent);
+    const library = within(screen.getByRole('radiogroup', { name: 'Library' }));
 
-    fireEvent.click(rail.getByRole('radio', { name: /Favourites/ }));
+    // Clean to ambient, then the user's own folders; previous and next step in the same order.
+    expect(groups()).toEqual(['Clean', 'Crunch', 'High Gain', 'Lead', 'Ambient', 'Live']);
+    expect(names().slice(0, 3)).toEqual(['Auto-Wah Funk', 'Country Snap', 'Dry Studio']);
+    expect(names()).toEqual(presets().items.map((p) => p.name));
+    expect(names().length).toBeGreaterThanOrEqual(41);
+
+    fireEvent.click(library.getByRole('radio', { name: /Favourites/ }));
     expect(names()).toEqual(['Sunday set']);
-    fireEvent.click(rail.getByRole('radio', { name: /Recent/ }));
+    fireEvent.click(library.getByRole('radio', { name: /Recent/ }));
     expect(screen.queryAllByRole('option')).toHaveLength(0);
     expect(screen.getByText('Presets you pick show up here.')).toBeInTheDocument();
-    // Recent reads newest first.
-    expect(sort.getByRole('radio', { name: 'Recent' })).toBeChecked();
+    fireEvent.click(library.getByRole('radio', { name: /User/ }));
+    expect(names()).toEqual(['Sunday set']);
 
-    fireEvent.click(rail.getByRole('radio', { name: /Factory/ }));
-    fireEvent.click(rail.getByRole('radio', { name: /^Ambient/ }));
-    expect(names()).toEqual(['Soft Focus', 'Undertow']);
-    fireEvent.click(rail.getByRole('radio', { name: 'All categories' }));
-    fireEvent.click(screen.getByRole('button', { name: 'delay', pressed: false }));
-    fireEvent.click(screen.getByRole('button', { name: 'hall', pressed: false }));
-    expect(names()).toEqual(['Riptide', 'Soft Focus', 'Undertow']);
-    fireEvent.change(search(), { target: { value: 'abyss drift' } });
-    expect(names()).toEqual(['Riptide', 'Undertow']);
-    expect(screen.getByText('2 presets')).toBeInTheDocument();
+    fireEvent.click(library.getByRole('radio', { name: /All/ }));
+    fireEvent.change(search(), { target: { value: 'abyss drift hall' } });
+    expect(names()).toEqual(['Singing Echo', 'Dark Drone']);
+    expect(groups()).toEqual(['Lead', 'Ambient']);
+    expect(screen.getByText('2 matches')).toBeInTheDocument();
+    fireEvent.change(search(), { target: { value: 'no such sound' } });
+    expect(screen.getByText('No presets match.')).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole('button', { name: 'Clear search' })[0]!);
+    expect(names().length).toBeGreaterThanOrEqual(41);
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Clear filters' })[0]!);
-    fireEvent.click(sort.getByRole('radio', { name: 'Category' }));
-    expect(names()[0]).toBe('Soft Focus'); // Ambient comes first
+    // Recent: what was picked, newest first, without headers; each row names its category.
+    await act(() => presetActions.load('factory:brine'));
+    await act(() => presetActions.load('factory:undertow'));
+    await settle();
+    fireEvent.click(library.getByRole('radio', { name: /Recent/ }));
+    expect(names()).toEqual(['Dark Drone', 'Thick Mids']);
+    expect(groups()).toEqual([]);
+    expect(within(option('Thick Mids')).getByText('Crunch')).toBeInTheDocument();
   });
 
   it('plays a filtered result with Enter from the search field', async () => {
     render(<Shell />);
     await openBrowser();
-    fireEvent.change(search(), { target: { value: 'slapback' } });
+    fireEvent.change(search(), { target: { value: 'rockabilly' } });
     fireEvent.keyDown(search(), { key: 'Enter' });
     await settle();
     expect(dialog()).toBeNull();
-    expect(presets().currentName).toBe('Harbor Lights');
+    expect(presets().currentName).toBe('Rockabilly Slapback');
   });
 
   it('moves through the list from the listbox, and F toggles the favourite', async () => {
@@ -177,14 +201,17 @@ describe('PresetBrowser', () => {
     list.focus();
     fireEvent.keyDown(list, { key: 'Home' });
     await settle();
-    expect(presets().currentName).toBe('Benthic');
+    expect(presets().currentName).toBe('Auto-Wah Funk');
     fireEvent.keyDown(list, { key: 'End' });
     await settle();
-    expect(presets().currentName).toBe('Undertow');
+    expect(presets().currentName).toBe('Sunday set');
+    fireEvent.keyDown(list, { key: 'ArrowUp' });
+    await settle();
+    expect(presets().currentName).toBe('Vibrato Swell Wash');
     fireEvent.keyDown(list, { key: 'f' });
     await settle();
-    expect(presets().items.find((p) => p.name === 'Undertow')?.favorite).toBe(true);
-    expect(list).toHaveAttribute('aria-activedescendant', option('Undertow').id);
+    expect(presets().items.find((p) => p.name === 'Vibrato Swell Wash')?.favorite).toBe(true);
+    expect(list).toHaveAttribute('aria-activedescendant', option('Vibrato Swell Wash').id);
   });
 
   it('steps with prev/next and offers Undo when that dropped edits', async () => {
@@ -192,12 +219,12 @@ describe('PresetBrowser', () => {
     render(<Shell />);
     fireEvent.click(screen.getByRole('button', { name: 'Next preset' }));
     await settle();
-    expect(presets().currentName).toBe('Tidewater');
-    expect(screen.getByRole('status')).toHaveTextContent('Loaded Tidewater');
+    expect(presets().currentName).toBe('Jazz Warm');
+    expect(screen.getByRole('status')).toHaveTextContent('Loaded Jazz Warm');
     fireEvent.keyDown(window, { key: 'z', ctrlKey: true });
     await settle();
     expect((await h.mock.hello()).values).toEqual(before);
-    expect(presets().currentName).toBe('Nacre');
+    expect(presets().currentName).toBe('Glassy Chorus');
 
     // Without edits there is nothing to undo.
     await act(() => presetActions.load('factory:nacre'));
@@ -213,29 +240,29 @@ describe('PresetBrowser', () => {
     fireEvent.click(slot('B'));
     await settle();
     expect(slot('B')).toBeChecked();
-    expect(presets().currentName).toBe('Nacre');
+    expect(presets().currentName).toBe('Glassy Chorus');
 
     await act(() => presetActions.load('factory:riptide'));
     await act(async () => {
       await h.mock.call('sedef_setParam', 'abyssGain', 0.91);
       await flush();
     });
-    expect(slot('B')).toHaveAccessibleName('B: Riptide, edited');
+    expect(slot('B')).toHaveAccessibleName('B: Singing Echo, edited');
 
     fireEvent.click(slot('A'));
     await settle();
     expect(slot('A')).toBeChecked();
     expect(h.mock.value('ampModel')).toBe(0);
-    expect(slot('B')).toHaveAccessibleName('B: Riptide, edited');
+    expect(slot('B')).toHaveAccessibleName('B: Singing Echo, edited');
 
     fireEvent.keyDown(slot('A'), { key: 'ArrowRight' });
     await settle();
     expect(h.mock.value('abyssGain')).toBe(0.91);
-    expect(presets()).toMatchObject({ currentName: 'Riptide', dirty: true });
+    expect(presets()).toMatchObject({ currentName: 'Singing Echo', dirty: true });
 
     fireEvent.click(screen.getByRole('button', { name: 'Copy B to A' }));
     await settle();
-    expect(slot('A')).toHaveAccessibleName('A: Riptide, edited');
+    expect(slot('A')).toHaveAccessibleName('A: Singing Echo, edited');
   });
 
   it('validates Save as inline: name clashes, new categories, tags and a note', async () => {
@@ -247,7 +274,7 @@ describe('PresetBrowser', () => {
     const sheet = within(screen.getByRole('group', { name: 'Save as a user preset' }));
     const name = sheet.getByRole('textbox', { name: 'Name' });
     expect(name).toHaveFocus();
-    expect(name).toHaveValue('Nacre');
+    expect(name).toHaveValue('Glassy Chorus');
     expect(sheet.getByText(/A factory preset has this name too/)).toBeInTheDocument();
 
     fireEvent.change(name, { target: { value: 'sunday SET' } });
@@ -346,35 +373,34 @@ describe('PresetBrowser', () => {
     expect(useUiStore.getState().section).toBe('eq');
   });
 
-  it('details the highlighted preset: chain by stage, tags that filter, and its actions', async () => {
+  it('describes the highlighted preset under the list, or the row under the pointer', async () => {
     render(<Shell />);
     await openBrowser();
     const pane = within(screen.getByRole('complementary', { name: 'Preset details' }));
-    expect(pane.getByRole('heading', { name: 'Nacre' })).toBeInTheDocument();
-    expect(pane.getByText('Clean · Sedef')).toBeInTheDocument();
-    const chain = Object.fromEntries(
-      pane.getAllByRole('term').map((t) => [t.textContent, t.nextElementSibling?.textContent]),
-    );
-    expect(chain).toEqual({
-      Pedals: 'Tide → Ripple',
-      Amp: 'Lagoon',
-      Cab: '1x12 Open Back',
-      FX: 'Fathom',
-    });
+    expect(pane.getByRole('heading', { name: 'Glassy Chorus' })).toBeInTheDocument();
+    expect(pane.getByText(/^Glassy, lightly squeezed clean/)).toBeInTheDocument();
+    expect(pane.getByText('1x12 Open Back')).toBeInTheDocument();
+    expect(pane.getByText('Playing')).toBeInTheDocument();
     // Factory presets can be saved as a copy, not renamed or deleted.
     expect(pane.getByRole('button', { name: 'Save as…' })).toBeInTheDocument();
     expect(pane.queryByRole('button', { name: 'Delete' })).toBeNull();
 
-    fireEvent.click(pane.getByRole('button', { name: 'plate', pressed: false }));
-    expect(useBrowserStore.getState().filter.tags).toEqual(['plate']);
+    // Pointing at a row shows its note without loading it; leaving the list goes back.
+    fireEvent.pointerEnter(option('Dark Drone'));
+    expect(pane.getByRole('heading', { name: 'Dark Drone' })).toBeInTheDocument();
+    expect(pane.getByText(/12-second hall/)).toBeInTheDocument();
+    expect(pane.getByText('Click to audition')).toBeInTheDocument();
+    expect(presets().currentName).toBe('Glassy Chorus');
+    fireEvent.pointerLeave(screen.getByRole('listbox', { name: 'Presets' }).parentElement!);
+    expect(pane.getByRole('heading', { name: 'Glassy Chorus' })).toBeInTheDocument();
 
-    fireEvent.click(option('Tidewater'));
+    fireEvent.click(option('Surf Tremolo'));
     await settle();
-    expect(pane.getByRole('heading', { name: 'Tidewater' })).toBeInTheDocument();
+    expect(pane.getByRole('heading', { name: 'Surf Tremolo' })).toBeInTheDocument();
     fireEvent.click(pane.getByRole('button', { name: /^Use & close/ }));
     await settle();
     expect(dialog()).toBeNull();
-    expect(presets().currentName).toBe('Tidewater');
+    expect(presets().currentName).toBe('Surf Tremolo');
   });
 
   it('has single-key shortcuts that never fire while typing, and lists them', async () => {
@@ -384,10 +410,10 @@ describe('PresetBrowser', () => {
 
     key(']');
     await settle();
-    expect(presets().currentName).toBe('Tidewater');
+    expect(presets().currentName).toBe('Jazz Warm');
     key('[');
     await settle();
-    expect(presets().currentName).toBe('Nacre');
+    expect(presets().currentName).toBe('Glassy Chorus');
 
     key('b');
     await settle();
@@ -402,7 +428,7 @@ describe('PresetBrowser', () => {
     for (const k of ['p', '[', ']', 'b', '3']) key(k, search());
     await settle();
     expect(dialog()).toBeInTheDocument();
-    expect(presets()).toMatchObject({ currentName: 'Nacre', compare: { active: 'A' } });
+    expect(presets()).toMatchObject({ currentName: 'Glassy Chorus', compare: { active: 'A' } });
 
     fireEvent.click(screen.getByRole('button', { name: 'Shortcuts' }));
     const list = within(screen.getByRole('group', { name: 'Shortcuts' }));
@@ -478,17 +504,20 @@ describe('PresetBrowser', () => {
     fireEvent.keyDown(search(), { key: 'Enter' });
     await settle();
     // Keys faster than the plugin answers: only the newest waiting load is sent.
-    expect(load.mock.calls.map(([id]) => id)).toEqual(['factory:tidewater']);
-    expect(presets()).toMatchObject({ currentName: 'Tidewater', recent: ['factory:tidewater'] });
+    expect(load.mock.calls.map(([id]) => id)).toEqual(['factory:classic-stack']);
+    expect(presets()).toMatchObject({
+      currentName: 'Classic Stack',
+      recent: ['factory:classic-stack'],
+    });
 
     load.mockClear();
     await openBrowser();
-    fireEvent.click(option('Riptide'));
-    fireEvent.click(option('Riptide'));
-    fireEvent.doubleClick(option('Riptide'));
+    fireEvent.click(option('Singing Echo'));
+    fireEvent.click(option('Singing Echo'));
+    fireEvent.doubleClick(option('Singing Echo'));
     await settle();
     expect(load).toHaveBeenCalledTimes(1);
-    expect(presets().currentName).toBe('Riptide');
+    expect(presets().currentName).toBe('Singing Echo');
   });
 
   it('lands on the picked preset when answers arrive out of order', async () => {
@@ -498,13 +527,13 @@ describe('PresetBrowser', () => {
     render(<Shell />);
     await openBrowser();
     for (let i = 0; i < 4; i++) fireEvent.keyDown(search(), { key: 'ArrowDown' });
-    fireEvent.click(option('Mariana'));
+    fireEvent.click(option('Modern Metal Rhythm'));
     fireEvent.keyDown(search(), { key: 'ArrowUp' });
     fireEvent.keyDown(search(), { key: 'Enter' });
     await act(() => new Promise((resolve) => setTimeout(resolve, 120)));
     const truth = await h.mock.call('sedef_presets_list');
-    expect(truth).toMatchObject({ currentName: 'Holdfast' });
-    expect(presets()).toMatchObject({ currentName: 'Holdfast', recent: truth.recent });
+    expect(truth).toMatchObject({ currentName: 'Max Gain Wall' });
+    expect(presets()).toMatchObject({ currentName: 'Max Gain Wall', recent: truth.recent });
   });
 
   it('offers no Undo across A/B slots', async () => {
@@ -512,11 +541,11 @@ describe('PresetBrowser', () => {
     render(<Shell />);
     const slot = (s: 'A' | 'B') => screen.getByRole('radio', { name: new RegExp(`^${s}:`) });
     await openBrowser();
-    fireEvent.click(option('Riptide'));
+    fireEvent.click(option('Singing Echo'));
     fireEvent.click(slot('B'));
     await settle();
     expect(dialog()).toBeNull();
-    expect(presets()).toMatchObject({ currentName: 'Riptide', compare: { active: 'B' } });
+    expect(presets()).toMatchObject({ currentName: 'Singing Echo', compare: { active: 'B' } });
     expect(screen.queryByRole('button', { name: /Undo/ })).toBeNull();
 
     // An Undo from prev/next goes too: its snapshot belongs to the slot left behind.
@@ -530,8 +559,8 @@ describe('PresetBrowser', () => {
     fireEvent.click(slot('A'));
     await settle();
     expect(screen.queryByRole('button', { name: /Undo/ })).toBeNull();
-    // The first switch copied the live sound, so A holds Riptide as it was then.
-    expect(presets()).toMatchObject({ currentName: 'Riptide', dirty: false });
+    // The first switch copied the live sound, so A holds Singing Echo as it was then.
+    expect(presets()).toMatchObject({ currentName: 'Singing Echo', dirty: false });
   });
 
   it('keeps ⌘S out of other text fields and held keys, and asks first while auditioning', async () => {
@@ -562,13 +591,13 @@ describe('PresetBrowser', () => {
       await flush();
     });
     await openBrowser();
-    fireEvent.click(option('Riptide'));
+    fireEvent.click(option('Singing Echo'));
     await settle();
     fireEvent.keyDown(search(), { key: 's', metaKey: true });
     await settle();
     expect(save).not.toHaveBeenCalled();
     expect(screen.getByRole('status')).toHaveTextContent(
-      'Choose first: Enter keeps Riptide, Esc goes back to Sunday set with your edits. Then save.',
+      'Choose first: Enter keeps Singing Echo, Esc goes back to Sunday set with your edits. Then save.',
     );
     expect(dialog()).toBeInTheDocument();
   });
@@ -584,7 +613,7 @@ describe('PresetBrowser', () => {
 
     fireEvent.keyDown(search(), { key: 'Escape' });
     await settle();
-    expect(presets().currentName).toBe('Nacre');
+    expect(presets().currentName).toBe('Glassy Chorus');
     expect(screen.getByRole('status')).toHaveTextContent('Deleted Sunday set');
     await openBrowser();
     fireEvent.keyDown(search(), { key: 'Escape' });
@@ -593,7 +622,7 @@ describe('PresetBrowser', () => {
     fireEvent.click(screen.getByRole('button', { name: /Undo/ }));
     await settle();
     expect(presets().items.some((p) => p.id === SUNDAY)).toBe(true);
-    expect(presets().currentName).toBe('Nacre');
+    expect(presets().currentName).toBe('Glassy Chorus');
   });
 
   it('follows a rename of the preset Esc goes back to, edits and all', async () => {
@@ -604,7 +633,7 @@ describe('PresetBrowser', () => {
     });
     render(<Shell />);
     await openBrowser();
-    fireEvent.click(option('Riptide'));
+    fireEvent.click(option('Singing Echo'));
     fireEvent.click(option('Sunday set'));
     await settle();
     fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
@@ -612,7 +641,7 @@ describe('PresetBrowser', () => {
     fireEvent.change(input, { target: { value: 'Sunday late' } });
     fireEvent.submit(input);
     await settle();
-    fireEvent.click(option('Riptide'));
+    fireEvent.click(option('Singing Echo'));
     await settle();
 
     fireEvent.keyDown(search(), { key: 'Escape' });

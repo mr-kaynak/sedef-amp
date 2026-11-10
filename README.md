@@ -41,12 +41,13 @@ around them.
 
 Click a preset and it plays at once, while the browser stays open; the arrow keys walk the list
 the same way. Enter keeps it. Esc puts back exactly what you had when you opened the browser,
-unsaved tweaks included. Every row tells you the amp, the chain that's switched on, a line about
-the sound and its tags, so you can read a rig before you hear it. Compare two versions with A/B,
+unsaved tweaks included. The list is grouped from clean to ambient, and every row is one line:
+a name that says the sound, the amp and the chain that's switched on, with a line about the
+sound and its tags as you point at it, so you can read a rig before you hear it. Compare two versions with A/B,
 save your own with a category, tags and a note, and never lose edits: loads and deletes come with
 Undo. See [docs/ui/presets.md](docs/ui/presets.md) for the design.
 
-<img src="docs/images/presets.png" alt="Preset browser with library, categories, tags and rows showing each preset's amp and signal chain" width="100%">
+<img src="docs/images/presets.png" alt="Preset browser: one list grouped by category, each row with the preset's name, amp and signal chain" width="100%">
 
 ## Captures
 

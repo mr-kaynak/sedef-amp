@@ -1,0 +1,32 @@
+{
+  "format": "sedef-preset",
+  "version": 1,
+  "id": "vibe-wash",
+  "name": "Vibe Wash",
+  "folder": "Ambient",
+  "author": "Sedef",
+  "tags": ["vibe", "delay", "hall", "pad"],
+  "description": "A slow, throbbing pitch wobble dissolving into a long hall. Sparse chords and held notes.",
+  "board": ["gate", "beacon"],
+  "parameters": {
+    "ampModel": 0,
+    "micAPosition": 0.4,
+    "micBDistance": 0.25,
+    "micBLevel": -5.0,
+    "lagoonVolume": 0.45,
+    "beaconEnabled": 1,
+    "beaconMode": 1,
+    "beaconSpeed": 0.8,
+    "beaconDepth": 0.75,
+    "driftEnabled": 1,
+    "driftNote": 13,
+    "driftFeedback": 0.35,
+    "driftMix": 0.2,
+    "fathomEnabled": 1,
+    "fathomMode": 1,
+    "fathomMix": 0.45,
+    "fathomDecay": 8.0,
+    "fathomPreDelay": 30.0,
+    "lagoonOutput": 0.3958
+  }
+}

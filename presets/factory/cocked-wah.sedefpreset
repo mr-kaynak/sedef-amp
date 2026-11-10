@@ -1,0 +1,21 @@
+{
+  "format": "sedef-preset",
+  "version": 1,
+  "id": "cocked-wah",
+  "name": "Cocked Wah",
+  "folder": "Crunch",
+  "author": "Sedef",
+  "tags": ["wah", "rock"],
+  "description": "Crunch through a wah parked halfway: a nasal, honking midrange that cuts through.",
+  "board": ["gate", "conch"],
+  "parameters": {
+    "ampModel": 1,
+    "reefGain": 0.45,
+    "conchEnabled": 1,
+    "conchMode": 0,
+    "conchPosition": 0.55,
+    "conchResonance": 0.45,
+    "gateThreshold": -66.0,
+    "reefOutput": 0.3958
+  }
+}

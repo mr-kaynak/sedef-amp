@@ -1,14 +1,11 @@
 {
   "format": "sedef-preset",
   "version": 1,
-  "name": "Nacre",
+  "id": "nacre",
+  "name": "Glassy Chorus",
   "folder": "Clean",
   "author": "Sedef",
-  "tags": [
-    "chorus",
-    "compressor",
-    "plate"
-  ],
+  "tags": ["chorus", "compressor", "plate"],
   "description": "Glassy, lightly squeezed clean with slow chorus and a short plate.",
   "board": ["gate", "tide", "ripple"],
   "parameters": {

@@ -1,0 +1,31 @@
+{
+  "format": "sedef-preset",
+  "version": 1,
+  "id": "metal-shred",
+  "name": "Metal Shred",
+  "folder": "Lead",
+  "author": "Sedef",
+  "tags": ["boost", "delay", "solo", "metal"],
+  "description": "Tight, saturated lead with forward mids that stays clear at speed. Fast runs and tapping.",
+  "board": ["gate", "pearl"],
+  "parameters": {
+    "ampModel": 2,
+    "abyssGain": 0.8,
+    "abyssBass": 0.45,
+    "abyssMid": 0.65,
+    "pearlEnabled": 1,
+    "pearlGain": 0.1,
+    "pearlLevel": 0.68,
+    "pearlMid": 0.4,
+    "eqAbyssBand5": 2.0,
+    "driftEnabled": 1,
+    "driftNote": 13,
+    "driftFeedback": 0.28,
+    "driftMix": 0.18,
+    "fathomEnabled": 1,
+    "fathomMix": 0.12,
+    "fathomDecay": 2.0,
+    "gateThreshold": -60.0,
+    "abyssOutput": 0.2812
+  }
+}

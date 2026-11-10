@@ -1,0 +1,19 @@
+{
+  "format": "sedef-preset",
+  "version": 1,
+  "id": "max-gain-wall",
+  "name": "Max Gain Wall",
+  "folder": "High Gain",
+  "author": "Sedef",
+  "tags": ["rhythm", "metal"],
+  "description": "The high-gain amp almost flat out: a dense, endlessly sustaining wall for slow, heavy chords.",
+  "board": ["gate"],
+  "parameters": {
+    "ampModel": 2,
+    "abyssGain": 0.95,
+    "abyssMid": 0.55,
+    "abyssPresence": 0.45,
+    "gateThreshold": -56.0,
+    "abyssOutput": 0.3042
+  }
+}

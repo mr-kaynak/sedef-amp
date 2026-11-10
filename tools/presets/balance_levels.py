@@ -9,6 +9,18 @@ render, work, target, max_tp = sys.argv[1], sys.argv[2], float(sys.argv[3]), flo
 presets = sys.argv[5:]
 AMPS = ["lagoon", "reef", "abyss"]
 
+def dump(doc):
+    """The factory files' layout: one key per line, lists on one line, one parameter per line."""
+    lines = ["{"]
+    for i, (key, value) in enumerate(doc.items()):
+        comma = "," if i + 1 < len(doc) else ""
+        if key == "parameters":
+            body = ",\n".join(f"    {json.dumps(k)}: {json.dumps(v)}" for k, v in value.items())
+            lines.append('  "parameters": {\n' + body + "\n  }" + comma)
+        else:
+            lines.append(f"  {json.dumps(key)}: {json.dumps(value, ensure_ascii=False)}{comma}")
+    return "\n".join(lines) + "\n}\n"
+
 def knob_to_db(k):
     return -24.0 + 48.0 * k if k <= 0.5 else 24.0 * (k - 0.5)
 
@@ -48,8 +60,7 @@ for preset in presets:
         items.insert(idx, (key, params[key]))
         doc["parameters"] = params = dict(items)
         with open(preset, "w") as f:
-            json.dump(doc, f, indent=2)
-            f.write("\n")
+            f.write(dump(doc))
     after = measure(preset, name)
-    print(f"{name:18s} {key:13s} {params.get(key, 0.5):.4f} ({knob_to_db(float(params.get(key, 0.5))):+6.1f} dB)  "
+    print(f"{name:24s} {key:13s} {params.get(key, 0.5):.4f} ({knob_to_db(float(params.get(key, 0.5))):+6.1f} dB)  "
           f"before {before[0]:6.1f} LUFS {before[1]:5.1f} dBTP  after {after[0]:6.1f} LUFS {after[1]:5.1f} dBTP")

@@ -1,0 +1,25 @@
+{
+  "format": "sedef-preset",
+  "version": 1,
+  "id": "doom-fuzz-wall",
+  "name": "Doom Fuzz Wall",
+  "folder": "High Gain",
+  "author": "Sedef",
+  "tags": ["fuzz", "doom", "rhythm"],
+  "description": "Sustain fuzz with the tone rolled to bass into a thick amp and a 4x12. Slow, huge riffs.",
+  "board": ["gate", "sargasso"],
+  "parameters": {
+    "ampModel": 1,
+    "ampCabLink": 0,
+    "cabModel": 2,
+    "reefVoice": 2,
+    "reefGain": 0.2,
+    "reefBass": 0.4,
+    "sargassoEnabled": 1,
+    "sargassoSustain": 0.75,
+    "sargassoTone": 0.42,
+    "sargassoVolume": 0.5,
+    "gateThreshold": -60.0,
+    "reefOutput": 0.4291
+  }
+}

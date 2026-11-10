@@ -1,0 +1,22 @@
+{
+  "format": "sedef-preset",
+  "version": 1,
+  "id": "fat-and-warm",
+  "name": "Fat and Warm",
+  "folder": "Clean",
+  "author": "Sedef",
+  "tags": ["plate", "rhythm"],
+  "description": "Thick, warm clean with a little give when you dig in. Full chords and soul rhythm.",
+  "board": ["gate"],
+  "parameters": {
+    "ampModel": 1,
+    "reefVoice": 1,
+    "reefGain": 0.2,
+    "reefBass": 0.55,
+    "reefPresence": 0.45,
+    "fathomEnabled": 1,
+    "fathomMix": 0.18,
+    "fathomDecay": 1.8,
+    "reefOutput": 0.5833
+  }
+}

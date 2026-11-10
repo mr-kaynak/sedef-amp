@@ -6,7 +6,35 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **32 new factory presets**, 49 in all: Clean 10, Crunch 11, High Gain 10, Lead 10, Ambient 8.
+  Every pedal is now in at least two (Remora, Sargasso, Breaker, Anemone, Conch, Gyre and Jetty
+  were in none), and each amp is covered from clean to its highest gain. A few use the EQ and
+  the Doubler.
+- `sedef-render --check` also plays every factory preset a quiet guitar (a DI peaking at
+  -30 dBFS that dies away) and fails one whose gate cuts the note less than 24 dB under its
+  peak. `sedef-render --di-gain DB` renders from a quieter or hotter DI.
+
 ### Changed
+
+- **Factory presets are named for their sound**: "Glassy Chorus", "Tight Metal Boost", "Surf
+  Tremolo" instead of Nacre, Holdfast, Tidewater. The 17 presets of 0.5.0 sound as they did and
+  keep their ids, so favourites, Recent and saved sessions still find them and show the new
+  name.
+- **The preset browser is one dense list.** One line per preset (its name and its chain with the
+  amp), in two columns under category headers from clean to ambient, with about 30 presets in
+  view where there were 7. The description, tags, author and cab show in a strip under the list
+  for the row under the pointer or the highlighted one. Search, favourites, Recent and keyboard
+  audition stay; the rail, the tag chips, the sort control and the detail pane are gone (search
+  finds a tag, an amp or a pedal).
+- **Previous and next step in a new order**, the one the browser lists: Clean, Crunch, High
+  Gain, Lead, Ambient, then your own folders, each by name with the factory presets first.
+  Until now they went through the factory categories alphabetically (Ambient first) and then
+  your presets. The header buttons, `[` and `]`, and the automatable Preset Previous and Preset
+  Next all follow it.
+- Tight Metal Boost (was Holdfast) is 0.6 dB quieter: it was the one preset above the -16 LUFS
+  the library is balanced to.
 
 - **The Pedals page is redrawn as one board you can see whole.** Each of the sixteen pedals is
   its own enclosure: three widths and several heights by what it carries, its own knob layout

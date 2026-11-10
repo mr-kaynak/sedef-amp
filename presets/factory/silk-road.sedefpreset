@@ -1,13 +1,11 @@
 {
   "format": "sedef-preset",
   "version": 1,
-  "name": "Silk Road",
+  "id": "silk-road",
+  "name": "Classic Rock Boost",
   "folder": "Crunch",
   "author": "Sedef",
-  "tags": [
-    "boost",
-    "rock"
-  ],
+  "tags": ["boost", "rock"],
   "description": "Boosted crunch that stays tight. Classic rock rhythm and solos.",
   "board": ["gate", "pearl"],
   "parameters": {

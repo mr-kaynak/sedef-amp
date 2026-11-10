@@ -1,0 +1,24 @@
+{
+  "format": "sedef-preset",
+  "version": 1,
+  "id": "silicon-fuzz-riff",
+  "name": "Silicon Fuzz Riff",
+  "folder": "High Gain",
+  "author": "Sedef",
+  "tags": ["fuzz", "garage", "rhythm"],
+  "description": "Silicon fuzz flat out into a crunchy amp: bright, buzzing and aggressive single-note riffs.",
+  "board": ["gate", "remora"],
+  "parameters": {
+    "ampModel": 1,
+    "reefVoice": 1,
+    "reefGain": 0.3,
+    "remoraEnabled": 1,
+    "remoraFuzz": 0.85,
+    "remoraVolume": 0.5,
+    "remoraBias": 0.5,
+    "remoraGuitarVolume": 1.0,
+    "remoraTransistor": 1,
+    "gateThreshold": -60.0,
+    "reefOutput": 0.3521
+  }
+}

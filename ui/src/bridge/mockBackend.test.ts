@@ -14,9 +14,11 @@ describe('MockBackend', () => {
     expect(hello.protocol).toBe(PROTOCOL_VERSION);
     expect(hello.schema).toHaveLength(203);
     expect(Object.keys(hello.values)).toHaveLength(203);
-    expect(hello.presets.currentName).toBe('Nacre');
+    expect(hello.presets.currentName).toBe('Glassy Chorus');
     expect(hello.presets.currentId).toBe('factory:nacre');
-    expect(hello.presets.items.filter((p) => p.category === 'Factory')).toHaveLength(17);
+    expect(
+      hello.presets.items.filter((p) => p.category === 'Factory').length,
+    ).toBeGreaterThanOrEqual(40);
     expect(hello.presets.dirty).toBe(false);
     expect(hello.ir.slots).toHaveLength(6);
   });
@@ -33,7 +35,7 @@ describe('MockBackend', () => {
     expect((await mock.call('sedef_presets_list')).dirty).toBe(false);
     await mock.call('sedef_setParam', 'lagoonVolume', 0.8);
     expect((await mock.call('sedef_presets_list')).dirty).toBe(true);
-    await mock.call('sedef_setParam', 'lagoonVolume', 0.45); // Nacre's stored value
+    await mock.call('sedef_setParam', 'lagoonVolume', 0.45); // Glassy Chorus's stored value
     expect((await mock.call('sedef_presets_list')).dirty).toBe(false);
   });
 
@@ -80,7 +82,7 @@ describe('MockBackend', () => {
     mock.on('sedef:params', params);
 
     let state = await mock.call('sedef_presets_load', 'factory:riptide');
-    expect(state.currentName).toBe('Riptide');
+    expect(state.currentName).toBe('Singing Echo');
     expect(mock.value('ampModel')).toBe(2);
     await flush();
     expect(params).toHaveBeenCalled();
@@ -145,7 +147,11 @@ describe('MockBackend', () => {
     const after = (await mock.hello()).values;
     expect({ ...after, inputGain: before.inputGain }).toEqual(before);
     expect(after.inputGain).toBe(4);
-    expect(state).toMatchObject({ currentId: 'factory:nacre', currentName: 'Nacre', dirty: true });
+    expect(state).toMatchObject({
+      currentId: 'factory:nacre',
+      currentName: 'Glassy Chorus',
+      dirty: true,
+    });
   });
 
   it('counts picks, not auditions, as Recent', async () => {
@@ -165,20 +171,26 @@ describe('MockBackend', () => {
     mock = new MockBackend();
     let state = await mock.call('sedef_presets_compare', 'switch');
     // B starts as a copy of A.
-    expect(state.compare).toEqual({ active: 'B', other: { name: 'Nacre', dirty: false } });
-    expect(state.currentName).toBe('Nacre');
+    expect(state.compare).toEqual({ active: 'B', other: { name: 'Glassy Chorus', dirty: false } });
+    expect(state.currentName).toBe('Glassy Chorus');
     await mock.call('sedef_presets_load', 'factory:riptide');
     await mock.call('sedef_setParam', 'abyssGain', 0.9);
     state = await mock.call('sedef_presets_compare', 'switch');
-    expect(state).toMatchObject({ currentName: 'Nacre', dirty: false });
-    expect(state.compare).toEqual({ active: 'A', other: { name: 'Riptide', dirty: true } });
+    expect(state).toMatchObject({ currentName: 'Glassy Chorus', dirty: false });
+    expect(state.compare).toEqual({
+      active: 'A',
+      other: { name: 'Singing Echo', dirty: true },
+    });
     expect(mock.value('ampModel')).toBe(0);
     state = await mock.call('sedef_presets_compare', 'switch');
-    expect(state).toMatchObject({ currentName: 'Riptide', dirty: true });
+    expect(state).toMatchObject({ currentName: 'Singing Echo', dirty: true });
     expect(mock.value('abyssGain')).toBe(0.9);
     // Copy puts the live slot into the other one.
     state = await mock.call('sedef_presets_compare', 'copy');
-    expect(state.compare).toEqual({ active: 'B', other: { name: 'Riptide', dirty: true } });
+    expect(state.compare).toEqual({
+      active: 'B',
+      other: { name: 'Singing Echo', dirty: true },
+    });
   });
 
   it('saves details, keeps them on a plain overwrite, and undoes a delete', async () => {

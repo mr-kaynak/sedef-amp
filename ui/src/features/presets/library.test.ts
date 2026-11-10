@@ -5,10 +5,9 @@ import {
   allCategories,
   allTags,
   browse,
-  categoryFacets,
-  chainGroups,
   chainText,
   DEFAULT_FILTER,
+  groupByCategory,
   libraryCounts,
   matchesQuery,
   tagFacets,
@@ -58,38 +57,50 @@ describe('preset library', () => {
       all: 6,
       favorites: 2,
       recent: 2,
-      factory: 3,
       user: 3,
     });
   });
 
-  it('filters by library, category and every selected tag', () => {
+  it('filters by library and search', () => {
     expect(view({ library: 'favorites' })).toEqual(['Abyssal Lead', 'Sunday set']);
-    expect(view({ library: 'user', category: 'Clean' })).toEqual(['night drive']);
-    expect(view({ category: 'Clean' })).toEqual(['Glass Shore', 'night drive', 'Night Swim']);
-    expect(view({ tags: ['plate'] })).toEqual(['Glass Shore', 'Night Swim']);
-    expect(view({ tags: ['plate', 'chorus'] })).toEqual(['Glass Shore']);
-    expect(view({ library: 'recent', sort: 'recent' })).toEqual(['Loose', 'Abyssal Lead']);
+    expect(view({ library: 'user' })).toEqual(['night drive', 'Sunday set', 'Loose']);
+    expect(view({ library: 'user', query: 'clean' })).toEqual(['night drive']);
+    expect(view({ query: 'plate' })).toEqual(['Glass Shore', 'Night Swim']);
+    // Recent is newest first.
+    expect(view({ library: 'recent' })).toEqual(['Loose', 'Abyssal Lead']);
   });
 
-  it('sorts by name, by recency and by category', () => {
+  it('lists in library order: clean to ambient, own folders, then none; factory first', () => {
     expect(view({})).toEqual([
-      'Abyssal Lead',
       'Glass Shore',
-      'Loose',
-      'night drive',
       'Night Swim',
+      'night drive',
+      'Abyssal Lead',
       'Sunday set',
+      'Loose',
     ]);
-    expect(view({ sort: 'recent' }).slice(0, 2)).toEqual(['Loose', 'Abyssal Lead']);
-    // Folders alphabetically, presets without one last.
-    expect(view({ sort: 'category' })).toEqual([
-      'Glass Shore',
-      'night drive',
-      'Night Swim',
-      'Abyssal Lead',
-      'Sunday set',
-      'Loose',
+    const ordered = browse(
+      [
+        preset({ name: 'Pad', folder: 'Ambient' }),
+        preset({ name: 'Riff', folder: 'High Gain' }),
+        preset({ name: 'Mine', category: 'User', folder: 'Ballads' }),
+        preset({ name: 'Solo', folder: 'Lead' }),
+        preset({ name: 'Dirt', folder: 'Crunch' }),
+        preset({ name: 'Bell', folder: 'Clean' }),
+      ],
+      DEFAULT_FILTER,
+      [],
+    );
+    expect(names(ordered)).toEqual(['Bell', 'Dirt', 'Riff', 'Solo', 'Pad', 'Mine']);
+  });
+
+  it('groups what is shown by category, in order', () => {
+    const groups = groupByCategory(browse(items, DEFAULT_FILTER, recent));
+    expect(groups.map((g) => [g.name, names(g.items)])).toEqual([
+      ['Clean', ['Glass Shore', 'Night Swim', 'night drive']],
+      ['Lead', ['Abyssal Lead']],
+      ['Live', ['Sunday set']],
+      ['', ['Loose']],
     ]);
   });
 
@@ -105,13 +116,7 @@ describe('preset library', () => {
     expect(find('  ')).toHaveLength(items.length);
   });
 
-  it('offers the categories and tags of what is in view', () => {
-    expect(categoryFacets(items, 'all', recent)).toEqual([
-      { name: 'Clean', count: 3 },
-      { name: 'Lead', count: 1 },
-      { name: 'Live', count: 1 },
-    ]);
-    expect(categoryFacets(items, 'factory', recent).map((c) => c.name)).toEqual(['Clean', 'Lead']);
+  it('offers the categories and tags in use to the save form', () => {
     expect(tagFacets(items)).toEqual([
       { name: 'chorus', count: 2 },
       { name: 'plate', count: 2 },
@@ -155,16 +160,5 @@ describe('preset library', () => {
         }),
       ),
     ).toBe('Remora → Sargasso → Ripple → Breaker → Lagoon 1x12 → Drift');
-  });
-
-  it('groups the chain for the detail pane', () => {
-    expect(
-      chainGroups(preset({ amp: 1, cab: 2, blocks: ['gate', 'pearl', 'eq', 'drift'] })),
-    ).toEqual({
-      pedals: ['Pearl'],
-      amp: 'Reef',
-      cab: '4x12 Closed Back',
-      fx: ['EQ', 'Drift'],
-    });
   });
 });

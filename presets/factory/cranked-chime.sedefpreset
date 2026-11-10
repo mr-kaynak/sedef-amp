@@ -1,0 +1,19 @@
+{
+  "format": "sedef-preset",
+  "version": 1,
+  "id": "cranked-chime",
+  "name": "Cranked Chime",
+  "folder": "Crunch",
+  "author": "Sedef",
+  "tags": ["rhythm", "rock"],
+  "description": "A small amp turned up until it chimes and breaks up on the chords. Jangle and ringing riffs.",
+  "board": ["gate"],
+  "parameters": {
+    "ampModel": 0,
+    "lagoonVolume": 0.9,
+    "lagoonBass": 0.45,
+    "lagoonCut": 0.4,
+    "lagoonMaster": 0.65,
+    "lagoonOutput": 0.2958
+  }
+}

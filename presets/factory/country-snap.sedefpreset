@@ -1,0 +1,33 @@
+{
+  "format": "sedef-preset",
+  "version": 1,
+  "id": "country-snap",
+  "name": "Country Snap",
+  "folder": "Clean",
+  "author": "Sedef",
+  "tags": ["compressor", "slapback", "country"],
+  "description": "Bright, squeezed clean with a short tape slap. Chicken picking and double stops.",
+  "board": ["gate", "tide"],
+  "parameters": {
+    "ampModel": 0,
+    "micAPosition": 0.25,
+    "micBDistance": 0.25,
+    "micBLevel": -6.0,
+    "lagoonVolume": 0.48,
+    "lagoonBass": 0.4,
+    "lagoonCut": 0.15,
+    "lagoonMaster": 0.55,
+    "lagoonOutput": 0.5167,
+    "tideEnabled": 1,
+    "tideComp": 0.55,
+    "tideTone": 0.62,
+    "tideBlend": 0.8,
+    "driftEnabled": 1,
+    "driftHeads": 0,
+    "driftSync": 0,
+    "driftTime": 110.0,
+    "driftFeedback": 0.1,
+    "driftTapeMod": 0.2,
+    "driftMix": 0.22
+  }
+}

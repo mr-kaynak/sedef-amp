@@ -139,7 +139,10 @@ void PresetManager::scan()
             continue;
         Entry e;
         e.name = parsed["name"].toString();
-        e.id = "factory:" + slugify (e.name);
+        // The file's own "id" when it has one: sessions, favourites and Recent name presets by
+        // id, so a factory preset can get a better name without anything losing track of it.
+        const auto slug = slugify (parsed["id"].toString());
+        e.id = "factory:" + (slug.isNotEmpty() ? slug : slugify (e.name));
         e.category = "Factory";
         e.folder = parsed["folder"].toString();
         e.author = parsed["author"].toString();
@@ -176,11 +179,23 @@ void PresetManager::scan()
         entries_.push_back (std::move (e));
     }
 
-    std::stable_sort (entries_.begin(), entries_.end(), [] (const Entry& a, const Entry& b) {
-        if (a.category != b.category)
-            return a.category == "Factory";
+    // Library order, which the browser lists and previous/next step through: the factory
+    // categories from clean to ambient, then the user's own folders by name, then presets
+    // without a folder; inside a category the factory presets first, each by name.
+    const auto rank = [] (const juce::String& folder) {
+        static const juce::StringArray order { "Clean", "Crunch", "High Gain", "Lead", "Ambient" };
+        if (folder.isEmpty())
+            return order.size() + 1;
+        const int i = order.indexOf (folder);
+        return i < 0 ? order.size() : i;
+    };
+    std::stable_sort (entries_.begin(), entries_.end(), [&rank] (const Entry& a, const Entry& b) {
+        if (rank (a.folder) != rank (b.folder))
+            return rank (a.folder) < rank (b.folder);
         if (a.folder != b.folder)
             return a.folder.compareNatural (b.folder) < 0;
+        if (a.category != b.category)
+            return a.category == "Factory";
         return a.name.compareNatural (b.name) < 0;
     });
 }
@@ -738,6 +753,10 @@ void PresetManager::applyCurrent (const juce::String& id, const juce::String& na
 {
     currentId_ = id;
     currentName_ = name.isNotEmpty() ? name : juce::String ("Init");
+    // A session saved before a factory preset was renamed still names it by its id; it shows
+    // the name the library has now.
+    if (const auto* e = find (id); e != nullptr && e->file == juce::File())
+        currentName_ = e->name;
     // "Dirty" compares against the preset as a load would apply it; Init (or a preset this
     // machine doesn't have) against the defaults.
     loadedValues_.clear();

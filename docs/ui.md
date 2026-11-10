@@ -32,7 +32,7 @@ chromium-headless-shell`.
 | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
 | `?section=pedals\|amp\|eq\|cab\|fx` | open a section                                                                                                      |
 | `?overlay=tuner\|intonation`        | open the tuner or the intonation workbench                                                                          |
-| `?preset=soft-focus`                | start from a factory preset (the id in its file, here Vibrato Swell Wash; default `nacre`, Chorus Clean)            |
+| `?preset=soft-focus`                | start from a factory preset (the id in its file, here Vibrato Swell Wash; default `nacre`, Glassy Chorus)            |
 | `?set=pearlEnabled:1,pearlGain:0.4` | parameter values applied as part of that preset (no dirty dot)                                                      |
 | `?board=gate,pearl,ripple`          | the pedalboard, as part of that preset (empty: no pedals)                                                           |
 | `?freeze`                           | no simulation: static meters, pitch only from the demo hook                                                         |
@@ -160,7 +160,7 @@ and simulators. Preset handling mirrors `plugin/src/PresetManager.cpp`: ids are
 (gains, transpose, stereo mode, tempo,
 tuner, metronome, preset stepping) are never stored, loaded or counted as changes, missing values
 fall back to the schema default, and "dirty" compares against the loaded preset with the same
-tolerance. The mock starts on Chorus Clean (`factory:nacre`).
+tolerance. The mock starts on Glassy Chorus (`factory:nacre`).
 
 - **Telemetry**: a player strumming every couple of seconds, shaped by input/output gain, the gate
   threshold and the compressor; metronome steps at the current tempo and signature; the effective

@@ -2,7 +2,7 @@
   "format": "sedef-preset",
   "version": 1,
   "id": "thermocline",
-  "name": "Octave Fuzz Lead",
+  "name": "Octave-Up Fuzz",
   "folder": "Lead",
   "author": "Sedef",
   "tags": ["octave", "fuzz", "solo"],

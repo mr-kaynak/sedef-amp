@@ -1,8 +1,8 @@
 {
   "format": "sedef-preset",
   "version": 1,
-  "id": "smooth-mid-lead",
-  "name": "Smooth Mid Lead",
+  "id": "smooth-mids",
+  "name": "Smooth Mids",
   "folder": "Lead",
   "author": "Sedef",
   "tags": ["overdrive", "delay", "plate", "solo"],

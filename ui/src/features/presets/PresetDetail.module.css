@@ -84,6 +84,17 @@
   color: var(--bone-4);
 }
 
+.tags {
+  display: inline-flex;
+  gap: 9px;
+}
+
+.tag::before {
+  content: '#';
+  margin-right: 1px;
+  color: var(--bone-4);
+}
+
 /* Actions ------------------------------------------------------------------------------------- */
 
 .actions {

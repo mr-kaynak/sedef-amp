@@ -1,8 +1,8 @@
 {
   "format": "sedef-preset",
   "version": 1,
-  "id": "chime-crunch",
-  "name": "Chime Crunch",
+  "id": "cranked-chime",
+  "name": "Cranked Chime",
   "folder": "Crunch",
   "author": "Sedef",
   "tags": ["rhythm", "rock"],

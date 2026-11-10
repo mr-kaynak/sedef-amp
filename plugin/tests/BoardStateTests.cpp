@@ -298,7 +298,7 @@ TEST_CASE ("A renamed factory preset keeps its id, and the library lists clean t
 
     // 0.5.0 called it Nacre; favourites, Recent and sessions name it by id.
     REQUIRE (presets.load ("factory:nacre", false));
-    CHECK (presets.currentName() == "Chorus Clean");
+    CHECK (presets.currentName() == "Glassy Chorus");
     const auto state = presets.stateAsVar();
     CHECK (state["recent"][0].toString() == "factory:nacre");
 
@@ -310,7 +310,7 @@ TEST_CASE ("A renamed factory preset keeps its id, and the library lists clean t
     }
     presets.sync();
     CHECK (presets.currentId() == "factory:nacre");
-    CHECK (presets.currentName() == "Chorus Clean");
+    CHECK (presets.currentName() == "Glassy Chorus");
     CHECK_FALSE (presets.isDirty());
     // A preset this machine doesn't have keeps the name the session gives it.
     {

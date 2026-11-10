@@ -1,8 +1,8 @@
 {
   "format": "sedef-preset",
   "version": 1,
-  "id": "stack-crunch",
-  "name": "Stack Crunch",
+  "id": "classic-stack",
+  "name": "Classic Stack",
   "folder": "Crunch",
   "author": "Sedef",
   "tags": ["rhythm", "rock"],

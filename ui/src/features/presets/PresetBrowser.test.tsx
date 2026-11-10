@@ -50,7 +50,7 @@ describe('PresetBrowser', () => {
     h.dispose();
   });
 
-  /** An unsaved edit on top of Chorus Clean; returns every value as it stands. */
+  /** An unsaved edit on top of Glassy Chorus; returns every value as it stands. */
   async function editNacre() {
     await act(async () => {
       await h.mock.call('sedef_setParam', 'lagoonVolume', 0.81);
@@ -64,13 +64,15 @@ describe('PresetBrowser', () => {
   it('shows one-line rows under category headers and starts on the playing preset with the search focused', async () => {
     render(<Shell />);
     await openBrowser();
-    const nacre = option('Chorus Clean');
+    const nacre = option('Glassy Chorus');
     expect(nacre).toHaveAttribute('aria-selected', 'true');
     expect(nacre.getAttribute('aria-label')).toContain('Tide → Ripple → Lagoon 1x12 → Fathom');
     expect(nacre.getAttribute('aria-label')).toMatch(/Glassy/);
     expect(within(nacre).getByText('Lagoon')).toBeInTheDocument();
-    // One line per preset: name, chain and tags; the note is in the strip under the list.
-    expect(within(nacre).getByText('chorus')).toBeInTheDocument();
+    // One line per preset: name and chain; the note and the tags are in the strip under the list.
+    expect(nacre.textContent).not.toContain('compressor');
+    const strip = within(screen.getByRole('complementary', { name: 'Preset details' }));
+    expect(strip.getByText('compressor')).toBeInTheDocument();
     expect(within(nacre).queryByText(/Glassy/)).toBeNull();
     expect(screen.getByRole('group', { name: 'Clean' })).toContainElement(nacre);
     expect(search()).toHaveFocus();
@@ -82,7 +84,7 @@ describe('PresetBrowser', () => {
     render(<Shell />);
     await openBrowser();
     expect(
-      screen.getByRole('button', { name: /Back to Chorus Clean with your edits/ }),
+      screen.getByRole('button', { name: /Back to Glassy Chorus with your edits/ }),
     ).toBeVisible();
 
     fireEvent.click(option('Modern Metal Rhythm'));
@@ -99,8 +101,8 @@ describe('PresetBrowser', () => {
     await settle();
     expect(dialog()).toBeNull();
     expect((await h.mock.hello()).values).toEqual(before);
-    expect(presets()).toMatchObject({ currentName: 'Chorus Clean', dirty: true, recent: [] });
-    expect(screen.getByRole('status')).toHaveTextContent('Back to Chorus Clean');
+    expect(presets()).toMatchObject({ currentName: 'Glassy Chorus', dirty: true, recent: [] });
+    expect(screen.getByRole('status')).toHaveTextContent('Back to Glassy Chorus');
     expect(screen.getByRole('button', { name: /Open preset browser/ })).toHaveFocus();
   });
 
@@ -108,28 +110,31 @@ describe('PresetBrowser', () => {
     const before = await editNacre();
     render(<Shell />);
     await openBrowser();
-    // Chorus Clean, then Country Snap, Dry Studio Clean, Fat Clean.
+    // Glassy Chorus, then Jazz Warm, Soft Phaser, Surf Tremolo.
     for (let i = 0; i < 3; i++) fireEvent.keyDown(search(), { key: 'ArrowDown' });
     fireEvent.keyDown(search(), { key: 'Enter' });
     await settle();
     expect(dialog()).toBeNull();
-    expect(presets()).toMatchObject({ currentName: 'Fat Clean', recent: ['factory:fat-clean'] });
-    expect(screen.getByRole('status')).toHaveTextContent('Loaded Fat Clean');
+    expect(presets()).toMatchObject({
+      currentName: 'Surf Tremolo',
+      recent: ['factory:tidewater'],
+    });
+    expect(screen.getByRole('status')).toHaveTextContent('Loaded Surf Tremolo');
 
     fireEvent.click(screen.getByRole('button', { name: /Undo/ }));
     await settle();
     expect((await h.mock.hello()).values).toEqual(before);
-    expect(presets()).toMatchObject({ currentName: 'Chorus Clean', dirty: true });
+    expect(presets()).toMatchObject({ currentName: 'Glassy Chorus', dirty: true });
   });
 
   it('keeps on double-click; a clean sound needs no Undo', async () => {
     render(<Shell />);
     await openBrowser();
-    fireEvent.click(option('Thick Crunch'));
-    fireEvent.doubleClick(option('Thick Crunch'));
+    fireEvent.click(option('Thick Mids'));
+    fireEvent.doubleClick(option('Thick Mids'));
     await settle();
     expect(dialog()).toBeNull();
-    expect(presets()).toMatchObject({ currentName: 'Thick Crunch', recent: ['factory:brine'] });
+    expect(presets()).toMatchObject({ currentName: 'Thick Mids', recent: ['factory:brine'] });
     expect(screen.getByRole('status')).toBeEmptyDOMElement();
   });
 
@@ -147,7 +152,7 @@ describe('PresetBrowser', () => {
 
     // Clean to ambient, then the user's own folders; previous and next step in the same order.
     expect(groups()).toEqual(['Clean', 'Crunch', 'High Gain', 'Lead', 'Ambient', 'Live']);
-    expect(names().slice(0, 3)).toEqual(['Auto-Wah Funk', 'Chorus Clean', 'Country Snap']);
+    expect(names().slice(0, 3)).toEqual(['Auto-Wah Funk', 'Country Snap', 'Dry Studio']);
     expect(names()).toEqual(presets().items.map((p) => p.name));
     expect(names().length).toBeGreaterThanOrEqual(41);
 
@@ -161,7 +166,7 @@ describe('PresetBrowser', () => {
 
     fireEvent.click(library.getByRole('radio', { name: /All/ }));
     fireEvent.change(search(), { target: { value: 'abyss drift hall' } });
-    expect(names()).toEqual(['Singing Echo Lead', 'Dark Drone']);
+    expect(names()).toEqual(['Singing Echo', 'Dark Drone']);
     expect(groups()).toEqual(['Lead', 'Ambient']);
     expect(screen.getByText('2 matches')).toBeInTheDocument();
     fireEvent.change(search(), { target: { value: 'no such sound' } });
@@ -174,9 +179,9 @@ describe('PresetBrowser', () => {
     await act(() => presetActions.load('factory:undertow'));
     await settle();
     fireEvent.click(library.getByRole('radio', { name: /Recent/ }));
-    expect(names()).toEqual(['Dark Drone', 'Thick Crunch']);
+    expect(names()).toEqual(['Dark Drone', 'Thick Mids']);
     expect(groups()).toEqual([]);
-    expect(within(option('Thick Crunch')).getByText('Crunch')).toBeInTheDocument();
+    expect(within(option('Thick Mids')).getByText('Crunch')).toBeInTheDocument();
   });
 
   it('plays a filtered result with Enter from the search field', async () => {
@@ -186,7 +191,7 @@ describe('PresetBrowser', () => {
     fireEvent.keyDown(search(), { key: 'Enter' });
     await settle();
     expect(dialog()).toBeNull();
-    expect(presets().currentName).toBe('Slapback Crunch');
+    expect(presets().currentName).toBe('Rockabilly Slapback');
   });
 
   it('moves through the list from the listbox, and F toggles the favourite', async () => {
@@ -214,12 +219,12 @@ describe('PresetBrowser', () => {
     render(<Shell />);
     fireEvent.click(screen.getByRole('button', { name: 'Next preset' }));
     await settle();
-    expect(presets().currentName).toBe('Country Snap');
-    expect(screen.getByRole('status')).toHaveTextContent('Loaded Country Snap');
+    expect(presets().currentName).toBe('Jazz Warm');
+    expect(screen.getByRole('status')).toHaveTextContent('Loaded Jazz Warm');
     fireEvent.keyDown(window, { key: 'z', ctrlKey: true });
     await settle();
     expect((await h.mock.hello()).values).toEqual(before);
-    expect(presets().currentName).toBe('Chorus Clean');
+    expect(presets().currentName).toBe('Glassy Chorus');
 
     // Without edits there is nothing to undo.
     await act(() => presetActions.load('factory:nacre'));
@@ -235,29 +240,29 @@ describe('PresetBrowser', () => {
     fireEvent.click(slot('B'));
     await settle();
     expect(slot('B')).toBeChecked();
-    expect(presets().currentName).toBe('Chorus Clean');
+    expect(presets().currentName).toBe('Glassy Chorus');
 
     await act(() => presetActions.load('factory:riptide'));
     await act(async () => {
       await h.mock.call('sedef_setParam', 'abyssGain', 0.91);
       await flush();
     });
-    expect(slot('B')).toHaveAccessibleName('B: Singing Echo Lead, edited');
+    expect(slot('B')).toHaveAccessibleName('B: Singing Echo, edited');
 
     fireEvent.click(slot('A'));
     await settle();
     expect(slot('A')).toBeChecked();
     expect(h.mock.value('ampModel')).toBe(0);
-    expect(slot('B')).toHaveAccessibleName('B: Singing Echo Lead, edited');
+    expect(slot('B')).toHaveAccessibleName('B: Singing Echo, edited');
 
     fireEvent.keyDown(slot('A'), { key: 'ArrowRight' });
     await settle();
     expect(h.mock.value('abyssGain')).toBe(0.91);
-    expect(presets()).toMatchObject({ currentName: 'Singing Echo Lead', dirty: true });
+    expect(presets()).toMatchObject({ currentName: 'Singing Echo', dirty: true });
 
     fireEvent.click(screen.getByRole('button', { name: 'Copy B to A' }));
     await settle();
-    expect(slot('A')).toHaveAccessibleName('A: Singing Echo Lead, edited');
+    expect(slot('A')).toHaveAccessibleName('A: Singing Echo, edited');
   });
 
   it('validates Save as inline: name clashes, new categories, tags and a note', async () => {
@@ -269,7 +274,7 @@ describe('PresetBrowser', () => {
     const sheet = within(screen.getByRole('group', { name: 'Save as a user preset' }));
     const name = sheet.getByRole('textbox', { name: 'Name' });
     expect(name).toHaveFocus();
-    expect(name).toHaveValue('Chorus Clean');
+    expect(name).toHaveValue('Glassy Chorus');
     expect(sheet.getByText(/A factory preset has this name too/)).toBeInTheDocument();
 
     fireEvent.change(name, { target: { value: 'sunday SET' } });
@@ -372,7 +377,7 @@ describe('PresetBrowser', () => {
     render(<Shell />);
     await openBrowser();
     const pane = within(screen.getByRole('complementary', { name: 'Preset details' }));
-    expect(pane.getByRole('heading', { name: 'Chorus Clean' })).toBeInTheDocument();
+    expect(pane.getByRole('heading', { name: 'Glassy Chorus' })).toBeInTheDocument();
     expect(pane.getByText(/^Glassy, lightly squeezed clean/)).toBeInTheDocument();
     expect(pane.getByText('1x12 Open Back')).toBeInTheDocument();
     expect(pane.getByText('Playing')).toBeInTheDocument();
@@ -385,9 +390,9 @@ describe('PresetBrowser', () => {
     expect(pane.getByRole('heading', { name: 'Dark Drone' })).toBeInTheDocument();
     expect(pane.getByText(/12-second hall/)).toBeInTheDocument();
     expect(pane.getByText('Click to audition')).toBeInTheDocument();
-    expect(presets().currentName).toBe('Chorus Clean');
+    expect(presets().currentName).toBe('Glassy Chorus');
     fireEvent.pointerLeave(screen.getByRole('listbox', { name: 'Presets' }).parentElement!);
-    expect(pane.getByRole('heading', { name: 'Chorus Clean' })).toBeInTheDocument();
+    expect(pane.getByRole('heading', { name: 'Glassy Chorus' })).toBeInTheDocument();
 
     fireEvent.click(option('Surf Tremolo'));
     await settle();
@@ -405,10 +410,10 @@ describe('PresetBrowser', () => {
 
     key(']');
     await settle();
-    expect(presets().currentName).toBe('Country Snap');
+    expect(presets().currentName).toBe('Jazz Warm');
     key('[');
     await settle();
-    expect(presets().currentName).toBe('Chorus Clean');
+    expect(presets().currentName).toBe('Glassy Chorus');
 
     key('b');
     await settle();
@@ -423,7 +428,7 @@ describe('PresetBrowser', () => {
     for (const k of ['p', '[', ']', 'b', '3']) key(k, search());
     await settle();
     expect(dialog()).toBeInTheDocument();
-    expect(presets()).toMatchObject({ currentName: 'Chorus Clean', compare: { active: 'A' } });
+    expect(presets()).toMatchObject({ currentName: 'Glassy Chorus', compare: { active: 'A' } });
 
     fireEvent.click(screen.getByRole('button', { name: 'Shortcuts' }));
     const list = within(screen.getByRole('group', { name: 'Shortcuts' }));
@@ -499,17 +504,20 @@ describe('PresetBrowser', () => {
     fireEvent.keyDown(search(), { key: 'Enter' });
     await settle();
     // Keys faster than the plugin answers: only the newest waiting load is sent.
-    expect(load.mock.calls.map(([id]) => id)).toEqual(['factory:tidewater']);
-    expect(presets()).toMatchObject({ currentName: 'Surf Tremolo', recent: ['factory:tidewater'] });
+    expect(load.mock.calls.map(([id]) => id)).toEqual(['factory:classic-stack']);
+    expect(presets()).toMatchObject({
+      currentName: 'Classic Stack',
+      recent: ['factory:classic-stack'],
+    });
 
     load.mockClear();
     await openBrowser();
-    fireEvent.click(option('Singing Echo Lead'));
-    fireEvent.click(option('Singing Echo Lead'));
-    fireEvent.doubleClick(option('Singing Echo Lead'));
+    fireEvent.click(option('Singing Echo'));
+    fireEvent.click(option('Singing Echo'));
+    fireEvent.doubleClick(option('Singing Echo'));
     await settle();
     expect(load).toHaveBeenCalledTimes(1);
-    expect(presets().currentName).toBe('Singing Echo Lead');
+    expect(presets().currentName).toBe('Singing Echo');
   });
 
   it('lands on the picked preset when answers arrive out of order', async () => {
@@ -533,11 +541,11 @@ describe('PresetBrowser', () => {
     render(<Shell />);
     const slot = (s: 'A' | 'B') => screen.getByRole('radio', { name: new RegExp(`^${s}:`) });
     await openBrowser();
-    fireEvent.click(option('Singing Echo Lead'));
+    fireEvent.click(option('Singing Echo'));
     fireEvent.click(slot('B'));
     await settle();
     expect(dialog()).toBeNull();
-    expect(presets()).toMatchObject({ currentName: 'Singing Echo Lead', compare: { active: 'B' } });
+    expect(presets()).toMatchObject({ currentName: 'Singing Echo', compare: { active: 'B' } });
     expect(screen.queryByRole('button', { name: /Undo/ })).toBeNull();
 
     // An Undo from prev/next goes too: its snapshot belongs to the slot left behind.
@@ -551,8 +559,8 @@ describe('PresetBrowser', () => {
     fireEvent.click(slot('A'));
     await settle();
     expect(screen.queryByRole('button', { name: /Undo/ })).toBeNull();
-    // The first switch copied the live sound, so A holds Singing Echo Lead as it was then.
-    expect(presets()).toMatchObject({ currentName: 'Singing Echo Lead', dirty: false });
+    // The first switch copied the live sound, so A holds Singing Echo as it was then.
+    expect(presets()).toMatchObject({ currentName: 'Singing Echo', dirty: false });
   });
 
   it('keeps ⌘S out of other text fields and held keys, and asks first while auditioning', async () => {
@@ -583,13 +591,13 @@ describe('PresetBrowser', () => {
       await flush();
     });
     await openBrowser();
-    fireEvent.click(option('Singing Echo Lead'));
+    fireEvent.click(option('Singing Echo'));
     await settle();
     fireEvent.keyDown(search(), { key: 's', metaKey: true });
     await settle();
     expect(save).not.toHaveBeenCalled();
     expect(screen.getByRole('status')).toHaveTextContent(
-      'Choose first: Enter keeps Singing Echo Lead, Esc goes back to Sunday set with your edits. Then save.',
+      'Choose first: Enter keeps Singing Echo, Esc goes back to Sunday set with your edits. Then save.',
     );
     expect(dialog()).toBeInTheDocument();
   });
@@ -605,7 +613,7 @@ describe('PresetBrowser', () => {
 
     fireEvent.keyDown(search(), { key: 'Escape' });
     await settle();
-    expect(presets().currentName).toBe('Chorus Clean');
+    expect(presets().currentName).toBe('Glassy Chorus');
     expect(screen.getByRole('status')).toHaveTextContent('Deleted Sunday set');
     await openBrowser();
     fireEvent.keyDown(search(), { key: 'Escape' });
@@ -614,7 +622,7 @@ describe('PresetBrowser', () => {
     fireEvent.click(screen.getByRole('button', { name: /Undo/ }));
     await settle();
     expect(presets().items.some((p) => p.id === SUNDAY)).toBe(true);
-    expect(presets().currentName).toBe('Chorus Clean');
+    expect(presets().currentName).toBe('Glassy Chorus');
   });
 
   it('follows a rename of the preset Esc goes back to, edits and all', async () => {
@@ -625,7 +633,7 @@ describe('PresetBrowser', () => {
     });
     render(<Shell />);
     await openBrowser();
-    fireEvent.click(option('Singing Echo Lead'));
+    fireEvent.click(option('Singing Echo'));
     fireEvent.click(option('Sunday set'));
     await settle();
     fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
@@ -633,7 +641,7 @@ describe('PresetBrowser', () => {
     fireEvent.change(input, { target: { value: 'Sunday late' } });
     fireEvent.submit(input);
     await settle();
-    fireEvent.click(option('Singing Echo Lead'));
+    fireEvent.click(option('Singing Echo'));
     await settle();
 
     fireEvent.keyDown(search(), { key: 'Escape' });

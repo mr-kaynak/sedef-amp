@@ -1,8 +1,8 @@
 {
   "format": "sedef-preset",
   "version": 1,
-  "id": "sustain-fuzz-lead",
-  "name": "Sustain Fuzz Lead",
+  "id": "sustain-fuzz",
+  "name": "Sustain Fuzz",
   "folder": "Lead",
   "author": "Sedef",
   "tags": ["fuzz", "delay", "hall", "solo"],

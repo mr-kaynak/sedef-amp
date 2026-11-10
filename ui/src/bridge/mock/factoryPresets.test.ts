@@ -41,9 +41,9 @@ describe('factory presets', () => {
       expect(parsePresetFile(text)?.info.id).toBe(`factory:${stem}`);
     }
     const renamed = parsePresetFile(
-      '{"format":"sedef-preset","version":1,"id":"nacre","name":"Chorus Clean","parameters":{}}',
+      '{"format":"sedef-preset","version":1,"id":"nacre","name":"Glassy Chorus","parameters":{}}',
     );
-    expect(renamed?.info).toMatchObject({ id: 'factory:nacre', name: 'Chorus Clean' });
+    expect(renamed?.info).toMatchObject({ id: 'factory:nacre', name: 'Glassy Chorus' });
   });
 
   it('covers every category, amp and pedal', () => {

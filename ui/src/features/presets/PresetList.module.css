@@ -59,8 +59,11 @@
   font-variant-numeric: tabular-nums;
 }
 
-.group .row:first-of-type {
-  margin-top: 3px;
+/* Two columns: a category reads down the first, then the second. */
+.rows {
+  column-count: 2;
+  column-gap: 20px;
+  padding-top: 3px;
 }
 
 /* Rows ---------------------------------------------------------------------------------------- */
@@ -68,7 +71,7 @@
 .row {
   position: relative;
   display: grid;
-  grid-template-columns: 22px minmax(0, 272px) minmax(0, 1fr) minmax(0, auto);
+  grid-template-columns: 20px minmax(0, 212px) minmax(0, 1fr) minmax(0, auto);
   align-items: center;
   gap: 10px;
   height: 26px;
@@ -76,6 +79,7 @@
   /* Under the playing row's shadow ring, so forced colors still draw its edge. */
   border: 1px solid transparent;
   border-radius: var(--r-ctl);
+  break-inside: avoid;
   cursor: pointer;
   /* An arrow key keeps the row clear of the sticky header. */
   scroll-margin-top: 32px;
@@ -119,29 +123,40 @@
   }
 }
 
+/* Quiet until wanted: the star shows on the row under the pointer and on favourites. */
 .star {
   display: grid;
   place-items: center;
-  width: 22px;
+  width: 20px;
   height: 22px;
   border-radius: var(--r-hw);
-  color: var(--bone-4);
-  transition: color var(--dur-1) var(--ease-out);
+  color: var(--bone-3);
+  opacity: 0;
+  transition:
+    color var(--dur-1) var(--ease-out),
+    opacity var(--dur-1) var(--ease-out);
 }
 
 @media (hover: hover) {
   .row:hover .star {
-    color: var(--bone-3);
+    opacity: 1;
   }
 
-  .star:hover,
-  .row:hover .star:hover {
+  .star:hover {
     color: var(--bone);
+  }
+}
+
+/* No hover to reveal it on touch: a faint star to tap. */
+@media (hover: none) {
+  .star {
+    opacity: 0.45;
   }
 }
 
 .star[data-on] {
   color: var(--nacre-gold);
+  opacity: 1;
 }
 
 .nameLine {
@@ -216,18 +231,6 @@
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
-}
-
-.tag {
-  flex: none;
-  color: var(--bone-3);
-  font-size: var(--t-11);
-}
-
-.tag::before {
-  content: '#';
-  margin-right: 1px;
-  color: var(--bone-4);
 }
 
 .folder {

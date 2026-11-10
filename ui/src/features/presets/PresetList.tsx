@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// The result list: a listbox of one-line rows under category headers. Rows are options, so they
-// hold no focusable controls; the star is a mouse shortcut for the Favourite button and the F
-// key. What a row leaves out (the note, the author, the cab) is in the strip under the list.
+// The result list: a listbox of one-line rows in two columns under category headers; a category
+// reads down its first column, then its second, which is the order the arrow keys take. Rows
+// are options, so they hold no focusable controls; the star is a mouse shortcut for the
+// Favourite button and the F key, shown on the row under the pointer and on favourites. What a
+// row leaves out (the note, the tags, the author, the cab) is in the strip under the list.
 import { useEffect, useRef } from 'react';
 import type { KeyboardEvent, MouseEvent, ReactNode } from 'react';
 import { Icon } from '../../controls/Icon';
@@ -134,11 +136,6 @@ export function PresetList({
         </span>
         <Chain p={p} />
         <span className={styles.meta}>
-          {p.tags.map((t) => (
-            <span key={t} className={styles.tag}>
-              {t}
-            </span>
-          ))}
           {flat && <span className={styles.folder}>{p.folder || 'No category'}</span>}
           {p.category === 'User' && <span className={styles.user}>User</span>}
         </span>
@@ -159,21 +156,23 @@ export function PresetList({
         className={styles.list}
         onKeyDown={onKeyDown}
       >
-        {flat
-          ? groups.flatMap((g) => g.items).map(row)
-          : groups.map((g, i) => (
-              <div key={g.name} role="group" aria-labelledby={headerId(i)} className={styles.group}>
-                <div className={styles.header} role="presentation">
-                  <span id={headerId(i)} className={styles.headerName}>
-                    {g.name || 'No category'}
-                  </span>
-                  <span className={styles.headerCount} aria-hidden="true">
-                    {g.items.length}
-                  </span>
-                </div>
-                {g.items.map(row)}
+        {flat ? (
+          <div className={styles.rows}>{groups.flatMap((g) => g.items).map(row)}</div>
+        ) : (
+          groups.map((g, i) => (
+            <div key={g.name} role="group" aria-labelledby={headerId(i)} className={styles.group}>
+              <div className={styles.header} role="presentation">
+                <span id={headerId(i)} className={styles.headerName}>
+                  {g.name || 'No category'}
+                </span>
+                <span className={styles.headerCount} aria-hidden="true">
+                  {g.items.length}
+                </span>
               </div>
-            ))}
+              <div className={styles.rows}>{g.items.map(row)}</div>
+            </div>
+          ))
+        )}
       </div>
       {count === 0 && <div className={styles.empty}>{empty}</div>}
     </div>

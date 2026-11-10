@@ -1,8 +1,8 @@
 {
   "format": "sedef-preset",
   "version": 1,
-  "id": "cocked-wah-crunch",
-  "name": "Cocked Wah Crunch",
+  "id": "cocked-wah",
+  "name": "Cocked Wah",
   "folder": "Crunch",
   "author": "Sedef",
   "tags": ["wah", "rock"],

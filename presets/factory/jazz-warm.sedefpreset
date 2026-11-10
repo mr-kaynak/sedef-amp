@@ -1,8 +1,8 @@
 {
   "format": "sedef-preset",
   "version": 1,
-  "id": "jazz-warm-clean",
-  "name": "Jazz Warm Clean",
+  "id": "jazz-warm",
+  "name": "Jazz Warm",
   "folder": "Clean",
   "author": "Sedef",
   "tags": ["jazz", "plate"],

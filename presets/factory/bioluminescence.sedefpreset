@@ -2,7 +2,7 @@
   "format": "sedef-preset",
   "version": 1,
   "id": "bioluminescence",
-  "name": "Chorus Echo Lead",
+  "name": "Chorus & Echo",
   "folder": "Lead",
   "author": "Sedef",
   "tags": ["boost", "chorus", "delay", "solo"],

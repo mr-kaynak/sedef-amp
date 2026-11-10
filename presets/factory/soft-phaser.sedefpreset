@@ -1,8 +1,8 @@
 {
   "format": "sedef-preset",
   "version": 1,
-  "id": "phaser-clean",
-  "name": "Phaser Clean",
+  "id": "soft-phaser",
+  "name": "Soft Phaser",
   "folder": "Clean",
   "author": "Sedef",
   "tags": ["phaser", "compressor"],

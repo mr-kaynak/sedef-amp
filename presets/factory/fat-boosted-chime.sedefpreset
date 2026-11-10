@@ -1,8 +1,8 @@
 {
   "format": "sedef-preset",
   "version": 1,
-  "id": "chime-boost-lead",
-  "name": "Chime Boost Lead",
+  "id": "fat-boosted-chime",
+  "name": "Fat Boosted Chime",
   "folder": "Lead",
   "author": "Sedef",
   "tags": ["boost", "delay", "plate", "solo"],

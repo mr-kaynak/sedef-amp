@@ -75,11 +75,11 @@ describe('applyPresetState', () => {
   const name = () => usePresetStore.getState().state.currentName;
 
   it('drops a state older than the one it has, and takes one without a revision', () => {
-    applyPresetState(at(5, 'Singing Echo Lead'));
-    applyPresetState(at(4, 'Chorus Clean')); // an answer overtaken by a later broadcast
-    expect(name()).toBe('Singing Echo Lead');
-    applyPresetState(at(5, 'Singing Echo Lead again'));
-    expect(name()).toBe('Singing Echo Lead again');
+    applyPresetState(at(5, 'Singing Echo'));
+    applyPresetState(at(4, 'Glassy Chorus')); // an answer overtaken by a later broadcast
+    expect(name()).toBe('Singing Echo');
+    applyPresetState(at(5, 'Singing Echo again'));
+    expect(name()).toBe('Singing Echo again');
     applyPresetState(at(undefined, 'Old plugin'));
     expect(name()).toBe('Old plugin');
     applyPresetState(at(1, 'Reconnected'));

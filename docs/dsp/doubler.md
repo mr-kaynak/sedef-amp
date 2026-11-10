@@ -228,7 +228,7 @@ All from the lab in this lane's scratchpad (`lab.cpp`, the v0.2.0 Doubler
 compiled next to the new one). Noise phrase: 94 white-noise notes (1 ms attack,
 80 ms decay, 140–460 ms apart); the module detects their onsets itself. Riff
 and strum: the engine (`sedef-render`), Modern Metal Rhythm preset with a synthetic
-palm-muted 140 bpm riff, Chorus Clean (chorus and reverb off) with a synthetic strum,
+palm-muted 140 bpm riff, Glassy Chorus (chorus and reverb off) with a synthetic strum,
 onsets from the DI.
 
 Per-note offset of the double, measured from the audio (correlation over each

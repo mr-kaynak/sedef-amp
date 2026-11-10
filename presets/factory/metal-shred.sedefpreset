@@ -1,8 +1,8 @@
 {
   "format": "sedef-preset",
   "version": 1,
-  "id": "metal-shred-lead",
-  "name": "Metal Shred Lead",
+  "id": "metal-shred",
+  "name": "Metal Shred",
   "folder": "Lead",
   "author": "Sedef",
   "tags": ["boost", "delay", "solo", "metal"],

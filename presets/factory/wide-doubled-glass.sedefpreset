@@ -1,8 +1,8 @@
 {
   "format": "sedef-preset",
   "version": 1,
-  "id": "wide-glass-clean",
-  "name": "Wide Glass Clean",
+  "id": "wide-doubled-glass",
+  "name": "Wide Doubled Glass",
   "folder": "Clean",
   "author": "Sedef",
   "tags": ["doubler", "plate"],

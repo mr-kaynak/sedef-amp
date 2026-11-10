@@ -8,7 +8,7 @@ Each file is JSON:
   "format": "sedef-preset",
   "version": 1,
   "id": "nacre",
-  "name": "Chorus Clean",
+  "name": "Glassy Chorus",
   "folder": "Clean",
   "author": "Sedef",
   "tags": ["chorus", "compressor", "plate"],

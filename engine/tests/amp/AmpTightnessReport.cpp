@@ -313,7 +313,7 @@ TEST_CASE ("High-gain tightness report", "[.tight]")
                   s.abyss.mid = 0.4f;
                   s.abyss.bass = 0.55f;
               } },
-            { "Singing Echo Lead",
+            { "Singing Echo",
               [] (auto& s) {
                   s.abyss.gain = 0.55f;
                   s.abyss.mid = 0.55f;

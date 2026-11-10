@@ -18,7 +18,7 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
-- **Factory presets are named for their sound**: "Chorus Clean", "Tight Metal Boost", "Surf
+- **Factory presets are named for their sound**: "Glassy Chorus", "Tight Metal Boost", "Surf
   Tremolo" instead of Nacre, Holdfast, Tidewater. The 17 presets of 0.5.0 sound as they did and
   keep their ids, so favourites, Recent and saved sessions still find them and show the new
   name.

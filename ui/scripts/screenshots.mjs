@@ -23,7 +23,7 @@ const SHOTS = {
   // The standalone app, the demo bass line held on a sounding note.
   midi: { app: MIDI, query: 'host=standalone&frame=1450' },
   amp: { query: 'section=amp' },
-  // 0.3.0's five pedals with Pearl on (Chorus Clean, the start-up preset, has only the three it uses).
+  // 0.3.0's five pedals with Pearl on (Glassy Chorus, the start-up preset, has only the three it uses).
   pedals: { query: 'section=pedals&board=gate,tide,pearl,coral,ripple&set=pearlEnabled:1' },
   // Add pedal's picker over a board with room on it.
   'pedal-picker': {
@@ -105,7 +105,7 @@ const SHOTS = {
       // Audition the next preset, so the action row offers the way back to the first one.
       await page.getByRole('button', { name: /Open preset browser/ }).click();
       await page.getByRole('combobox', { name: 'Search presets' }).press('ArrowDown');
-      await page.getByRole('option', { name: /^Country Snap, playing/ }).waitFor();
+      await page.getByRole('option', { name: /^Jazz Warm, playing/ }).waitFor();
       await page.waitForTimeout(400);
     },
   },

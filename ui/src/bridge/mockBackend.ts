@@ -56,7 +56,7 @@ export interface MockOptions {
   uiState?: UiState | null;
   /** localStorage key used to keep UI state across reloads in the browser; null disables. */
   persistKey?: string | null;
-  /** Preset loaded at startup; null starts from Init. Defaults to Chorus Clean (factory:nacre). */
+  /** Preset loaded at startup; null starts from Init. Defaults to Glassy Chorus (factory:nacre). */
   initialPresetId?: string | null;
   /**
    * Values applied on top of the initial preset as if they were part of it (no dirty dot).

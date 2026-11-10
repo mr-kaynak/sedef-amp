@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// The strip under the list: what a one-line row leaves out (the note, the author, the cab) for
+// The strip under the list: what a one-line row leaves out (the note, the tags, the author, the cab) for
 // the row under the pointer, else the highlighted one, and what you can do with the highlighted
 // one.
 import type { ReactNode } from 'react';
@@ -41,6 +41,15 @@ export function PresetDetail({ preset, hovered, back }: PresetDetailProps) {
                 <span>{shown.folder || 'No category'}</span>
                 <span>{shown.author || shown.category}</span>
                 <span>{CAB_NAMES[shown.cab] ?? ''}</span>
+                {shown.tags.length > 0 && (
+                  <span className={styles.tags}>
+                    {shown.tags.map((t) => (
+                      <span key={t} className={styles.tag}>
+                        {t}
+                      </span>
+                    ))}
+                  </span>
+                )}
               </p>
               <p className={styles.state}>
                 <Led on={playing} size={6} />

@@ -1,8 +1,8 @@
 {
   "format": "sedef-preset",
   "version": 1,
-  "id": "dry-studio-clean",
-  "name": "Dry Studio Clean",
+  "id": "dry-studio",
+  "name": "Dry Studio",
   "folder": "Clean",
   "author": "Sedef",
   "tags": ["rhythm"],

@@ -35,7 +35,7 @@ We studied a few well-liked libraries for interaction patterns only (no code or 
 | ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
 | A large browser over the rig instead of a popover                                                      | Choosing a sound is a mode of its own. A 400 px popover could only show names; the panel shows what each preset _is_. The header stays live (gain, meters, A/B, tuner).                | `PresetBrowser.tsx`, `App.tsx`          |
 | Click to audition (GarageBand)                                                                         | Guitarists choose by ear. One click, or ↑/↓, and the preset plays while the list stays put.                                                                                            | `session.ts` `audition`                 |
-| Esc returns exactly to where you were                                                                  | Auditioning is only free if the way back is certain, including unsaved tweaks. The action row says so: "Esc returns to Chorus Clean with your edits".                                                | plugin snapshots, `session.ts` `cancel` |
+| Esc returns exactly to where you were                                                                  | Auditioning is only free if the way back is certain, including unsaved tweaks. The action row says so: "Esc returns to Glassy Chorus with your edits".                                                | plugin snapshots, `session.ts` `cancel` |
 | Undo instead of confirmations                                                                          | A dialog interrupts and trains people to click through. Loads that drop edits and deletions are instant and offer Undo in a toast (also ⌘/Ctrl+Z).                                     | `Toasts.tsx`, `session.ts`              |
 | One list grouped by category, with a library switch | A factory library of some fifty presets reads best as one dense list: a category header, then one line per preset. _Whose_ presets (all, favourites, recent, yours) is a four-way switch; _what kind_ is the header you scroll to. A rail, tag chips and a sort control cost a third of the window and answered questions a list this size doesn't raise. | `PresetBrowser`, `PresetList`, `library.ts` |
 | One line per preset that says what it is | The name says the sound; then the switched-on chain with the amp badge in the amp's own finish (`Tide → Ripple → Lagoon → Fathom`) and the tags. The note, the author and the cab show in a strip under the list for the row under the pointer, else the highlighted row, so the list never moves. | `PresetList.tsx`, `PresetDetail.tsx` |
@@ -75,7 +75,7 @@ and the detail pane: search finds a tag, an amp or a pedal as you type it.
   showing, which a plain notice never replaces). With the shortcut list open, Esc closes the
   list first.
 - If the sound you opened on had unsaved edits and you keep something else, a toast says
-  "Loaded Singing Echo Lead" with **Undo**, which restores the browse snapshot, edits included.
+  "Loaded Singing Echo" with **Undo**, which restores the browse snapshot, edits included.
 - Preset commands go out one at a time, in order, so a restore or snapshot always follows the
   loads before it. Arrowing faster than the plugin answers sends only the newest waiting load,
   and the highlighted row runs ahead of the playing preset meanwhile. Every state the plugin
@@ -161,8 +161,8 @@ Two slots next to the preset bar. The active slot is what you hear; the plugin h
   "Replace “Sunday set”"); a factory preset with the same name (a note only, as yours lives under
   User); a new category without a name disables saving.
 - ⌘/Ctrl+S while the browser auditions over unsaved edits saves nothing: it is not clear whether
-  you mean the edits or the audition, so a toast asks "Choose first: Enter keeps Singing Echo Lead, Esc
-  goes back to Chorus Clean with your edits. Then save."
+  you mean the edits or the audition, so a toast asks "Choose first: Enter keeps Singing Echo, Esc
+  goes back to Glassy Chorus with your edits. Then save."
 - After a save, rename or delete inside the browser before anything was auditioned, what plays
   becomes the state Esc returns to. After an audition, Esc still goes back to the sound the
   browser opened on; a rename of that preset carries over to the snapshot.
@@ -215,7 +215,7 @@ every value exactly, and the saved state must not change (`plugin/smoke/HostSmok
 
 - The browser is a labelled dialog; the library switch is a radio group; the list is a listbox
   whose categories are groups named by their headers and whose options carry the whole row as
-  their name ("Chorus Clean, playing. Tide → Ripple → Lagoon 1x12 → Fathom. Glassy, lightly
+  their name ("Glassy Chorus, playing. Tide → Ripple → Lagoon 1x12 → Fathom. Glassy, lightly
   squeezed clean… Factory Clean. tags chorus, compressor, plate"), so nothing a sighted player
   gets from the strip is missing. The strip is a labelled complementary region. Rows hold no
   focusable controls; the star is a mouse shortcut for F and for the favourite button.

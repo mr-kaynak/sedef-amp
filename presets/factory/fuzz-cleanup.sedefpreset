@@ -1,8 +1,8 @@
 {
   "format": "sedef-preset",
   "version": 1,
-  "id": "fuzz-cleanup-crunch",
-  "name": "Fuzz Cleanup Crunch",
+  "id": "fuzz-cleanup",
+  "name": "Fuzz Cleanup",
   "folder": "Crunch",
   "author": "Sedef",
   "tags": ["fuzz", "blues"],

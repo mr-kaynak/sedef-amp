@@ -2,7 +2,7 @@
   "format": "sedef-preset",
   "version": 1,
   "id": "riptide",
-  "name": "Singing Echo Lead",
+  "name": "Singing Echo",
   "folder": "Lead",
   "author": "Sedef",
   "tags": ["delay", "hall", "solo"],

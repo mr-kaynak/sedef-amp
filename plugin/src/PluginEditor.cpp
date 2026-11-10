@@ -730,7 +730,7 @@ constexpr const char* kSmokePresetScript = R"js((() => {
     const back = await call('sedef_presets_compare', 'switch');
     const compareMismatches = differences(before, await values());
     const compare = back.compare.active === 'A' && !!back.compare.other &&
-      back.compare.other.name === 'Singing Echo Lead' && back.currentName === start.currentName;
+      back.compare.other.name === 'Singing Echo' && back.currentName === start.currentName;
     // The pedalboard travels with snapshots, presets and A/B, and counts towards "dirty".
     const pedals = async () => (await call('sedef_hello', 2)).board.pedals;
     const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -748,7 +748,7 @@ constexpr const char* kSmokePresetScript = R"js((() => {
     const presetBoard = marianaBoard && same(await pedals(), ['gate', 'trench', 'kelp']);
     await call('sedef_presets_restore', 'browse');
     const boardRestored = same(await pedals(), custom);
-    await call('sedef_presets_compare', 'switch'); // to B: Singing Echo Lead, from the earlier A/B
+    await call('sedef_presets_compare', 'switch'); // to B: Singing Echo, from the earlier A/B
     await call('sedef_board_set', ['pearl']);
     await call('sedef_presets_compare', 'switch');
     const boardA = same(await pedals(), custom);

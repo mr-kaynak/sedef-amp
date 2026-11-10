@@ -1,8 +1,8 @@
 {
   "format": "sedef-preset",
   "version": 1,
-  "id": "touch-wah-lead",
-  "name": "Touch Wah Lead",
+  "id": "touch-wah",
+  "name": "Touch Wah",
   "folder": "Lead",
   "author": "Sedef",
   "tags": ["wah", "delay", "solo"],

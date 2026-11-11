@@ -6,6 +6,39 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+Sedef MIDI after its first session with a player: a held note is steady, low strings down to F♯1
+are tracked, bends are smooth, and notes come sooner.
+
+### Added
+
+- **Sedef MIDI: Lowest note** (Auto, E2, B1, F♯1). Seven- and eight-string guitars and low
+  tunings are tracked down to F♯1 (and to E1 in a dropped tuning); before, nothing under a low B
+  was played. Auto is a six-string guitar, exactly as before, until you play a lower string, and
+  then keeps the wider range (a host saves it with the session). A low note takes two of its
+  periods to tell: 47 ms for a low F♯, 36 for a low B.
+- **Sedef MIDI shows what the audio buffer costs**: the buffer in milliseconds and the
+  interface's input latency at the bottom of the standalone app's window, with a way to a
+  smaller buffer when it is long.
+
+### Changed
+
+- **Sedef MIDI: a held note sends no pitch bend.** In Notes + Bend the pitch wheel now stays at
+  exactly its centre while you only hold a note, and a centred bend goes out with every
+  note-on. Before, every small move of the string (its tuning, its drift as it fades) went out
+  as pitch bend, about 190 messages a second, which made some instruments waver on every note.
+  A bend starts once the string has moved a quarter of a semitone, follows it smoothly, and
+  returns to exactly the centre. Notes mode is unchanged: it never sent pitch bend.
+- **Sedef MIDI: a string bent across a semitone stays one note** in Notes + Bend, up to the bend
+  range; past it the next note starts without a gap.
+- **Sedef MIDI: a slide is not a burst of notes.** A fast slide gives the first fret it reaches
+  and the fret it stops on; a slow one still gives every fret.
+- **Sedef MIDI's standalone app starts with a 3 ms audio buffer** (128 samples at 44.1 or 48 kHz)
+  instead of the system's usual 512: every note comes about 9 ms sooner. It does this once, also
+  after an update; a size you pick afterwards in Audio input… stays.
+- **Sedef MIDI's notes leave the MIDI port sooner with a long buffer**: at most 3 ms after their
+  buffer arrives, not a whole buffer after their sample.
+- Sedef MIDI's window is a little taller, for the new control.
+
 ## [0.7.0] - 2026-11-10
 
 The Pedals page is redrawn: every pedal has its own enclosure and a full board fits on one

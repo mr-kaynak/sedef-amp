@@ -775,3 +775,234 @@ strum, median 2; one under 40 ms), none before the first strum, never two at onc
 **Left open:** the first note after Sedef MIDI starts (60 ms, once per session); fretting moves on
 strings still within 10 dB of their attack; and in Steady, a note whose ringing string the finger
 touches before plucking lands up to 16 ms early.
+
+### The first session: a held note, low strings, bends and the delay (2026-11-11)
+
+The musician played 0.6.0's standalone app into a bass instrument and reported, in his order of
+importance: too much delay; no note under a low B; a held note wavers in pitch, like a chorus;
+bends only half work and slides don't. He had sent a screen recording with the instrument's
+sound. In it Sedef MIDI was on Notes + Bend, octave 0, Fastest (read from which segments are
+lit: the labels are too small to read). His recordings stay off the repository.
+
+#### A held note
+
+**What the recording shows.** The instrument's pitch on ten held notes (31 to 83 Hz, the
+instantaneous frequency of their first four partials): a modulation of 3.65 to 3.66 Hz, ±12 to
+14 cents, the same rate at every pitch and the same depth on every partial (a pitch modulation,
+not two detuned voices), undamped for three seconds, and starting again with each note (its
+first peak 70 to 140 ms after the note starts, on about 40 notes). Every note also sits 15 to
+35 cents sharp, and a few start in tune for 50 to 90 ms and then jump there.
+
+**What Sedef MIDI sent.** Notes + Bend sent the tracked pitch's distance from the equal-tempered
+note, every 2 ms, whenever it moved 1.5 cents. On his chromatic DI that is 9629 pitch bends for
+84 notes, 194 a second: each note starts with its own offset (median 7 cents, up to 38: tuning
+and fretting), drifts as it decays, steps by more than 5 cents six times a note (the tracker
+changes the source of its reading once a note holds still), and swings 50 to 75 cents at its end
+when the fretting hand moves on. On his three long notes (2.0 to 2.6 s) the bend, after the
+first 100 ms, has a standard deviation of 1.7 to 3.9 cents and nothing near 3.66 Hz; a perfectly
+steady synthetic string gets one step of 6 to 10 cents about 100 ms in. Short notes started
+again inside a held note, the other suspect, do not occur: Notes mode gives 84 notes for 78, the
+five short ones all a fretting move before a pluck.
+
+**The cause.** A rate that ignores the note and restarts with each note is an oscillator in the
+instrument, not anything in the pitch stream (nothing in Sedef MIDI has a 273 ms clock). What
+fits all of it is an instrument that takes a pitch wheel off centre as a played bend and adds a
+bend and vibrato of its own; Sedef MIDI never left the wheel centred. That cannot be proved
+without the instrument, and does not need to be: a held note has no business sending pitch
+bend, and in Notes mode, the default, none was ever sent.
+
+**The fix** (the class comment in `GuitarToMidi.h` has the rules). A centred bend goes out with
+every note-on, and the wheel stays at exactly the centre while a note is only held. The bend is
+counted from where the note sits, not from equal temperament: the note's centre is its reading
+over its first 30 ms, then follows the string's slow drift at 20 cents a second, within 35 cents
+of the semitone. A bend starts when the pitch has been 25 cents from the centre for 40 ms (or 60
+cents, followed all the way), then follows the string at up to 3000 cents a second, ignoring
+moves of the reading under 3 cents; it ends, exactly centred, back within 10 cents for 60 ms or
+at rest within a fret's tuning of the semitone. The pitch the bend follows is the tracker's
+estimator reading (`MonoTracker::followedHz()`), which has no step when a note holds still.
+
+Why 25 cents: on his chromatic DI, 74 held notes, the pitch is within 1.6 cents of the note's
+centre half of the time, 5.8 cents 90 % and 16.4 cents 99 % of it; 4 % of the notes pass 25
+cents in their first 100 ms and 4 % while held, all of them fretting moves, which the 40 ms and
+the falling level rule out. The drift from the start of a hold to its end is −2.3 cents in the
+median and −10.9 at the 10th percentile, which is what the moving centre is for.
+
+| Notes + Bend, pitch bends off centre | 0.7.0 | Now |
+|---|---:|---:|
+| His chromatic DI (84 notes) | 9629 | 0 |
+| The same, a fourth and a minor sixth lower | | 0 and 6 |
+| His strummed chords (28 notes) | 829 | 0 |
+| Seven piezo DIs, fingerstyle chords (about 400 notes) | 13 169 | 355 |
+| Held synthetic strings, 3 s: drift of 0 and −5 cents/s, tuned −12 and +18 cents, four pitches, three pickups | every one | 0 |
+
+In Notes mode his chromatic DI gives the same events as 0.7.0, byte for byte.
+
+#### Bends and slides
+
+What each does, and why slides are not pitch bend:
+
+| | Notes | Notes + Bend |
+|---|---|---|
+| Held note, narrow vibrato (±15 cents) | note-on, note-off | the same, and a centred bend before the note-on |
+| String bend inside the bend range | the notes it passes | one note; the bend follows, and returns to exactly the centre |
+| String bend past the range | the notes it passes | the next note starts, without a gap |
+| Wide vibrato (±50 cents) | one note | followed |
+| Hammer-on, pull-off | a note | a note |
+| Slide | its frets: the first reached, then only frets held 30 ms, so a fast slide is two notes and a slow one every fret | the same |
+
+Measured on synthetic strings (E2, A2, G3): bends of a semitone in 80 to 600 ms and of a whole
+step in 150 to 600 ms, held and released, are one note each; what sounds is within 27 cents of
+the string (allowing 60 ms), 5.8 cents rms at worst; no message moves the bend more than 6
+cents; a held bend is exact to 3 cents and a released one ends at exactly 0. A whole step in
+80 ms moves too fast to tell from a fret taken at once and comes out as notes. Slides over 2, 5
+and 12 frets at 15 to 120 ms a fret: never two note-ons closer than 25 ms after the first fret,
+the last note always the fret the slide stopped on, no gap.
+
+A fret taken at once is a note in both modes. Turning it into a bend was built and measured: on
+the bass lines 13 % of the notes (later 3 %, with every cue that could be found: the level's dip
+before a pluck, the pick's click, the level's continuity) lost their attack, because a softly
+picked note on the same string looks the same. That is worse than a slide played as notes.
+
+#### Down to F♯1
+
+"A low B gives B, a low A gives nothing" was one constant: `kMinNoteHz`, 60 Hz. Under it, the
+tracker looked no lower than 50 Hz, and the waits that rule out a lower note assumed a
+six-string.
+
+`Settings::lowNote` (the parameter Lowest Note, appended) has three ranges and Automatic:
+
+| Range | Lowest string | Plays down to | The tracker looks down to | Its rumble filter |
+|---|---|---|---|---|
+| E2 | 82.4 Hz | 60 Hz | 50 Hz | 40 Hz |
+| B1 | 61.7 Hz | 50 Hz | 46 Hz | 30 Hz |
+| F♯1 | 46.2 Hz | 39.5 Hz | 38 Hz | 22 Hz |
+
+The E2 range is 0.7.0, exactly. A lower range costs the notes above something, so it is not
+always on: a first reading can name any partial of a low string, so a note above the lowest
+string's octave must wait one period of that string, unless it alone accounts for the signal
+since the pick (99 % of it repeats at the note's period), which a cleanly played note does.
+Three more things were needed, each found on the lowered sets below: a note above the lowest
+string's octave must account for the signal since the pick, not only for its own last period (a
+low string picked again made the tracker read one partial after another for 45 ms); the longer
+period is compared with the note's own on the residual each leaves, the note's period taken
+exactly (a low string whose 4th partial is its strongest repeats 97 % at that partial's
+period); and a low string's 3 ms level swings 10 to 20 dB with every period, which read as a
+mute (his lowered DI: a low F♯ of one second came out as two notes of 14 ms), so a string under
+the low E is as loud as the loudest millisecond of its last period.
+
+**Automatic** (the default) is the E2 range, with the tracker looking down to 38 Hz, until a note
+under the range has sounded for 150 ms; then it is the B1 or the F♯1 range, kept across
+`reset()` and `prepare()` and saved with a host's session. Before it has learned, a note under
+60 Hz needs a third period (two strings ringing together repeat at such a period for a moment:
+two notes of 15 ms on the sloppy lines without it). On a six-string it sends the notes the E2
+range sends, 493 of 494 within 3 ms of where that range puts them, and never widens, on the
+lines, the sloppy lines, the fretted-first runs and the strummed chords.
+
+There is no DI of his low strings, so the material is the suite's lines on strings a fourth lower
+(B1, E2, A2 where a guitar has E2, A2, D3) and a minor seventh lower (F♯1, B1, E2), and his own
+chromatic DI slowed down by a fourth and by a minor sixth (its lowest run then starts on A1 and
+on F♯1), against the six-string bars:
+
+| Set | Range | Notes | Right | Wrong (octave) | Missed | Extra | Under 40 ms |
+|---|---|---:|---:|---:|---:|---:|---:|
+| Bass lines, a fourth lower | B1 | 864 | 100 % | 0 | 0 | 1 | 1 |
+| Sloppy lines, a fourth lower | B1 | 864 | 98.84 % | 3 (0) | 7 | 11 | 11 |
+| Fretted first, a fourth lower | B1 | 312 | 100 % | 0 | 0 | 0 | 0 |
+| From silence, a fourth lower | B1 | 108 | 98.15 % | 0 | 2 | 0 | 0 |
+| Bass lines, a seventh lower | F♯1 | 864 | 99.88 % | 0 | 1 | 0 | 0 |
+| Sloppy lines, a seventh lower | F♯1 | 864 | 98.61 % | 4 (0) | 8 | 17 | 12 |
+| Fretted first, a seventh lower | F♯1 | 312 | 100 % | 0 | 0 | 0 | 0 |
+| From silence, a seventh lower | F♯1 | 108 | 100 % | 0 | 0 | 0 | 0 |
+| Bass lines, a seventh lower | Automatic, from a six-string each time | 864 | 99.77 % | 0 | 2 | 3 | 2 |
+| Sloppy lines, a seventh lower | Automatic, the same | 864 | 98.50 % | 4 (0) | 9 | 18 | 13 |
+| His chromatic DI, a fourth lower, Fastest / Steady | Automatic | 78 | 100 % / 100 % | 0 | 0 | 6 / 2 | 4 / 0 |
+| His chromatic DI, a minor sixth lower, Fastest / Steady | Automatic | 78 | 100 % / 100 % | 0 | 0 | 7 / 3 | 4 / 0 |
+
+(The two notes missed from silence a fourth lower are one note on two pickups: the finger's
+touch squeaks 9 ms before the pluck, and the pick seen there is judged before the pluck's level
+has come. The extra notes on his lowered DI are the fretting moves of the original.) Before:
+nothing under B1 was played, in any setting.
+
+Pick to note-on, a note picked a second time, with a pick and with the fingers, on a bridge and
+a neck pickup, median (and the most), 48 kHz:
+
+| Note | Two periods | E2 range | B1 range | F♯1 range |
+|---|---:|---:|---:|---:|
+| F♯1 | 43.2 ms | | | 47.0 (49.5) |
+| G1 | 40.8 | | | 44.5 (48.0) |
+| G♯1 | 38.5 | | 42.5 (45.0) | 42.5 (45.0) |
+| A1 | 36.4 | | 39.5 (43.0) | 40.0 (43.0) |
+| A♯1 | 34.3 | | 38.0 (41.0) | 37.5 (41.0) |
+| B1 | 32.4 | 35.5 (38.0) | 36.5 (39.0) | 35.5 (39.0) |
+| C2 | 30.6 | 33.5 (37.0) | 34.5 (37.0) | 33.5 (37.0) |
+| C♯2 | 28.9 | 33.0 (35.5) | 33.0 (35.5) | 32.0 (35.5) |
+| D2 | 27.2 | 31.0 (34.0) | 31.0 (34.0) | 30.5 (34.0) |
+| D♯2 | 25.7 | 29.5 (32.5) | 29.0 (31.5) | 29.0 (31.5) |
+| E2 | 24.3 | 27.5 (31.0) | 27.5 (30.0) | 27.5 (30.0) |
+| F♯2 | 21.6 | 25.5 (28.0) | 24.5 (28.0) | 27.0 (27.0) |
+| A2 | 18.2 | 21.5 (24.0) | 21.5 (24.0) | 27.0 (27.0) |
+| B2 | 16.2 | 19.5 (22.0) | 21.5 (22.0) | 22.0 (27.0) |
+| C♯3 | 14.4 | 17.5 (20.0) | 20.0 (21.5) | 20.0 (22.5) |
+| D3 | 13.6 | 17.0 (19.5) | 17.5 (21.0) | 17.5 (21.0) |
+| E3 | 12.1 | 16.0 (18.0) | 16.5 (18.0) | 16.5 (18.0) |
+| G3 to E4 | 10.2 to 6.1 | 16.0 | 16.0 | 16.0 |
+
+So the low ranges cost E2 nothing, the notes from F♯2 to C♯3 up to 5.5 ms (A2 in the F♯1 range),
+and nothing above E3. In the E2 range and in Automatic on a six-string, every figure is 0.7.0's.
+
+Trench shares the tracker. Its new options (`lowestHz`, `rumbleHz`) are off by default and the
+`followedHz()` accessor changes nothing: 137 renders (every factory preset, Trench Mono and Poly
+in four settings on the synthetic DI and seven piezo DIs, and his two DIs in Mono and Poly, two
+settings, alone and through two presets) are byte-identical to main.
+
+#### The delay
+
+His setup, a low E, Fastest, as he ran 0.6.0:
+
+| Part | Before | Now | Whose |
+|---|---:|---:|---|
+| The note's pitch: two periods of the low E, and 3 ms to be sure | 27.5 ms | 27.5 ms | physics, and ours |
+| Sedef MIDI's audio buffer | 11.6 ms (512 samples at 44.1 kHz, the framework's default, each event sent one buffer after its sample) | 2.9 ms (128 samples) | ours |
+| The interface's input latency | 1 to 4 ms | the same, now shown in the app | the interface |
+| The instrument's output buffer and the interface's output | about 12 to 15 ms if it runs at 512 samples too | the same until he lowers it | the instrument |
+| **Pick to MIDI out** | **about 41 ms** | **about 32 ms** | |
+| **Pick to sound** | **about 55 ms** | **about 46 ms; about 37 with the instrument at 128 samples** | |
+
+Per string, pick to MIDI out with a 2 ms interface, before and now (before, the buffer added
+11.6 ms; now 2.9): low F♯ not played, now 52 ms; low B 49 and 41; low E 41 and 32; A2 35 and 26
+(32 in the F♯1 range); D3 31 and 22; G3 and up 30 and 21.
+
+What changed:
+- **The buffer.** The standalone app asks the device for the smallest buffer of at least 2.5 ms
+  (128 samples at 44.1 and 48 kHz) the first time it starts, also after an update from a version
+  that left the default; a size chosen afterwards in Audio input… stays. The window's footer shows
+  the buffer in ms and the device's input latency, and offers the way to a smaller one when the
+  buffer is over 6 ms.
+- **The port router.** A block's events can only go out once the block is in, and MIDI through a
+  port carries no time stamp another app would honour (the framework's `sendMessageNow` has none;
+  the block's last sample is "now"), so an event at offset o of N has already waited N − o. The
+  router used to send it o later (every event one block late, exact spacing). It still does while
+  the block is no longer than 3 ms; a longer block's events are spread over 3 ms, so a 512-sample
+  buffer costs 5.8 + 1.5 ms on average instead of 11.6 (and at most the block). The floor is the
+  rest of the block.
+- **A provisional note-on** (the note sent at the tracker's first reading after the pick, and
+  corrected if wrong) was measured, not built: on the bass lines that reading is right for 56 %
+  of the picks, wrong for 13.2 % (114 of 864), and for the rest there is none before the note is
+  sure anyway; when right it comes 2.0 ms sooner in the median (5.2 at the 90th percentile). On
+  the sloppy lines the same 13.2 % and 2.0 ms; on his DI 3.2 ms sooner on the 23 notes of 78 that
+  have such a reading. Thirteen wrong notes in 100 for 2 ms is not a timing mode worth offering.
+
+**The floor that is left** is two periods of the note (43 ms for a low F♯, 32 for a low B, 24 for
+a low E, 18 for an A, 14 for a D), the 3 to 4 ms the MIDI layer takes to be sure, 16 ms for any
+note above E3 (one period of the low E, to rule out a lower note), and the rest of the audio
+buffer. Playing the line an octave higher with the octave at −2 halves the first part.
+
+**CPU.** The tracker inside Sedef MIDI now keeps periods down to 38 Hz up to date in every
+range: 229 ns per sample (1.1 % of one core at 48 kHz) against 197 before, on the same machine in
+the same hour; `process()` still never allocates.
+
+**Left open:** a hammer-on, a pull-off and a slide cannot be pitch bend (above); a whole-step
+bend faster than about 120 ms comes out as notes; strummed chords give more notes in Automatic
+than in the E2 range (110 against 98 for 144 chords: two strings together repeat at a long
+period), as they are outside the design; a finger's squeak 9 ms before its pluck after a rest
+can lose the note; and Steady's 38 ms cannot hold a note under about B1.

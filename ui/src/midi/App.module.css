@@ -220,6 +220,30 @@
   text-underline-offset: 3px;
 }
 
+.buffer[data-long] {
+  color: var(--coral);
+}
+
+.inlineLink {
+  min-height: 20px;
+  padding: 0 2px;
+  border: none;
+  border-radius: var(--r-hw);
+  background: none;
+  color: var(--bone-2);
+  font: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--line-strong);
+  text-underline-offset: 3px;
+}
+
+@media (hover: hover) {
+  .inlineLink:hover {
+    color: var(--bone);
+    text-decoration-color: currentColor;
+  }
+}
+
 @media (hover: hover) {
   .link:hover {
     color: var(--bone);

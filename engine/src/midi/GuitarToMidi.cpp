@@ -253,10 +253,10 @@ void GuitarToMidi::prepare (double sampleRate)
         earlyAloneWindow_ = static_cast<int> (std::lround (kEarlyAloneSeconds * rate_));
         earlySkipSamples_ = samples (kAttackSkipSeconds, sampleRate);
         earlyGuardSamples_ = samples (0.0005, sampleRate);
-        earlyHeldCount_ = static_cast<int> (
-            std::lround ((kEarlyHeldSeconds - kAttackSkipSeconds) * rate_));
-        earlyHeldSkip_ = static_cast<int> (
-            std::lround ((kEarlyHeldSkipSeconds - kAttackSkipSeconds) * rate_));
+        earlyHeldCount_ =
+            static_cast<int> (std::lround ((kEarlyHeldSeconds - kAttackSkipSeconds) * rate_));
+        earlyHeldSkip_ =
+            static_cast<int> (std::lround ((kEarlyHeldSkipSeconds - kAttackSkipSeconds) * rate_));
     }
     settings_ = next_;
     settingsChanged_ = false;
@@ -334,9 +334,8 @@ void GuitarToMidi::reset() noexcept
     earlyPickAt_ = -1;
     earlyCount_ = 0;
     earlyHz_ = 0.0f;
-    earlyOld_ = false;
-    earlyNote_ = earlyUnread_ = false;
-    earlyDoubt_ = false;
+    earlyOld_ = earlyRest_ = earlyHeld_ = false;
+    earlyNote_ = earlyUnread_ = earlyDoubt_ = earlyStart_ = false;
     earlyLimit_ = 0;
 }
 
@@ -733,8 +732,8 @@ void GuitarToMidi::earlyBegin() noexcept
             for (int k = 0; k < window; ++k)
             {
                 const float x = ringAt (ago + k);
-                const float y = (1.0f - frac) * ringAt (ago + k + whole) +
-                                frac * ringAt (ago + k + whole + 1);
+                const float y =
+                    (1.0f - frac) * ringAt (ago + k + whole) + frac * ringAt (ago + k + whole + 1);
                 diff += static_cast<double> (x - y) * (x - y);
                 energy += static_cast<double> (x) * x + static_cast<double> (y) * y;
             }
@@ -799,8 +798,8 @@ void GuitarToMidi::earlyEstimate() noexcept
     if (top <= earlyMinLag_ + 1)
         return;
     // The old note rings on when taking it out leaves clearly less; then what is left is read.
-    earlyRest_ = earlyOld_ &&
-                 early_[1].energy < static_cast<double> (kEarlyRingsOn) * early_[0].energy;
+    earlyRest_ =
+        earlyOld_ && early_[1].energy < static_cast<double> (kEarlyRingsOn) * early_[0].energy;
     const auto& sums = early_[earlyRest_ ? 1u : 0u];
     // What a period leaves unexplained: 0 when the stretch repeats exactly, 1 when it does not
     // repeat at all.
@@ -850,10 +849,10 @@ void GuitarToMidi::earlyEstimate() noexcept
             const bool lowest = 2.0 * static_cast<double> (period) > rate_ / lowestHz_;
             const int window = n - lag;
             const bool clean =
-                lowest ? value <= kEarlyClean &&
-                             window >= std::max (earlyWindow_,
-                                                 static_cast<int> (kEarlyShare * period))
-                       : value <= kEarlyAlone && window >= std::max (lag, earlyAloneWindow_);
+                lowest
+                    ? value <= kEarlyClean &&
+                          window >= std::max (earlyWindow_, static_cast<int> (kEarlyShare * period))
+                    : value <= kEarlyAlone && window >= std::max (lag, earlyAloneWindow_);
             // And no shorter period may account for much of the signal: two strings ringing
             // together repeat at a period neither has, an octave under the played note is a
             // multiple of its period, and a few milliseconds of a low string can look like
@@ -985,19 +984,19 @@ int GuitarToMidi::earlyNoteFor (float& hz) const noexcept
     // Only for a pick the tracker's detector saw, its level checked, in Fastest. A pick seen
     // as the sounding note losing its period (a pick no louder than what rang) may be the
     // fretting hand taking another fret: it counts only for the same note again.
-    const bool seen = pickKind_ == PickKind::detector || (pickKind_ == PickKind::weak && earlyHeld_);
+    const bool seen =
+        pickKind_ == PickKind::detector || (pickKind_ == PickKind::weak && earlyHeld_);
     if (earlyHz_ <= 0.0f || !pickFresh_ || pickChecking_ || !seen || earlyPickAt_ != pickAt_ ||
         now_ - pickAt_ > pickWindowSamples_)
         return -1;
     hz = earlyHz_;
     const int q = quantise (midiPitch (hz) + 12.0f * static_cast<float> (settings_.octave));
-    // The note before the pick may still ring under the new one. The signal then repeats at
-    // its period too, and at every period it is a partial of: such a reading waits for the
-    // tracker, unless the pick drowned what rang.
-    // Read from what a ringing note left when taken out, the reading is of the new note
-    // alone. Otherwise, while the note before still rings (it was not steady enough to take
-    // out, or too quiet to show), the same note again and every note it is a partial of wait
-    // for the tracker, unless the pick drowned what rang.
+    // The note before the pick may still ring under the new one, and the signal then repeats
+    // at its period too, and at every period it is a partial of. Read from what a ringing note
+    // left when taken out, the reading is of the new note alone. Otherwise, while the note
+    // before still rings (it was not steady enough to take out, or too quiet to show), the
+    // same note again and every note it is a partial of wait for the tracker, unless the pick
+    // drowned what rang.
     const bool rings = !earlyRest_ && preLevelDb_ > pickLevelDb() - kEarlyRingDb;
     if (rings && !earlyOld_ && earlyHeld_)
         return -1;
@@ -1365,9 +1364,9 @@ void GuitarToMidi::decide() noexcept
     // string faded far under the sounding note's attack, any pick must bring energy: the
     // fretting hand moving on to the next fret (or off it) breaks the period, and can tap the
     // fret, but leaves the level where it was.
-    if (pickChecking_ && now_ - pickAt_ >= (settings_.timing == Timing::fastest
-                                                ? pickLevelSamples_
-                                                : weakCheckSamples_))
+    if (pickChecking_ &&
+        now_ - pickAt_ >=
+            (settings_.timing == Timing::fastest ? pickLevelSamples_ : weakCheckSamples_))
     {
         // The pick's level is its loudest millisecond from 3 to 12 ms on, which only grows as
         // those pass: in Fastest, a pick that has shown its energy already (a note from
@@ -1415,15 +1414,14 @@ void GuitarToMidi::decide() noexcept
         // too: when the level has fallen far under the note before a pick seen only that way,
         // and what is heard now is a string that rings in sympathy with that note (it shares
         // its partials), the break was the mute and the string only rang on under it.
-        // The early reading starts a note only for a pick as loud as this player's picks: a
-        // softer one may be a finger's touch (whose push sounds the string's own note), and
-        // waits for the tracker and the rules below.
-        // And the note the string already had only for a pick that drowned what rang: the
-        // note just ended may still be all there is to hear.
-        const bool early =
-            earlyQ >= 0 && levelDb_ >= gateLevelDb_ && !muted() && playingCount_ > 0 &&
-            attackLevelDb() >= playingDb_ - kTouchBelowDb &&
-            (!earlyHeld_ || pickLevelDb() >= preLevelDb_ + kDominantPickDb);
+        // The early reading starts a note only for a pick as loud as this player's picks (a
+        // softer one may be a finger's touch, whose push sounds the string's own note: it
+        // waits for the tracker and the rules below), and the note the string already had
+        // only for a pick that drowned what rang (the note just ended may still be all there
+        // is to hear).
+        const bool early = earlyQ >= 0 && levelDb_ >= gateLevelDb_ && !muted() &&
+                           playingCount_ > 0 && attackLevelDb() >= playingDb_ - kTouchBelowDb &&
+                           (!earlyHeld_ || pickLevelDb() >= preLevelDb_ + kDominantPickDb);
         int start = earlyQ;
         float startHz = earlyHz;
         if (!early)
@@ -1511,8 +1509,7 @@ void GuitarToMidi::decide() noexcept
     // The tracker counts its two periods from the latest pick it saw itself, which may be later
     // than the one this note is dated from (the swings of a low string's attack).
     const int trackerSince = tracker_.samplesSincePick();
-    const bool timeUp =
-        now_ >= earlyLimit_ || trackerSince < 0 || trackerSince >= earlyGrace_;
+    const bool timeUp = now_ >= earlyLimit_ || trackerSince < 0 || trackerSince >= earlyGrace_;
     // The tracker names the note: after the pick, or still, once it has had its time.
     const bool read = q == note_ && (trackerMoved_ || timeUp);
     if (earlyNote_ && (read || timeUp))

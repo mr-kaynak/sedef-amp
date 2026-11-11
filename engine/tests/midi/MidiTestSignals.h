@@ -802,7 +802,8 @@ inline Scenario repeated (int pitch, Pickup pickup, std::uint32_t seed, int coun
     s.signal.assign (static_cast<std::size_t> ((0.1 + count * every + 0.6) * fs), 0.0f);
     for (int k = 0; k < count; ++k)
     {
-        auto p = pluckFor (pickup, hzOf (pitch), 0.22f, seed + 31u * static_cast<std::uint32_t> (k));
+        auto p =
+            pluckFor (pickup, hzOf (pitch), 0.22f, seed + 31u * static_cast<std::uint32_t> (k));
         p.muteAt = k + 1 < count ? every : 0.4;
         const double at = 0.1 + k * every;
         addPluck (s.signal, fs, static_cast<std::size_t> (at * fs), p);

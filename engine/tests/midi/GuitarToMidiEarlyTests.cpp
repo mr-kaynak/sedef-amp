@@ -43,8 +43,7 @@ struct EarlyRun
 
 /// convert(), also telling which note-ons went out on the early reading and whether each is the
 /// note played (the latest one started, no more than 80 ms before).
-EarlyRun convertEarly (const Scenario& sc, const midi::Settings& s,
-                       LowNote learned = LowNote::e2)
+EarlyRun convertEarly (const Scenario& sc, const midi::Settings& s, LowNote learned = LowNote::e2)
 {
     GuitarToMidi g;
     g.setSettings (s);
@@ -54,16 +53,17 @@ EarlyRun convertEarly (const Scenario& sc, const midi::Settings& s,
     midi::EventList events;
     std::vector<int> open (128, -1);
     std::uint32_t count = 0;
-    const int block = 32;
+    const std::size_t block = 32;
     for (std::size_t start = 0; start < sc.signal.size(); start += block)
     {
-        const int n = static_cast<int> (std::min<std::size_t> (block, sc.signal.size() - start));
+        const int n = static_cast<int> (std::min (block, sc.signal.size() - start));
         events.clear();
         g.process (sc.signal.data() + start, n, events);
         std::vector<std::size_t> ons;
         for (const auto& e : events)
         {
-            const double t = static_cast<double> (start + static_cast<std::size_t> (e.offset)) / kFs;
+            const double t =
+                static_cast<double> (start + static_cast<std::size_t> (e.offset)) / kFs;
             out.run.events.push_back (e);
             out.run.eventTimes.push_back (t);
             if (e.isNoteOn())
@@ -119,10 +119,10 @@ TEST_CASE ("Guitar to MIDI names a clean note from one period of it", "[midi][ea
     {
         const double period = 1000.0 / hzOf (pitch);
         const bool lowest = 2.0 * period > 1000.0 / 70.0;
-        const double bound = GuitarToMidi::kAttackSkipSeconds * 1000.0 + 2.0 +
-                             (lowest ? (1.0 + GuitarToMidi::kEarlyShare) * period
-                                     : period + std::max (period, 1000.0 *
-                                                                      GuitarToMidi::kEarlyAloneSeconds));
+        const double bound =
+            GuitarToMidi::kAttackSkipSeconds * 1000.0 + 2.0 +
+            (lowest ? (1.0 + GuitarToMidi::kEarlyShare) * period
+                    : period + std::max (period, 1000.0 * GuitarToMidi::kEarlyAloneSeconds));
         std::vector<double> ms;
         int early = 0, runs = 0;
         for (auto pickup : { Pickup::bridge, Pickup::neck })
@@ -192,6 +192,12 @@ TEST_CASE ("Guitar to MIDI's early reading is never a wrong note", "[midi][early
     std::printf ("early reading: %d of %d notes sent on it, %d wrong\n", early, notes, wrong);
     CHECK (wrong == 0);
     CHECK (early >= notes / 2);
+    // Steady never uses it: its notes are those it always sent.
+    auto steady = plain();
+    steady.timing = midi::Timing::steady;
+    CHECK (
+        convertEarly (bassLine (1, Pickup::bridge, 124.0, kFs, 48, false), steady).early.empty());
+    CHECK (convertEarly (sloppyLine (2, Pickup::neck, 120.0, kFs, 48), steady).early.empty());
 }
 
 TEST_CASE ("Guitar to MIDI's early reading on the low strings of seven and eight strings",

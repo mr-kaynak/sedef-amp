@@ -20,7 +20,7 @@
 //       semitones away (-5: a seven-string's low strings, -10: an eight-string's): scores, and
 //       the latency of every note.
 //   sedef-midi-render latency
-//       Pick to note-on for every note from E1 to E4 in each range.
+//       Pick to note-on for every note from E1 to E5 in each range.
 //   sedef-midi-render provisional [--low ...] [--shift n] [--wav in.wav --truth notes.txt]
 //       What sending each note at the tracker's first reading after its pick would buy (how much
 //       sooner) and cost (how often that reading is wrong).
@@ -736,7 +736,7 @@ int sets (int argc, char** argv)
 }
 
 // ---------------------------------------------------------------------------------------------
-// Pick to note-on for every note from F#1 to E4, in each range: a note picked a second time (the
+// Pick to note-on for every note from E1 to E5, in each range: a note picked a second time (the
 // converter knows the player and the instrument by then), on a bridge and a neck pickup, with a
 // pick and with the fingers.
 
@@ -759,7 +759,7 @@ int latency (int argc, char** argv)
     std::printf (
         "note    Hz    two periods   E2 range      B1 range      F#1 range     Automatic   "
         "(median / max ms; -: not played)\n");
-    for (int pitch = 28; pitch <= 64; ++pitch)
+    for (int pitch = 28; pitch <= 76; ++pitch)
     {
         std::printf ("%-3s%d %6.1f  %8.1f   ", noteName (pitch), pitch / 12 - 1, hzOf (pitch),
                      2000.0 / hzOf (pitch));
@@ -998,13 +998,13 @@ int early (int argc, char** argv)
             (ok ? right : wrong) += 1;
             (ok ? rightLeft : wrongLeft).push_back (static_cast<double> (left));
             if (list || !ok)
-                std::printf ("  %s %-6s at %.3f: sent %s%d (%.1f Hz) %.1f ms after %s%d, left %.3f, "
-                             "%.1f ms repeat (%.2f of the period)\n",
-                             set, ok ? "right" : "WRONG", t, noteName (sent), sent / 12 - 1,
-                             hz, ref ? 1000.0 * (t - ref->start) : 0.0,
-                             ref ? noteName (ref->pitch) : "-", ref ? ref->pitch / 12 - 1 : 0,
-                             static_cast<double> (left), 1000.0 * window,
-                             window * hz);
+                std::printf (
+                    "  %s %-6s at %.3f: sent %s%d (%.1f Hz) %.1f ms after %s%d, left %.3f, "
+                    "%.1f ms repeat (%.2f of the period)\n",
+                    set, ok ? "right" : "WRONG", t, noteName (sent), sent / 12 - 1, hz,
+                    ref ? 1000.0 * (t - ref->start) : 0.0, ref ? noteName (ref->pitch) : "-",
+                    ref ? ref->pitch / 12 - 1 : 0, static_cast<double> (left), 1000.0 * window,
+                    window * hz);
         }
     };
     for (auto pickup : { Pickup::bridge, Pickup::neck, Pickup::piezo })

@@ -6,6 +6,18 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **Sedef MIDI: notes come sooner in Fastest.** A string repeats itself from the moment you
+  pick it, and Sedef MIDI now reads the note from that instead of waiting for two full periods
+  of it and a safety margin. From the pick to the note: a low E 22 ms (was 28), an A 17 ms
+  (22), a G 13 ms and the notes above it 9 to 12 ms (all 16 before); on seven and eight
+  strings a low B 29 ms (37) and a low F♯ 39 ms (47). The same note picked again and again
+  comes within 15 to 25 ms, where it took 33 ms on every string. It plays the same notes as
+  before: when the signal alone does not settle a note (a soft pick under a string that still
+  rings, a low string plucked near the bridge with a finger), it waits as it did. Steady is
+  unchanged.
+
 ## [0.8.0] - 2026-11-11
 
 Sedef MIDI after its first session with a player: a held note is steady, low strings down to F♯1

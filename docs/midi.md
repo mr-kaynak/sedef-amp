@@ -175,22 +175,34 @@ host at their exact sample.
 
 From the pluck or pick to the note, in Fastest:
 
-| Note | F♯1 | A1 | B1 | D2 | E2 | A2 | D3 | G3 and up |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| Six strings (E2, or Auto on a guitar) | | | | 31 ms | 28 ms | 22 ms | 17 ms | 16 ms |
-| Seven strings (B1) | | 40 ms | 37 ms | 31 ms | 28 ms | 22 ms | 18 ms | 16 ms |
-| Eight strings (F♯1) | 47 ms | 40 ms | 36 ms | 31 ms | 28 ms | 27 ms | 18 ms | 16 ms |
+| Note | F♯1 | A1 | B1 | D2 | E2 | A2 | D3 | G3 | B3 | E4 and up |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Six strings (E2, or Auto on a guitar) | | | | 24 ms | 22 ms | 17 ms | 16 ms | 13 ms | 12 ms | 9 to 11 ms |
+| Seven strings (B1) | | 32 ms | 29 ms | 24 ms | 22 ms | 21 ms | 16 ms | 13 ms | 12 ms | 9 to 11 ms |
+| Eight strings (F♯1) | 39 ms | 32 ms | 29 ms | 24 ms | 28 ms | 21 ms | 16 ms | 13 ms | 12 ms | 9 to 11 ms |
+
+The same note picked again and again, the staple of a bass line, comes within 25 ms on a low E,
+20 ms on an A, 17 ms on a D and 15 ms on a G (it used to take 33 ms on every string).
 
 In Steady every note comes 38 ms after you play it (a note under about B1 cannot: it comes as
 soon as it is sure).
 
-**What the delay is made of.** A note cannot be named before two of its periods have passed:
-43 ms for a low F♯, 32 ms for a low B, 24 ms for a low E, 18 ms for an A. Sedef MIDI adds 2 to
-4 ms to be sure of it, and above A3 it waits one period of the low E (16 ms) to rule out a lower
-note under it. With a lower range, the notes between the lowest string's octave and about 150 Hz
-wait a little longer for the same reason (the F♯2 to B2 column above, in the eight-string row).
-Sending a note before its pitch is known and correcting it afterwards was measured and left
-out: it would gain 2 ms on a typical note and get 13 notes in 100 wrong first.
+**What the delay is made of.** A string repeats itself from the moment you pick it, and Sedef
+MIDI reads the note from that: a low note goes out once its first few milliseconds have come
+round again (1.6 periods: 19 ms for a low E, 15 ms for an A, and the 2.5 ms of the pick itself);
+a higher note, which a low string's overtone could be mistaken for, once two of its own periods
+that nothing else shares have passed (5 ms at least). When the signal alone does not settle it,
+the note waits as before: two periods and 3 ms, or 16 ms for a high note. That happens when
+
+- the previous note still rings loudly under a softly picked one;
+- the string gives one pulse a period and little in between, as a low string plucked near the
+  bridge with a finger does on a bridge pickup: such a note takes about two periods (27 ms on a
+  low D). Picking it, plucking it further from the bridge, or the neck pickup brings it down;
+- a lower range is chosen: in the eight-string range a low E has a note an octave under it, and
+  takes its two periods.
+
+A note is never sent before Sedef MIDI is sure of it and corrected afterwards: that was measured
+(13 notes in 100 wrong first, for 2 ms) and left out.
 
 **The rest is buffers, and you can shorten them.**
 
@@ -205,6 +217,10 @@ out: it would gain 2 ms on a typical note and get 13 notes in 100 wrong first.
   hear late.
 - *The instrument you play* has an output buffer of its own, usually larger than it needs to
   be: set it as low as it plays cleanly (128 or 64 samples).
+- *64 samples in Sedef MIDI itself* takes another 1.5 ms off, if your interface holds it. The app
+  does not choose it for you: a buffer the interface cannot keep up with drops bits of the
+  input, which Sedef MIDI would hear as wrong or missing notes. Try it in **Audio input…**; if
+  notes go missing, go back to 128.
 
 See [the design](design/guitar-to-midi.md#as-built) for the measurements.
 

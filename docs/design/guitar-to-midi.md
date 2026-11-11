@@ -4,7 +4,9 @@ Status: approved 2026-11-08; built in Phase 1 (engine layer, plug-ins, standalon
 shipped in Phase 2 with Sedef Amp's installers from 0.6.0, its identity frozen
 ([docs/midi.md](../midi.md#identity)).
 What was measured, and where the build differs from this design, is in [As built](#as-built)
-at the end. The user page is [docs/midi.md](../midi.md).
+at the end, round by round; the latest is
+[Sooner than two periods](#sooner-than-two-periods-2026-11-12). The user page is
+[docs/midi.md](../midi.md).
 
 ## Why
 
@@ -353,7 +355,9 @@ sample offsets; a live instrument adds one audio buffer):
 | G3, B3, E4, E5 | 11.5, 9.5, 8.5, 8.5 | 15.9 | 37.8 |
 
 On one synthetic piezo E2 the tracker itself locks at 47 ms (its body swell reads as a second pick
-25 ms in); the MIDI layer follows 2 ms later.
+25 ms in); the MIDI layer follows 2 ms later. (Fastest has since become quicker: most notes go out
+on an early reading, before the tracker locks. See
+[Sooner than two periods](#sooner-than-two-periods-2026-11-12).)
 
 **Steady.** The lag is 38 ms: 99.83 % of picked notes in the test material are sure within it.
 Single picks on every string land 37.8 ms after the pick, within the 1 ms bar. On the latency
@@ -995,7 +999,8 @@ What changed:
 **The floor that is left** is two periods of the note (43 ms for a low F♯, 32 for a low B, 24 for
 a low E, 18 for an A, 14 for a D), the 3 to 4 ms the MIDI layer takes to be sure, 16 ms for any
 note above E3 (one period of the low E, to rule out a lower note), and the rest of the audio
-buffer. Playing the line an octave higher with the octave at −2 halves the first part.
+buffer. Playing the line an octave higher with the octave at −2 halves the first part. (The next
+section takes most of this floor away.)
 
 **CPU.** The tracker inside Sedef MIDI now keeps periods down to 38 Hz up to date in every
 range: 229 ns per sample (1.1 % of one core at 48 kHz) against 197 before, on the same machine in
@@ -1006,3 +1011,200 @@ bend faster than about 120 ms comes out as notes; strummed chords give more note
 than in the E2 range (110 against 98 for 144 chords: two strings together repeat at a long
 period), as they are outside the design; a finger's squeak 9 ms before its pluck after a rest
 can lose the note; and Steady's 38 ms cannot hold a note under about B1.
+
+### Sooner than two periods (2026-11-12)
+
+After 0.8.0 the musician's one complaint left is the delay. The buffers are his to lower (above);
+what is left is ours: how long Sedef MIDI takes to be sure of a note. This round finds each wait,
+says what it is for, and removes what a better reading makes unnecessary, in Fastest only. Steady
+plays exactly as before: its events are identical on every recording and every set here.
+
+#### Where the time went
+
+Pick to note-on in 0.8.0's Fastest was the sum of these, each put there by an earlier round:
+
+| Wait | How long | What it protects against |
+|---|---|---|
+| The tracker judges a period on a window one period long | two periods: 24.3 ms for a low E, 18.2 for A2, 13.6 for D3 | a period shows once a stretch as long as itself has come round |
+| ...and on nothing inside the attack | 8 ms | the attack's short periods can look periodic |
+| The tracker's lock | 1 ms from silence, 2 ms to change note | two readings in a row must agree |
+| The MIDI layer: the reading holds | 2 ms | strings still ringing pull the tracker around |
+| A note above E3: one period of the low E, after the attack | 16 ms, whatever the note | a first reading can name a partial of a low string |
+| The same note again, picked no louder than it rang | 33 ms, whatever the note | a pick that drowns nothing may be a lower note on its way: the lowest note's two periods |
+| A pick on a faded string, or seen only as a lost period: its level | 12 ms | the fretting hand breaks a period too, and adds no energy |
+| The first note of all, or a pick 10 dB under the player's | 60 ms | a finger's touch before its pluck |
+
+So a low E took 27.5 ms, every note from G3 up 16 ms, and the staple of a bass line, one note
+picked again and again, 33 ms on any string.
+
+#### The early reading
+
+The tracker's window slides: it holds the last period and compares it with the one before, so it
+needs two periods of the new note inside it. But a picked string repeats from its pick on. The
+MIDI layer now keeps, for every period, how well the signal *since the pick's attack* (the
+stretch: from 2.5 ms after the pick) repeats one period on: the sums of a difference function as
+in YIN (de Cheveigne and Kawahara, 2002), over a stretch that grows from the pick. What a period
+leaves unexplained of the stretch is 0 when the stretch repeats exactly and about 1 when it does
+not repeat at all. The shortest period that qualifies starts the note, before the tracker has
+read it:
+
+| A note... | goes out when | Why that is enough |
+|---|---|---|
+| with nothing an octave under it in the range (on a six-string, up to C♯3) | 0.6 of its period (4 ms at least) has come round again, leaving at most 0.05: 1.6 periods and the attack's 2.5 ms | nothing lower can be on its way, and a shorter period would have shown first |
+| that a lower string could be under | it alone accounts for the stretch (at most 0.02 left), over two of its periods and 5 ms at least | a string's partial never does: on the musician's DI, as recorded and slowed down, the best a low string's partial reaches is 0.15, seven times that |
+| either way | no shorter period leaves less than 0.4 | two strings together repeat at a period neither has; an octave under the played note is a multiple of its period |
+| the same as the string already had | the stretch from 5 ms after the pick repeats at that note's period (at most 0.1 left, over 0.6 of a period, a semitone to either side leaving 0.2 or more), not before 12 ms | the pick ended what the string did, and the tracker's reading from before the pick names the note |
+
+**The note before, still ringing.** A note left ringing under the next makes the input repeat at
+its own period too. When that note was steady before the pick, the stretch is kept a second time,
+less what the note would have gone on to do (its last period before the pick, repeated). If that
+leaves clearly less (under 0.7 of the energy), the old note rings on, and what is left is what
+the pick brought: that is what is read. If not, the pick ended it, as a pick on the same string
+does, and the stretch as it is is the new note. While a note that could not be taken out still
+rings within 20 dB of the pick, the same note and every note it is a partial of wait for the
+tracker.
+
+**After the note-on.** The tracker confirms. Until it has had its own two periods, what it still
+holds (nothing, the note before, a partial on its way) says nothing; once it names the note, the
+note is like any other. If it never does, and the stretch, twice as long by then, no longer
+repeats at the note's period, the early reading was wrong, and whatever the tracker names next
+replaces the note. On all the material here that correction never had to act on a right note,
+and no early note is wrong (below).
+
+The early reading starts a note only for a pick the tracker's detector saw (or, for the same note
+again, one seen as the note losing its period), as loud as this player's picks, its level
+checked. A pick's level is its loudest millisecond 3 to 12 ms on, which only grows: in Fastest it
+now counts as soon as it has shown its energy, where it waited the 12 ms out.
+
+#### What it gives
+
+Pick to note-on, the second of two picks, with a pick and with the fingers, bridge and neck
+pickups, 48 kHz, median (and the most), before and now:
+
+| Note | Two periods | E2 range and Automatic | B1 range | F♯1 range |
+|---|---:|---|---|---|
+| F♯1 | 43.2 ms | | | 47.0 (49.5) → 39.0 (48.5) |
+| B1 | 32.4 | | 36.5 (39.0) → 28.5 (34.0) | 35.5 (39.0) → 28.5 (34.0) |
+| E2 | 24.3 | 27.5 (31.0) → 21.5 (25.5) | 27.5 (30.0) → 21.5 (25.5) | 27.5 (30.0), unchanged |
+| A2 | 18.2 | 21.5 (24.0) → 17.0 (17.0) | 21.5 (24.0) → 20.5 (21.5) | 27.0 (27.0) → 20.5 (25.0) |
+| D3 | 13.6 | 17.0 (19.5) → 16.0 (16.0) | 17.5 (21.0) → 16.0 (16.0) | 17.5 (21.0) → 16.0 (16.0) |
+| G3 | 10.2 | 16.0 (32.5) → 12.5 (13.0) | 16.0 → 12.5 (13.0) | 16.0 → 12.5 (13.0) |
+| B3 | 8.1 | 16.0 → 11.5 (11.5) | the same | the same |
+| E4 | 6.1 | 16.0 → 10.5 (10.5) | the same | the same |
+| A4 | 4.5 | 16.0 → 9.5 (10.0) | the same | the same |
+| E5 | 3.0 | 16.0 → 9.0 (9.0) | the same | the same |
+
+A lower range moves the line between the two kinds of note: in the F♯1 range a low E has a note
+an octave under it, so it needs its two periods as before. Automatic on a six-string is the E2
+range; once it has learned a lower string it is that string's range.
+
+The same note picked again, six picks 250 ms apart, each taking the string over at the level it
+rang at, three pickups, median: E2 33.0 → 25.0 ms, A2 33.0 → 20.0, D3 33.0 → 16.5, G3 33.0 →
+14.5.
+
+The gates, Fastest, before and now (Steady: identical, event for event):
+
+| Set | Notes | Right | Wrong | Missed | Extra | Under 40 ms | Latency p50 / p95 |
+|---|---:|---|---|---|---|---|---|
+| Bass lines | 864 | 99.42 % → 99.42 % | 0 → 0 | 5 → 5 | 1 → 0 | 1 → 0 | 21.8 / 33.6 → 17.9 / 28.5 ms |
+| Sloppy lines | 864 | 99.19 → 99.19 | 4 → 4 | 3 → 3 | 9 → 6 | 10 → 9 | 25.0 / 54.6 → 20.3 / 34.8 |
+| Fretted first | 312 | 100 → 100 | 0 | 0 | 0 | 0 | 16.2 / 33.0 → 12.1 / 21.9 |
+| From silence | 324 | 100 → 100 | 0 | 0 | 0 | 0 | 18.4 → 14.0 (p95: the first note's 60 ms) |
+| Bass lines, a fourth lower, B1 | 864 | 100 → 100 | 0 | 0 | 1 → 1 | 1 → 1 | 28.1 / 43.3 → 22.7 / 36.6 |
+| Sloppy lines, a fourth lower, B1 | 864 | 98.84 → 98.84 | 3 → 3 | 7 → 7 | 11 → 9 | 11 → 10 | 32.5 / 59.8 → 26.6 / 44.8 |
+| Bass lines, a seventh lower, F♯1 | 864 | 99.88 → 99.88 | 0 | 1 → 1 | 0 → 0 | 0 → 0 | 35.7 / 53.8 → 28.7 / 45.5 |
+| Sloppy lines, a seventh lower, F♯1 | 864 | 98.61 → 98.84 | 4 → 4 | 8 → 6 | 17 → 13 | 12 → 10 | 42.3 / 59.8 → 35.0 / 53.3 |
+| Bass lines, a seventh lower, Automatic | 864 | 99.77 → 99.77 | 0 | 2 → 2 | 3 → 3 | 2 → 2 | 35.7 / 54.0 → 28.7 / 47.2 |
+| Sloppy lines, a seventh lower, Automatic | 864 | 98.50 → 98.73 | 4 → 4 | 9 → 7 | 18 → 14 | 13 → 11 | 42.1 → 35.0 |
+
+Fretted first and from silence in the low ranges: unchanged (100 %, and 99.38 % from silence a
+fourth lower), sooner by 4 to 5 ms on the median. Notes + Bend sends the same notes as Notes on the lines. Strummed chords,
+outside the design, give a few more notes in two settings (113 against 110 for 144 chords in
+Automatic, 39 against 34 a fourth lower in B1; 15 and 15 in F♯1), still never two at once.
+
+Of the 2364 notes of the four sets, 1660 go out on the early reading (1684 a fourth lower, 1662
+a seventh lower), and every one of those 5006 note-ons is the note played.
+
+**His DI** (reported, not a gate; every setting at its default, Fastest): the same notes as
+before, 78 of 78 right, none wrong, the same six fretting moves as extra notes and the same three
+under 40 ms; the strummed chords give the same 29 notes. Onset to note-on, by run:
+
+| Run (string) | D2 | G2 | C3 | F3 | A3 | D4 |
+|---|---:|---:|---:|---:|---:|---:|
+| Median, before → now | 22.4 → 20.8 ms | 19.0 → 16.5 | 16.2 → 14.0 | 13.6 → 12.6 | 15.9 → 10.5 | 15.5 → 10.2 |
+| Most, before → now | 49.6 → 49.7 (the first note) | 27.1 → 26.8 | 33.1 → 16.2 | 24.1 → 17.7 | 32.7 → 17.2 | 33.4 → 12.5 |
+
+Slowed down by a fourth and by a minor sixth, the same notes and the same extras as before;
+medians 29.5, 22.4, 21.0, 16.4, 18.5, 16.4 → 27.8, 20.2, 18.1, 14.9, 13.8, 10.7 ms and 34.6,
+27.3, 23.8, 20.6, 21.6, 16.3 → 32.0, 23.2, 20.2, 15.5, 17.3, 11.5 ms. Velocities move by at most
+4 (one note; the rest by 0 or 1). The seven piezo DIs (fingerstyle chords) give the same number
+of notes in Fastest, a few of them a little sooner.
+
+**His lowest strings gain least**, and that is the signal, not the reading. Plucked near the
+bridge with a finger and heard by a bridge pickup, his D and G strings are a pulse once a
+period with little between: the first pulse is the pluck itself, inside the attack, and the
+stretch after it holds nothing that repeats until the second pulse has come round to the third,
+which is two periods. At one period and 4 ms his low notes leave 0.06 to 0.20 unexplained, most
+over 0.10 (his high strings 0.002 to 0.007), and the pitch read there is up to 0.4 semitone off: not a reading
+to send a note on. Reading from the pick itself, to catch the first pulse, was tried: the first
+period after a pluck is not the string's (the finger lets go over a millisecond or two), and 3 of
+234 notes came out a semitone flat (a C3 as B2, 12 ms after its pluck). So on his D string a
+note still takes about two periods; with a pick, or on a neck pickup, a low E takes 1.6.
+
+#### Tried and rejected
+
+| What | Result | Kept instead |
+|---|---|---|
+| A third of a period (4 ms at least) as the stretch that must repeat | 5 wrong among 3749 early notes, all in the low ranges: a few milliseconds of a low string look like themselves 0.6 of a period on (a low B read as G2, leaving 0.03 to 0.05, and worse at once as the stretch grew) | 0.6 of a period: none in 5006 early notes. Half a period still let one through |
+| A stricter 0.04 over half a period, instead of a longer stretch | no wrong note either, but a low B at 31.5 ms where 0.05 gave 26.5 | 0.05 over 0.6 of a period: a low B at 28.5 ms |
+| Taking the old note out always | when the pick ended the old note (the same string, the usual case), taking it out adds a ghost that repeats perfectly at the old period: 28 wrong in 1017 early notes | both stretches, chosen by which holds less |
+| The same note again at 0.2, named by the tracker's reading alone | his DI: 2 wrong notes in 78, 3 and 4 on the slowed-down versions (a G3 for 18 ms before the G♯3: the reading from before the pick was of a string gliding to the next fret, 200.5 Hz) | at most 0.1, the stretch's own dip on the same semitone as the reading, a semitone to either side clearly worse |
+| ...read from 2.5 ms after the pick | the old note's last milliseconds are in the stretch: 3 of 10 repeated picks qualified | from 5 ms |
+| ...while another note may ring an octave under it | a note an octave over a ringing one, taken for the ringing one picked again (2 in 864 on the sloppy lines) | what is left without the old note must not repeat at a half or a third of the period |
+| ...from silence, for any pick | the note just ended, still all there is to hear, started again on the next note's soft pick (1 to 4 per range) | from silence only for a pick 6 dB over what rang |
+| An early note ending when the tracker lets go | the tracker let go of the *old* note 50 ms after the pick: two notes cut after 31 and 34 ms | a note the tracker has not named yet is not one it has lost |
+| The player's level from the early note's level at its note-on | the attack is not complete yet: velocities off by up to 20 | the level counts once the tracker has read the note |
+| The early reading for a soft pick from silence | a finger's touch pushes the string, which sounds its own note: a squeak came out as a note for 37 ms | only for a pick within 10 dB of the player's level; the rest wait as before |
+| The grace counted from the MIDI layer's pick | the tracker restarts its two periods at each pick it sees itself (a low string's attack swings): 16 early notes ended after 6 to 17 ms | counted from the tracker's own pick |
+
+#### The other fixed waits
+
+Each shortened alone, over the four sets in three ranges (7092 notes; now: 7057 right, 11 wrong,
+29 extra, 30 under 40 ms):
+
+| Wait | Shortened to | Gain | Cost |
+|---|---|---|---|
+| The reading holds, 2 ms | 1 ms | 0 to 0.4 ms on the median | 2 more extra notes and 4 more under 40 ms |
+| | 0.5 ms | the same | 3 more wrong notes |
+| The same note again: 4 ms after the tracker's two periods | 2 ms, 0 | none: those notes go out on the early reading now, or wait for the lowest note | none |
+| The attack, 2.5 ms | 1.5 ms | 1 ms on every note | 3 more wrong notes on a six-string |
+| A note a lower one could be under: 5 ms at least | 4 ms | 1 ms from about A3 up | none measured; left at 5 ms so that, like the tracker, nothing is read inside the first 8 ms of an attack |
+| The stretch that must repeat: 0.6 of a period | 0.5 | 1 ms on low notes | one wrong early note |
+| The same note again: read from 5 ms | 4 ms | none | none |
+
+None is worth taking. What is left in Fastest is the attack's 2.5 ms, 1.6 periods of a low note
+(two when a lower note could be under it, or when the string gives a pulse a period and little
+else), the hop of the analysis, and the 60 ms of the very first note.
+
+#### The audio buffer
+
+The standalone app keeps asking for the smallest buffer of at least 2.5 ms (128 samples at 44.1
+and 48 kHz). 64 samples would take 1.3 to 1.5 ms off every note. It was left alone because
+nothing here can run it: no interface, no way to open the app. What it would risk is a callback
+that misses its time on an interface or a system that does not hold 64 samples; for Sedef MIDI
+that is not a click but a hole in the input, which reads as a wrong or a missing note, and the
+app shows nothing when it happens. A player whose interface holds it loses nothing by choosing
+64 in Audio input…, and the page says so.
+
+#### Cost
+
+Fastest: 188 ns per sample against 181 before (0.90 % of one core at 48 kHz, from 0.87 %), on
+the same machine in the same minute; Steady 183 against 181. `process()` still never allocates.
+The tracker is untouched: the 137 Trench and factory-preset renders are byte-identical to main.
+
+**Left open:** a low string plucked near the bridge with the fingers still takes two periods
+(above); a fret that lands 9 ms or more after the pick is a hammer-on, and now and then gives the
+old note for about 10 ms first (5 of 48 such cases, 4 before); the first note after Sedef MIDI
+starts still waits 60 ms; a soft pick over a ringing note still waits for the tracker (up to
+66 ms on the sloppy lines, 74 before); and whether a 64-sample buffer holds on the musician's
+interface.

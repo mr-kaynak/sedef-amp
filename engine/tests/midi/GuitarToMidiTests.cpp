@@ -622,7 +622,9 @@ TEST_CASE ("Guitar to MIDI sends each note within the tracker's lock time plus 5
     // From the pick to the note-on, at 48 kHz, on every open string and the 12th fret of the
     // high E, with a bright bridge pickup and a piezo. The MIDI layer may take 5 ms past the
     // tracker's own lock to be sure; notes above A3 wait for one period of the low E (16 ms
-    // after the attack) before a lower note can be ruled out. The block size changes nothing:
+    // after the attack) before a lower note can be ruled out. These are the bounds of a note
+    // read by the tracker; the early reading (GuitarToMidiEarlyTests.cpp) names most notes
+    // sooner, and none later. The block size changes nothing:
     // events carry their sample offsets. The note is the second of two: the first of all waits
     // for a louder pick (kTouchWaitSeconds), since nothing says yet how loud the player is.
     const double floorMs =

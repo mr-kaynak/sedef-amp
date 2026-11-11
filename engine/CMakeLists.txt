@@ -47,5 +47,12 @@ if(SEDEF_BUILD_TESTS)
 
     list(APPEND CMAKE_MODULE_PATH ${Catch2_SOURCE_DIR}/extras)
     include(Catch)
-    catch_discover_tests(sedef_engine_tests DISCOVERY_MODE PRE_TEST)
+    # Tests tagged [long] rerun whole accuracy suites on other tunings: minutes in a release
+    # build, far too long under the sanitizers, which already run the same code on the suites
+    # of the standard tuning.
+    if(SEDEF_SANITIZE OR SEDEF_SANITIZE_THREAD)
+        catch_discover_tests(sedef_engine_tests DISCOVERY_MODE PRE_TEST TEST_SPEC "~[long]")
+    else()
+        catch_discover_tests(sedef_engine_tests DISCOVERY_MODE PRE_TEST)
+    endif()
 endif()

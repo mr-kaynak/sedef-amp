@@ -26,6 +26,20 @@ export interface PortsState {
   outputs: PortOption[];
 }
 
+/** The audio side of a note's delay, and the Lowest Note range in effect. */
+export interface AudioState {
+  sampleRate: number;
+  /** Samples per audio buffer; 0 before the first one. */
+  blockSize: number;
+  /** What the buffer adds to a note sent through the MIDI port (ms): at most, and on average. */
+  bufferWorstMs: number;
+  bufferMeanMs: number;
+  /** The audio device's own input latency (ms); -1 when unknown (a host does not say). */
+  inputLatencyMs: number;
+  /** The Lowest Note range in effect: 1 E2, 2 B1, 3 F♯1 (what Auto has heard, when on Auto). */
+  lowNote: number;
+}
+
 export interface MidiHello {
   protocol: number;
   appVersion: string;
@@ -37,6 +51,7 @@ export interface MidiHello {
   schema: ParamSpec[];
   values: ParamValues;
   ports: PortsState;
+  audio: AudioState;
 }
 
 export interface MidiTelemetry {
@@ -66,6 +81,8 @@ export interface MidiFunctions {
   sedef_midi_setPort(destination: Destination): Promise<PortsState>;
   /** Standalone app only: JUCE's audio device dialog (input, sample rate, buffer). */
   sedef_midi_audioSettings(): Promise<void>;
+  /** The automatic Lowest Note range starts again as a six-string's. */
+  sedef_midi_forgetLowNote(): Promise<void>;
   sedef_openUrl(url: string): Promise<void>;
 }
 
@@ -73,6 +90,7 @@ export interface MidiEvents {
   'sedef:params': { values: ParamValues };
   'sedef:midi:telemetry': MidiTelemetry;
   'sedef:midi:ports': PortsState;
+  'sedef:midi:audio': AudioState;
 }
 
 export type MidiFunctionName = keyof MidiFunctions;

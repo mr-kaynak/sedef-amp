@@ -25,7 +25,7 @@ class MidiProcessor final : public juce::AudioProcessor
 {
 public:
     static constexpr int kBaseWidth = 760;
-    static constexpr int kBaseHeight = 540;
+    static constexpr int kBaseHeight = 600;
 
     MidiProcessor();
     ~MidiProcessor() override;
@@ -98,9 +98,16 @@ public:
         int velocity = 0;
         std::uint32_t notesSent = 0, lateNotes = 0;
         bool sounding = false;
+        int lowNote = 1;   ///< the Lowest Note range in effect: 1 E2, 2 B1, 3 F#1
+        int blockSize = 0; ///< samples per block, as the last block came
     };
     Telemetry telemetry() const noexcept;
     double sampleRate() const noexcept { return sampleRate_.load (std::memory_order_relaxed); }
+    /// The standalone app's chores on the message thread, twice a second: the small default
+    /// audio buffer, once a device is open (see the definition). Nothing in a plug-in.
+    static void standaloneHousekeeping();
+    /// The automatic Lowest Note range starts again as a six-string's (at the next block).
+    void forgetLowNote() noexcept { learnedRequest_.store (1, std::memory_order_relaxed); }
 
 private:
     static BusesProperties makeBuses();
@@ -133,6 +140,11 @@ private:
 
     std::atomic<double> sampleRate_ { 48000.0 };
     std::atomic<bool> panicRequested_ { false }, endRequested_ { false };
+    /// What the automatic range is to be told at the next block: 0 nothing, else a LowNote
+    /// (forget: e2; a restored session: what it had learned).
+    std::atomic<int> learnedRequest_ { 0 };
+    std::atomic<int> tLearned_ { 1 }, tLowNote_ { 1 }, tBlockSize_ { 0 };
+    int blockFrames_ = 0; ///< the block being processed
     bool wasBypassed_ = false, wasPlaying_ = false;
     float gain_ = 1.0f; ///< audio through (1) or muted (0), ramped
 

@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <mutex>
 #include <sstream>
 #include <vector>
@@ -161,6 +162,21 @@ TEST_CASE ("The virtual port carries the notes, spaced as played, and ends them"
     CHECK (got[total].second.getNoteNumber() == last);
     if (input != nullptr)
         input->stop();
+}
+
+TEST_CASE ("What the audio buffer costs a note sent through the port", "[midi][ports]")
+{
+    // A block's events are spread over the block while it is no longer than kMaxSpreadMs (each
+    // goes out exactly one block after its sample), over kMaxSpreadMs when it is longer.
+    using Catch::Matchers::WithinAbs;
+    CHECK_THAT (MidiPortRouter::worstDelayMs (128, 48000.0), WithinAbs (2.667, 0.001));
+    CHECK_THAT (MidiPortRouter::meanDelayMs (128, 48000.0), WithinAbs (2.667, 0.001));
+    CHECK_THAT (MidiPortRouter::worstDelayMs (512, 44100.0), WithinAbs (11.610, 0.001));
+    CHECK_THAT (MidiPortRouter::meanDelayMs (512, 44100.0), WithinAbs (5.805 + 1.5, 0.001));
+    CHECK (MidiPortRouter::meanDelayMs (512, 44100.0) <
+           MidiPortRouter::worstDelayMs (512, 44100.0));
+    CHECK (MidiPortRouter::worstDelayMs (0, 48000.0) == 0.0);
+    CHECK (MidiPortRouter::worstDelayMs (128, 0.0) == 0.0);
 }
 
 TEST_CASE ("A destination that cannot open says why", "[midi][ports]")

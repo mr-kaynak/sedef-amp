@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Renders the built UI (vite preview) against the mock backend and saves screenshots to
-// docs/images at 1200x760 @2x; Sedef MIDI's ("midi") at its window's 760x540 @2x. Also fails on
+// docs/images at 1200x760 @2x; Sedef MIDI's ("midi") at its window's 760x600 @2x. Also fails on
 // console errors, so it doubles as a smoke test.
 //   pnpm build && pnpm build:midi && pnpm screenshots [--out <dir>] [name ...]
 import { mkdirSync } from 'node:fs';
@@ -25,12 +25,14 @@ const BOARD_16 =
 const MIDI = {
   configFile: resolve(root, 'vite.midi.config.ts'),
   page: 'midi.html',
-  canvas: { width: 760, height: 540 },
+  canvas: { width: 760, height: 600 },
 };
 
 const SHOTS = {
   // The standalone app, the demo bass line held on a sounding note.
   midi: { app: MIDI, query: 'host=standalone&frame=1450' },
+  // The same with a long audio buffer and a low string heard (not a docs image: a layout check).
+  'midi-long-buffer': { app: MIDI, query: 'host=standalone&frame=1450&buffer=512&heard=3' },
   amp: { query: 'section=amp' },
   // 0.3.0's five pedals with Pearl on (Glassy Chorus, the start-up preset, has only the three it uses).
   pedals: { query: 'section=pedals&board=gate,tide,pearl,coral,ripple&set=pearlEnabled:1' },

@@ -13,6 +13,7 @@ import {
   type MidiFunctionName,
   type MidiFunctions,
   type MidiHello,
+  type AudioState,
   type MidiTelemetry,
   type PortsState,
 } from './protocol';
@@ -116,6 +117,10 @@ export interface MockOptions {
   destination?: string;
   /** Outputs that fail to open, as an unplugged device does. */
   unavailable?: readonly string[];
+  /** The audio buffer, in samples at 48 kHz (128 by default). */
+  blockSize?: number;
+  /** What the automatic Lowest Note range has heard: 1 E2, 2 B1, 3 F♯1. */
+  lowNote?: number;
 }
 
 /** The automatic gate the mock reports: 20 dB over its silence, as the plug-in sets it. */
@@ -140,6 +145,7 @@ export class MockMidiBackend implements MidiBackend {
   private values: ParamValues = defaultValues(midiSchema);
   private ports: PortsState;
   private timer: ReturnType<typeof setInterval> | null = null;
+  private audioState: AudioState;
   private telemetryState: MidiTelemetry = {
     levelDb: -90,
     gateDb: MOCK_AUTO_GATE_DB,
@@ -168,6 +174,15 @@ export class MockMidiBackend implements MidiBackend {
       ],
     };
     this.ports.openName = this.nameOf(this.ports.selected);
+    const blockSize = options.blockSize ?? 128;
+    this.audioState = {
+      sampleRate: 48000,
+      blockSize,
+      bufferWorstMs: blockSize / 48,
+      bufferMeanMs: blockSize / 96 + Math.min(blockSize / 48, 3) / 2,
+      inputLatencyMs: standalone ? 1.4 : -1,
+      lowNote: options.lowNote ?? 1,
+    };
     if (options.autoPlay ?? true) this.startPlaying();
   }
 
@@ -189,6 +204,7 @@ export class MockMidiBackend implements MidiBackend {
       schema: [...midiSchema],
       values: { ...this.values },
       ports: { ...this.ports, outputs: [...this.ports.outputs] },
+      audio: { ...this.audioState },
     });
   }
 
@@ -215,6 +231,10 @@ export class MockMidiBackend implements MidiBackend {
         case 'sedef_midi_panic':
           this.telemetryState = { ...this.telemetryState, note: -1, sounding: false };
           this.emitter.emit('sedef:midi:telemetry', this.telemetryState);
+          return undefined;
+        case 'sedef_midi_forgetLowNote':
+          this.audioState = { ...this.audioState, lowNote: 1 };
+          this.emitter.emit('sedef:midi:audio', this.audioState);
           return undefined;
         case 'sedef_midi_ports':
           return { ...this.ports };

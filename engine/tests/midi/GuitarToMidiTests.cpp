@@ -1042,39 +1042,13 @@ TEST_CASE ("Guitar to MIDI settings: octave, channel, gate and bend", "[midi]")
         const auto run = convert (oneNote (kA2, Pickup::bridge, 0.02f, 6), kFs, s);
         CHECK (run.notes.empty());
     }
-    // Notes mode sends no bends; Notes + Bend sends the vibrato as bends, centred around the note
-    // and within the range, a bend just before the note-on, and nothing past the 14-bit range.
+    // Notes mode sends no bends, whatever the string does. (Notes + Bend: GuitarToMidiBendTests.)
+    for (double vibrato : { 30.0, 60.0 })
     {
-        const auto sc = held (kA2, kFs, 30.0, 0.0);
+        const auto sc = held (kA2, kFs, vibrato, 0.0);
         const auto notes = convert (sc.signal, kFs, plain());
         CHECK (std::none_of (notes.events.begin(), notes.events.end(),
                              [] (const midi::Event& e) { return e.isPitchBend(); }));
-        auto s = plain();
-        s.mode = midi::Mode::notesAndBend;
-        s.bendRange = 2;
-        const auto bent = convert (sc.signal, kFs, s);
-        int bends = 0, lo = 16383, hi = 0;
-        bool bendBeforeOn = false;
-        for (std::size_t k = 0; k < bent.events.size(); ++k)
-        {
-            const auto& e = bent.events[k];
-            if (e.isPitchBend())
-            {
-                ++bends;
-                lo = std::min (lo, e.bendValue());
-                hi = std::max (hi, e.bendValue());
-            }
-            if (e.isNoteOn() && k > 0 && bent.events[k - 1].isPitchBend() &&
-                bent.eventTimes[k - 1] == bent.eventTimes[k])
-                bendBeforeOn = true;
-        }
-        CHECK (bendBeforeOn);
-        CHECK (bends > 50);
-        // +-30 cents over a range of +-2 semitones: about +-1230 around 8192.
-        CHECK (hi - midi::kBendCentre > 900);
-        CHECK (midi::kBendCentre - lo > 900);
-        CHECK (hi - midi::kBendCentre < 1500);
-        CHECK (midi::kBendCentre - lo < 1500);
     }
 }
 
@@ -1098,6 +1072,7 @@ TEST_CASE ("Sedef MIDI parameter schema", "[midi][params]")
     CHECK (s.channel == 1);
     CHECK (s.bendRange == 2);
     CHECK (s.gateMode == midi::GateMode::automatic);
+    CHECK (s.lowNote == midi::LowNote::automatic);
     CHECK (midi::audioThrough (midi::defaultValues()));
     // Nonsense in, sane settings out.
     auto v = midi::defaultValues();

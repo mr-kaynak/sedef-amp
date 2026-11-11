@@ -41,15 +41,16 @@ Updates from inside Sedef Amp keep Sedef MIDI when it is installed and leave it 
 | **Input meter and Gate** | The meter shows your guitar's level, and the gate on the same scale: a pluck or pick under the gate never starts a note. **Auto** (default): the gate follows your input's own noise, so it needs no setting at any input level; the dashed line shows where it is. **Manual**: drag the handle to set it yourself. The **Signal** ring over the meter fills and lights while you're above the gate. |
 | **Note** | The note being sent, large enough to read from the guitar, with how far your pitch is from it (±50 cents). The last note stays, unlit, after it ends. |
 | **Octave** | −2, −1 (default), 0 or +1. A bass sounds an octave under a guitar, so −1 puts a guitar line in a bass's register. |
-| **Mode** | *Notes* (default) sends notes only. *Notes + Bend* also sends vibrato and slight bends as pitch bend. |
+| **Mode** | *Notes* (default) sends notes only: a held note is its note-on and its note-off, and a bend or a slide gives the notes it reaches. *Notes + Bend* also moves the pitch wheel when you bend a string or play a wide vibrato; a note you only hold leaves the wheel at its centre ([Bends, slides and held notes](#bends-slides-and-held-notes)). |
 | **Bend range** | In Notes + Bend: must match the bend range set in your instrument (2 semitones in most). |
 | **Timing** | *Fastest* (default) sends each note as soon as it is sure: low strings take longer. *Steady* sends every note 38 ms after you pluck or pick it, so one track delay of −38 ms puts every recorded note where you played it. |
+| **Lowest note** | How low your instrument goes. *Auto* (default) is a six-string guitar until you play a lower string, and then knows it (the app remembers it; a host saves it with the session). *E2*, *B1* and *F♯1* set it yourself: six, seven or eight strings, each with room for a dropped tuning (down to C♯2, G♯1 and E1). A lower range makes a few notes slightly later ([How fast is it](#how-fast-is-it)). |
 | **Velocity: Sensitivity, Curve** | How much the strength of each pluck or pick sets the velocity (0 %: every note at 100). The scale follows how hard you play on your input, about your last 16 notes, so the same playing gets the same velocities whether your interface is set high or low, and the dynamics of a phrase come through. *Soft*: a light touch already plays loud; *Hard*: loud notes need a hard one. |
 | **Channel** | The MIDI channel, 1-16. |
 | **Guitar audio / Side chain** | *Through* lets the guitar's sound pass; *Mute* silences it. The standalone app and the instrument start muted: they are there for the notes. |
 | **Send to / Also send to** | The standalone app: its own port, or a MIDI output. The plug-ins: the host only (default), their own virtual port, or a MIDI output such as an IAC bus. |
 | **Panic** | Ends every note on all 16 channels. |
-| **Audio input…** | Standalone app only: picks the audio interface, input, sample rate and buffer. |
+| **Audio input…** | Standalone app only: picks the audio interface, input, sample rate and buffer. The buffer is part of every note's delay: the bottom of the window shows it in milliseconds, with the interface's own input latency. |
 
 ## Setting up
 
@@ -109,12 +110,40 @@ host at their exact sample.
   uses the classic Windows MIDI interface, through which MIDI Services shows its endpoints to older
   apps; this is not tested yet.
 
+## Bends, slides and held notes
+
+- **A held note is steady.** While you only hold a note, Sedef MIDI sends nothing: not in Notes
+  mode, and not in Notes + Bend, where the pitch wheel stays exactly at its centre. A string a
+  little out of tune, a fret pressed sharp, the pitch sinking as the note fades and a narrow
+  vibrato (under about a quarter of a semitone) are the note, not a bend.
+- **Every note starts from a centred wheel** in Notes + Bend: a centred pitch bend goes out just
+  before each note-on. Some instruments answer a wheel that is off centre with a bend or a
+  vibrato of their own, so a wheel left slightly off makes every note waver; Sedef MIDI never
+  leaves it off. If an instrument still wavers on held notes in Notes mode, where Sedef MIDI
+  sends no pitch bend at all, the vibrato is the instrument's own setting.
+- **A bend** (Notes + Bend) starts once the string has moved a quarter of a semitone and then
+  follows it smoothly, up to the bend range; let the string down and the wheel returns to
+  exactly the centre. A bend past the range starts the next note, without a gap. Very fast
+  bends (a whole step in under about 120 ms) come out as notes.
+- **Wide vibrato** (Notes + Bend) is followed like a bend.
+- **Hammer-ons, pull-offs and slides are notes in both modes**: each fret you reach is a new
+  note-on. A fast slide gives the fret it starts on, the first fret it reaches and the fret it
+  stops on, not a burst of short notes; a slow one (more than about 50 ms a fret) gives every
+  fret. Nothing in a guitar's signal tells a fret taken without picking from a softly picked
+  note reliably, so Sedef MIDI does not turn them into pitch bend.
+- **In Notes mode** a string bend gives the notes it passes, a semitone at a time.
+
 ## Playing tips
 
 - **One note at a time.** Damp the strings you aren't playing. A string left ringing under the
   next note is usually fine when the new note is clearly louder; two strings at a similar level
   (a chord, or fingerstyle with strings ringing into each other) give short wrong notes between
   the right ones.
+- **Seven and eight strings, low tunings.** Leave **Lowest note** on Auto and play: the first
+  note under a guitar's range comes a little later than the ones after it (Sedef MIDI makes
+  sure it is a string and not two notes ringing together), and from then on the low strings
+  are tracked as fast as their pitch allows. Low notes are slow by nature: a pitch takes two of
+  its periods to tell, and a low F♯ swings 46 times a second.
 - **Play higher with −2.** A bass line played higher on the neck with the octave at −2 is recognised
   faster than the same line on the low strings with −1 (see the latency table).
 - **Any input level works.** Sedef MIDI works the same with your interface's peaks anywhere from
@@ -144,16 +173,40 @@ host at their exact sample.
 
 ## How fast is it
 
-From the pluck or pick to the note, at 48 kHz, plus your audio buffer (for example 5.3 ms at 256 samples):
+From the pluck or pick to the note, in Fastest:
 
-| String | E2 | A2 | D3 | G3 and up |
-|---|---:|---:|---:|---:|
-| Fastest | 28 ms | 22 ms | 17 ms | 16 ms |
-| Steady | 38 ms | 38 ms | 38 ms | 38 ms |
+| Note | F♯1 | A1 | B1 | D2 | E2 | A2 | D3 | G3 and up |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Six strings (E2, or Auto on a guitar) | | | | 31 ms | 28 ms | 22 ms | 17 ms | 16 ms |
+| Seven strings (B1) | | 40 ms | 37 ms | 31 ms | 28 ms | 22 ms | 18 ms | 16 ms |
+| Eight strings (F♯1) | 47 ms | 40 ms | 36 ms | 31 ms | 28 ms | 27 ms | 18 ms | 16 ms |
 
-A low note needs about two of its periods before its pitch is sure; above A3, Sedef MIDI waits one
-period of the low E (16 ms) to rule out a lower note under it. See
-[the design](design/guitar-to-midi.md#as-built) for the measurements.
+In Steady every note comes 38 ms after you play it (a note under about B1 cannot: it comes as
+soon as it is sure).
+
+**What the delay is made of.** A note cannot be named before two of its periods have passed:
+43 ms for a low F♯, 32 ms for a low B, 24 ms for a low E, 18 ms for an A. Sedef MIDI adds 2 to
+4 ms to be sure of it, and above A3 it waits one period of the low E (16 ms) to rule out a lower
+note under it. With a lower range, the notes between the lowest string's octave and about 150 Hz
+wait a little longer for the same reason (the F♯2 to B2 column above, in the eight-string row).
+Sending a note before its pitch is known and correcting it afterwards was measured and left
+out: it would gain 2 ms on a typical note and get 13 notes in 100 wrong first.
+
+**The rest is buffers, and you can shorten them.**
+
+- *Sedef MIDI's audio buffer* (the standalone app): a note goes out when the buffer it was
+  played in arrives. The app now asks your interface for about 3 ms (128 samples at 44.1 or
+  48 kHz) the first time it starts; 0.6.0 and 0.7.0 ran at the system's usual 512 samples,
+  11.6 ms at 44.1 kHz. The bottom of the window shows the buffer in milliseconds and your
+  interface's own input latency, and tells you when the buffer is long; **Audio input…** changes
+  it. Up to 3 ms, notes keep their exact spacing one buffer late; with a longer buffer each note
+  goes out at most 3 ms after its buffer arrives.
+- *In a host*, the plug-in's notes sit at their exact sample, and the host's buffer is what you
+  hear late.
+- *The instrument you play* has an output buffer of its own, usually larger than it needs to
+  be: set it as low as it plays cleanly (128 or 64 samples).
+
+See [the design](design/guitar-to-midi.md#as-built) for the measurements.
 
 ## If something doesn't work
 
@@ -167,6 +220,14 @@ period of the low E (16 ms) to rule out a lower note under it. See
 - **The note display moves, the instrument stays silent:** the MIDI doesn't reach it. Check that
   the instrument app lists "Sedef MIDI" as an input, that its channel matches Sedef MIDI's, or in
   Logic that the instrument track takes **MIDI From** the Sedef MIDI (Instrument) track.
+- **A held note wavers in pitch on the instrument:** see
+  [Bends, slides and held notes](#bends-slides-and-held-notes). In Notes mode Sedef MIDI sends no
+  pitch bend; in Notes + Bend it keeps the wheel centred while a note is held (0.6.0 and 0.7.0
+  sent every small move of the string as pitch bend).
+- **Notes come late:** look at the buffer at the bottom of the app's window, and at the buffer
+  of the instrument you play ([How fast is it](#how-fast-is-it)).
+- **A low string gives no note, or a higher one:** set **Lowest note** to your instrument (B1
+  for seven strings, F♯1 for eight). On E2, strings under a guitar's are not played.
 - **Wrong, missing or extra notes:** see the playing tips above. Reports help most with a short
   recording of the dry DI and the MIDI it gave:
   [open an issue](https://github.com/mr-kaynak/sedef-amp/issues).

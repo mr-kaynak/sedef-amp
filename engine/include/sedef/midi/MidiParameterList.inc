@@ -15,3 +15,4 @@ SEDEF_MIDI_PARAM(dynamics, "Velocity Sensitivity", Float, 0.0f, 100.0f, 75.0f, "
 SEDEF_MIDI_PARAM(curve, "Velocity Curve", Choice, 0.0f, 2.0f, 1.0f, "", "Soft|Linear|Hard", false)
 SEDEF_MIDI_PARAM(audio, "Audio", Choice, 0.0f, 1.0f, 0.0f, "", "Through|Mute", false)
 SEDEF_MIDI_PARAM(gateMode, "Gate Mode", Choice, 0.0f, 1.0f, 0.0f, "", "Auto|Manual", false)
+SEDEF_MIDI_PARAM(lowNote, "Lowest Note", Choice, 0.0f, 3.0f, 0.0f, "", "Auto|E2|B1|F#1", false)

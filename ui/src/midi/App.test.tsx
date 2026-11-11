@@ -58,6 +58,41 @@ describe('Sedef MIDI app', () => {
     await userEvent.click(screen.getByRole('radio', { name: 'Notes + Bend' }));
     expect(range).toBeEnabled();
     expect(screen.queryByText('Used in Notes + Bend.')).not.toBeInTheDocument();
+    expect(screen.getByText('Set your instrument to the same range.')).toBeInTheDocument();
+  });
+
+  it('says what the lowest note range covers, and forgets what Auto heard', async () => {
+    const b = await setup({ lowNote: 2 });
+    const range = within(screen.getByRole('radiogroup', { name: 'Lowest note' }));
+    expect(range.getByRole('radio', { name: 'Auto' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByText(/Heard a low B: down to G♯1/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Forget' }));
+    expect(b.calls.some((c) => c.name === 'sedef_midi_forgetLowNote')).toBe(true);
+    expect(
+      await screen.findByText('A six-string until it hears a lower string.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Forget' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('radio', { name: 'F♯1' }));
+    expect(
+      b.calls.some(
+        (c) => c.name === 'sedef_setParam' && c.args[0] === 'lowNote' && c.args[1] === 3,
+      ),
+    ).toBe(true);
+    expect(screen.getByText('Eight strings: down to E1.')).toBeInTheDocument();
+  });
+
+  it('shows what the audio buffer costs, and the way to a smaller one', async () => {
+    const b = await setup({ isStandalone: true, blockSize: 512 });
+    expect(screen.getByText('Buffer 512 (10.7 ms)')).toBeInTheDocument();
+    expect(screen.getByText('Input 1.4 ms')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /pick a smaller buffer/ }));
+    expect(b.calls.some((c) => c.name === 'sedef_midi_audioSettings')).toBe(true);
+  });
+
+  it('says nothing about a short buffer', async () => {
+    await setup({ isStandalone: true });
+    expect(screen.getByText('Buffer 128 (2.7 ms)')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /smaller buffer/ })).not.toBeInTheDocument();
   });
 
   it('explains Steady with its lag', async () => {
@@ -114,7 +149,8 @@ describe('Sedef MIDI app', () => {
   it('shows the automatic gate, and takes no input until Manual', async () => {
     const b = await setup();
     const gate = screen.getByRole('slider', { name: 'Gate' });
-    expect(screen.getByRole('radio', { name: 'Auto' })).toHaveAttribute('aria-checked', 'true');
+    const mode = within(screen.getByRole('radiogroup', { name: 'Gate mode' }));
+    expect(mode.getByRole('radio', { name: 'Auto' })).toHaveAttribute('aria-checked', 'true');
     expect(gate).toHaveAttribute('aria-disabled', 'true');
     act(() => b.publish({ gateDb: -81.6 }));
     expect(gate).toHaveAttribute('aria-valuetext', 'Automatic, −82.0 dB');

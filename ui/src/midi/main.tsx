@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Sedef MIDI's UI entry (midi.html). In a plain browser it runs on the mock backend; add
 // ?host=standalone, ?host=instrument or ?host=plugin to preview each variant, and ?frame=<ms> to
-// hold the demo bass line still (screenshots).
+// hold the demo bass line still (screenshots); ?buffer=<samples> and ?heard=<2|3> preview a long
+// audio buffer and what the automatic lowest note has learned.
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import '../styles/fonts';
@@ -20,6 +21,8 @@ async function main() {
     wrapperType: host === 'plugin' ? 'VST3' : host === 'instrument' ? 'AudioUnit' : undefined,
     autoPlay: !params.has('still'),
     frameMs: params.has('frame') ? Number(params.get('frame')) : undefined,
+    blockSize: params.has('buffer') ? Number(params.get('buffer')) : undefined,
+    lowNote: params.has('heard') ? Number(params.get('heard')) : undefined,
   });
   await connectMidi(backend);
   const root = document.getElementById('root');

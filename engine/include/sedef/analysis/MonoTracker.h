@@ -66,9 +66,16 @@ public:
         /// them just over it.
         float onsetFloor = 1.0e-7f; ///< -70 dBFS
         float clickFloor = 1.0e-8f; ///< -80 dBFS
+        /// The lowest note looked for, when above the floor given to prepare() (0: that floor).
+        /// A caller prepared for an extended range can keep the search to a guitar's own range,
+        /// where periods longer than any of its notes are never candidates.
+        float lowestHz = 0.0f;
+        /// The rumble high-pass ahead of everything, when not the usual 40 Hz (0: 40 Hz). A string
+        /// under a guitar's low E needs it lower to keep its fundamental.
+        float rumbleHz = 0.0f;
     };
     /// Real-time safe; takes effect from the next sample.
-    void setOptions (const Options& options) noexcept { options_ = options; }
+    void setOptions (const Options& options) noexcept;
     const Options& options() const noexcept { return options_; }
 
     /// Feeds one input sample.
@@ -82,6 +89,10 @@ public:
     {
         return locked_ ? (partialSettled_ ? partialHz_ : lockedHz_) : 0.0f;
     }
+    /// The locked note as the estimator follows it, 0 when none: it moves with the string at once
+    /// and without a break (hz() changes its source once a note holds still), which is what a
+    /// pitch bend follows. A few cents less exact than hz() on a steady note.
+    float followedHz() const noexcept { return locked_ ? lockedHz_ : 0.0f; }
     /// Periodicity of the latest estimate, 0..1 (the NSDF peak).
     float clarity() const noexcept { return clarity_; }
     /// The latest raw estimate, 0 when nothing periodic was found.
@@ -140,6 +151,7 @@ private:
     double rate_ = 8000.0; ///< decimated rate
     int factor_ = 6, phase_ = 0;
     int minLag_ = 2, maxLag_ = 160;
+    int searchLag_ = 160; ///< the longest lag estimate() looks at (Options::lowestHz)
     int minWindow_ = 32;
     int hop_ = 4, hopCount_ = 0;
     float minHz_ = kDefaultMinHz, maxHz_ = kDefaultMaxHz;

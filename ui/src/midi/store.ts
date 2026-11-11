@@ -11,11 +11,12 @@ import {
   type MidiFunctionName,
   type MidiFunctions,
   type MidiHello,
+  type AudioState,
   type MidiTelemetry,
   type PortsState,
 } from './protocol';
 
-export type Session = Omit<MidiHello, 'schema' | 'values' | 'ports'>;
+export type Session = Omit<MidiHello, 'schema' | 'values' | 'ports' | 'audio'>;
 
 interface MidiState {
   status: 'connecting' | 'ready' | 'error';
@@ -23,6 +24,7 @@ interface MidiState {
   message: string | null;
   session: Session | null;
   ports: PortsState | null;
+  audio: AudioState | null;
 }
 
 export const useMidiStore = create<MidiState>()(() => ({
@@ -30,6 +32,7 @@ export const useMidiStore = create<MidiState>()(() => ({
   message: null,
   session: null,
   ports: null,
+  audio: null,
 }));
 
 /** Telemetry, plus the last note sent (the display keeps it, unlit, after the note ends). */
@@ -72,6 +75,7 @@ export async function connectMidi(backend: MidiBackend): Promise<() => void> {
       midiTelemetry.publish({ ...t, lastNote });
     }),
     backend.onMidi('sedef:midi:ports', (ports) => useMidiStore.setState({ ports })),
+    backend.onMidi('sedef:midi:audio', (audio) => useMidiStore.setState({ audio })),
   ];
   try {
     const hello = await backend.midiHello();
@@ -90,6 +94,7 @@ export async function connectMidi(backend: MidiBackend): Promise<() => void> {
       status: 'ready',
       session,
       ports: hello.ports,
+      audio: hello.audio,
       message:
         hello.protocol === MIDI_PROTOCOL_VERSION
           ? null

@@ -49,6 +49,11 @@ Settings settingsFrom (const Values& v) noexcept
     s.dynamics = value (v, ParamId::dynamics) / 100.0f;
     const int curve = whole (v, ParamId::curve);
     s.curve = curve == 0 ? Curve::soft : (curve == 2 ? Curve::hard : Curve::linear);
+    const int low = whole (v, ParamId::lowNote);
+    s.lowNote = low == 1   ? LowNote::e2
+                : low == 2 ? LowNote::b1
+                : low == 3 ? LowNote::fSharp1
+                           : LowNote::automatic;
     return s;
 }
 

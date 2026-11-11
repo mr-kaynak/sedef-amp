@@ -79,6 +79,8 @@ Settings sanitised (Settings s) noexcept
     s.channel = std::clamp (s.channel, 1, 16);
     s.gateDb = std::isfinite (s.gateDb) ? std::clamp (s.gateDb, -96.0f, 0.0f) : Settings {}.gateDb;
     s.dynamics = std::isfinite (s.dynamics) ? std::clamp (s.dynamics, 0.0f, 1.0f) : 0.75f;
+    if (static_cast<int> (s.lowNote) > static_cast<int> (LowNote::fSharp1))
+        s.lowNote = LowNote::automatic;
     return s;
 }
 } // namespace
@@ -157,7 +159,9 @@ int GuitarToMidi::steadyLagSamples (double sampleRate) noexcept
 void GuitarToMidi::prepare (double sampleRate)
 {
     sampleRate_ = sampleRate;
-    tracker_.prepare (sampleRate);
+    // The tracker hears down to the lowest range's floor; applyRange() keeps its search to the
+    // range in effect.
+    tracker_.prepare (sampleRate, static_cast<float> (kFloorHz) - 1.0f);
     // Fingers: a touch before the pluck, and the weak fundamental and pulse-like attack of a low
     // string plucked near the bridge.
     analysis::MonoTracker::Options trackerOptions;
@@ -195,7 +199,7 @@ void GuitarToMidi::prepare (double sampleRate)
     factor_ = std::max (1, static_cast<int> (sampleRate / kDecimatedRate));
     rate_ = sampleRate / factor_;
     int size = 1;
-    while (size < static_cast<int> (2.5 / kLowestHz * rate_) + 8)
+    while (size < static_cast<int> (2.5 / kFloorHz * rate_) + 8)
         size <<= 1;
     ring_.assign (static_cast<std::size_t> (size), 0.0f);
     ringMask_ = size - 1;
@@ -216,9 +220,23 @@ void GuitarToMidi::prepare (double sampleRate)
     warmupSamples_ = samples (kWarmupSeconds, sampleRate);
     touchWaitSamples_ = samples (kTouchWaitSeconds, sampleRate);
     noiseRisePerMs_ = kNoiseRiseDbPerSecond / 1000.0f;
+    bendOnTicks_ =
+        std::max (1, static_cast<int> (std::lround (kBendOnSeconds / kBendIntervalSeconds)));
+    bendOffTicks_ =
+        std::max (1, static_cast<int> (std::lround (kBendOffSeconds / kBendIntervalSeconds)));
+    bendSlewPerTick_ = kBendSlewCentsPerSecond * static_cast<float> (kBendIntervalSeconds);
+    centrePerTick_ = kCentreCentsPerSecond * static_cast<float> (kBendIntervalSeconds);
+    learnSamples_ = samples (kLearnSeconds, sampleRate);
+    bendSettleTicks_ =
+        std::max (1, static_cast<int> (std::lround (kBendSettleSeconds / kBendIntervalSeconds)));
+    bendStillNeed_ =
+        std::max (1, static_cast<int> (std::lround (kBendStillSeconds / kBendIntervalSeconds)));
+    slideWindowSamples_ = samples (kSlideWindowSeconds, sampleRate);
+    slideConfirmSamples_ = samples (kSlideConfirmSeconds, sampleRate);
     settings_ = next_;
     settingsChanged_ = false;
     reset();
+    applyRange();
 }
 
 void GuitarToMidi::reset() noexcept
@@ -276,7 +294,13 @@ void GuitarToMidi::reset() noexcept
     candidateSamples_ = 0;
     noteDue_ = 0;
     bendSent_ = kBendCentre;
-    bendCents_ = 0.0f;
+    sentNote_ = -1;
+    bendOut_ = bendGlide_ = bendSeen_ = bendCentre_ = bendTarget_ = bendStill_ = 0.0f;
+    bendOn_ = false;
+    bendOutside_ = bendInside_ = bendStillTicks_ = 0;
+    stepAt_ = 0;
+    stepDirection_ = 0;
+    noteLearned_ = false;
     lastBendAt_ = 0;
     queued_ = 0;
     bridgeNote_ = -1;
@@ -291,7 +315,8 @@ void GuitarToMidi::setSettings (const Settings& s) noexcept
     if (clean.octave != from.octave || clean.mode != from.mode ||
         clean.bendRange != from.bendRange || clean.timing != from.timing ||
         clean.channel != from.channel || clean.gateMode != from.gateMode ||
-        clean.gateDb != from.gateDb || clean.dynamics != from.dynamics || clean.curve != from.curve)
+        clean.gateDb != from.gateDb || clean.dynamics != from.dynamics ||
+        clean.curve != from.curve || clean.lowNote != from.lowNote)
     {
         next_ = clean;
         settingsChanged_ = true;
@@ -321,16 +346,24 @@ void GuitarToMidi::applySettings (EventList& out, int offset) noexcept
             emit (out, queue_[static_cast<std::size_t> (k)].event.withOffset (offset));
         queued_ = 0;
     }
-    if (note_ >= 0 && (old.channel != settings_.channel || old.octave != settings_.octave))
+    if (old.lowNote != settings_.lowNote)
+        applyRange();
+    // A note bent to another fret is not the note the receiver holds: without the bend, or with
+    // another range, it would jump.
+    const bool bendChanged = old.mode != settings_.mode || old.bendRange != settings_.bendRange;
+    if (note_ >= 0 && (old.channel != settings_.channel || old.octave != settings_.octave ||
+                       (bendChanged && (note_ != sentNote_ || bendSent_ != kBendCentre))))
     {
         endNote (now_, Why::other, true);
         emitDue (out, offset);
         pickFresh_ = false;
     }
-    if (old.mode == Mode::notesAndBend && settings_.mode == Mode::notes && bendSent_ != kBendCentre)
+    if (bendChanged && bendSent_ != kBendCentre)
     {
         schedule (now_, Event::pitchBend (bendChannel_, kBendCentre, 0));
         bendSent_ = kBendCentre;
+        bendOut_ = bendGlide_ = bendTarget_ = 0.0f;
+        bendOn_ = false;
         emitDue (out, offset);
     }
 }
@@ -656,7 +689,24 @@ bool GuitarToMidi::muted() const noexcept
     float peak = levelDb_;
     for (int k = 0; k < ms; ++k)
         peak = std::max (peak, levelAgo (k));
-    return levelDb_ < peak - kMuteDropDb;
+    return sustainedDb() < peak - kMuteDropDb;
+}
+
+float GuitarToMidi::sustainedDb (double coveredSeconds) const noexcept
+{
+    // The 3 ms level of a low string swings with every period (10-20 dB, plucked near the bridge
+    // with the fingers): a string under the low E is as loud as the loudest millisecond of its
+    // last period, less what `coveredSeconds` of it the plain level stands for already.
+    const float hz = note_ >= 0 && noteHz_ > 0.0f ? noteHz_ : tracker_.hz();
+    if (hz <= 0.0f)
+        return levelDb_;
+    const int back = std::clamp (
+        static_cast<int> (std::ceil (1000.0 * (1.0 / static_cast<double> (hz) - coveredSeconds))),
+        0, kHistoryMs / 2);
+    float level = levelDb_;
+    for (int k = 0; k < back; ++k)
+        level = std::max (level, levelAgo (k));
+    return level;
 }
 
 bool GuitarToMidi::pitchSettled() const noexcept
@@ -675,7 +725,7 @@ bool GuitarToMidi::pitchSettled() const noexcept
                        kRepickMarginSeconds;
     // The lowest note a pick may bring (drop D's open string, with room) needs two of its
     // periods before the tracker can name it.
-    const double lowest = 2.0 / kLowestHz + kTrackerMarginSeconds + kRepickMarginSeconds;
+    const double lowest = 2.0 / lowestHz_ + kTrackerMarginSeconds + kRepickMarginSeconds;
     const bool dominant = pickLevelDb() >= preLevelDb_ + kDominantPickDb;
     const bool agreed = agreeSamples_ >= samples (kAgreeSeconds, sampleRate_);
     return agreed && since >= (dominant ? own : lowest);
@@ -709,12 +759,13 @@ bool GuitarToMidi::lowerNotePossible (float hz) const noexcept
     // better, a lower note is on its way. The lowest open string's period must fit before
     // anything above its octave counts.
     const double since = static_cast<double> (now_ - pickAt_) / sampleRate_;
-    if (since >= 2.0 / kLowestHz + kTrackerMarginSeconds + kRepickMarginSeconds)
+    if (since >= 2.0 / lowestHz_ + kTrackerMarginSeconds + kRepickMarginSeconds)
         return false; // the tracker would have named it by now
     // The attack's first milliseconds (the pick's click, what it replaced) repeat at no period.
     const int available = static_cast<int> ((now_ - pickAt_) / factor_) - attackSkip_;
     const int window = minCheckWindow_;
     const auto candidateLag = static_cast<int> (std::lround (rate_ / static_cast<double> (hz)));
+    // A six-string guitar's wait, in every range: one period of the low E.
     if (static_cast<double> (hz) >= 1.9 * kLowestOpenHz &&
         available < static_cast<int> (rate_ / kLowestOpenHz) + window)
         return true; // too early to tell
@@ -723,8 +774,23 @@ bool GuitarToMidi::lowerNotePossible (float hz) const noexcept
     lowCheckedAt_ = now_;
     lowCheckedHz_ = hz;
     lowerCached_ = false;
+    const bool lowRange = openHz_ < kLowestOpenHz;
+    if (lowRange && static_cast<double> (hz) >= 1.9 * openHz_ &&
+        available < static_cast<int> (rate_ / openHz_) + 2 * window)
+    {
+        // A range under a guitar's: one period of its lowest string (a first reading can name
+        // any of a low string's partials, and not exactly). Unless the note alone accounts for
+        // the signal since the pick: all of it (at least two periods, and 8 ms) repeats at the
+        // note's period to within kAloneClean, so nothing else sounds, and nothing lower can be
+        // on its way. (A low string whose 4th partial is its strongest still leaves 3 % of
+        // itself outside that period.)
+        const int span = available - candidateLag;
+        const int least = std::max (candidateLag, static_cast<int> (std::lround (0.008 * rate_)));
+        lowerCached_ = candidateLag < 1 || span < least || periodicityAt (hz, span) < kAloneClean;
+        return lowerCached_;
+    }
     const int longest =
-        std::min ({ available - window, static_cast<int> (rate_ / kLowestHz) + 1, ringMask_ / 2 });
+        std::min ({ available - window, static_cast<int> (rate_ / lowestHz_) + 1, ringMask_ / 2 });
     if (candidateLag < 1 || longest <= candidateLag + 1)
         return false;
     const int w0 = std::min (std::max (candidateLag, window), available - candidateLag);
@@ -735,7 +801,18 @@ bool GuitarToMidi::lowerNotePossible (float hz) const noexcept
         if (w < window)
             break;
         const float p = shortPeriodicity (lag, w);
-        if (own < kOwnClean && p >= kLongerPeriodic && p > own + kLongerMargin)
+        bool lower =
+            !lowRange && own < kOwnClean && p >= kLongerPeriodic && p > own + kLongerMargin;
+        if (lowRange && p >= kLongerPeriodic)
+        {
+            // In a low range, a string whose strongest partial was named first repeats nearly
+            // as well at that partial's period as at its own. Over the same stretch, with the
+            // note's period taken exactly: the longer period leaves less than half of what the
+            // note's own leaves unexplained, and that is more than 1 % of the signal.
+            const float left = 1.0f - periodicityAt (hz, w);
+            lower = left > kLeftOver && 1.0f - p < 0.5f * left;
+        }
+        if (lower)
         {
             lowerCached_ = true;
             break;
@@ -882,12 +959,28 @@ bool GuitarToMidi::pickedNoteReady (float hz) const noexcept
     // A note heard after a pick counts once the tracker could have judged it on two of its own
     // periods since the pick (when the tracker missed the pick, its estimate still straddles it),
     // it is not under the lowest note a guitar plays, and no lower note can still be coming.
-    if (hz < kMinNoteHz || periodicityAt (hz) < kPickedClarity)
+    if (hz < minNoteHz_ || periodicityAt (hz) < kPickedClarity)
         return false;
     const double since = static_cast<double> (now_ - pickAt_) / sampleRate_;
-    if (since <
-        std::max (2.0 / static_cast<double> (hz) + kTrackerMarginSeconds, kTrackerMinSettleSeconds))
+    // The automatic range, before it has heard a string under a guitar's: a note down there
+    // must hold for a third period (two strings ringing together repeat at such a period for a
+    // moment). The first one comes a period late, once; then the range knows.
+    const double periods = unheardLow (hz) ? 3.0 : 2.0;
+    if (since < std::max (periods / static_cast<double> (hz) + kTrackerMarginSeconds,
+                          kTrackerMinSettleSeconds))
         return false;
+    // In a range under a guitar's, a low string picked again takes two of its long periods to
+    // be named again, and the tracker reads one thing after another meanwhile. A note above the
+    // lowest string's octave must account for the signal since the pick (up to one period of
+    // that string), not only for its own last period.
+    if (openHz_ < kLowestOpenHz && static_cast<double> (hz) >= 1.9 * openHz_)
+    {
+        const auto lag = static_cast<int> (std::lround (rate_ / static_cast<double> (hz)));
+        const int available = static_cast<int> ((now_ - pickAt_) / factor_) - attackSkip_;
+        const int span = std::min (available - lag, static_cast<int> (rate_ / openHz_));
+        if (lag < 1 || span < lag || shortPeriodicity (lag, span) < kPickedClarity)
+            return false;
+    }
     return !lowerNotePossible (hz);
 }
 
@@ -984,6 +1077,7 @@ void GuitarToMidi::decide() noexcept
             return;
         if (levelDb_ > attackBeforeDb() + kDominantPickDb)
             return;
+        stepDirection_ = 0;
         startNote (q, velocityAt (level), pickAt_, Why::pick);
         pickFresh_ = false;
         candidate_ = -1;
@@ -1007,6 +1101,23 @@ void GuitarToMidi::decide() noexcept
 
     if (q == note_)
         noteHz_ = heard; // follows vibrato and bends, for the slip check
+    // Automatic range: a note this low that has lasted is one of this instrument's strings.
+    if (!noteLearned_ && now_ - noteStart_ >= learnSamples_ && q == note_)
+    {
+        noteLearned_ = true;
+        if (settings_.lowNote == LowNote::automatic && periodicity_ >= kPeriodicHigh)
+        {
+            const auto before = learned_;
+            if (noteHz_ < kLearnFSharp1Hz)
+                learned_ = LowNote::fSharp1;
+            else if (noteHz_ < kLearnB1Hz && learned_ == LowNote::e2)
+                learned_ = LowNote::b1;
+            if (learned_ != before)
+                applyRange();
+        }
+    }
+    if (settings_.mode == Mode::notesAndBend)
+        followBend();
     const float away = std::abs (heardPitch - static_cast<float> (note_));
     if (q != note_ && away > 0.5f + kHysteresisSemitones)
     {
@@ -1036,6 +1147,23 @@ void GuitarToMidi::decide() noexcept
                 candidate_ = -1;
                 return;
             }
+            // A pick seen only as the note losing its period, that added no energy, is the
+            // string taking another fret: a hammer-on, a pull-off, a step of a slide.
+            const bool fretChange = pickWeakSource_ &&
+                                    std::abs (q - note_) <= kMaxLegatoSemitones &&
+                                    pickLevelDb() < preHeldDb_ + kLockRiseDb;
+            if (bendReaches (q))
+            {
+                bendToFret (q, heard, recentPeakDb());
+                pickFresh_ = false;
+                candidate_ = -1;
+                return;
+            }
+            // A slide's frets come faster than notes: the next note waits until one is held.
+            if (fretChange && slideStep (q) && candidateSamples_ < slideConfirmSamples_)
+                return;
+            stepDirection_ = fretChange ? (q > note_ ? 1 : -1) : 0;
+            stepAt_ = now_;
             const int velocity = velocityAt (pickLevelDb());
             const bool wasFresh = pickFresh_;
             endNote (pickAt_, Why::replaced);
@@ -1051,17 +1179,31 @@ void GuitarToMidi::decide() noexcept
         // on before the next pick. A leap no fretting hand makes without picking (an octave flip
         // of the tracker on a note and its partial) is ignored.
         const float recent = recentPeakDb();
-        if (levelDb_ < recent - kLegatoDropDb || recent < noteLevelDb_ - kFadedDropDb)
+        if (sustainedDb() < recent - kLegatoDropDb || recent < noteLevelDb_ - kFadedDropDb)
         {
             endNote (now_, Why::damped);
             candidate_ = -1;
             return;
         }
-        if (std::abs (q - note_) > kMaxLegatoSemitones)
+        // (Nor a note under any string the automatic range has heard picked.)
+        if (std::abs (q - note_) > kMaxLegatoSemitones || unheardLow (heard))
         {
             candidate_ = -1;
             return;
         }
+        // Notes + Bend: a string bent across the semitone, inside the bend's range, is still
+        // the note that was picked; past the range, the next note starts.
+        if (bendReaches (q))
+        {
+            bendToFret (q, heard, recent);
+            candidate_ = -1;
+            return;
+        }
+        // A slide's frets come faster than notes: the next note waits until one is held.
+        if (slideStep (q) && candidateSamples_ < slideConfirmSamples_)
+            return;
+        stepDirection_ = q > note_ ? 1 : -1;
+        stepAt_ = now_;
         const auto reference = now_ - legatoLeadSamples_;
         endNote (reference, Why::replaced);
         startNote (q, velocityAt (levelDb_), reference, Why::legato);
@@ -1082,25 +1224,192 @@ void GuitarToMidi::decide() noexcept
         periodicityAt (heard) >= kPeriodicHigh)
     {
         const int velocity = velocityAt (pickLevelDb());
+        stepDirection_ = 0;
         endNote (pickAt_, Why::replaced);
         startNote (q, velocity, pickAt_, Why::repick);
         pickFresh_ = false;
         return;
     }
+}
 
-    if (settings_.mode == Mode::notesAndBend)
+float GuitarToMidi::bendCentsFrom (int note) const noexcept
+{
+    // The tracker's reading as its estimator follows it: it moves with the string without a
+    // break (hz() changes its source when a note holds still, a step of some cents).
+    const float hz = tracker_.followedHz();
+    if (hz <= 0.0f)
+        return 0.0f;
+    return 100.0f * (midiPitch (hz) + 12.0f * static_cast<float> (settings_.octave) -
+                     static_cast<float> (note));
+}
+
+bool GuitarToMidi::unheardLow (float hz) const noexcept
+{
+    return settings_.lowNote == LowNote::automatic && hz < kRanges[0].minNoteHz &&
+           (learned_ == LowNote::e2 || (learned_ == LowNote::b1 && hz < kRanges[1].minNoteHz));
+}
+
+bool GuitarToMidi::bendReaches (int q) const noexcept
+{
+    // The bend followed the pitch all the way to this fret: the string was bent there. A fret
+    // taken at once (a hammer-on, a pull-off, a slide's step) cannot be told from a soft pick on
+    // the same string by anything the signal shows reliably, and a picked note that came out as
+    // a bend would have lost its attack: those are notes, as in Notes mode.
+    if (settings_.mode != Mode::notesAndBend || sentNote_ < 0 ||
+        std::abs (q - sentNote_) > settings_.bendRange)
+        return false;
+    return std::abs (bendCentsFrom (note_) - bendCentre_ - bendSeen_) <= kBendJumpCents;
+}
+
+bool GuitarToMidi::slideStep (int q) const noexcept
+{
+    return stepDirection_ != 0 && (q > note_ ? 1 : -1) == stepDirection_ &&
+           now_ - stepAt_ < slideWindowSamples_;
+}
+
+void GuitarToMidi::bendToFret (int q, float heard, float recentDb) noexcept
+{
+    // The bend carries on from where it is: only the fret it is counted from changes.
+    startWhy_ = Why::legato;
+    note_ = q;
+    noteHz_ = heard;
+    periodicHz_ = 0.0f;
+    noteLevelDb_ = std::max (noteLevelDb_, recentDb);
+    bendSeen_ = bendStill_ = bendCentsFrom (note_) - bendCentre_;
+    bendOutside_ = bendInside_ = bendStillTicks_ = 0;
+    bendOn_ = true;
+    bendTarget_ = 100.0f * static_cast<float> (note_ - sentNote_) + bendSeen_;
+}
+
+void GuitarToMidi::followBend() noexcept
+{
+    if (now_ - lastBendAt_ < bendIntervalSamples_)
+        return;
+    lastBendAt_ = now_;
+    // How far the pitch is from where this note sits. A move of more than kBendJumpCents in one
+    // interval is the string taking another fret (or the tracker's reading slipping): the legato
+    // rules decide what that is, and the bend waits where it was. And a pitch that moves while
+    // the level falls is the hand letting go of the string, or moving on to the next fret before
+    // the next pick: no bend starts there.
+    const float raw = bendCentsFrom (note_);
+    if (bendSettling_ > 0)
     {
-        const float cents = 100.0f * (pitch_ - static_cast<float> (note_));
-        if (now_ - lastBendAt_ >= bendIntervalSamples_ &&
-            std::abs (cents - bendCents_) >= kBendDeadbandCents)
-            sendBend (pitch_ - static_cast<float> (note_), now_);
+        // A note's first kBendSettleSeconds: the reading may still be on its way from where the
+        // string was (the fret before, the attack), so where it is now is the note's centre.
+        --bendSettling_;
+        bendCentre_ = std::clamp (raw, -kCentreMaxCents, kCentreMaxCents);
+        bendSeen_ = bendStill_ = 0.0f;
+        bendOutside_ = bendStillTicks_ = 0;
+        return;
     }
+    const float d = raw - bendCentre_;
+    const bool lettingGo = !bendOn_ && sustainedDb (0.0) < recentPeakDb() - kBendFadeDb;
+    if (lettingGo)
+        bendOutside_ = 0;
+    else if (std::abs (d - bendSeen_) <= kBendJumpCents || std::abs (d) <= kBendOnCents)
+    {
+        const bool followed = std::abs (d - bendSeen_) <= kBendJumpCents;
+        bendSeen_ = d;
+        if (std::abs (d - bendStill_) <= kBendStillCents)
+            ++bendStillTicks_;
+        else
+        {
+            bendStill_ = d;
+            bendStillTicks_ = 0;
+        }
+        if (!bendOn_)
+        {
+            if (std::abs (d) > kBendOnCents)
+            {
+                // Past the dead band for kBendOnSeconds, or so far past it, followed all the
+                // way, that it can only be a bend.
+                if (++bendOutside_ >= bendOnTicks_ || (followed && std::abs (d) > kBendSureCents))
+                {
+                    bendOn_ = true;
+                    bendInside_ = 0;
+                    bendStillTicks_ = 0;
+                }
+            }
+            else
+            {
+                // A held note: its centre follows the string's own slow drift (the pitch sinking
+                // as the note decays, a fret pressed a little sharp), so none of it is bend.
+                bendOutside_ = 0;
+                bendCentre_ =
+                    std::clamp (bendCentre_ + std::clamp (d, -centrePerTick_, centrePerTick_),
+                                -kCentreMaxCents, kCentreMaxCents);
+            }
+        }
+        else
+        {
+            // Back at the note: inside kBendOffCents for kBendOffSeconds...
+            bendInside_ = std::abs (d) < kBendOffCents ? bendInside_ + 1 : 0;
+            // ...or the pitch has come to rest within a fret's tuning of its semitone: that is
+            // where the note sits (a string let down a little off where it was, a note whose
+            // first reading was off), and its centre from now on. A bend held rests further out.
+            const bool resting = bendStillTicks_ >= bendStillNeed_ && note_ == sentNote_ &&
+                                 std::abs (raw) <= kCentreMaxCents;
+            if (bendInside_ >= bendOffTicks_ || resting)
+            {
+                bendOn_ = false;
+                bendOutside_ = 0;
+                if (resting)
+                {
+                    bendCentre_ = raw;
+                    bendSeen_ = bendStill_ = 0.0f;
+                }
+            }
+        }
+    }
+    const float limit = 100.0f * static_cast<float> (settings_.bendRange);
+    const float fret = 100.0f * static_cast<float> (note_ - sentNote_);
+    const float want = std::clamp (fret + (bendOn_ ? bendSeen_ : 0.0f), -limit, limit);
+    // The reading's own small moves are not the string's.
+    if (!bendOn_ || std::abs (want - bendTarget_) >= kBendHoldCents)
+        bendTarget_ = want;
+    if (bendTarget_ == bendGlide_)
+        return;
+    bendGlide_ += std::clamp (bendTarget_ - bendGlide_, -bendSlewPerTick_, bendSlewPerTick_);
+    if (std::abs (bendGlide_ - bendOut_) >= kBendStepCents || bendGlide_ == bendTarget_)
+        sendBend (bendGlide_, now_);
+}
+
+void GuitarToMidi::applyRange() noexcept
+{
+    const auto& r = kRanges[static_cast<int> (lowNoteInEffect()) - 1];
+    openHz_ = r.openHz;
+    lowestHz_ = r.lowestHz;
+    // Automatic hears any note down to the floor, whatever it has learned so far (that is how
+    // it learns); a chosen range hears its own notes only.
+    const bool automatic = settings_.lowNote == LowNote::automatic;
+    minNoteHz_ = automatic ? kRanges[2].minNoteHz : r.minNoteHz;
+    auto options = tracker_.options();
+    options.lowestHz = automatic ? 0.0f : r.searchHz;
+    options.rumbleHz = r.rumbleHz;
+    tracker_.setOptions (options);
+}
+
+LowNote GuitarToMidi::lowNoteInEffect() const noexcept
+{
+    return settings_.lowNote == LowNote::automatic ? learned_ : settings_.lowNote;
+}
+
+void GuitarToMidi::forgetLowNote() noexcept
+{
+    setLearnedLowNote (LowNote::e2);
+}
+
+void GuitarToMidi::setLearnedLowNote (LowNote learned) noexcept
+{
+    learned_ = learned == LowNote::automatic ? LowNote::e2 : learned;
+    applyRange();
 }
 
 void GuitarToMidi::startNote (int note, int velocity, std::int64_t reference, Why why) noexcept
 {
     startWhy_ = why;
     noteStart_ = reference;
+    noteLearned_ = false;
     // A legato note keeps the energy the pick gave the string (or what it added to it).
     noteLevelDb_ = why == Why::legato ? std::max (noteLevelDb_, recentPeakDb())
                    : why == Why::pick ? attackLevelDb()
@@ -1144,13 +1453,11 @@ void GuitarToMidi::startNote (int note, int velocity, std::int64_t reference, Wh
         if (off >= 0 && queue_[static_cast<std::size_t> (off)].due >= now_)
         {
             unqueue (off);
-            note_ = note;
+            note_ = sentNote_ = note;
             noteHz_ = heardHz_;
             periodicHz_ = 0.0f;
             noteChannel_ = settings_.channel;
             noteDue_ = now_;
-            if (settings_.mode == Mode::notesAndBend)
-                sendBend (pitch_ - static_cast<float> (note), now_);
             return;
         }
     }
@@ -1169,14 +1476,35 @@ void GuitarToMidi::startNote (int note, int velocity, std::int64_t reference, Wh
                 schedule (due, p.event);
             }
         }
-    note_ = note;
+    note_ = sentNote_ = note;
     noteHz_ = heardHz_;
     periodicHz_ = 0.0f;
     noteChannel_ = settings_.channel;
     noteDue_ = due;
     lastVelocity_ = velocity;
     if (settings_.mode == Mode::notesAndBend)
-        sendBend (pitch_ - static_cast<float> (note), due);
+    {
+        // Every note starts with the bend centred: what the note before left of its bend (still
+        // waiting, in Steady) is dropped, and the note's own centre is where it sits now.
+        for (int k = queued_ - 1; k >= 0; --k)
+        {
+            const auto& p = queue_[static_cast<std::size_t> (k)];
+            if (p.event.isPitchBend() && p.due >= due)
+            {
+                unqueue (k);
+                bendSent_ = -1;
+            }
+        }
+        bendOn_ = false;
+        bendOutside_ = bendInside_ = bendStillTicks_ = 0;
+        bendSettling_ = bendSettleTicks_;
+        bendGlide_ = bendSeen_ = bendTarget_ = bendStill_ = 0.0f;
+        bendCentre_ = std::clamp (bendCentsFrom (note), -kCentreMaxCents, kCentreMaxCents);
+        // Sent with every note-on, not only after a bend: a receiver whose wheel was left off
+        // centre by anything else starts this note in tune too.
+        bendSent_ = -1;
+        sendBend (0.0f, due);
+    }
     schedule (due, Event::noteOn (noteChannel_, note, velocity, 0));
     ++notesSent_;
 }
@@ -1216,7 +1544,7 @@ void GuitarToMidi::endNote (std::int64_t reference, Why why, bool immediately) n
     if (settings_.timing == Timing::steady && !immediately && noteDue_ >= now_ &&
         due - noteDue_ < shortNoteSamples_)
     {
-        const int on = findQueued (true, noteChannel_, note_);
+        const int on = findQueued (true, noteChannel_, sentNote_);
         if (on >= 0 && queue_[static_cast<std::size_t> (on)].due == noteDue_)
         {
             unqueue (on);
@@ -1243,22 +1571,21 @@ void GuitarToMidi::endNote (std::int64_t reference, Why why, bool immediately) n
                 }
             }
             lastNote_ = bridgeNote_ >= 0 ? bridgeNote_ : lastNote_;
-            note_ = -1;
+            note_ = sentNote_ = -1;
             return;
         }
     }
-    schedule (due, Event::noteOff (noteChannel_, note_, 0));
-    note_ = -1;
+    schedule (due, Event::noteOff (noteChannel_, sentNote_, 0));
+    note_ = sentNote_ = -1;
 }
 
-void GuitarToMidi::sendBend (float deviation, std::int64_t due) noexcept
+void GuitarToMidi::sendBend (float cents, std::int64_t due) noexcept
 {
     const int range = std::max (1, settings_.bendRange);
-    const float share = std::clamp (deviation / static_cast<float> (range), -1.0f, 1.0f);
+    const float share = std::clamp (cents / (100.0f * static_cast<float> (range)), -1.0f, 1.0f);
     const int value =
         std::clamp (kBendCentre + static_cast<int> (std::lround (share * 8192.0f)), 0, 16383);
-    bendCents_ = 100.0f * deviation;
-    lastBendAt_ = now_;
+    bendOut_ = cents;
     if (value == bendSent_ && settings_.channel == bendChannel_)
         return;
     bendSent_ = value;
@@ -1333,7 +1660,7 @@ void GuitarToMidi::emit (EventList& out, const Event& e) noexcept
 void GuitarToMidi::endAll (EventList& out, int offset, bool everyChannel) noexcept
 {
     queued_ = 0;
-    note_ = -1;
+    note_ = sentNote_ = -1;
     bridgeNote_ = -1;
     candidate_ = -1;
     pickFresh_ = false;
@@ -1349,7 +1676,8 @@ void GuitarToMidi::endAll (EventList& out, int offset, bool everyChannel) noexce
             out.push (Event::pitchBend (ch, kBendCentre, offset));
         }
     bendSent_ = kBendCentre;
-    bendCents_ = 0.0f;
+    bendOut_ = bendGlide_ = bendTarget_ = 0.0f;
+    bendOn_ = false;
     channelsUsed_ = 0;
 }
 

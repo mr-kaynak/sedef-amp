@@ -29,6 +29,9 @@ private:
     juce::var schema() const;
     juce::var allValues() const;
     juce::var ports() const;
+    /// The audio side of the delay: the buffer and, in the standalone app, the device's input
+    /// latency; and the Lowest Note range in effect.
+    juce::var audio() const;
     void timerCallback() override;
     void emitParams();
     void emitTelemetry();
@@ -38,7 +41,7 @@ private:
     MidiProcessor& processor_;
     std::unique_ptr<Browser> browser_;
     std::array<float, midi::kNumParams> lastSent_ {};
-    juce::var lastPorts_;
+    juce::var lastPorts_, lastAudio_;
     bool pageReady_ = false;
     int tick_ = 0;
 

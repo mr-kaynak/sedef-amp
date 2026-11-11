@@ -892,11 +892,16 @@ int provisional (int argc, char** argv)
         std::string line;
         while (std::getline (truth, line))
         {
-            double t = 0.0;
-            int note = 0;
-            if (!line.empty() && line[0] != '#' &&
-                std::sscanf (line.c_str(), "%lf %d", &t, &note) == 2)
-                played.push_back ({ t, note });
+            if (line.empty() || line[0] == '#')
+                continue;
+            char* afterTime = nullptr;
+            const double t = std::strtod (line.c_str(), &afterTime);
+            if (afterTime == line.c_str())
+                continue;
+            char* afterNote = nullptr;
+            const long note = std::strtol (afterTime, &afterNote, 10);
+            if (afterNote != afterTime && note >= 0 && note <= 127)
+                played.push_back ({ t, static_cast<int> (note) });
         }
         Provisional p;
         provisionalOver (p, audio->mono, audio->sampleRate, played, s, learned);

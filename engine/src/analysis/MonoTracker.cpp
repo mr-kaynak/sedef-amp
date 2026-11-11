@@ -116,12 +116,27 @@ void MonoTracker::prepare (double sampleRate, float minHz, float maxHz)
     r_.assign (static_cast<size_t> (maxLag_ + 2), 0.0);
     m_.assign (static_cast<size_t> (maxLag_ + 2), 0.0);
     nsdf_.assign (static_cast<size_t> (maxLag_ + 2), 0.0f);
+    setOptions (options_);
 
     hp_.c = design::highpass (sampleRate, kRumbleHz, 0.5);
     const double aa = std::min (kAntiAliasHz, 0.2 * rate_);
     aa1_.c = design::lowpass (sampleRate, aa, 0.5411961);
     aa2_.c = design::lowpass (sampleRate, aa, 1.3065630);
     reset();
+}
+
+void MonoTracker::setOptions (const Options& options) noexcept
+{
+    if (options.rumbleHz != options_.rumbleHz)
+        hp_.c = design::highpass (sampleRate_,
+                                  options.rumbleHz > 0.0f ? options.rumbleHz : kRumbleHz, 0.5);
+    options_ = options;
+    searchLag_ =
+        options.lowestHz > 0.0f
+            ? std::min (
+                  maxLag_,
+                  static_cast<int> (std::ceil (rate_ / static_cast<double> (options.lowestHz))) + 2)
+            : maxLag_;
 }
 
 void MonoTracker::reset() noexcept
@@ -334,7 +349,7 @@ void MonoTracker::updateLags (float x) noexcept
 
 void MonoTracker::estimate() noexcept
 {
-    for (int lag = 1; lag <= maxLag_; ++lag)
+    for (int lag = 1; lag <= searchLag_; ++lag)
     {
         const double m = m_[static_cast<size_t> (lag)];
         nsdf_[static_cast<size_t> (lag)] =
@@ -350,7 +365,7 @@ void MonoTracker::estimate() noexcept
     bool pastZero = false, inLobe = false;
     int best = 0;
     const auto addKey = [this, &count] (int lag) {
-        if (lag < minLag_ || lag >= maxLag_ || count >= static_cast<int> (keys_.size()))
+        if (lag < minLag_ || lag >= searchLag_ || count >= static_cast<int> (keys_.size()))
             return;
         const float y0 = nsdf_[static_cast<size_t> (lag - 1)];
         const float y1 = nsdf_[static_cast<size_t> (lag)];
@@ -364,7 +379,7 @@ void MonoTracker::estimate() noexcept
         }
         keys_[static_cast<size_t> (count++)] = { static_cast<float> (lag) + shift, peak };
     };
-    for (int lag = 1; lag < maxLag_; ++lag)
+    for (int lag = 1; lag < searchLag_; ++lag)
     {
         const float v = nsdf_[static_cast<size_t> (lag)];
         if (!pastZero)
@@ -390,7 +405,7 @@ void MonoTracker::estimate() noexcept
             addKey (best);
         }
     }
-    if (inLobe && best < maxLag_ - 1)
+    if (inLobe && best < searchLag_ - 1)
         addKey (best);
 
     heldHz_ = 0.0f;

@@ -3,9 +3,9 @@
 // Guitar-to-MIDI developer tool (docs/design/guitar-to-midi.md). Not shipped.
 //
 //   sedef-midi-render wav <in.wav> <out.mid> [--gain dB] [--octave n] [--steady] [--bend]
-//                         [--gate dB] [--block n]
+//                         [--gate dB] [--block n] [--events]
 //       Converts a guitar DI recording as the plug-in would, writes a Standard MIDI File and
-//       prints the notes.
+//       prints the notes (with --events: every event sent, pitch bends too).
 //   sedef-midi-render scenarios <dir>
 //       Renders the synthetic test scenarios: <name>.wav, <name>.mid (track 1 what was played,
 //       track 2 what was sent) and a README.md with the scores.
@@ -14,6 +14,19 @@
 //   sedef-midi-render why <in.wav> [--gain dB] [--from s] [--to s] [--steady 1] [--gate dB]
 //                         [--octave n]
 //       Lists every note with why it started and ended, and how its pick was seen.
+//   sedef-midi-render sets [--low auto|e2|b1|f#1] [--learned b1|f#1] [--shift semitones]
+//                          [--steady] [--bend] [--extras] [--misses]
+//       The test suite's synthetic sets with one range setting, on strings tuned `shift`
+//       semitones away (-5: a seven-string's low strings, -10: an eight-string's): scores, and
+//       the latency of every note.
+//   sedef-midi-render latency
+//       Pick to note-on for every note from E1 to E4 in each range.
+//   sedef-midi-render provisional [--low ...] [--shift n] [--wav in.wav --truth notes.txt]
+//       What sending each note at the tracker's first reading after its pick would buy (how much
+//       sooner) and cost (how often that reading is wrong).
+//   sedef-midi-render bends [--range n]
+//       Synthetic bends, slides and vibrato in both modes: the notes and bends sent, and how far
+//       what sounds is from the string's pitch.
 //   sedef-midi-render trace <in.wav> <from s> <to s> [--gain dB]
 //       What the tracker reads, every millisecond, next to what is sent.
 
@@ -159,6 +172,23 @@ const char* noteName (int note)
     return names[((note % 12) + 12) % 12];
 }
 
+midi::LowNote lowNoteNamed (const std::string& name)
+{
+    return name == "e2"    ? midi::LowNote::e2
+           : name == "b1"  ? midi::LowNote::b1
+           : name == "f#1" ? midi::LowNote::fSharp1
+                           : midi::LowNote::automatic;
+}
+
+/// The value after `flag` in the arguments, or `fallback`.
+std::string option (int argc, char** argv, const char* flag, const char* fallback = "")
+{
+    for (int i = 2; i + 1 < argc; ++i)
+        if (std::string (argv[i]) == flag)
+            return argv[i + 1];
+    return fallback;
+}
+
 // ---------------------------------------------------------------------------------------------
 
 int convertWav (int argc, char** argv)
@@ -177,13 +207,16 @@ int convertWav (int argc, char** argv)
     midi::Settings s;
     double gainDb = 0.0;
     int block = 256;
+    bool listEvents = false;
     for (int i = 4; i < argc; ++i)
     {
         const std::string a = argv[i];
         const auto next = [&] {
             return i + 1 < argc ? std::atof (argv[++i]) : 0.0;
         };
-        if (a == "--gain")
+        if (a == "--events")
+            listEvents = true;
+        else if (a == "--gain")
             gainDb = next();
         else if (a == "--octave")
             s.octave = static_cast<int> (next());
@@ -205,6 +238,23 @@ int convertWav (int argc, char** argv)
         v *= g;
     const auto run = convert (x, audio->sampleRate, s, block);
     writeMidiFile (argv[3], { trackChunk ("Sedef MIDI", sentEvents (run), true) });
+    if (listEvents)
+    {
+        for (std::size_t k = 0; k < run.events.size(); ++k)
+        {
+            const auto& e = run.events[k];
+            if (e.isNoteOn())
+                std::printf ("%10.4f on   %3d %3d\n", run.eventTimes[k], e.note(), e.velocity());
+            else if (e.isNoteOff())
+                std::printf ("%10.4f off  %3d\n", run.eventTimes[k], e.note());
+            else if (e.isPitchBend())
+                std::printf ("%10.4f bend %5d\n", run.eventTimes[k],
+                             e.bendValue() - midi::kBendCentre);
+            else
+                std::printf ("%10.4f cc   %3d %3d\n", run.eventTimes[k], e.bytes[1], e.bytes[2]);
+        }
+        return 0;
+    }
     for (const auto& n : run.notes)
         std::printf ("%9.3f  %9.3f  %-2s%d (%3d)  vel %3d\n", n.on, n.off, noteName (n.pitch),
                      n.pitch / 12 - 1, n.pitch, n.velocity);
@@ -225,15 +275,19 @@ int trace (int argc, char** argv)
     if (!audio)
         return 1;
     const double from = std::atof (argv[3]), to = std::atof (argv[4]);
-    const double gainDb = argc > 6 ? std::atof (argv[6]) : 0.0;
+    const double gainDb = std::atof (option (argc, argv, "--gain", "0").c_str());
     const auto g = static_cast<float> (std::pow (10.0, gainDb / 20.0));
     const double fs = audio->sampleRate;
     midi::GuitarToMidi conv;
-    conv.prepare (fs);
-    const auto& m = conv.tracker();
     midi::Settings s;
     s.octave = 0;
+    s.lowNote = lowNoteNamed (option (argc, argv, "--low"));
+    if (option (argc, argv, "--bend") == "1")
+        s.mode = midi::Mode::notesAndBend;
     conv.setSettings (s);
+    conv.prepare (fs);
+    conv.setLearnedLowNote (lowNoteNamed (option (argc, argv, "--learned", "e2")));
+    const auto& m = conv.tracker();
     midi::EventList out;
     std::uint32_t picks = 0;
     const int ms = std::max (1, static_cast<int> (fs / 1000.0));
@@ -355,12 +409,15 @@ int why (int argc, char** argv)
         }
         else if (a == "--octave")
             s.octave = std::atoi (argv[i + 1]);
+        else if (a == "--low")
+            s.lowNote = lowNoteNamed (argv[i + 1]);
     }
     const auto g = static_cast<float> (std::pow (10.0, gainDb / 20.0));
     const double fs = audio->sampleRate;
     midi::GuitarToMidi conv;
-    conv.prepare (fs);
     conv.setSettings (s);
+    conv.prepare (fs);
+    conv.setLearnedLowNote (lowNoteNamed (option (argc, argv, "--learned", "e2")));
     struct Open
     {
         double on = -1.0;
@@ -498,6 +555,469 @@ int scenarios (int argc, char** argv)
 }
 
 // ---------------------------------------------------------------------------------------------
+// The synthetic sets of the test suite, for one range setting and one tuning.
+
+int sets (int argc, char** argv)
+{
+    const double fs = 48000.0;
+    midi::Settings s;
+    s.octave = 0;
+    auto learned = midi::LowNote::e2;
+    int shift = 0;
+    bool extras = false, misses = false;
+    for (int i = 2; i < argc; ++i)
+    {
+        const std::string a = argv[i];
+        const std::string next = i + 1 < argc ? argv[i + 1] : "";
+        if (a == "--low")
+            s.lowNote = lowNoteNamed (next);
+        else if (a == "--learned")
+            learned = lowNoteNamed (next);
+        else if (a == "--shift")
+            shift = std::atoi (next.c_str());
+        else if (a == "--steady")
+            s.timing = midi::Timing::steady;
+        else if (a == "--bend")
+            s.mode = midi::Mode::notesAndBend;
+        else if (a == "--extras")
+            extras = true;
+        else if (a == "--misses")
+            misses = true;
+    }
+    const bool steady = s.timing == midi::Timing::steady;
+    const double window = steady ? 0.12 : 0.08;
+    struct Total
+    {
+        Score score;
+        int shorts = 0, under = 0, sent = 0, widened[4] = { 0, 0, 0, 0 };
+        std::vector<double> perPitch[128];
+    };
+    const int lowest = 40 + shift;
+    const std::string wavDir = option (argc, argv, "--wav");
+    int wavIndex = 0;
+    const auto run = [&] (Total& t, const Scenario& sc, bool judgeEnds) {
+        if (!wavDir.empty())
+            writeWavMono (wavDir + "/" + std::to_string (wavIndex++) + ".wav", sc.signal, fs);
+        const auto r = convert (sc.signal, fs, s, 64, learned);
+        const auto st = score (r, sc, 0, window, judgeEnds);
+        ++t.widened[static_cast<int> (r.range)];
+        t.score.expected += st.expected;
+        t.score.correct += st.correct;
+        t.score.wrongPitch += st.wrongPitch;
+        t.score.octaveErrors += st.octaveErrors;
+        t.score.missed += st.missed;
+        t.score.extra += st.extra;
+        t.score.earlyOff += st.earlyOff;
+        t.score.lateOff += st.lateOff;
+        t.score.latencyMs.insert (t.score.latencyMs.end(), st.latencyMs.begin(),
+                                  st.latencyMs.end());
+        for (const auto& n : r.notes)
+        {
+            ++t.sent;
+            t.shorts += n.off >= 0.0 && 1000.0 * (n.off - n.on) < 40.0 ? 1 : 0;
+            t.under += n.pitch < lowest ? 1 : 0;
+        }
+        for (const auto& ref : sc.notes)
+            for (const auto& n : r.notes)
+                if (n.pitch == ref.pitch && n.on >= ref.start - 0.002 && n.on <= ref.start + window)
+                {
+                    t.perPitch[ref.pitch].push_back (1000.0 * (n.on - ref.start));
+                    break;
+                }
+        if (extras)
+            for (const auto& e : st.extras)
+                std::printf ("    extra %s%d at %.3f for %.1f ms\n", noteName (e.pitch),
+                             e.pitch / 12 - 1, e.on, 1000.0 * (e.off - e.on));
+        if (misses)
+        {
+            for (const auto& m : st.misses)
+                std::printf ("    missed %s%d at %.3f\n", noteName (m.pitch), m.pitch / 12 - 1,
+                             m.start);
+            for (const auto& [ref, n] : st.wrongs)
+                std::printf ("    wrong: played %s%d at %.3f, sent %s%d at %.3f for %.1f ms\n",
+                             noteName (ref.pitch), ref.pitch / 12 - 1, ref.start,
+                             noteName (n.pitch), n.pitch / 12 - 1, n.on, 1000.0 * (n.off - n.on));
+        }
+    };
+    const auto print = [&] (const char* name, const Total& t) {
+        std::printf ("%-16s %4d notes  %6.2f%% right  %2d wrong (%d octave)  %2d missed  %2d extra "
+                     "(%.2f/100)  %2d short (%.2f/100)  %d ended early, %d late  %d under the "
+                     "lowest string  latency p50 "
+                     "%.1f p95 %.1f max %.1f ms  range at the end: E2 %d, B1 %d, F#1 %d\n",
+                     name, t.score.expected, 100.0 * t.score.correctShare(), t.score.wrongPitch,
+                     t.score.octaveErrors, t.score.missed, t.score.extra, t.score.extraPer100(),
+                     t.shorts, 100.0 * t.shorts / std::max (1, t.score.expected), t.score.earlyOff,
+                     t.score.lateOff, t.under, percentile (t.score.latencyMs, 0.5),
+                     percentile (t.score.latencyMs, 0.95), percentile (t.score.latencyMs, 1.0),
+                     t.widened[1], t.widened[2], t.widened[3]);
+    };
+    const Pickup pickups[] = { Pickup::bridge, Pickup::neck, Pickup::piezo };
+    Total bass, sloppy, fretted, silent, all;
+    for (auto pickup : pickups)
+        for (std::uint32_t seed = 1; seed <= 6; ++seed)
+        {
+            if (extras || misses)
+                std::printf ("  bass %u %d (wav %d)\n", seed, static_cast<int> (pickup), wavIndex);
+            run (bass,
+                 lowered (
+                     shift,
+                     [&] { return bassLine (seed, pickup, 120.0 + 4.0 * seed, fs, 48, false); }),
+                 true);
+            if (extras || misses)
+                std::printf ("  sloppy %u %d (wav %d)\n", seed, static_cast<int> (pickup),
+                             wavIndex);
+            run (sloppy,
+                 lowered (shift,
+                          [&] { return sloppyLine (seed, pickup, 110.0 + 5.0 * seed, fs, 48); }),
+                 false);
+        }
+    for (auto pickup : pickups)
+        for (std::uint32_t seed = 1; seed <= 4; ++seed)
+        {
+            if (extras || misses)
+                std::printf ("  fretted %u %d\n", seed, static_cast<int> (pickup));
+            run (fretted, lowered (shift, [&] { return fretThenPick (seed, pickup, fs); }), false);
+        }
+    for (int tuning = 0; tuning < 3; ++tuning)
+        for (auto pickup : { Pickup::bridge, Pickup::neck })
+            for (std::uint32_t seed = 1; seed <= 3; ++seed)
+            {
+                if (extras || misses)
+                    std::printf ("  silence %d %u %d\n", tuning, seed, static_cast<int> (pickup));
+                run (silent,
+                     lowered (shift, [&] { return fromSilence (seed, tuning, pickup, fs); }), true);
+            }
+    print ("bass lines", bass);
+    print ("sloppy lines", sloppy);
+    print ("fretted first", fretted);
+    print ("from silence", silent);
+    int chordNotes = 0, chordUnder = 0, chordRange[4] = { 0, 0, 0, 0 };
+    for (auto pickup : pickups)
+        for (std::uint32_t seed = 1; seed <= 4; ++seed)
+        {
+            const auto sc = lowered (shift, [&] { return strummedChords (seed, pickup, fs); });
+            const auto r = convert (sc.signal, fs, s, 64, learned);
+            chordNotes += static_cast<int> (r.notes.size());
+            ++chordRange[static_cast<int> (r.range)];
+            for (const auto& n : r.notes)
+                chordUnder += n.pitch < lowest ? 1 : 0;
+        }
+    std::printf ("%-16s  144 chords, %d notes, %d under the lowest string  range at the end: E2 "
+                 "%d, B1 %d, F#1 %d\n",
+                 "strummed chords", chordNotes, chordUnder, chordRange[1], chordRange[2],
+                 chordRange[3]);
+    // Latency by note, over every set but the first note of each from-silence run.
+    std::printf ("latency by note (median / max ms, notes):");
+    for (const Total* t : { &bass, &sloppy, &fretted })
+        for (int p = 0; p < 128; ++p)
+            all.perPitch[p].insert (all.perPitch[p].end(), t->perPitch[p].begin(),
+                                    t->perPitch[p].end());
+    for (int p = 0; p < 128; ++p)
+        if (all.perPitch[p].size() >= 5)
+            std::printf ("  %s%d %.1f/%.1f (%zu)", noteName (p), p / 12 - 1,
+                         percentile (all.perPitch[p], 0.5), percentile (all.perPitch[p], 1.0),
+                         all.perPitch[p].size());
+    std::printf ("\n");
+    return 0;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Pick to note-on for every note from F#1 to E4, in each range: a note picked a second time (the
+// converter knows the player and the instrument by then), on a bridge and a neck pickup, with a
+// pick and with the fingers.
+
+int latency (int argc, char** argv)
+{
+    const double fs = 48000.0;
+    if (const auto wav = option (argc, argv, "--wav"); !wav.empty())
+    {
+        // One of the table's cases as a recording: --pitch n [--fingers 1] [--neck 1] [--seed n]
+        const auto sc = pickedTwice (
+            std::atoi (option (argc, argv, "--pitch", "40").c_str()),
+            option (argc, argv, "--neck") == "1" ? Pickup::neck : Pickup::bridge,
+            static_cast<std::uint32_t> (std::atoi (option (argc, argv, "--seed", "1").c_str())), fs,
+            option (argc, argv, "--fingers") == "1");
+        writeWavMono (wav, sc.signal, fs);
+        return 0;
+    }
+    const midi::LowNote ranges[] = { midi::LowNote::e2, midi::LowNote::b1, midi::LowNote::fSharp1,
+                                     midi::LowNote::automatic };
+    std::printf (
+        "note    Hz    two periods   E2 range      B1 range      F#1 range     Automatic   "
+        "(median / max ms; -: not played)\n");
+    for (int pitch = 28; pitch <= 64; ++pitch)
+    {
+        std::printf ("%-3s%d %6.1f  %8.1f   ", noteName (pitch), pitch / 12 - 1, hzOf (pitch),
+                     2000.0 / hzOf (pitch));
+        for (const auto range : ranges)
+        {
+            midi::Settings s;
+            s.octave = 0;
+            s.lowNote = range;
+            std::vector<double> ms;
+            int missing = 0;
+            for (auto pickup : { Pickup::bridge, Pickup::neck })
+                for (int fingers = 0; fingers < 2; ++fingers)
+                    for (std::uint32_t seed = 1; seed <= 3; ++seed)
+                    {
+                        const auto sc = pickedTwice (pitch, pickup, seed, fs, fingers != 0);
+                        const auto run = convert (sc.signal, fs, s);
+                        double on = -1.0;
+                        for (const auto& n : run.notes)
+                            if (n.pitch == pitch && n.on >= 1.098 && n.on <= 1.2 && on < 0.0)
+                                on = n.on;
+                        if (on < 0.0)
+                            ++missing;
+                        else
+                            ms.push_back (1000.0 * (on - 1.1));
+                    }
+            if (ms.empty())
+                std::printf ("    -         ");
+            else
+                std::printf ("%5.1f /%5.1f%s ", percentile (ms, 0.5), percentile (ms, 1.0),
+                             missing > 0 ? "*" : " ");
+        }
+        std::printf ("\n");
+    }
+    return 0;
+}
+
+// ---------------------------------------------------------------------------------------------
+// What a provisional note-on would buy and cost: the note sent at the tracker's first reading
+// after each pick (before the MIDI layer has ruled out a lower note or a wrong reading), against
+// the note the MIDI layer sends.
+
+struct Provisional
+{
+    int notes = 0, firstRight = 0, firstWrong = 0, none = 0, sentRight = 0;
+    std::vector<double> firstMs, sentMs, gainMs;
+};
+
+void provisionalOver (Provisional& p, const std::vector<float>& x, double fs,
+                      const std::vector<std::pair<double, int>>& played, const midi::Settings& s,
+                      midi::LowNote learned)
+{
+    midi::GuitarToMidi conv;
+    conv.setSettings (s);
+    conv.prepare (fs);
+    conv.setLearnedLowNote (learned);
+    const auto& m = conv.tracker();
+    struct Reading
+    {
+        double t;
+        int pitch;
+    };
+    std::vector<Reading> readings, sent;
+    midi::EventList out;
+    for (std::size_t i = 0; i < x.size(); ++i)
+    {
+        out.clear();
+        conv.process (&x[i], 1, out);
+        const double t = static_cast<double> (i) / fs;
+        const auto ev = m.event();
+        if (ev == analysis::MonoTracker::Event::noteOn ||
+            ev == analysis::MonoTracker::Event::noteChange)
+            readings.push_back (
+                { t, static_cast<int> (std::lround (69.0 + 12.0 * std::log2 (m.hz() / 440.0))) });
+        for (const auto& e : out)
+            if (e.isNoteOn())
+                sent.push_back ({ t, e.note() });
+    }
+    for (std::size_t k = 0; k < played.size(); ++k)
+    {
+        const double start = played[k].first;
+        const double end =
+            std::min (start + 0.08, k + 1 < played.size() ? played[k + 1].first : start + 0.08);
+        ++p.notes;
+        double first = -1.0, right = -1.0;
+        int firstPitch = -1;
+        for (const auto& r : readings)
+            if (r.t >= start + 0.004 && r.t <= end && first < 0.0)
+            {
+                first = r.t;
+                firstPitch = r.pitch;
+            }
+        for (const auto& r : sent)
+            if (r.t >= start - 0.002 && r.t <= start + 0.08 && r.pitch == played[k].second &&
+                right < 0.0)
+                right = r.t;
+        if (right >= 0.0)
+        {
+            ++p.sentRight;
+            p.sentMs.push_back (1000.0 * (right - start));
+        }
+        if (first < 0.0)
+        {
+            ++p.none; // the tracker kept its reading (the same note again): nothing to send early
+            continue;
+        }
+        p.firstMs.push_back (1000.0 * (first - start));
+        if (firstPitch == played[k].second)
+        {
+            ++p.firstRight;
+            if (right >= 0.0)
+                p.gainMs.push_back (1000.0 * (right - first));
+        }
+        else
+            ++p.firstWrong;
+    }
+}
+
+int provisional (int argc, char** argv)
+{
+    const double fs = 48000.0;
+    midi::Settings s;
+    s.octave = 0;
+    s.lowNote = lowNoteNamed (option (argc, argv, "--low"));
+    const auto learned = lowNoteNamed (option (argc, argv, "--learned", "e2"));
+    const int shift = std::atoi (option (argc, argv, "--shift", "0").c_str());
+    const auto print = [] (const char* name, const Provisional& p) {
+        std::printf ("%-16s %4d picks: first reading right %4d (%.1f %%), wrong %3d (%.1f %%), "
+                     "none (the reading stayed) %3d; first reading at p50 %.1f ms, the note sent "
+                     "at p50 %.1f ms; sooner by p50 %.1f, p90 %.1f ms when right\n",
+                     name, p.notes, p.firstRight, 100.0 * p.firstRight / std::max (1, p.notes),
+                     p.firstWrong, 100.0 * p.firstWrong / std::max (1, p.notes), p.none,
+                     percentile (p.firstMs, 0.5), percentile (p.sentMs, 0.5),
+                     percentile (p.gainMs, 0.5), percentile (p.gainMs, 0.9));
+    };
+    const std::string wav = option (argc, argv, "--wav");
+    if (!wav.empty())
+    {
+        // A recording and its notes: "<onset seconds> <midi note>" per line ('#' comments).
+        const auto audio = tools::readWav (wav);
+        std::ifstream truth (option (argc, argv, "--truth"));
+        if (!audio || !truth)
+            return 1;
+        std::vector<std::pair<double, int>> played;
+        std::string line;
+        while (std::getline (truth, line))
+        {
+            double t = 0.0;
+            int note = 0;
+            if (!line.empty() && line[0] != '#' &&
+                std::sscanf (line.c_str(), "%lf %d", &t, &note) == 2)
+                played.push_back ({ t, note });
+        }
+        Provisional p;
+        provisionalOver (p, audio->mono, audio->sampleRate, played, s, learned);
+        print ("recording", p);
+        return 0;
+    }
+    const auto over = [&] (Provisional& p, const Scenario& sc) {
+        std::vector<std::pair<double, int>> played;
+        for (const auto& n : sc.notes)
+            if (n.picked)
+                played.push_back ({ n.start, n.pitch });
+        provisionalOver (p, sc.signal, fs, played, s, learned);
+    };
+    Provisional bass, sloppy, fretted;
+    for (auto pickup : { Pickup::bridge, Pickup::neck, Pickup::piezo })
+    {
+        for (std::uint32_t seed = 1; seed <= 6; ++seed)
+        {
+            over (bass, lowered (shift, [&] {
+                      return bassLine (seed, pickup, 120.0 + 4.0 * seed, fs, 48, false);
+                  }));
+            over (sloppy, lowered (shift, [&] {
+                      return sloppyLine (seed, pickup, 110.0 + 5.0 * seed, fs, 48);
+                  }));
+        }
+        for (std::uint32_t seed = 1; seed <= 4; ++seed)
+            over (fretted, lowered (shift, [&] { return fretThenPick (seed, pickup, fs); }));
+    }
+    print ("bass lines", bass);
+    print ("sloppy lines", sloppy);
+    print ("fretted first", fretted);
+    return 0;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Bends, slides and vibrato on synthetic strings: what each mode sends, next to where the string's
+// pitch was.
+
+int bends (int argc, char** argv)
+{
+    const double fs = 48000.0;
+    int range = 2;
+    for (int i = 2; i + 1 < argc; ++i)
+        if (std::string (argv[i]) == "--range")
+            range = std::atoi (argv[i + 1]);
+    const char* list = environment ("SEDEF_BENDS_LIST"); // rows whose events to list
+    const auto row = [&] (const std::string& what, const Moving& m, double from, double to) {
+        for (int mode = 0; mode < 2; ++mode)
+        {
+            midi::Settings s;
+            s.octave = 0;
+            s.mode = mode == 0 ? midi::Mode::notes : midi::Mode::notesAndBend;
+            s.bendRange = range;
+            const auto run = convert (m.sc.signal, fs, s);
+            const auto f = following (run, m, range, from, to);
+            std::string notes;
+            for (const auto& n : run.notes)
+                notes += std::string (noteName (n.pitch)) + std::to_string (n.pitch / 12 - 1) +
+                         "@" + std::to_string (static_cast<int> (std::lround (1000.0 * n.on))) +
+                         " ";
+            if (list != nullptr && what.find (list) != std::string::npos && mode == 0)
+                if (const char* wav = environment ("SEDEF_BENDS_WAV"))
+                    writeWavMono (wav, m.sc.signal, fs);
+            if (list != nullptr && what.find (list) != std::string::npos)
+                for (std::size_t k = 0; k < run.events.size(); ++k)
+                {
+                    const auto& e = run.events[k];
+                    std::printf ("    %8.4f %s %d   string at %+.1f c\n", run.eventTimes[k],
+                                 e.isNoteOn()    ? "on  "
+                                 : e.isNoteOff() ? "off "
+                                                 : "bend",
+                                 e.isPitchBend()
+                                     ? (e.bendValue() - midi::kBendCentre) * 100 * range / 8192
+                                     : e.note(),
+                                 m.centsAt (run.eventTimes[k]));
+                }
+            std::printf ("%-34s %-12s notes %d bends %4d  worst %6.1f rms %5.1f  step %5.1f  "
+                         "last %7.1f  silent %3.0f ms  %s\n",
+                         what.c_str(), mode == 0 ? "Notes" : "Notes+Bend", f.notes, f.bends,
+                         f.worst, f.rms, f.largestStep, f.last, 1000.0 * f.silent, notes.c_str());
+        }
+    };
+    char label[96];
+    for (double hz : { 82.41, 110.0, 196.0 })
+    {
+        for (double drift : { 0.0, -5.0 })
+        {
+            const auto m = heldString (hz, 3.0, drift, fs, Pickup::bridge, -12.0);
+            std::snprintf (label, sizeof label, "held %.0f Hz, drift %.0f c/s", hz, drift);
+            row (label, m, m.pickAt + 0.1, m.muteAt - 0.01);
+        }
+        for (double cents : { 50.0, 100.0, 200.0, 300.0 })
+            for (double seconds : { 0.08, 0.15, 0.3, 0.6 })
+                for (int release = 0; release < 2; ++release)
+                {
+                    const auto m = bentString (hz, cents, seconds, release != 0, fs);
+                    std::snprintf (label, sizeof label, "bend %.0f Hz +%.0f c in %.0f ms%s", hz,
+                                   cents, 1000.0 * seconds, release != 0 ? ", back" : "");
+                    row (label, m, m.pickAt + 0.1, m.muteAt - 0.01);
+                }
+        for (double cents : { 10.0, 15.0, 30.0, 50.0 })
+            for (double rate : { 4.0, 6.5 })
+            {
+                const auto m = vibratoString (hz, cents, rate, fs);
+                std::snprintf (label, sizeof label, "vibrato %.0f Hz +-%.0f c at %.1f Hz", hz,
+                               cents, rate);
+                row (label, m, m.pickAt + 0.1, m.muteAt - 0.01);
+            }
+        for (int semis : { 2, -2, 5, -5, 7, 12 })
+            for (double every : { 0.015, 0.03, 0.06, 0.12 })
+            {
+                const auto m = slidString (hz * (semis < 0 ? 2.0 : 1.0), semis, every, fs);
+                std::snprintf (label, sizeof label, "slide %.0f Hz %+d frets, %.0f ms each",
+                               hz * (semis < 0 ? 2.0 : 1.0), semis, 1000.0 * every);
+                row (label, m, m.pickAt + 0.1, m.muteAt - 0.01);
+            }
+    }
+    return 0;
+}
+
+// ---------------------------------------------------------------------------------------------
 
 int bench()
 {
@@ -573,6 +1093,14 @@ int main (int argc, char** argv)
         return bench();
     if (mode == "trace")
         return trace (argc, argv);
+    if (mode == "bends")
+        return bends (argc, argv);
+    if (mode == "sets")
+        return sets (argc, argv);
+    if (mode == "provisional")
+        return provisional (argc, argv);
+    if (mode == "latency")
+        return latency (argc, argv);
     if (mode == "why")
         return why (argc, argv);
     std::fprintf (stderr, "usage: sedef-midi-render wav|scenarios|bench ...\n");

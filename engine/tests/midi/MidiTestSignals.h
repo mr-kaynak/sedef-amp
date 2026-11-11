@@ -50,9 +50,17 @@ struct Scenario
     std::vector<RefNote> notes;
 };
 
+/// How many semitones every string of the scenarios is tuned away from a six-string guitar's
+/// (see lowered()).
+inline int& tuningShift()
+{
+    static int shift = 0;
+    return shift;
+}
+
 inline double hzOf (int pitch)
 {
-    return 440.0 * std::exp2 ((pitch - 69) / 12.0);
+    return 440.0 * std::exp2 ((pitch + tuningShift() - 69) / 12.0);
 }
 
 inline int pitchOf (double hz)
@@ -78,6 +86,20 @@ inline Pluck pluckFor (Pickup pickup, double hz, float peak, std::uint32_t seed)
     p.peak = peak;
     p.pickNoise = 0.2f * peak;
     return p;
+}
+
+/// The scenario `make` builds, on an instrument whose strings are all `semitones` lower: the
+/// same playing on the low strings of a seven-string (-5: B1, E2, A2 where a guitar has E2, A2,
+/// D3) or of an eight-string (-10: F#1, B1, E2). Not thread safe (the tests are not threaded).
+template <typename Make>
+Scenario lowered (int semitones, Make&& make)
+{
+    tuningShift() = semitones;
+    Scenario s = make();
+    tuningShift() = 0;
+    for (auto& n : s.notes)
+        n.pitch += semitones;
+    return s;
 }
 
 /// Small deterministic generator for the scenarios (not the engine's).
@@ -576,6 +598,99 @@ inline Scenario held (double hz, double fs, double vibratoCents, double bendCent
     return s;
 }
 
+/// A note picked twice, at 0.1 s (damped at 0.6 s) and at 1.1 s: the second is played once the
+/// converter has heard how this player picks, and what strings the instrument has. `fingers`:
+/// plucked near the bridge with no click, as fingerPluck().
+inline Scenario pickedTwice (int pitch, Pickup pickup, std::uint32_t seed, double fs,
+                             bool fingers = false, float peak = 0.25f);
+
+/// One string whose pitch moves while it rings (a bend, a slide, vibrato, or nothing at all), with
+/// where its pitch is at every moment: what a pitch bend should follow.
+struct Moving
+{
+    Scenario sc;
+    Pluck pluck;
+    double pickAt = 0.1;
+    double muteAt = 0.0; ///< seconds into the scenario
+    /// The string's pitch in cents from the picked note, `t` seconds into the scenario.
+    double centsAt (double t) const { return pluck.centsAt (std::max (0.0, t - pickAt)); }
+};
+
+inline Moving movingString (Pluck p, double seconds, double fs, const char* name)
+{
+    Moving m;
+    m.pluck = p;
+    m.pluck.muteAt = seconds;
+    m.muteAt = m.pickAt + seconds;
+    m.sc.name = name;
+    m.sc.fs = fs;
+    m.sc.signal.assign (static_cast<std::size_t> ((m.muteAt + 0.3) * fs), 0.0f);
+    addPluck (m.sc.signal, fs, static_cast<std::size_t> (m.pickAt * fs), m.pluck);
+    m.sc.notes.push_back ({ pitchOf (p.f1), m.pickAt, m.muteAt + 0.005, true, p.peak });
+    addNoise (m.sc.signal, -80.0f);
+    return m;
+}
+
+/// A string bent `cents` up over `seconds`, from 0.3 s after the pick, held 0.5 s and, with
+/// `release`, let down again as fast.
+inline Moving bentString (double hz, double cents, double seconds, bool release, double fs,
+                          Pickup pickup = Pickup::bridge)
+{
+    Pluck p = pluckFor (pickup, hz, 0.25f, 5);
+    p.decaySeconds = 3.0;
+    p.rampAt = 0.3;
+    p.rampSeconds = seconds;
+    p.rampCents = cents;
+    double end = 0.3 + seconds + 0.5;
+    if (release)
+    {
+        p.turnAt = end;
+        p.turnSeconds = seconds;
+        p.turnCents = -cents;
+        end += seconds + 0.4;
+    }
+    return movingString (p, end, fs, release ? "bend and release" : "bend");
+}
+
+/// Vibrato of +-`cents` at `rate` Hz from 0.3 s after the pick, for 1.2 s.
+inline Moving vibratoString (double hz, double cents, double rate, double fs,
+                             Pickup pickup = Pickup::bridge)
+{
+    Pluck p = pluckFor (pickup, hz, 0.25f, 5);
+    p.decaySeconds = 3.0;
+    p.vibratoAt = 0.3;
+    p.vibratoCents = cents;
+    p.vibratoHz = rate;
+    return movingString (p, 1.5, fs, "vibrato");
+}
+
+/// A slide over `semitones` frets from 0.3 s after the pick, one fret every `every` seconds, then
+/// held 0.5 s.
+inline Moving slidString (double hz, int semitones, double every, double fs,
+                          Pickup pickup = Pickup::bridge)
+{
+    Pluck p = pluckFor (pickup, hz, 0.25f, 7);
+    p.decaySeconds = 3.0;
+    p.stepAt = 0.3;
+    p.stepCents = semitones > 0 ? 100.0 : -100.0;
+    p.stepCount = std::abs (semitones);
+    p.stepEvery = every;
+    return movingString (p, 0.3 + std::abs (semitones) * every + 0.5, fs, "slide");
+}
+
+/// A note held for `seconds` with nothing done to it: the pick's own glide, and a pitch that
+/// sinks `drift` cents a second as the note decays.
+inline Moving heldString (double hz, double seconds, double drift, double fs,
+                          Pickup pickup = Pickup::bridge, double tuningCents = 0.0)
+{
+    Pluck p = pluckFor (pickup, hz * std::exp2 (tuningCents / 1200.0), 0.25f, 5);
+    p.decaySeconds = 3.0;
+    p.driftCentsPerSecond = drift;
+    auto m = movingString (p, seconds, fs, "held");
+    m.sc.notes[0].pitch = pitchOf (hz);
+    return m;
+}
+
 /// A note picked while the previous one (a fourth below or a fifth above) still rings 6 dB down.
 inline Scenario overRinging (double hz, double cents, double fs)
 {
@@ -651,6 +766,29 @@ inline void addTouch (std::vector<float>& out, double fs, double pluckAt, double
         const double t = static_cast<double> (i) / fs - at;
         out[i] += static_cast<float> (0.03 * peak * u * std::exp (-t / 0.0005));
     }
+}
+
+inline Scenario pickedTwice (int pitch, Pickup pickup, std::uint32_t seed, double fs, bool fingers,
+                             float peak)
+{
+    Scenario s;
+    s.name = "picked twice";
+    s.fs = fs;
+    s.signal.assign (static_cast<std::size_t> (1.9 * fs), 0.0f);
+    const auto pluck = [&] (std::uint32_t k) {
+        return fingers ? fingerPluck (pickup, hzOf (pitch), peak, k)
+                       : pluckFor (pickup, hzOf (pitch), peak, k);
+    };
+    auto first = pluck (seed + 100u);
+    first.muteAt = 0.5;
+    auto second = pluck (seed);
+    second.muteAt = 0.7;
+    addPluck (s.signal, fs, static_cast<std::size_t> (0.1 * fs), first);
+    addPluck (s.signal, fs, static_cast<std::size_t> (1.1 * fs), second);
+    s.notes.push_back ({ pitch, 0.1, 0.605, true, peak });
+    s.notes.push_back ({ pitch, 1.1, 1.805, true, peak });
+    addNoise (s.signal, -80.0f, seed);
+    return s;
 }
 
 /// Tunings for the from-silence notes: standard, a whole step down, drop D.
@@ -825,15 +963,19 @@ struct Run
     std::vector<sedef::midi::Event> events;
     std::vector<double> eventTimes;
     int maxSounding = 0;
+    /// The range in effect at the end (what the automatic range learned).
+    sedef::midi::LowNote range = sedef::midi::LowNote::e2;
 };
 
 /// Runs `signal` through a GuitarToMidi in blocks of `block`, collecting what it sends.
+/// `learned`: what the automatic range has heard before (a session's earlier notes).
 inline Run convert (const std::vector<float>& signal, double fs, const sedef::midi::Settings& s,
-                    int block = 64)
+                    int block = 64, sedef::midi::LowNote learned = sedef::midi::LowNote::e2)
 {
     sedef::midi::GuitarToMidi g;
     g.setSettings (s);
     g.prepare (fs);
+    g.setLearnedLowNote (learned);
     Run run;
     sedef::midi::EventList out;
     std::vector<int> open (128, -1);
@@ -863,7 +1005,94 @@ inline Run convert (const std::vector<float>& signal, double fs, const sedef::mi
         }
         run.maxSounding = std::max (run.maxSounding, g.soundingCount());
     }
+    run.range = g.lowNoteInEffect();
     return run;
+}
+
+/// What a receiver sounds at `t`: the note on, in cents from `base`, plus the pitch bend (with
+/// the receiver's bend range in semitones). `sounding` is false while no note is on.
+struct Sounding
+{
+    bool sounding = false;
+    double cents = 0.0;
+};
+
+inline Sounding soundingAt (const Run& run, double t, int base, int range)
+{
+    Sounding s;
+    int note = -1;
+    double bend = 0.0;
+    for (std::size_t k = 0; k < run.events.size() && run.eventTimes[k] <= t; ++k)
+    {
+        const auto& e = run.events[k];
+        if (e.isNoteOn())
+            note = e.note();
+        else if (e.isNoteOff() && e.note() == note)
+            note = -1;
+        else if (e.isPitchBend())
+            bend = 100.0 * range * (e.bendValue() - sedef::midi::kBendCentre) / 8192.0;
+    }
+    s.sounding = note >= 0;
+    s.cents = 100.0 * (note - base) + bend;
+    return s;
+}
+
+/// How well what was sent follows a moving string, judged every millisecond from `from` to `to`.
+struct Following
+{
+    int notes = 0, bends = 0;
+    double worst = 0.0;       ///< the largest distance from the string's pitch, allowing `lag`
+    double rms = 0.0;         ///< the same, root mean square
+    double largestStep = 0.0; ///< the largest change between two bends in a row, in cents
+    double last = 0.0;        ///< what sounds at `to`, in cents from the picked note
+    double silent = 0.0;      ///< seconds without a note on
+};
+
+inline Following following (const Run& run, const Moving& m, int range, double from, double to,
+                            double lag = 0.06, int transpose = 0)
+{
+    Following f;
+    const int base = m.sc.notes[0].pitch + transpose;
+    f.notes = static_cast<int> (run.notes.size());
+    double previous = 0.0;
+    bool any = false;
+    for (std::size_t k = 0; k < run.events.size(); ++k)
+        if (run.events[k].isPitchBend())
+        {
+            const double c =
+                100.0 * range * (run.events[k].bendValue() - sedef::midi::kBendCentre) / 8192.0;
+            // A bend sent with a note-on (the centre a new note starts from) is not a step.
+            const bool withNote = k + 1 < run.events.size() && run.events[k + 1].isNoteOn() &&
+                                  run.eventTimes[k + 1] == run.eventTimes[k];
+            ++f.bends;
+            if (any && !withNote)
+                f.largestStep = std::max (f.largestStep, std::abs (c - previous));
+            previous = c;
+            any = true;
+        }
+    double sum = 0.0;
+    int count = 0;
+    // The string's pitch is counted from where it sat before it moved (0.25 s after the pick,
+    // the pick's own glide gone): how the picked note is tuned is not a bend.
+    const double rest = m.centsAt (m.pickAt + 0.25);
+    for (double t = from; t <= to; t += 0.001)
+    {
+        const auto s = soundingAt (run, t, base, range);
+        if (!s.sounding)
+        {
+            f.silent += 0.001;
+            continue;
+        }
+        double best = 1.0e9;
+        for (double back = 0.0; back <= lag + 1.0e-9; back += 0.002)
+            best = std::min (best, std::abs (s.cents - (m.centsAt (t - back) - rest)));
+        f.worst = std::max (f.worst, best);
+        sum += best * best;
+        ++count;
+        f.last = s.cents;
+    }
+    f.rms = count > 0 ? std::sqrt (sum / count) : 0.0;
+    return f;
 }
 
 struct Score

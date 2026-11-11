@@ -14,8 +14,18 @@ namespace sedef::midi
 
 enum class Mode : std::uint8_t
 {
-    notes,       ///< note-on and note-off only
-    notesAndBend ///< plus pitch bend for what lies under a semitone (vibrato, slight bends)
+    notes,       ///< note-on and note-off only: every semitone reached is a new note
+    notesAndBend ///< bends and wide vibrato move the pitch bend; a held note sends none
+};
+
+/// The lowest note the player's instrument has: how far down notes are looked for, and how long
+/// a note waits for a lower one that may still be on its way.
+enum class LowNote : std::uint8_t
+{
+    automatic, ///< a six-string guitar's, widened once a lower note has been played
+    e2,        ///< six strings: E2, and down to C#2 in dropped tunings
+    b1,        ///< seven strings: B1, and down to G#1
+    fSharp1    ///< eight strings: F#1, and down to E1
 };
 
 enum class Timing : std::uint8_t
@@ -74,6 +84,7 @@ struct Settings
     float gateDb = -75.0f;  ///< the manual gate: notes start only above it (band RMS, dBFS)
     float dynamics = 0.75f; ///< 0: every note at kFixedVelocity, 1: the pick sets it all
     Curve curve = Curve::linear;
+    LowNote lowNote = LowNote::automatic;
 };
 
 /// Monophonic guitar DI to MIDI notes, in real time.
@@ -143,12 +154,43 @@ struct Settings
 ///   tracker may name it. When the input also repeats at half that period (kOctaveUpClean, over
 ///   the longer period), the played note is the octave above: a string's own waveform never
 ///   does, its odd partials break the half period.
+/// - **The range.** Settings::lowNote says how low the instrument goes: a six-string's E2 (down
+///   to C#2 in dropped tunings), a seven-string's B1 (to G#1) or an eight-string's F#1 (to E1).
+///   A lower range looks for longer periods, and a note above the lowest string's octave then
+///   waits one period of that string before it can be sure no lower note is under it, unless the
+///   note alone accounts for the signal since the pick (kAloneClean), which a cleanly played
+///   note does: so the notes above cost at most a few ms, and only between the lowest string's
+///   octave and about 150 Hz. Automatic (the default) is the six-string's range, exactly, until
+///   a note under it has sounded for kLearnSeconds (its first one takes a third period to be
+///   sure); what it learned survives reset() and prepare(), and a host saves it with the
+///   session. A low string's level swings with its long period (sustainedDb()): no note ends,
+///   and no bend is held back, for that.
 /// - **Legato.** Without a pick, the note changes when the pitch sits within kLegatoCentre of
 ///   another semitone and is periodic there (kLegatoPeriodic) for kLegatoConfirmSeconds: a
 ///   hammer-on, pull-off or slide gives every semitone it reaches. A jump over
 ///   kMaxLegatoSemitones is the tracker moving to another string, not a legato note, and is
 ///   ignored; when the level has fallen kLegatoDropDb under its recent peak, the played note was
-///   damped and the change ends the note instead.
+///   damped and the change ends the note instead. A slide's frets come faster than notes: after
+///   a fret change, a further fret the same way within kSlideWindowSeconds is a note only once
+///   it has been held kSlideConfirmSeconds, so a fast slide gives its first fret and the fret
+///   it stops on, never a burst of short notes.
+/// - **Bend (Notes + Bend).** Every note-on is preceded by a centred pitch bend, and the wheel
+///   stays at exactly the centre while the note is only held: a receiver may take any wheel off
+///   centre as a played bend. The bend is counted from where the note sits (its centre: the
+///   reading over the note's first kBendSettleSeconds, then following the string's own slow
+///   drift at kCentreCentsPerSecond, never more than kCentreMaxCents from the semitone), not
+///   from equal temperament: a string a little out of tune, a fret pressed sharp, the pitch
+///   sinking as the note decays are not bends. A bend starts when the pitch has been more than
+///   kBendOnCents from the centre for kBendOnSeconds (or more than kBendSureCents, followed all
+///   the way), then follows the pitch, at most kBendSlewCentsPerSecond, ignoring moves of the
+///   reading under kBendHoldCents; it ends, exactly centred, when the pitch is back within
+///   kBendOffCents for kBendOffSeconds or rests within a fret's tuning of the semitone. Only a
+///   pitch that moves like a bend is followed: more than kBendJumpCents in one interval is a
+///   fret taken at once or a slipped reading, and a pitch that moves while the level falls
+///   (kBendFadeDb) is the hand letting go. A string bent across a semitone inside the bend
+///   range stays the note that was picked; past the range the next note starts, without a gap.
+///   A fret taken at once (a hammer-on, a pull-off, a slide's step) is a note in both modes:
+///   nothing in the signal tells it reliably from a soft pick on the same string.
 /// - **The fretting hand on a fading string.** A player moves to the next fret, or lifts off it,
 ///   while the string still rings, tens of milliseconds before picking the next note: the
 ///   ringing string takes the new pitch (or the open string's) with no energy added. A legato
@@ -211,16 +253,50 @@ public:
     static constexpr double kShortNoteSeconds = 0.04;
     static constexpr double kLegatoLeadSeconds = 0.004;
     static constexpr double kBendIntervalSeconds = 0.002;
-    static constexpr float kBendDeadbandCents = 1.5f;
+    static constexpr float kBendStepCents = 1.5f;   ///< the smallest bend change sent
+    static constexpr float kBendOnCents = 25.0f;    ///< a bend starts past this
+    static constexpr float kBendOffCents = 10.0f;   ///< ...and ends back inside this
+    static constexpr double kBendOnSeconds = 0.04;  ///< ...held this long
+    static constexpr double kBendOffSeconds = 0.06; ///< ...for this long
+    static constexpr float kBendSlewCentsPerSecond = 3000.0f;
+    static constexpr float kCentreCentsPerSecond = 20.0f; ///< how fast a note's centre follows
+    static constexpr float kCentreMaxCents = 35.0f;       ///< ...and how far from its semitone
+    static constexpr float kBendJumpCents = 8.0f; ///< more per interval is a fret, not a bend
+    static constexpr float kBendSureCents =
+        60.0f; ///< a move this far, followed all the way, is a bend
+    static constexpr float kBendHoldCents = 3.0f; ///< the bend ignores smaller moves of the reading
+    static constexpr float kBendStillCents = 4.0f; ///< a pitch this still...
+    static constexpr double kBendStillSeconds =
+        0.15; ///< ...for this long, near the note, is the note
+    static constexpr double kBendSettleSeconds = 0.03;  ///< a note's first readings set its centre
+    static constexpr double kSlideWindowSeconds = 0.08; ///< frets this close in time are a slide
+    static constexpr double kSlideConfirmSeconds =
+        0.03;                                  ///< ...whose next note waits this long on its fret
+    static constexpr float kBendFadeDb = 6.0f; ///< a level falling this fast is a hand letting go
     static constexpr float kLegatoDropDb = 10.0f;
     static constexpr float kFadedDropDb = 10.0f;
-    static constexpr double kLowestHz = 70.0;
-    static constexpr float kMinNoteHz = 60.0f;
+    /// The lowest note looked for at all: under an eight-string's dropped E1.
+    static constexpr double kFloorHz = 39.0;
     static constexpr float kPickedClarity = 0.75f;
     static constexpr double kLowestOpenHz = 82.41; ///< the low E string in standard tuning
+    /// How long a lower note may still be on its way, per LowNote: the lowest open string, the
+    /// lowest note a dropped tuning reaches on it, and the lowest pitch that counts as a note.
+    struct Range
+    {
+        double openHz, lowestHz;
+        float minNoteHz, searchHz, rumbleHz;
+    };
+    static constexpr Range kRanges[3] = { { kLowestOpenHz, 70.0, 60.0f, 50.0f, 0.0f },
+                                          { 61.74, 52.0, 50.0f, 46.0f, 30.0f },
+                                          { 46.25, 41.0, 39.5f, 0.0f, 22.0f } };
+    /// Automatic: a note under these (and lasting kLearnSeconds) widens the range.
+    static constexpr float kLearnB1Hz = 68.0f, kLearnFSharp1Hz = 51.0f;
+    static constexpr double kLearnSeconds = 0.15;
     static constexpr float kLongerPeriodic = 0.9f;
     static constexpr float kLongerMargin = 0.03f;
     static constexpr float kOwnClean = 0.96f;
+    static constexpr float kAloneClean = 0.99f; ///< a note that is all there is in the signal
+    static constexpr float kLeftOver = 0.01f; ///< what a period leaves unexplained, when it matters
     static constexpr float kOctaveUpClean = 0.8f;
     static constexpr double kAttackSkipSeconds = 0.0025;
     static constexpr double kCheckWindowSeconds = 0.0015;
@@ -285,6 +361,17 @@ public:
     /// How hard this player picks on this input: the average attack (dB) of about the latest
     /// kPlayingNotes picks, -120 before the first.
     float playingLevelDb() const noexcept;
+    /// The range in effect: Settings::lowNote, or what Automatic has learned so far (never
+    /// LowNote::automatic). Learned ranges survive reset() and prepare().
+    LowNote lowNoteInEffect() const noexcept;
+    /// What Automatic has learned, whatever Settings::lowNote is now.
+    LowNote learnedLowNote() const noexcept { return learned_; }
+    /// Forgets what Automatic learned (a new instrument).
+    void forgetLowNote() noexcept;
+    /// Sets what Automatic has learned (a saved session's value).
+    void setLearnedLowNote (LowNote learned) noexcept;
+    /// The pitch bend last sent, in cents (0: centred).
+    float bendCents() const noexcept { return bendOut_; }
     /// Note-ons sent since prepare(), and how many of them Steady sent after its lag.
     std::uint32_t notesSent() const noexcept { return notesSent_; }
     std::uint32_t lateNotes() const noexcept { return lateNotes_; }
@@ -321,7 +408,19 @@ private:
     /// Ends the sounding note: at `reference` plus Steady's lag, or now with `immediately`.
     void endNote (std::int64_t reference, Why why, bool immediately = false) noexcept;
     float levelAgo (int ms) const noexcept;
-    void sendBend (float deviation, std::int64_t due) noexcept;
+    void sendBend (float cents, std::int64_t due) noexcept;
+    /// Notes + Bend: follows the sounding note's pitch, once per kBendIntervalSeconds.
+    void followBend() noexcept;
+    /// Notes + Bend: the string was bent to fret `q`, inside the bend's range.
+    void bendToFret (int q, float heard, float recentDb) noexcept;
+    bool bendReaches (int q) const noexcept;
+    /// A fret further on from the latest fret change, the same way and soon after: a slide.
+    bool slideStep (int q) const noexcept;
+    void applyRange() noexcept;
+    /// The automatic range has not heard a string as low as `hz` yet.
+    bool unheardLow (float hz) const noexcept;
+    /// The string's pitch for the bend, in cents from the semitone of `note`.
+    float bendCentsFrom (int note) const noexcept;
     void schedule (std::int64_t due, const Event& e) noexcept;
     /// The latest queued note-on (or note-off) of this note, -1 if none.
     int findQueued (bool on, int channel, int note) const noexcept;
@@ -330,6 +429,8 @@ private:
     void emit (EventList& out, const Event& e) noexcept;
     void endAll (EventList& out, int offset, bool everyChannel) noexcept;
     bool muted() const noexcept;
+    /// The level of a string whose period is longer than `coveredSeconds`: see the definition.
+    float sustainedDb (double coveredSeconds = 1.0 / kLowestOpenHz) const noexcept;
     bool pitchSettled() const noexcept;
     bool pickedNoteReady (float hz) const noexcept;
     bool harmonicSlip (float hz, bool correction) const noexcept;
@@ -456,10 +557,31 @@ private:
     std::int64_t noteDue_ = 0;   ///< when the sounding note's note-on goes out
     std::int64_t noteStart_ = 0; ///< the sounding note's pick (or legato move)
 
-    // Bend.
+    // Bend (Notes + Bend).
     int bendSent_ = kBendCentre, bendChannel_ = 1;
-    float bendCents_ = 0.0f;
+    int sentNote_ = -1;       ///< the MIDI note sounding at the receiver for note_
+    float bendOut_ = 0.0f;    ///< cents sent, from sentNote_
+    float bendGlide_ = 0.0f;  ///< where the bend is on its way to its target (slew limited)
+    float bendSeen_ = 0.0f;   ///< the latest deviation taken as a continuous move
+    float bendTarget_ = 0.0f; ///< where the bend is to go
+    float bendStill_ = 0.0f;  ///< the deviation the pitch has been resting at
+    int bendStillTicks_ = 0, bendStillNeed_ = 75;
+    int bendSettling_ = 0, bendSettleTicks_ = 15;
+    std::int64_t stepAt_ = 0; ///< the latest fret change without a pick
+    int stepDirection_ = 0, slideWindowSamples_ = 3840, slideConfirmSamples_ = 1440;
+    float bendCentre_ = 0.0f; ///< where note_ sits, in cents from its semitone
+    bool bendOn_ = false;     ///< the pitch has left the note's centre: the bend follows it
+    int bendOutside_ = 0, bendInside_ = 0; ///< ticks past kBendOnCents / inside kBendOffCents
+    int bendOnTicks_ = 8, bendOffTicks_ = 30;
+    float bendSlewPerTick_ = 6.0f, centrePerTick_ = 0.1f;
     std::int64_t lastBendAt_ = 0;
+
+    // Range.
+    double openHz_ = kLowestOpenHz, lowestHz_ = 70.0;
+    float minNoteHz_ = 60.0f;
+    LowNote learned_ = LowNote::e2; ///< what Automatic has heard; kept across reset()
+    bool noteLearned_ = false;      ///< the sounding note has been counted
+    int learnSamples_ = 7200;
 
     // Events waiting for their time (Steady), in time order.
     std::array<Pending, kQueueSize> queue_ {};

@@ -326,6 +326,24 @@ public:
     static constexpr double kWarmupSeconds = 0.05;
     static constexpr double kTouchWaitSeconds = 0.06;
     static constexpr float kTouchBelowDb = 10.0f;
+    // The early reading (Fastest): the signal since the pick, one period on.
+    static constexpr double kEarlyWindowSeconds = 0.004; ///< this much of it must repeat
+    static constexpr float kEarlyShare = 0.6f; ///< ...and this share of the period
+    static constexpr float kEarlyClean = 0.05f; ///< ...and may leave this share unexplained
+    static constexpr double kEarlyAloneSeconds = 0.005; ///< a note a lower one could be under:
+    static constexpr float kEarlyAlone = 0.02f;         ///< ...this long (and a period), this clean
+    static constexpr float kEarlyOther = 0.4f; ///< what every shorter period must leave unexplained
+    static constexpr float kEarlyRingDb = 20.0f; ///< the note before still rings: this near the pick
+    static constexpr float kEarlyHeld = 0.1f; ///< the note the string already sounded: this clean
+    static constexpr float kEarlyHeldCents = 45.0f; ///< ...this near where it was
+    static constexpr float kEarlyHeldApart = 0.2f; ///< ...a semitone off leaving at least this
+    static constexpr float kEarlyHeldPart = 0.25f; ///< a note over it, the old one out: this clean
+    static constexpr double kEarlyHeldSeconds = 0.012; ///< ...and not before this after the pick
+    static constexpr double kEarlyHeldSkipSeconds = 0.005; ///< ...read from this after the pick
+    static constexpr float kEarlyStill = 0.25f; ///< a note read early still holds: this clean
+    static constexpr float kEarlyOldClean = 0.1f; ///< a note steady enough to be taken out
+    static constexpr float kEarlyRingsOn = 0.7f; ///< it rings on: without it, this much is left
+    static constexpr float kEarlyBrought = 0.25f; ///< ...of which the pick brought at least this
 
     void prepare (double sampleRate);
     /// Forgets the signal and every pending event, without sending anything: call allNotesOff()
@@ -377,6 +395,15 @@ public:
     std::uint32_t lateNotes() const noexcept { return lateNotes_; }
     /// Notes still sounding at the receiver (note-on sent, note-off not yet).
     int soundingCount() const noexcept;
+    /// Note-ons sent on the early reading (Fastest), before the tracker had read the note.
+    std::uint32_t earlyNotes() const noexcept { return earlyNotes_; }
+    /// The latest pick's date, in samples since reset() (diagnostics).
+    std::int64_t pickedAt() const noexcept { return pickAt_; }
+    /// The early reading of the latest pick, 0 when there is none (diagnostics).
+    float earlyHz() const noexcept { return earlyHz_; }
+    /// ...the share of the signal its period leaves unexplained, and the stretch that repeats (s).
+    float earlyLeft() const noexcept { return earlyLeft_; }
+    double earlyWindow() const noexcept { return earlyRepeat_ / rate_; }
     /// Why the latest note started and ended, and how the latest pick was seen.
     Why startWhy() const noexcept { return startWhy_; }
     Why endWhy() const noexcept { return endWhy_; }
@@ -445,6 +472,18 @@ private:
     /// How periodic the band is at this frequency's period, over one period (or `window`
     /// decimated samples if longer): 1 for a perfect repeat.
     float periodicityAt (float hz, int window = 0) const noexcept;
+    /// The early reading: keeps, for every period, how well the signal since the pick repeats.
+    void earlyPush() noexcept;
+    void earlyBegin() noexcept;
+    void earlyAdd (int ago) noexcept;
+    void earlyEstimate() noexcept;
+    /// The stretch says the note the tracker held at the pick was picked again.
+    bool earlyHeldNote (float heldPeriod) noexcept;
+    /// The note the early reading names for the latest pick, when it may start one: -1 if none.
+    int earlyNoteFor (float& hz) const noexcept;
+    bool earlyStillRepeats (float hz) const noexcept;
+    /// The note just started was started on the early reading, at `hz`.
+    void startedEarly (float hz) noexcept;
     float pickLevelDb() const noexcept;
     int velocityAt (float levelDb) const noexcept;
     void rememberPick (float levelDb) noexcept;
@@ -510,6 +549,7 @@ private:
     float leastPeriodicity_ = 1.0f; ///< the lowest periodicity since the latest pick
     int steadySamples_ = 480, breakWindowSamples_ = 960, refractorySamples_ = 1200;
     int weakRefractorySamples_ = 2880, weakCheckSamples_ = 576, lockPickGapSamples_ = 2400;
+    int pickLevelSamples_ = 192;
     int correctionConfirmSamples_ = 384, touchWaitSamples_ = 1440;
 
     // Clock and timing constants (samples).
@@ -598,7 +638,36 @@ private:
     std::array<std::array<std::uint64_t, 2>, 16> on_ {};
     std::uint16_t channelsUsed_ = 0;
 
-    std::uint32_t notesSent_ = 0, lateNotes_ = 0;
+    // The early reading.
+    /// For every period, how the stretch since the pick repeats one period on: the stretch as
+    /// it is [0], and with the note that sounded before the pick taken out [1].
+    struct EarlySums
+    {
+        std::vector<double> r, m;
+        std::vector<float> stretch;
+        double energy = 0.0;
+    };
+    std::array<EarlySums, 2> early_;
+    bool earlyOld_ = false;  ///< a steady note sounded at the pick: it can be taken out
+    bool earlyRest_ = false; ///< ...and rings on: the reading is of what is left without it
+    double earlyOldPeriod_ = 0.0;  ///< its period, in decimated samples
+    std::int64_t earlyOldEnd_ = 0; ///< where what it did before the pick ends
+    int earlyGuardSamples_ = 24, earlyHeldCount_ = 76, earlyHeldSkip_ = 20;
+    std::int64_t earlyPickAt_ = -1; ///< the pick the sums are counted from
+    int earlyCount_ = 0;            ///< decimated samples since that pick's attack
+    int earlyLagLimit_ = 0, earlyMinLag_ = 4, earlyWindow_ = 32, earlyAloneWindow_ = 40;
+    int earlySpanSamples_ = 2880, earlySkipSamples_ = 120;
+    float earlyHz_ = 0.0f, earlyLeft_ = 0.0f;
+    bool earlyHeld_ = false; ///< the early reading is the note the tracker held at the pick
+    int earlyRepeat_ = 0;
+    bool earlyNote_ = false; ///< the sounding note started early; the tracker has not read it yet
+    bool earlyUnread_ = false; ///< the tracker has not named the sounding note since its pick
+    bool earlyDoubt_ = false; ///< ...and never did, and the stretch stopped repeating at its period
+    bool earlyStart_ = false; ///< startNote() is starting a note on the early reading
+    std::int64_t earlyLimit_ = 0;
+    int earlyGrace_ = 0; ///< the tracker has no say until this long after its own latest pick
+
+    std::uint32_t notesSent_ = 0, lateNotes_ = 0, earlyNotes_ = 0;
     Why startWhy_ = Why::none, endWhy_ = Why::none;
     PickKind pickKind_ = PickKind::none;
 };

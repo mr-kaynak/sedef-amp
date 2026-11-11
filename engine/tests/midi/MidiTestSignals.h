@@ -791,6 +791,51 @@ inline Scenario pickedTwice (int pitch, Pickup pickup, std::uint32_t seed, doubl
     return s;
 }
 
+/// The same note picked `count` times on one string, `every` seconds apart: each pick takes the
+/// string over from the one before (it never rings on under itself), the last is damped.
+inline Scenario repeated (int pitch, Pickup pickup, std::uint32_t seed, int count, double every,
+                          double fs)
+{
+    Scenario s;
+    s.name = "repeated";
+    s.fs = fs;
+    s.signal.assign (static_cast<std::size_t> ((0.1 + count * every + 0.6) * fs), 0.0f);
+    for (int k = 0; k < count; ++k)
+    {
+        auto p = pluckFor (pickup, hzOf (pitch), 0.22f, seed + 31u * static_cast<std::uint32_t> (k));
+        p.muteAt = k + 1 < count ? every : 0.4;
+        const double at = 0.1 + k * every;
+        addPluck (s.signal, fs, static_cast<std::size_t> (at * fs), p);
+        s.notes.push_back ({ pitch, at, at + p.muteAt + 0.005, true, p.peak });
+    }
+    addNoise (s.signal, -80.0f, seed);
+    return s;
+}
+
+/// A string picked at 0.1 s and again at 0.6 s while it still rings, where the fretting finger
+/// lands `cents` away `after` seconds after the second pick: the note is the fret, not the note
+/// the string had for those few milliseconds.
+inline Scenario fretAfterPick (int pitch, double cents, double after, Pickup pickup,
+                               std::uint32_t seed, double fs)
+{
+    Scenario s;
+    s.name = "fret after pick";
+    s.fs = fs;
+    s.signal.assign (static_cast<std::size_t> (1.5 * fs), 0.0f);
+    auto first = pluckFor (pickup, hzOf (pitch), 0.22f, seed);
+    first.muteAt = 0.5;
+    auto second = pluckFor (pickup, hzOf (pitch), 0.22f, seed + 7u);
+    second.stepAt = after;
+    second.stepCents = cents;
+    second.muteAt = 0.6;
+    addPluck (s.signal, fs, static_cast<std::size_t> (0.1 * fs), first);
+    addPluck (s.signal, fs, static_cast<std::size_t> (0.6 * fs), second);
+    const int landed = pitch + static_cast<int> (std::lround (cents / 100.0));
+    s.notes.push_back ({ pitch, 0.1, 0.605, true, first.peak });
+    s.notes.push_back ({ landed, 0.6, 1.205, true, second.peak });
+    addNoise (s.signal, -80.0f, seed);
+    return s;
+}
 /// Tunings for the from-silence notes: standard, a whole step down, drop D.
 inline constexpr int kTunings[3][6] = { { 40, 45, 50, 55, 59, 64 },
                                         { 38, 43, 48, 53, 57, 62 },

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 #include "MidiPortRouter.h"
 
+#include <algorithm>
 #include <map>
 
 namespace sedef::midiplugin
@@ -184,15 +185,31 @@ juce::String MidiPortRouter::openName() const
     return openName_;
 }
 
-void MidiPortRouter::push (const midi::EventList& events, int baseOffset,
-                           double sampleRate) noexcept
+double MidiPortRouter::worstDelayMs (int blockFrames, double sampleRate) noexcept
+{
+    // The block's first sample: the whole block, then nothing more.
+    return sampleRate > 0.0 ? 1000.0 * blockFrames / sampleRate : 0.0;
+}
+
+double MidiPortRouter::meanDelayMs (int blockFrames, double sampleRate) noexcept
+{
+    // An event half way through: half the block, and half the spread.
+    const double block = worstDelayMs (blockFrames, sampleRate);
+    return 0.5 * block + 0.5 * std::min (block, kMaxSpreadMs);
+}
+
+void MidiPortRouter::push (const midi::EventList& events, int baseOffset, double sampleRate,
+                           int blockFrames) noexcept
 {
     if (events.empty() || !active_.load (std::memory_order_relaxed) || sampleRate <= 0.0)
         return;
-    // The block's last sample came in just now; each event goes out one block after its own
-    // sample, so the distance between events stays as it was.
+    // The block's last sample came in just now. Each event goes out its offset from now (one
+    // block after its own sample, the distance between events as it was) while the block is no
+    // longer than kMaxSpreadMs; a longer block's events are spread over that much.
     const double nowMs = juce::Time::getMillisecondCounterHiRes();
-    const double msPerSample = 1000.0 / sampleRate;
+    double msPerSample = 1000.0 / sampleRate;
+    if (blockFrames > 0)
+        msPerSample = std::min (msPerSample, kMaxSpreadMs / blockFrames);
     for (const auto& e : events)
     {
         Packet p;

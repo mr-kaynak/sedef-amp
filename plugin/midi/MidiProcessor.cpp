@@ -20,6 +20,40 @@ namespace
 {
 constexpr int kChunk = 512; // analysis runs in chunks of this many samples at most
 
+#if JucePlugin_Build_Standalone
+/// The standalone app's audio buffer is the delay of every note (MidiPortRouter), and the
+/// framework's default is 512 samples: about 11 ms. Once per installation (the first start, and
+/// the first start after an update from a version that left the default), the buffer becomes the
+/// smallest the device offers that is at least kPreferredBufferMs long, if that is smaller. A
+/// size the user picks afterwards in Audio input... stays.
+constexpr double kPreferredBufferMs = 2.5; // 128 samples at 44.1 and 48 kHz
+constexpr const char* kBufferChosenKey = "sedefSmallBuffer";
+
+/// False while there is no device yet (it opens once the system has let the app hear).
+bool preferSmallBuffer (juce::StandalonePluginHolder& holder)
+{
+    auto* settings = holder.settings.get();
+    auto* device = holder.deviceManager.getCurrentAudioDevice();
+    if (settings == nullptr || settings->getIntValue (kBufferChosenKey, 0) >= 1)
+        return true;
+    if (device == nullptr)
+        return false;
+    const double rate = device->getCurrentSampleRate();
+    int best = 0;
+    for (const int size : device->getAvailableBufferSizes())
+        if (rate > 0.0 && 1000.0 * size / rate >= kPreferredBufferMs && (best == 0 || size < best))
+            best = size;
+    if (best > 0 && best < device->getCurrentBufferSizeSamples())
+    {
+        auto setup = holder.deviceManager.getAudioDeviceSetup();
+        setup.bufferSize = best;
+        holder.deviceManager.setAudioDeviceSetup (setup, true);
+    }
+    settings->setValue (kBufferChosenKey, 1);
+    return true;
+}
+#endif
+
 juce::String virtualNameFor (juce::AudioProcessor::WrapperType type)
 {
     return type == juce::AudioProcessor::wrapperType_Standalone ? product::kVirtualPort
@@ -64,13 +98,25 @@ MidiProcessor::MidiProcessor()
 #if JucePlugin_Build_Standalone
         juce::MessageManager::callAsync ([] {
             if (auto* holder = juce::StandalonePluginHolder::getInstance())
+            {
                 holder->getMuteInputValue().setValue (false);
+            }
         });
 #endif
     }
 }
 
 MidiProcessor::~MidiProcessor() = default;
+
+void MidiProcessor::standaloneHousekeeping()
+{
+#if JucePlugin_Build_Standalone
+    static bool bufferDone = false;
+    if (!bufferDone)
+        if (auto* holder = juce::StandalonePluginHolder::getInstance())
+            bufferDone = preferSmallBuffer (*holder);
+#endif
+}
 
 const juce::String MidiProcessor::getName() const
 {
@@ -148,7 +194,7 @@ void MidiProcessor::sendEvents (juce::MidiBuffer& midiOut, int offset)
     if (producesMidi())
         for (const auto& e : events_)
             midiOut.addEvent (e.bytes, e.size, offset + e.offset);
-    router_.push (events_, offset, sampleRate_.load (std::memory_order_relaxed));
+    router_.push (events_, offset, sampleRate_.load (std::memory_order_relaxed), blockFrames_);
     events_.clear();
 }
 
@@ -178,6 +224,9 @@ void MidiProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
     const int ins = std::min (getTotalNumInputChannels(), buffer.getNumChannels());
     const int outs = std::min (getTotalNumOutputChannels(), buffer.getNumChannels());
     wasBypassed_ = false;
+    blockFrames_ = n;
+    if (const int learned = learnedRequest_.exchange (0, std::memory_order_relaxed); learned > 0)
+        converter_.setLearnedLowNote (static_cast<midi::LowNote> (learned));
 
     // A stopped transport ends the sounding note (the next pick starts a new one).
     if (auto* head = getPlayHead())
@@ -243,6 +292,9 @@ void MidiProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBu
     tSounding_.store (converter_.soundingCount(), std::memory_order_relaxed);
     tNotesSent_.store (converter_.notesSent(), std::memory_order_relaxed);
     tLateNotes_.store (converter_.lateNotes(), std::memory_order_relaxed);
+    tLowNote_.store (static_cast<int> (converter_.lowNoteInEffect()), std::memory_order_relaxed);
+    tLearned_.store (static_cast<int> (converter_.learnedLowNote()), std::memory_order_relaxed);
+    tBlockSize_.store (n, std::memory_order_relaxed);
 }
 
 void MidiProcessor::processBlockBypassed (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
@@ -278,6 +330,8 @@ MidiProcessor::Telemetry MidiProcessor::telemetry() const noexcept
     t.sounding = tSounding_.load (std::memory_order_relaxed) > 0;
     t.notesSent = tNotesSent_.load (std::memory_order_relaxed);
     t.lateNotes = tLateNotes_.load (std::memory_order_relaxed);
+    t.lowNote = tLowNote_.load (std::memory_order_relaxed);
+    t.blockSize = tBlockSize_.load (std::memory_order_relaxed);
     return t;
 }
 
@@ -316,6 +370,8 @@ void MidiProcessor::getStateInformation (juce::MemoryBlock& dest)
     root.addChild (params, -1, nullptr);
     juce::ValueTree extra ("Extra");
     extra.setProperty ("destination", destination(), nullptr);
+    // What the automatic Lowest Note range has heard of this instrument (1 E2, 2 B1, 3 F#1).
+    extra.setProperty ("lowNoteHeard", tLearned_.load (std::memory_order_relaxed), nullptr);
     root.addChild (extra, -1, nullptr);
     if (const auto xml = root.createXml())
         copyXmlToBinary (*xml, dest);
@@ -350,6 +406,13 @@ void MidiProcessor::setStateInformation (const void* data, int size)
     const auto extra = root.getChildWithName ("Extra");
     if (extra.hasProperty ("destination"))
         setDestination (extra.getProperty ("destination").toString());
+    if (extra.hasProperty ("lowNoteHeard"))
+    {
+        const int heard =
+            juce::jlimit (1, 3, static_cast<int> (extra.getProperty ("lowNoteHeard")));
+        learnedRequest_.store (heard, std::memory_order_relaxed);
+        tLearned_.store (heard, std::memory_order_relaxed); // saved again as it was loaded
+    }
 }
 
 } // namespace sedef::midiplugin

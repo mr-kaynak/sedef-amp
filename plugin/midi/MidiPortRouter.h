@@ -17,13 +17,18 @@ namespace sedef::midiplugin
 /// Sends what the converter decides to a MIDI port, off the audio thread.
 ///
 /// The audio thread hands each block's events, with their sample offsets, to a wait-free queue
-/// (push()). A thread of its own sends each one at the wall-clock time of its offset plus one block
-/// (the block's audio was all in when the block was processed), so the spacing of notes survives
-/// with about a millisecond of jitter. The destination is a virtual source other apps see (macOS
-/// and Linux) or an existing MIDI output (an IAC bus, a hardware port, a loopback port on
-/// Windows). Ports are opened and closed on the message thread, as the system's MIDI service
-/// expects. Every note-on sent is tracked until its note-off: changing the destination, turning
-/// it off and quitting first end every sounding note on the old one, so nothing is left hanging.
+/// (push()). A block's audio is all in by the time it is processed, so its events can only go out
+/// from then on: an event at the block's last sample at once, an earlier one having waited for the
+/// rest of its block already. A thread of its own sends them in order, spread over the block's
+/// length when that is no more than kMaxSpreadMs (every event then goes out exactly one block
+/// after its sample, and the spacing of notes survives to the router's millisecond), or over
+/// kMaxSpreadMs when the block is longer (a note waits for the rest of its block and at most
+/// that; holding it for the whole block would make a large buffer cost twice). The destination is a
+/// virtual source other apps see (macOS and Linux) or an existing MIDI output (an IAC bus, a
+/// hardware port, a loopback port on Windows). Ports are opened and closed on the message thread,
+/// as the system's MIDI service expects. Every note-on sent is tracked until its note-off: changing
+/// the destination, turning it off and quitting first end every sounding note on the old one, so
+/// nothing is left hanging.
 class MidiPortRouter final : private juce::Thread
 {
 public:
@@ -55,10 +60,19 @@ public:
     juce::String openName() const;
 
     // Audio thread ------------------------------------------------------------------------------
+    /// The longest a block's events are spread over, once the block is in (ms).
+    static constexpr double kMaxSpreadMs = 3.0;
+
     /// Queues the events of a block (their offsets counted from `baseOffset` into the host's
-    /// block). Wait-free; drops events when the queue is full (never in practice: it holds
-    /// seconds of a busy line).
-    void push (const midi::EventList& events, int baseOffset, double sampleRate) noexcept;
+    /// block of `blockFrames` samples; 0: no block, each event goes out its offset from now).
+    /// Wait-free; drops events when the queue is full (never in practice: it holds seconds of a
+    /// busy line).
+    void push (const midi::EventList& events, int baseOffset, double sampleRate,
+               int blockFrames = 0) noexcept;
+    /// How long after its sample an event goes out, in ms, at most and on average, for a block
+    /// of this many samples: what the audio buffer costs every note.
+    static double worstDelayMs (int blockFrames, double sampleRate) noexcept;
+    static double meanDelayMs (int blockFrames, double sampleRate) noexcept;
     /// Ends the notes sounding at the destination soon, on the router's thread (when the host
     /// stops processing, so no block will end them). Not for the audio thread.
     void endAllSoon() noexcept

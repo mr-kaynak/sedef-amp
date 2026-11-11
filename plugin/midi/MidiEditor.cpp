@@ -214,6 +214,11 @@ juce::WebBrowserComponent::Options MidiEditor::makeOptions()
         done (ports());
     });
 
+    fn ("sedef_midi_forgetLowNote", [&proc] (const juce::Array<juce::var>&, Completion done) {
+        proc.forgetLowNote();
+        done ({});
+    });
+
     fn ("sedef_midi_audioSettings", [] (const juce::Array<juce::var>&, Completion done) {
 #if JucePlugin_Build_Standalone
         if (auto* holder = juce::StandalonePluginHolder::getInstance())
@@ -279,11 +284,33 @@ juce::var MidiEditor::ports() const
                      { "outputs", outputs } });
 }
 
+juce::var MidiEditor::audio() const
+{
+    const auto t = processor_.telemetry();
+    const double rate = processor_.sampleRate();
+    double inputLatencyMs = -1.0; // unknown: a host does not tell a plug-in
+#if JucePlugin_Build_Standalone
+    if (auto* holder = juce::StandalonePluginHolder::getInstance())
+        if (auto* device = holder->deviceManager.getCurrentAudioDevice())
+            if (device->getCurrentSampleRate() > 0.0)
+                inputLatencyMs =
+                    1000.0 * device->getInputLatencyInSamples() / device->getCurrentSampleRate();
+#endif
+    return object ({ { "sampleRate", rate },
+                     { "blockSize", t.blockSize },
+                     // What the buffer costs a note sent through the port: at most, on average.
+                     { "bufferWorstMs", MidiPortRouter::worstDelayMs (t.blockSize, rate) },
+                     { "bufferMeanMs", MidiPortRouter::meanDelayMs (t.blockSize, rate) },
+                     { "inputLatencyMs", inputLatencyMs },
+                     { "lowNote", t.lowNote } });
+}
+
 juce::var MidiEditor::hello()
 {
     for (std::size_t i = 0; i < midi::kNumParams; ++i)
         lastSent_[i] = processor_.paramValue (static_cast<midi::ParamId> (i));
     lastPorts_ = ports();
+    lastAudio_ = audio();
     return object ({ { "protocol", kProtocolVersion },
                      { "appVersion", SEDEF_VERSION },
                      { "wrapperType", wrapperName (processor_.wrapperType) },
@@ -293,7 +320,8 @@ juce::var MidiEditor::hello()
                      { "steadyLagMs", 1000.0 * midi::GuitarToMidi::kSteadyLagSeconds },
                      { "schema", schema() },
                      { "values", allValues() },
-                     { "ports", lastPorts_ } });
+                     { "ports", lastPorts_ },
+                     { "audio", lastAudio_ } });
 }
 
 void MidiEditor::timerCallback()
@@ -314,6 +342,13 @@ void MidiEditor::timerCallback()
         {
             lastPorts_ = now;
             browser_->emitEventIfBrowserIsVisible ("sedef:midi:ports", now);
+        }
+        MidiProcessor::standaloneHousekeeping();
+        const auto sound = audio();
+        if (juce::JSON::toString (sound) != juce::JSON::toString (lastAudio_))
+        {
+            lastAudio_ = sound;
+            browser_->emitEventIfBrowserIsVisible ("sedef:midi:audio", sound);
         }
     }
 }

@@ -30,7 +30,7 @@ around them.
 | **EQ** | 9-band graphic EQ with low/high cut, one bank per amp |
 | **Sedef MIDI** | a companion that plays MIDI instruments from your guitar, one note at a time ([below](#sedef-midi)) |
 | **Post** | **Drift** multi-head tape echo with wow, flutter and tape saturation · **Fathom** plate and hall reverbs · **Doubler**, a second take that differs from note to note, switched on from the header |
-| **Tools** | **input level guide**: the input meter shows where the presets want your level and says in words whether it is right, too quiet or too hot · precision tuner · **intonation workbench** · metronome with odd meters (standalone) |
+| **Tools** | **Transpose**: play up to an octave lower or higher without retuning, chords included (3 ms of latency down, 10 ms up, none at 0) · **input level guide**: the input meter shows where the presets want your level and says in words whether it is right, too quiet or too hot · precision tuner · **intonation workbench** · metronome with odd meters (standalone) |
 | **Presets** | browser with categories, tags and search · click to audition, Esc to go back · A/B compare · Undo when a load or delete would lose work |
 
 <img src="docs/images/amp.png" alt="The amp section" width="100%">

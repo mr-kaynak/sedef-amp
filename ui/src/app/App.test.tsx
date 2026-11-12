@@ -41,6 +41,21 @@ describe('App', () => {
     expect(h.mock.isTunerActive()).toBe(false);
   });
 
+  it('opens and closes the tuner with T, but not while typing', async () => {
+    render(<App />);
+    expect(screen.getByRole('button', { name: 'Tuner' })).toHaveAttribute('aria-keyshortcuts', 'T');
+    fireEvent.keyDown(window, { key: 't' });
+    expect(useUiStore.getState().overlay).toBe('tuner');
+    fireEvent.keyDown(window, { key: 'T' });
+    expect(useUiStore.getState().overlay).toBeNull();
+    // In the preset search, T is a letter.
+    fireEvent.keyDown(window, { key: '/' });
+    await act(flush);
+    const search = screen.getByRole('combobox', { name: 'Search presets' });
+    fireEvent.keyDown(search, { key: 't' });
+    expect(useUiStore.getState().overlay).toBeNull();
+  });
+
   it('switches amps and shows the matching faceplate', async () => {
     render(<App />);
     fireEvent.click(screen.getByRole('radio', { name: /Abyss/ }));

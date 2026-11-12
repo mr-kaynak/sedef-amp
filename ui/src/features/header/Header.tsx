@@ -62,6 +62,8 @@ export function Header() {
           type="button"
           className={`${buttons.ghost} ${buttons.lead}`}
           aria-pressed={overlay === 'tuner'}
+          aria-keyshortcuts="T"
+          title="Tuner (T)"
           onClick={() => {
             presetBrowser.keep();
             uiActions.toggleOverlay('tuner');

@@ -29,6 +29,26 @@ export function SettingsPanel() {
 
   return (
     <div className={styles.panel}>
+      {session.isStandalone && (
+        <section className={styles.section}>
+          <h3 className={styles.heading}>Audio</h3>
+          <div className={styles.row}>
+            <p className={styles.rowText}>Your audio interface</p>
+            <button
+              type="button"
+              className={`${buttons.solid} ${buttons.small}`}
+              aria-haspopup="dialog"
+              onClick={() => {
+                uiActions.setPopover(null);
+                void invoke('sedef_audioSettings');
+              }}
+            >
+              Audio settings…
+            </button>
+          </div>
+          <p className={styles.note}>Its input, sample rate and buffer size.</p>
+        </section>
+      )}
       <section className={styles.section}>
         <h3 className={styles.heading}>Window size</h3>
         <div

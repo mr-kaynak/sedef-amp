@@ -531,6 +531,8 @@ export class MockBackend implements Backend {
       this.persistUiState(state);
     },
     sedef_ui_setScale: () => undefined,
+    // The browser has no audio device to pick; the call is counted in tests.
+    sedef_audioSettings: () => undefined,
     sedef_openUrl: (url) => {
       if (typeof window !== 'undefined' && this.options.autoStart)
         window.open(url, '_blank', 'noopener');

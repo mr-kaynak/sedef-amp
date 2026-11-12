@@ -179,7 +179,7 @@ From the pluck or pick to the note, in Fastest:
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | Six strings (E2, or Auto on a guitar) | | | | 24 ms | 22 ms | 17 ms | 16 ms | 13 ms | 12 ms | 9 to 11 ms |
 | Seven strings (B1) | | 32 ms | 29 ms | 24 ms | 22 ms | 21 ms | 16 ms | 13 ms | 12 ms | 9 to 11 ms |
-| Eight strings (F♯1) | 39 ms | 32 ms | 29 ms | 24 ms | 28 ms | 21 ms | 16 ms | 13 ms | 12 ms | 9 to 11 ms |
+| Eight strings (F♯1) | 37 ms | 32 ms | 29 ms | 24 ms | 27 ms | 21 ms | 16 ms | 13 ms | 12 ms | 9 to 11 ms |
 
 The same note picked again and again, the staple of a bass line, comes within 25 ms on a low E,
 20 ms on an A, 17 ms on a D and 15 ms on a G (it used to take 33 ms on every string).

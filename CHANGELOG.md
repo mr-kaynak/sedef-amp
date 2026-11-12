@@ -12,11 +12,19 @@ All notable changes to this project are documented here. The format follows
   pick it, and Sedef MIDI now reads the note from that instead of waiting for two full periods
   of it and a safety margin. From the pick to the note: a low E 22 ms (was 28), an A 17 ms
   (22), a G 13 ms and the notes above it 9 to 12 ms (all 16 before); on seven and eight
-  strings a low B 29 ms (37) and a low F♯ 39 ms (47). The same note picked again and again
+  strings a low B 29 ms (37) and a low F♯ 37 ms (47). The same note picked again and again
   comes within 15 to 25 ms, where it took 33 ms on every string. It plays the same notes as
   before: when the signal alone does not settle a note (a soft pick under a string that still
   rings, a low string plucked near the bridge with a finger), it waits as it did. Steady is
   unchanged.
+
+### Added
+
+- **Sedef MIDI is tested to play the same whatever the host does**: the same notes at the same
+  samples at any buffer size; the same notes within a millisecond at any input level and
+  whenever the playing starts, and within 1.5 ms at 44.1, 48, 88.2 and 96 kHz; every semitone
+  from F♯1 to E6 within the time the design works out for it; and `sedef-midi-render` writes the
+  same file, byte for byte, run twice or at another buffer size.
 
 ## [0.8.0] - 2026-11-11
 

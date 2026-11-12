@@ -176,6 +176,7 @@ void GuitarToMidi::prepare (double sampleRate)
     tracker_.setOptions (trackerOptions);
     hp_.c = design::highpass (sampleRate, kBandLowHz, 0.7071);
     lp_.c = design::lowpass (sampleRate, std::min (kBandHighHz, 0.4 * sampleRate), 0.7071);
+    earlyLp_.c = lp_.c;
     powerCoeff_ = static_cast<float> (1.0 - std::exp (-1.0 / (kLevelSeconds * sampleRate)));
     msSamples_ = samples (0.001, sampleRate);
     muteWindowMs_ = std::clamp (static_cast<int> (std::lround (kMuteWindowSeconds * 1000.0)), 2,
@@ -208,6 +209,7 @@ void GuitarToMidi::prepare (double sampleRate)
     while (size < static_cast<int> (2.5 / kFloorHz * rate_) + 8)
         size <<= 1;
     ring_.assign (static_cast<std::size_t> (size), 0.0f);
+    earlyRing_.assign (static_cast<std::size_t> (size), 0.0f);
     ringMask_ = size - 1;
     hop_ = std::max (1, static_cast<int> (std::lround (0.0005 * rate_)));
     minWindow_ = std::max (4, static_cast<int> (std::lround (0.004 * rate_)));
@@ -253,6 +255,7 @@ void GuitarToMidi::prepare (double sampleRate)
         earlyAloneWindow_ = static_cast<int> (std::lround (kEarlyAloneSeconds * rate_));
         earlySkipSamples_ = samples (kAttackSkipSeconds, sampleRate);
         earlyGuardSamples_ = samples (0.0005, sampleRate);
+        earlyFineLag_ = static_cast<int> (std::lround (kEarlyFineSeconds * rate_));
         earlyHeldCount_ =
             static_cast<int> (std::lround ((kEarlyHeldSeconds - kAttackSkipSeconds) * rate_));
         earlyHeldSkip_ =
@@ -284,6 +287,8 @@ void GuitarToMidi::reset() noexcept
     msCount_ = 0;
     msMax_ = kFloorDb;
     std::fill (ring_.begin(), ring_.end(), 0.0f);
+    std::fill (earlyRing_.begin(), earlyRing_.end(), 0.0f);
+    earlyLp_.s0 = earlyLp_.s1 = 0.0f;
     ringWrite_ = 0;
     phase_ = 0;
     hopCount_ = 0;
@@ -415,6 +420,9 @@ void GuitarToMidi::process (const float* in, int numFrames, EventList& out) noex
         clickRing_[static_cast<std::size_t> (now_ & clickMask_)] = clickPower_;
         inRing_[static_cast<std::size_t> (now_ & inMask_)] = x;
         const float band = lp_.process (hp_.process (x));
+        // The early reading reads between the decimated samples: its band is cut once more, so
+        // that what the decimation folds down stays far under what a period may leave.
+        const float earlyBand = earlyLp_.process (band);
         power_ += powerCoeff_ * (band * band - power_);
         levelDb_ = powerToDb (power_);
         msMax_ = std::max (msMax_, levelDb_);
@@ -422,6 +430,7 @@ void GuitarToMidi::process (const float* in, int numFrames, EventList& out) noex
         {
             phase_ = 0;
             ring_[static_cast<std::size_t> (ringWrite_)] = band;
+            earlyRing_[static_cast<std::size_t> (ringWrite_)] = earlyBand;
             ringWrite_ = (ringWrite_ + 1) & ringMask_;
             earlyPush();
             if (++hopCount_ >= hop_)
@@ -484,6 +493,8 @@ void GuitarToMidi::process (const float* in, int numFrames, EventList& out) noex
     hp_.s1 = std::abs (hp_.s1) < 1.0e-20f ? 0.0f : hp_.s1;
     lp_.s0 = std::abs (lp_.s0) < 1.0e-20f ? 0.0f : lp_.s0;
     lp_.s1 = std::abs (lp_.s1) < 1.0e-20f ? 0.0f : lp_.s1;
+    earlyLp_.s0 = std::abs (earlyLp_.s0) < 1.0e-20f ? 0.0f : earlyLp_.s0;
+    earlyLp_.s1 = std::abs (earlyLp_.s1) < 1.0e-20f ? 0.0f : earlyLp_.s1;
     clickHp_.s0 = std::abs (clickHp_.s0) < 1.0e-20f ? 0.0f : clickHp_.s0;
     clickHp_.s1 = std::abs (clickHp_.s1) < 1.0e-20f ? 0.0f : clickHp_.s1;
     clickPower_ = clickPower_ < 1.0e-20f ? 0.0f : clickPower_;
@@ -731,9 +742,9 @@ void GuitarToMidi::earlyBegin() noexcept
             double diff = 0.0, energy = 0.0;
             for (int k = 0; k < window; ++k)
             {
-                const float x = ringAt (ago + k);
-                const float y =
-                    (1.0f - frac) * ringAt (ago + k + whole) + frac * ringAt (ago + k + whole + 1);
+                const float x = earlyAt (ago + k);
+                const float y = (1.0f - frac) * earlyAt (ago + k + whole) +
+                                frac * earlyAt (ago + k + whole + 1);
                 diff += static_cast<double> (x - y) * (x - y);
                 energy += static_cast<double> (x) * x + static_cast<double> (y) * y;
             }
@@ -753,7 +764,7 @@ void GuitarToMidi::earlyAdd (int ago) noexcept
     // The sample `ago` decimated steps back is the next one of the stretch.
     if (earlyCount_ >= static_cast<int> (early_[0].stretch.size()))
         return;
-    const float x = ringAt (ago);
+    const float x = earlyAt (ago);
     float rest = x;
     if (earlyOld_)
     {
@@ -764,7 +775,7 @@ void GuitarToMidi::earlyAdd (int ago) noexcept
         if (whole + 1 < ringMask_)
         {
             const auto frac = static_cast<float> (back - whole);
-            rest -= (1.0f - frac) * ringAt (whole) + frac * ringAt (whole + 1);
+            rest -= (1.0f - frac) * earlyAt (whole) + frac * earlyAt (whole + 1);
         }
     }
     const int longest = std::min (earlyCount_, earlyLagLimit_);
@@ -839,7 +850,12 @@ void GuitarToMidi::earlyEstimate() noexcept
                 shift = std::clamp (0.5f * (before - after) / denom, -0.5f, 0.5f);
                 value = std::max (0.0f, at - 0.25f * (before - after) * shift);
             }
-            const float period = static_cast<float> (lag) + shift;
+            float period = static_cast<float> (lag) + shift;
+            // A short period is a few samples of the decimated band: between two whole lags
+            // even a perfect repeat leaves something. Such a dip is measured again between the
+            // lags.
+            if (lag < earlyFineLag_ && value <= kEarlyFine)
+                value = earlyFineLeft (sums.stretch.data(), n, lag, period);
             const auto hz = static_cast<float> (rate_) / period;
             // Nothing an octave under this period is a note of the range: the attack's first
             // kEarlyWindowSeconds repeating one period on is the string's pulse come round.
@@ -848,17 +864,50 @@ void GuitarToMidi::earlyEstimate() noexcept
             // more), which a string's partial never does.
             const bool lowest = 2.0 * static_cast<double> (period) > rate_ / lowestHz_;
             const int window = n - lag;
+            // And the two windows compared must hold at least kEarlyDensity of the stretch's
+            // energy their length would: a string that gives one pulse a period (plucked near
+            // the bridge, heard near it) has, until its pulse has come round twice, all its energy
+            // between the windows, and what is compared is the quiet between the pulses.
+            const bool representative =
+                sums.m[static_cast<std::size_t> (lag)] * n >=
+                static_cast<double> (kEarlyDensity) * 2.0 * window * sums.energy;
             const bool clean =
-                lowest
-                    ? value <= kEarlyClean &&
-                          window >= std::max (earlyWindow_, static_cast<int> (kEarlyShare * period))
-                    : value <= kEarlyAlone && window >= std::max (lag, earlyAloneWindow_);
+                representative &&
+                (lowest ? value <= kEarlyClean &&
+                              window >=
+                                  std::max (earlyWindow_, static_cast<int> (kEarlyShare * period))
+                        : value <= kEarlyAlone && window >= std::max (lag, earlyAloneWindow_));
             // And no shorter period may account for much of the signal: two strings ringing
             // together repeat at a period neither has, an octave under the played note is a
             // multiple of its period, and a few milliseconds of a low string can look like
             // themselves a little later than one period on.
             const bool note = hz >= minNoteHz_ && !unheardLow (hz) && !shorter && brought;
-            if (clean && note)
+            // Then two checks that cost a little more, made only for a period that would
+            // otherwise be named. Half the period must leave what a string's octave above
+            // leaves (twice the share of its odd partials, over any stretch): something slow,
+            // such as the band's own ring after a step or a mute, repeats at every short period,
+            // and at half of one even better. And a period of kEarlyFineSeconds or more must
+            // name the same note when only the later half of the two windows is read: what the
+            // attack and the band's answer to it leave in the first milliseconds can move a low
+            // note's dip by more than half a semitone, where the string itself moves it nowhere.
+            // (A shorter period is read again between the lags instead, and on the strings that
+            // start in phase it reads right without the check: the design, "Why the early reading
+            // can be trusted, and when".)
+            const auto halfLeaves = [&] {
+                const float half = 0.5f * period;
+                const auto under = static_cast<int> (half);
+                const float frac = half - static_cast<float> (under);
+                return under >= 1 &&
+                       (1.0f - frac) * left (under) + frac * left (under + 1) > kEarlyOther;
+            };
+            const auto placed = [&] {
+                if (lag < earlyFineLag_)
+                    return true;
+                const float late = earlyLatePeriod (sums.stretch.data(), n, period);
+                return late > 0.0f && std::lround (midiPitch (static_cast<float> (rate_) / late)) ==
+                                          std::lround (midiPitch (hz));
+            };
+            if (clean && note && halfLeaves() && placed())
             {
                 earlyHz_ = hz;
                 earlyLeft_ = value;
@@ -891,6 +940,91 @@ bool GuitarToMidi::earlyStillRepeats (float hz) const noexcept
                 least, static_cast<float> (1.0 - 2.0 * sums.r[static_cast<std::size_t> (k)] / m));
     }
     return least <= kEarlyStill;
+}
+
+float GuitarToMidi::earlyFineLeft (const float* x, int n, int lag, float& period) const noexcept
+{
+    // What the periods a quarter of a sample apart around `lag` leave unexplained, the stretch
+    // read between its samples by a cubic through four of them; the least of them, and the
+    // period placed by a parabola through it and its neighbours.
+    constexpr int kSteps = 5; // -0.5, -0.25, 0, 0.25, 0.5
+    float values[kSteps] = {};
+    for (int step = 0; step < kSteps; ++step)
+    {
+        const float back = static_cast<float> (lag) + 0.25f * static_cast<float> (step - 2);
+        const int whole = static_cast<int> (std::floor (back));
+        const float f = back - static_cast<float> (whole);
+        // Lagrange weights for the samples at whole - 1, whole, whole + 1, whole + 2 back.
+        const float w0 = -f * (f - 1.0f) * (f - 2.0f) / 6.0f;
+        const float w1 = (f + 1.0f) * (f - 1.0f) * (f - 2.0f) / 2.0f;
+        const float w2 = -(f + 1.0f) * f * (f - 2.0f) / 2.0f;
+        const float w3 = (f + 1.0f) * f * (f - 1.0f) / 6.0f;
+        double diff = 0.0, energy = 0.0;
+        for (int i = whole + 2; i < n; ++i)
+        {
+            const float a = x[i];
+            const float b = w0 * x[i - whole + 1] + w1 * x[i - whole] + w2 * x[i - whole - 1] +
+                            w3 * x[i - whole - 2];
+            diff += static_cast<double> (a - b) * (a - b);
+            energy += static_cast<double> (a) * a + static_cast<double> (b) * b;
+        }
+        values[step] = energy > 1.0e-14 ? static_cast<float> (diff / energy) : 2.0f;
+    }
+    int best = 0;
+    for (int step = 1; step < kSteps; ++step)
+        if (values[step] < values[best])
+            best = step;
+    float shift = 0.0f;
+    if (best > 0 && best < kSteps - 1)
+    {
+        const float denom = values[best - 1] - 2.0f * values[best] + values[best + 1];
+        if (denom > 0.0f)
+            shift = std::clamp (0.5f * (values[best - 1] - values[best + 1]) / denom, -0.5f, 0.5f);
+    }
+    period = static_cast<float> (lag) + 0.25f * (static_cast<float> (best - 2) + shift);
+    return values[best];
+}
+
+float GuitarToMidi::earlyLatePeriod (const float* x, int n, float period) const noexcept
+{
+    // The later half of the two windows only (samples from `skip` on), every whole lag within a
+    // semitone of `period`: the deepest dip inside that span, placed by a parabola.
+    const float semitone = std::exp2 (1.0f / 12.0f);
+    const int first = static_cast<int> (period / semitone) - 1;
+    const int last = static_cast<int> (period * semitone) + 2;
+    const int skip = (n - static_cast<int> (period)) / 2;
+    if (first < earlyMinLag_ || last - first + 1 > 64 || n - skip - last < 8)
+        return 0.0f;
+    std::array<float, 64> values {};
+    for (int lag = first; lag <= last; ++lag)
+    {
+        double diff = 0.0, energy = 0.0;
+        for (int i = skip + lag; i < n; ++i)
+        {
+            const float a = x[i], b = x[i - lag];
+            diff += static_cast<double> (a - b) * (a - b);
+            energy += static_cast<double> (a) * a + static_cast<double> (b) * b;
+        }
+        values[static_cast<std::size_t> (lag - first)] =
+            energy > 1.0e-14 ? static_cast<float> (diff / energy) : 2.0f;
+    }
+    int best = -1;
+    for (int k = 1; k < last - first; ++k)
+    {
+        const auto at = values[static_cast<std::size_t> (k)];
+        if (at <= values[static_cast<std::size_t> (k - 1)] &&
+            at <= values[static_cast<std::size_t> (k + 1)] &&
+            (best < 0 || at < values[static_cast<std::size_t> (best)]))
+            best = k;
+    }
+    if (best < 0)
+        return 0.0f;
+    const float y0 = values[static_cast<std::size_t> (best - 1)];
+    const float y1 = values[static_cast<std::size_t> (best)];
+    const float y2 = values[static_cast<std::size_t> (best + 1)];
+    const float denom = y0 - 2.0f * y1 + y2;
+    const float shift = denom > 0.0f ? std::clamp (0.5f * (y0 - y2) / denom, -0.5f, 0.5f) : 0.0f;
+    return static_cast<float> (first + best) + shift;
 }
 
 bool GuitarToMidi::earlyHeldNote (float heldPeriod) noexcept

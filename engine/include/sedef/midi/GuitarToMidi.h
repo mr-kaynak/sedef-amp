@@ -373,7 +373,8 @@ public:
     static constexpr double kTouchWaitSeconds = 0.06;
     static constexpr float kTouchBelowDb = 10.0f;
     // The early reading (Fastest): what a period may leave unexplained of the signal since
-    // the pick, and how long a stretch must repeat. From the measurements in the design.
+    // the pick, and how long a stretch must repeat. The design's "Why the early reading can be
+    // trusted, and when" says which line of its argument, or which measurement, each comes from.
     static constexpr double kEarlyWindowSeconds = 0.004; ///< at least this much must repeat
     static constexpr float kEarlyShare = 0.6f;           ///< ...and this share of the period
     static constexpr float kEarlyClean = 0.05f;          ///< ...leaving no more than this
@@ -392,6 +393,9 @@ public:
     static constexpr double kEarlyHeldSeconds = 0.012;     ///< ...not before this after the pick
     static constexpr double kEarlyHeldSkipSeconds = 0.005; ///< ...read from this after the pick
     static constexpr float kEarlyStill = 0.25f; ///< a note read early still holds: this clean
+    static constexpr double kEarlyFineSeconds = 0.005; ///< periods under this: read between lags
+    static constexpr float kEarlyFine = 0.3f;          ///< ...when a whole lag leaves under this
+    static constexpr float kEarlyDensity = 0.25f; ///< the windows hold this much of their share
 
     void prepare (double sampleRate);
     /// Forgets the signal and every pending event, without sending anything: call allNotesOff()
@@ -525,6 +529,9 @@ private:
     void earlyBegin() noexcept;
     void earlyAdd (int ago) noexcept;
     void earlyEstimate() noexcept;
+    float earlyFineLeft (const float* x, int n, int lag, float& period) const noexcept;
+    /// The period the later half of the windows puts the dip at, near `period`: 0 if none.
+    float earlyLatePeriod (const float* x, int n, float period) const noexcept;
     /// The stretch says the note the tracker held at the pick was picked again.
     bool earlyHeldNote (float heldPeriod) noexcept;
     /// The note the early reading names for the latest pick, when it may start one: -1 if none.
@@ -544,6 +551,10 @@ private:
     float ringAt (int ago) const noexcept
     {
         return ring_[static_cast<std::size_t> ((ringWrite_ - 1 - ago) & ringMask_)];
+    }
+    float earlyAt (int ago) const noexcept
+    {
+        return earlyRing_[static_cast<std::size_t> ((ringWrite_ - 1 - ago) & ringMask_)];
     }
     int quantise (float p) const noexcept;
     /// `hz`, or the octave above it (or two) when the input repeats cleanly at that period too.
@@ -570,7 +581,7 @@ private:
             return y;
         }
     };
-    Section hp_, lp_, clickHp_;
+    Section hp_, lp_, clickHp_, earlyLp_;
     float clickPower_ = 0.0f, clickCoeff_ = 0.0f;
     std::vector<float> clickRing_; ///< the click's power at every sample of the last 32 ms
     int clickMask_ = 0;
@@ -588,6 +599,7 @@ private:
 
     // The band at a decimated rate (about 7 kHz), for the periodicity measures.
     std::vector<float> ring_;
+    std::vector<float> earlyRing_; ///< the same, cut once more above the band: the early reading's
     int ringMask_ = 0, ringWrite_ = 0, factor_ = 6, phase_ = 0;
     double rate_ = 8000.0;
     // Periodicity at the note's period, every hop.
@@ -700,7 +712,7 @@ private:
     bool earlyRest_ = false;       ///< ...and rings on: the reading is of what is left without it
     double earlyOldPeriod_ = 0.0;  ///< its period, in decimated samples
     std::int64_t earlyOldEnd_ = 0; ///< where what it did before the pick ends
-    int earlyGuardSamples_ = 24, earlyHeldCount_ = 76, earlyHeldSkip_ = 20;
+    int earlyGuardSamples_ = 24, earlyHeldCount_ = 76, earlyHeldSkip_ = 20, earlyFineLag_ = 40;
     std::int64_t earlyPickAt_ = -1; ///< the pick the sums are counted from
     int earlyCount_ = 0;            ///< decimated samples since that pick's attack
     int earlyLagLimit_ = 0, earlyMinLag_ = 4, earlyWindow_ = 32, earlyAloneWindow_ = 40;

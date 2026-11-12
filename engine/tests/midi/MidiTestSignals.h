@@ -837,6 +837,30 @@ inline Scenario fretAfterPick (int pitch, double cents, double after, Pickup pic
     addNoise (s.signal, -80.0f, seed);
     return s;
 }
+/// A note picked twice over noise of `noiseDb`: at 0.1 s, damped 0.3 s before the second pick, and
+/// at `second` (0.6 s), damped 0.4 s later or 0.05 s before the end of `seconds`. The second pick
+/// is the one timed (the first has the very first note's wait).
+inline Scenario twice (const Pluck& model, double fs, float noiseDb, std::uint32_t seed,
+                       double second = 0.6, double seconds = 1.15)
+{
+    Scenario s;
+    s.name = "twice";
+    s.fs = fs;
+    s.signal.assign (static_cast<std::size_t> (seconds * fs), 0.0f);
+    Pluck first = model, again = model;
+    first.seed = seed + 100u;
+    first.muteAt = second - 0.3;
+    again.seed = seed;
+    again.muteAt = std::min (0.4, seconds - second - 0.05);
+    addPluck (s.signal, fs, static_cast<std::size_t> (0.1 * fs), first);
+    addPluck (s.signal, fs, static_cast<std::size_t> (second * fs), again);
+    const int pitch = pitchOf (model.f1);
+    s.notes.push_back ({ pitch, 0.1, 0.105 + first.muteAt, true, model.peak });
+    s.notes.push_back ({ pitch, second, second + again.muteAt + 0.005, true, model.peak });
+    addNoise (s.signal, noiseDb, seed + 9u);
+    return s;
+}
+
 /// Tunings for the from-silence notes: standard, a whole step down, drop D.
 inline constexpr int kTunings[3][6] = { { 40, 45, 50, 55, 59, 64 },
                                         { 38, 43, 48, 53, 57, 62 },

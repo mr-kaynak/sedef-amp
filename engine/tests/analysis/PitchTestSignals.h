@@ -92,6 +92,10 @@ struct Pluck
     double vibratoAt = -1.0, vibratoCents = 0.0, vibratoHz = 5.5; ///< peak deviation, rate
     double rampAt = -1.0, rampSeconds = 1.0, rampCents = 0.0;     ///< a steady turn: linear
     double muteAt = -1.0; ///< the string is damped (or picked again) here: gone within 5 ms
+    /// >= 0: every partial starts at this phase, as a pluck starts them (0: a velocity pickup's
+    /// sine phase, one pulse a period; pi/2: a piezo's, which starts with a step). Otherwise each
+    /// partial's phase is drawn at random.
+    double startPhase = -1.0;
 
     /// Pitch of the fundamental partial t seconds after the pick, in cents relative to f1.
     double centsAt (double t) const
@@ -145,7 +149,9 @@ inline void addPluck (std::vector<float>& out, double fs, size_t start, const Pl
             std::sin (n * kPiD * p.pluckPosition) / n * pickup * (n == 1 ? p.fundamentalGain : 1.0);
         const double tau =
             p.decaySeconds / (1.0 + 0.1 * (n - 1) + std::pow (ratio * p.f1 / 2000.0, 2.0));
-        partials.push_back ({ ratio, amp, std::exp (-1.0 / (tau * fs)), kTwoPiD * rng.unipolar() });
+        const double drawn = kTwoPiD * rng.unipolar(); // drawn either way: the noise stays the same
+        partials.push_back ({ ratio, amp, std::exp (-1.0 / (tau * fs)),
+                              p.startPhase >= 0.0 ? p.startPhase : drawn });
         sumAmp += std::abs (amp);
     }
     const double gain = p.peak / sumAmp;

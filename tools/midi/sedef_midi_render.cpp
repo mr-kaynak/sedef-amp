@@ -1230,8 +1230,12 @@ int main (int argc, char** argv)
                                    "-" + std::to_string (after) + "ms-" + pickups[p],
                                fretAfterPick (pitch, cents, 0.001 * after, static_cast<Pickup> (p),
                                               3, fs));
+        for (int pitch : { 30, 33, 37, 40 })
+            for (std::uint32_t seed = 1; seed <= 2; ++seed)
+                write ("twice-" + std::to_string (pitch) + "-neck-" + std::to_string (seed),
+                       twice (pluckFor (Pickup::neck, hzOf (pitch), 0.25f, 1), fs, -80.0f, seed));
         for (double hz : { 110.0, 164.814, 220.0 })
-            for (int cents : { -1200, 1200, -1900, 1900, -500, 700 })
+            for (int cents : { -1200, 1200, -1900, 1900, -500, 700, -100, 100 })
             {
                 const double old = hz * std::exp2 (cents / 1200.0);
                 if (old >= 82.0 && old <= 700.0)

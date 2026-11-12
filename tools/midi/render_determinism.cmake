@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# sedef-midi-render gives the same output for the same recording: twice in a row, and at two
+# block sizes, byte for byte (the listing of every event and the MIDI file).
+#   cmake -DRENDER=<sedef-midi-render> -DDIR=<scratch dir> -P render_determinism.cmake
+file(MAKE_DIRECTORY ${DIR})
+execute_process(COMMAND ${RENDER} cases ${DIR} RESULT_VARIABLE made)
+if(NOT made EQUAL 0)
+    message(FATAL_ERROR "sedef-midi-render cases failed")
+endif()
+foreach(name repeated-40-bridge-1 fret-55-100-6ms-neck ringing-164--500)
+    foreach(mode "" "--steady" "--bend")
+        set(outputs)
+        foreach(run a b c)
+            if(run STREQUAL c)
+                set(block 512)
+            else()
+                set(block 64)
+            endif()
+            execute_process(
+                COMMAND ${RENDER} wav ${DIR}/${name}.wav ${DIR}/${name}-${run}.mid ${mode}
+                        --events --block ${block}
+                OUTPUT_VARIABLE listing RESULT_VARIABLE ran)
+            if(NOT ran EQUAL 0)
+                message(FATAL_ERROR "sedef-midi-render wav failed on ${name}")
+            endif()
+            file(SHA256 ${DIR}/${name}-${run}.mid midi)
+            list(APPEND outputs "${listing}${midi}")
+        endforeach()
+        list(GET outputs 0 first)
+        list(GET outputs 1 again)
+        list(GET outputs 2 other)
+        if(NOT first STREQUAL again)
+            message(FATAL_ERROR "${name} ${mode}: two runs differ")
+        endif()
+        if(NOT first STREQUAL other)
+            message(FATAL_ERROR "${name} ${mode}: blocks of 64 and 512 samples differ")
+        endif()
+        string(LENGTH "${first}" size)
+        if(size LESS 100)
+            message(FATAL_ERROR "${name} ${mode}: nothing was sent")
+        endif()
+    endforeach()
+endforeach()

@@ -1213,8 +1213,9 @@ wrong, and two mechanisms explain all of them.
   right note or none. So the note named must be the note the later half names. That removed the
   other 9; on the sets it changed nothing (below).
 
-Now: 930 of 930, at a median 18.3 ms after the pick where 0.8.0 took 23.0 (a test runs 186 of
-them, from F♯1 to C4).
+Now: 930 of 930, at a median 18.3 ms after the pick where 0.8.0 took 23.0. A test runs 186 such
+strings from F♯1 to C4 on the tests' own string model, and the 18 on which a guard was needed on
+the recordings' model.
 
 **8. A semitone off: the dip's place (proved, then computed).** For the string alone, `d(L) >= 0`
 with equality only at `P` and its multiples, so over any window the dip is exactly at the period:
@@ -1349,7 +1350,36 @@ long ones. The test named is the first that fails.
 
 | Pushed | To | Caught by |
 |---|---|---|
-MUTATION_TABLE
+| `kAttackSkipSeconds` | 2.5 → 0.5 ms | "plays the same note picked again once each time, and sooner" (and four more) |
+| `kEarlyWindowSeconds` | 4 → 1 ms | none, and none can: it never binds (6). Raised past 4.3 ms it would, and the notes with nothing under them would wait longer |
+| `kEarlyShare` | 0.6 → 0.3 | "early reading on the low strings of seven and eight strings" (a wrong note), the pinned streams |
+| | 0.6 → 1.0 | "names a clean note from one period of it" (too late) |
+| `kEarlyClean` | 0.05 → 0.15 | "early reading on the low strings of seven and eight strings", "notes move with the playing when it starts later", the pinned streams |
+| | 0.05 → 0.01 | "names every semitone from F#1 to E6 within the rule's time" |
+| `kEarlyAloneSeconds` | 5 → 1 ms | "early reading on the low strings of seven and eight strings" |
+| `kEarlyAlone` | 0.02 → 0.1 | "waits out a fret that lands just after the pick" |
+| | 0.02 → 0.004 | "names a clean note from one period of it", the semitone bound, the four rates, the pinned streams |
+| `kEarlyOther` | 0.4 → 0.05 | "early reading is never a wrong note" |
+| | 0.4 → 0.9 | "early reading is never a wrong note", "the same note picked again", and two more |
+| `kEarlyDensity` | 0.25 → 0 | "the model's hardest signals", partials that start together as the recordings were made (every pulse from E2 to C3; added for this) |
+| | 0.25 → 0.8 | the pinned streams (notes later) |
+| Half the period must leave more than `kEarlyOther` | off | none. A knock under the pick (added) does not reach it: the early reading then waits for its level check, and the in-phase strings of 7 never needed it. Kept for 10: it costs a string nothing (2) |
+| The later half names the same note | off | "the model's hardest signals", partials that start together as the recordings were made (every piezo step from F♯1 to D2; added for this) |
+| `kEarlyFineSeconds` | 5 → 0 ms | the semitone bound |
+| `kEarlyFine` | 0.3 → 0 | the semitone bound (the second run) |
+| `kEarlyRingDb` | 20 → -40 dB | "early reading on the low strings of seven and eight strings" |
+| `kEarlyOldClean` | 0.1 → 2 | "a slide gives its frets, never a burst of notes" (the second run) |
+| `kEarlyRingsOn` | 0.7 → 0 | "early reading is never a wrong note" |
+| | 0.7 → 10 | "early reading is never a wrong note", "notes move with the playing when it starts later", the pinned streams |
+| `kEarlyBrought` | 0.25 → 0 | none. On the sets it changes no note (two more go out early, both right): what it guards, noise over a ringing note taken for a note, is not in them |
+| `kEarlyHeld` | 0.1 → 0.5 | the semitone bound |
+| `kEarlyHeldCents` | 45 → 150 cents | "the same note picked again once each time, and sooner" |
+| `kEarlyHeldApart` | 0.2 → 0 | none. One more early note on the sets, right: what it guards (a string gliding to the next fret, read before the pick) is only in his DI, which stays out of the repository |
+| `kEarlyHeldPart` | 0.25 → 0 | none. The sets give the same notes (one to three more go out early, all right): the case it was added for, a note an octave over a ringing one (2 in 864 on the sloppy lines then), no longer reaches it |
+| `kEarlyHeldSeconds` | 12 → 3 ms | none. The sets give the same events and the fret test still passes: here another check of the same note again covers the fret that lands after the pick |
+| `kEarlyHeldSkipSeconds` | 5 → 2.5 ms | "waits out a fret that lands just after the pick", the pinned streams |
+| `kEarlyStill` | 0.25 → 10 | none. It acts only on an early note the tracker does not confirm, and no early note here is wrong: there is nothing for it to correct |
+| `kEarlyHighestHz` | 1400 → 3000 Hz | none. A string over the tracker's reach starts no early note either way; a test (added) checks that Fastest names what Steady names there |
 
 #### The same events, whatever the host does
 
@@ -1547,7 +1577,12 @@ app shows nothing when it happens. A player whose interface holds it loses nothi
 #### Cost
 
 Fastest: 188 ns per sample against 181 before (0.90 % of one core at 48 kHz, from 0.87 %), on
-the same machine in the same minute; Steady 183 against 181. `process()` still never allocates.
+the same machine in the same minute; Steady 183 against 181. That was before the guards of "Why
+the early reading can be trusted" (7, 10); with them, measured only on a loaded machine (load 100
+to 150, 0.8.0 and now in turn, three times each): Fastest 522 ns against 477 (+9 %), Steady 495
+against 486 (+2 %, which is this measure's noise: the tracker alone, the same code in both, moved
+by 2.6 %). Fastest is still at most 2.6 % of one core at 48 kHz. `process()` still never
+allocates.
 Nothing outside the MIDI layer changed: the tracker and the amp are untouched, and 73 renders
 (the 49 factory presets, and Trench in Mono, in Poly and in the Sub Octave Riff preset on the synthetic DI
 and the seven piezo DIs) are byte-identical to main's.

@@ -6,6 +6,30 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Input level guide.** The input meter now marks where your level should land, and a chip
+  under it says in words whether it is right: Level good, Too quiet, Too hot or No signal. Click
+  it for a panel that says what to turn (your interface's gain or Input), with the loudest peak
+  of the last few seconds and the Input knob at hand. Before, the meter had no target and turned
+  amber, a warning, right at the level the presets were made for.
+- **Audio settings in the standalone app.** Settings, and the input level panel, open the app's
+  audio device window: pick your interface and its input without hunting for the title bar's
+  Options button.
+- **T opens and closes the tuner.** The tuner says when nothing is coming in, with a link to the
+  input level panel.
+
+### Changed
+
+- The amp cards' descriptions fit; they were cut off at every window size.
+- The Metronome and Settings panels open under the header instead of over the Doubler switch.
+- The metronome says what a click on a beat does.
+
+### Fixed
+
+- The clip lights say when they have caught a clip, for screen readers too.
+- Sedef MIDI: the gate's label no longer sits on the input meter.
+
 ## [0.8.0] - 2026-11-11
 
 Sedef MIDI after its first session with a player: a held note is steady, low strings down to F♯1

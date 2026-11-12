@@ -125,6 +125,16 @@ const SHOTS = {
       await page.waitForTimeout(400);
     },
   },
+  // The input level panel a few strums in: the meter with its zone, the verdict and what to do,
+  // the Input knob and Audio settings.
+  'input-level': {
+    query: 'section=amp',
+    async prepare(page) {
+      await page.waitForTimeout(2500);
+      await page.getByRole('button', { name: /, input level$/ }).click();
+      await page.waitForTimeout(400);
+    },
+  },
   updates: {
     query: 'section=amp&update=available',
     async prepare(page) {
@@ -137,7 +147,7 @@ const SHOTS = {
 const wanted = args;
 const names = wanted.length
   ? wanted
-  : ['amp', 'pedals', 'eq', 'cab', 'fx', 'presets', 'tuner', 'intonation', 'midi'];
+  : ['amp', 'pedals', 'eq', 'cab', 'fx', 'presets', 'tuner', 'intonation', 'input-level', 'midi'];
 
 for (const name of names) if (!SHOTS[name]) throw new Error(`Unknown screenshot "${name}"`);
 

@@ -8,6 +8,8 @@ meter was a 92 px bar with no numbers and no target, and its gradient turned amb
 "needs attention" colour, right at that level, so a player who set the level correctly was told
 to back off.
 
+![The Input level panel, open from the chip under the input meter](../images/input-level.png)
+
 This page specifies what replaced it: a target zone on the meter, a verdict in words under it,
 and a panel that says what to do. It is UI only. It reads the telemetry the engine already
 sends; no parameter or engine changes.

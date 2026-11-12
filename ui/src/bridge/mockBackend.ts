@@ -35,7 +35,7 @@ import {
 import { CaptureSim } from './mock/captureSim';
 import { PitchSimulator } from './mock/pitchSim';
 import { createRandom } from './mock/random';
-import { TelemetrySimulator } from './mock/telemetrySim';
+import { TelemetrySimulator, type InterfaceLevel } from './mock/telemetrySim';
 import { UpdateSimulator, type UpdateScenario } from './mock/updateSim';
 import {
   legacyBoardFor,
@@ -67,6 +67,8 @@ export interface MockOptions {
   update?: UpdateScenario;
   /** The pedalboard at startup, as part of the initial preset (no dirty dot). */
   board?: string[];
+  /** What the simulated audio interface delivers (docs/ui/input-level.md). Defaults to normal. */
+  input?: InterfaceLevel;
   /**
    * Delays each native call's answer and each preset broadcast by a random 0..maxMs (seeded).
    * Calls still run in the order they were made, as in the plugin, but their answers can arrive
@@ -74,6 +76,13 @@ export interface MockOptions {
    */
   jitter?: { maxMs: number; seed?: number };
 }
+/** The still frame's input peak at the interface (?freeze), per simulated interface level. */
+const STILL_INPUT_DB: Record<Exclude<InterfaceLevel, 'silent'>, number> = {
+  normal: -8,
+  quiet: -29,
+  clipping: 0,
+};
+
 /** The session the mock plays: 48 kHz, mono in, stereo out. */
 const MOCK_RATE = 48000;
 const MOCK_LAYOUT = 'Mono → Stereo';
@@ -171,6 +180,7 @@ export class MockBackend implements Backend {
     this.telemetrySim = new TelemetrySimulator(
       (id) => this.value(id),
       this.specs.driftNote?.choices ?? [],
+      options.input,
     );
     this.refreshPresetItems();
     const initial =
@@ -242,7 +252,9 @@ export class MockBackend implements Backend {
   }
 
   tickPitch(dt = 1 / PITCH_HZ): void {
-    if (this.tunerActive) this.emitter.emit('sedef:pitch', this.pitchSim.step(dt));
+    // A silent interface (?input=silent) gives the tuner nothing to hear.
+    if (this.tunerActive && this.options.input !== 'silent')
+      this.emitter.emit('sedef:pitch', this.pitchSim.step(dt));
   }
 
   /** Publishes one fixed telemetry frame (static meters for screenshots). */
@@ -250,7 +262,12 @@ export class MockBackend implements Backend {
     const t = this.telemetrySim.step(0);
     this.emitter.emit('sedef:telemetry', {
       ...t,
-      inputDb: [-17],
+      // A strum in the input meter's zone, or what the simulated interface allows.
+      inputDb: [
+        this.options.input === 'silent'
+          ? -100
+          : STILL_INPUT_DB[this.options.input ?? 'normal'] + this.value('inputGain'),
+      ],
       outputDb: [-13, -14],
       inputClip: false,
       outputClip: false,

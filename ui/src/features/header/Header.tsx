@@ -13,6 +13,7 @@ import { SettingsPanel } from '../settings/SettingsPanel';
 import { UpdateSlot } from '../updates/UpdateSlot';
 import { Brand } from './Brand';
 import { DoublerSwitch } from './DoublerSwitch';
+import { InputLevelChip } from './InputLevelChip';
 import { LevelMeter } from './LevelMeter';
 import { PresetBar } from './PresetBar';
 import styles from './Header.module.css';
@@ -33,7 +34,7 @@ function GainStrip({
     <div className={styles.gain}>
       <Knob param={param} size="sm" label={label} hideValue />
       <div className={styles.meterSlot}>
-        <LevelMeter which={which} label={label} />
+        <LevelMeter which={which} label={label} zones={which === 'input'} />
         {below && <div className={styles.below}>{below}</div>}
       </div>
     </div>
@@ -53,7 +54,7 @@ export function Header() {
       <Brand />
       <PresetBar />
       <div className={styles.io}>
-        <GainStrip param="inputGain" which="input" label="Input" />
+        <GainStrip param="inputGain" which="input" label="Input" below={<InputLevelChip />} />
         <GainStrip param="outputGain" which="output" label="Output" below={<DoublerSwitch />} />
       </div>
       <nav className={styles.tools} aria-label="Tools">

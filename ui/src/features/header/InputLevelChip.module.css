@@ -1,0 +1,200 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+.anchor {
+  position: relative;
+}
+
+/* The Doubler switch's twin (DoublerSwitch.module.css): it hangs under the input meter, in the
+   knob label's row, so it takes no width from the header. */
+.chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 20px;
+  padding: 0 8px 0 7px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-ctl);
+  background: rgb(6 17 25 / 0.35);
+  color: var(--bone-2);
+  font-size: var(--t-11);
+  font-stretch: 108%;
+  font-weight: 520;
+  white-space: nowrap;
+  transition:
+    color var(--dur-1) var(--ease-out),
+    border-color var(--dur-1) var(--ease-out),
+    background-color var(--dur-1) var(--ease-out),
+    scale 150ms ease-out;
+}
+
+/* 24 px tall hit area around the 20 px chip. */
+.chip::before {
+  content: '';
+  position: absolute;
+  inset: -3px -1px;
+}
+
+@media (hover: hover) {
+  .chip:hover {
+    color: var(--bone);
+    border-color: var(--line-hover);
+  }
+}
+
+.chip[aria-expanded='true'] {
+  color: var(--bone);
+  background: var(--on-fill);
+  border-color: var(--on-line);
+}
+
+@media (forced-colors: active) {
+  .chip[aria-expanded='true'] {
+    border-color: Highlight;
+  }
+}
+
+/* Under the chip, its left edge a little left of the meter's, clear of the header. */
+.popover {
+  top: calc(100% + 12px);
+  left: -24px;
+}
+
+.panel {
+  width: 340px;
+  padding: 16px 16px 14px;
+}
+
+.title {
+  margin: 0 0 14px;
+  color: var(--bone-2);
+  font-size: var(--t-12);
+  font-weight: 600;
+}
+
+.meter {
+  position: relative;
+}
+
+/* "Good" over a bracket that spans the zone, above the bars. */
+.target {
+  position: relative;
+  height: 18px;
+  margin-bottom: 4px;
+  border-bottom: 2px solid var(--bone-3);
+  color: var(--bone-2);
+  font-size: var(--t-11);
+  font-weight: 540;
+  line-height: 1;
+  text-align: center;
+}
+
+/* The bracket's ends turn down towards the bars. */
+.target::before,
+.target::after {
+  content: '';
+  position: absolute;
+  bottom: -5px;
+  width: 2px;
+  height: 5px;
+  background: var(--bone-3);
+}
+
+.target::before {
+  left: 0;
+}
+
+.target::after {
+  right: 0;
+}
+
+@media (forced-colors: active) {
+  .target {
+    border-color: CanvasText;
+  }
+
+  .target::before,
+  .target::after {
+    background: CanvasText;
+  }
+}
+
+.scale {
+  position: relative;
+  height: 12px;
+  margin-top: 6px;
+  color: var(--bone-3);
+  font-size: var(--t-10);
+  line-height: 1;
+}
+
+.scale span {
+  position: absolute;
+  top: 0;
+  translate: -50% 0;
+}
+
+.verdict {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.headline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--bone);
+  font-size: var(--t-14);
+  font-weight: 600;
+}
+
+.advice {
+  margin: 6px 0 0;
+  color: var(--bone-2);
+  font-size: var(--t-12);
+  line-height: 1.45;
+  text-wrap: pretty;
+}
+
+.loudest {
+  margin: 8px 0 0;
+  color: var(--bone-3);
+  font-size: var(--t-11);
+}
+
+.number {
+  color: var(--bone-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.how {
+  margin: 0;
+  color: var(--bone-3);
+  font-size: var(--t-11);
+  line-height: 1.45;
+  text-wrap: pretty;
+}
+
+.foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.footNote {
+  color: var(--bone-3);
+  font-size: var(--t-11);
+}

@@ -5,6 +5,7 @@
 //
 //   sedef-transpose-bench [--candidates wsola,engine,...] [--shifts -1,-2,-5,-12,12]
 //                         [--rate 48000] [--block 64] [--no-cpu] [--wav DIR] [--listen DIR]
+//                         [--di FILE,FILE,...]
 //
 // Candidates:
 //   wsola[:jump=ms][:fade=ms][:search=ms]  the 0.2.0 shifter, optionally retuned
@@ -15,7 +16,11 @@
 //                                          -DSEDEF_TRANSPOSE_BENCH_STRETCH=ON
 // --wav writes each candidate's output for the test signals; --listen writes musical DI
 // (strum, riff, line) as input, ideal and candidates, aligned to the input, and exits.
+// --di measures recorded DI files instead (no ideal reference exists for them): the pitch of the
+// output against the input's times the ratio, and where each attack lands against the input's,
+// both after removing the reported latency.
 
+#include "../WavIo.h"
 #include "LegacyWsola.h"
 #include "SpectralShifter.h"
 #include "reverb/TransposeEval.h"
@@ -25,6 +30,7 @@
 #include "signalsmith-stretch.h"
 #endif
 
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
 #include <fstream>
@@ -354,6 +360,175 @@ void printRow (const std::string& name, const tp::Evaluation& e)
     std::fflush (stdout);
 }
 
+/// Magnitude spectra of x on a log-frequency grid (`step` cents from 60 Hz to 5 kHz), one per hop.
+std::vector<std::vector<float>> logSpectra (const std::vector<float>& x, double fs, int nfft,
+                                            int hop, double step)
+{
+    PFFFT_Setup* setup = pffft_new_setup (nfft, PFFFT_REAL);
+    const auto n = static_cast<size_t> (nfft);
+    auto* in = static_cast<float*> (pffft_aligned_malloc (n * sizeof (float)));
+    auto* out = static_cast<float*> (pffft_aligned_malloc (n * sizeof (float)));
+    auto* work = static_cast<float*> (pffft_aligned_malloc (n * sizeof (float)));
+    const auto cells = static_cast<size_t> (1200.0 * std::log2 (5000.0 / 60.0) / step);
+    std::vector<std::vector<float>> frames;
+    std::vector<double> mag (n / 2);
+    for (size_t pos = 0; pos + n <= x.size(); pos += static_cast<size_t> (hop))
+    {
+        for (size_t i = 0; i < n; ++i)
+            in[i] =
+                x[pos + i] * static_cast<float> (
+                                 0.5 - 0.5 * std::cos (kTwoPiD * static_cast<double> (i) / nfft));
+        pffft_transform_ordered (setup, in, out, work, PFFFT_FORWARD);
+        for (size_t k = 1; k < n / 2; ++k)
+            mag[k] = std::hypot (out[2 * k], out[2 * k + 1]);
+        std::vector<float> f (cells);
+        for (size_t c = 0; c < cells; ++c)
+        {
+            const double bin =
+                60.0 * std::exp2 (static_cast<double> (c) * step / 1200.0) * nfft / fs;
+            const auto b = static_cast<size_t> (bin);
+            const double t = bin - static_cast<double> (b);
+            f[c] = b + 1 < n / 2 ? static_cast<float> ((1.0 - t) * mag[b] + t * mag[b + 1]) : 0.0f;
+        }
+        frames.push_back (std::move (f));
+    }
+    pffft_aligned_free (in);
+    pffft_aligned_free (out);
+    pffft_aligned_free (work);
+    pffft_destroy_setup (setup);
+    return frames;
+}
+
+/// Recorded DI: pitch error and attack placement against the input itself (see --di above).
+void measureDi (const std::vector<std::string>& files, const std::vector<std::string>& candidates,
+                const std::vector<int>& shifts, int block)
+{
+    std::printf ("Recorded DI. shift: per frame, the lag (cents) that best matches the output's "
+                 "log-frequency spectrum to the input's, minus the setting, over frames within "
+                 "40 dB of the loudest (chords too); attack: |output - input| 50 %% crossing, ms, "
+                 "after the reported latency.\n");
+    std::printf ("%-24s %-22s %4s | %6s %6s %6s %6s | %6s %6s %6s %6s\n", "file", "candidate", "st",
+                 "frames", "sMed", "s95", "<5c%", "onsets", "attMed", "attP95", "<1ms%");
+    for (const auto& path : files)
+    {
+        const auto wav = tools::readWav (path);
+        if (!wav)
+        {
+            std::fprintf (stderr, "cannot read %s\n", path.c_str());
+            continue;
+        }
+        const double fs = wav->sampleRate;
+        const auto& in = wav->mono;
+        std::string name = path.substr (path.find_last_of ("/\\") + 1);
+        const auto quantile = [] (std::vector<double> v, double q) {
+            if (v.empty())
+                return 0.0;
+            std::sort (v.begin(), v.end());
+            return v[std::min (v.size() - 1,
+                               static_cast<size_t> (q * static_cast<double> (v.size())))];
+        };
+        const auto share = [] (const std::vector<double>& v, double limit) {
+            if (v.empty())
+                return 0.0;
+            return 100.0 *
+                   static_cast<double> (
+                       std::count_if (v.begin(), v.end(), [&] (double x) { return x < limit; })) /
+                   static_cast<double> (v.size());
+        };
+        // Attacks of the input: the 1 ms envelope of everything above 2 kHz rising 15 dB over
+        // its minimum of the last 30 ms, within 50 dB of the loudest, 60 ms apart.
+        const int win = static_cast<int> (0.001 * fs);
+        const auto hf = tp::rmsEnvelope (tp::highpass (in, fs, 2000.0), win);
+        const auto envIn = tp::rmsEnvelope (in, win);
+        double loudest = 0.0;
+        for (double v : hf)
+            loudest = std::max (loudest, v);
+        std::vector<size_t> onsets;
+        const auto back = static_cast<size_t> (0.030 * fs);
+        for (size_t i = back; i < hf.size(); ++i)
+        {
+            if (!onsets.empty() && i < onsets.back() + static_cast<size_t> (0.060 * fs))
+                continue;
+            double low = hf[i];
+            for (size_t k = i - back; k < i; k += 8)
+                low = std::min (low, hf[k]);
+            if (hf[i] > 5.6 * (low + 1.0e-9) && hf[i] > 0.00316 * loudest)
+                onsets.push_back (i);
+        }
+        const int nfft = fs > 60000.0 ? 16384 : 8192;
+        constexpr double kStep = 2.0; // cents per log-frequency cell
+        const auto specIn = logSpectra (in, fs, nfft, nfft / 4, kStep);
+        std::vector<double> energyIn;
+        double loudestFrame = 0.0;
+        for (const auto& f : specIn)
+        {
+            double e = 0.0;
+            for (float v : f)
+                e += static_cast<double> (v) * v;
+            energyIn.push_back (e);
+            loudestFrame = std::max (loudestFrame, e);
+        }
+        for (const auto& cand : candidates)
+            for (int st : shifts)
+            {
+                auto shifter = makeCandidate (cand);
+                auto out = tp::runShifter (shifter, in, fs, st, block);
+                out = tp::advance (out, shifter.latency());
+                std::vector<double> cents;
+                const auto specOut = logSpectra (out, fs, nfft, nfft / 4, kStep);
+                const int want = static_cast<int> (std::lround (100.0 * st / kStep));
+                const int reach = static_cast<int> (150.0 / kStep);
+                for (size_t fr = 0; fr < specIn.size() && fr < specOut.size(); ++fr)
+                {
+                    if (energyIn[fr] < 1.0e-4 * loudestFrame)
+                        continue;
+                    const auto& a = specIn[fr];
+                    const auto& b = specOut[fr];
+                    // Output cell c + lag against input cell c.
+                    const auto score = [&] (int lag) {
+                        double acc = 0.0;
+                        for (int c = std::max (0, -lag); c < static_cast<int> (a.size()) &&
+                                                         c + lag < static_cast<int> (b.size());
+                             ++c)
+                            acc += static_cast<double> (a[static_cast<size_t> (c)]) *
+                                   b[static_cast<size_t> (c + lag)];
+                        return acc;
+                    };
+                    int best = want;
+                    double bestScore = -1.0;
+                    for (int lag = want - reach; lag <= want + reach; ++lag)
+                        if (const double sc = score (lag); sc > bestScore)
+                        {
+                            bestScore = sc;
+                            best = lag;
+                        }
+                    const double l = score (best - 1), m = bestScore, r = score (best + 1);
+                    const double den = l - 2.0 * m + r;
+                    const double frac = den < 0.0 ? 0.5 * (l - r) / den : 0.0;
+                    cents.push_back (std::abs ((best + frac - want) * kStep));
+                }
+                const auto envOut = tp::rmsEnvelope (out, win);
+                std::vector<double> attack;
+                for (size_t t : onsets)
+                {
+                    const size_t from =
+                        t > 4 * static_cast<size_t> (win) ? t - 4 * static_cast<size_t> (win) : 0;
+                    const size_t to = std::min (envIn.size(), t + 25 * static_cast<size_t> (win));
+                    const auto ai = tp::attackShape (envIn, from, to, fs);
+                    const auto ao = tp::attackShape (envOut, from, to, fs);
+                    if (ai.found && ao.found)
+                        attack.push_back (std::abs (ao.crossing - ai.crossing) / fs * 1000.0);
+                }
+                std::printf ("%-24.24s %-22.22s %+4d | %6zu %6.1f %6.1f %6.1f | %6zu %6.2f %6.2f "
+                             "%6.1f\n",
+                             name.c_str(), cand.c_str(), st, cents.size(), quantile (cents, 0.5),
+                             quantile (cents, 0.95), share (cents, 5.0), attack.size(),
+                             quantile (attack, 0.5), quantile (attack, 0.95), share (attack, 1.0));
+                std::fflush (stdout);
+            }
+    }
+}
+
 } // namespace
 
 int main (int argc, char** argv)
@@ -364,6 +539,7 @@ int main (int argc, char** argv)
     int block = 64;
     bool cpu = true;
     std::string wavDir, listenDir;
+    std::vector<std::string> diFiles;
     for (int i = 1; i < argc; ++i)
     {
         const std::string a = argv[i];
@@ -388,6 +564,8 @@ int main (int argc, char** argv)
             wavDir = next();
         else if (a == "--listen")
             listenDir = next();
+        else if (a == "--di")
+            diFiles = split (next(), ',');
         else
         {
             std::fprintf (stderr, "unknown argument %s\n", a.c_str());
@@ -395,6 +573,11 @@ int main (int argc, char** argv)
         }
     }
 
+    if (!diFiles.empty())
+    {
+        measureDi (diFiles, candidates, shifts, block);
+        return 0;
+    }
     if (!listenDir.empty())
     {
         // DI files for ears: the input, the ideal shifted reference and each candidate.

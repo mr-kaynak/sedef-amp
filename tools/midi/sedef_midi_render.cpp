@@ -20,10 +20,15 @@
 //       semitones away (-5: a seven-string's low strings, -10: an eight-string's): scores, and
 //       the latency of every note.
 //   sedef-midi-render latency
-//       Pick to note-on for every note from E1 to E4 in each range.
+//       Pick to note-on for every note from E1 to E5 in each range.
 //   sedef-midi-render provisional [--low ...] [--shift n] [--wav in.wav --truth notes.txt]
 //       What sending each note at the tracker's first reading after its pick would buy (how much
 //       sooner) and cost (how often that reading is wrong).
+//   sedef-midi-render early [--low ...] [--shift n] [--list 1]
+//       Every note started on the early reading in the synthetic sets: right or wrong, what its
+//       period left unexplained and how long a stretch repeated.
+//   sedef-midi-render cases <dir>
+//       The early reading's own test cases as recordings.
 //   sedef-midi-render bends [--range n]
 //       Synthetic bends, slides and vibrato in both modes: the notes and bends sent, and how far
 //       what sounds is from the string's pitch.
@@ -306,7 +311,7 @@ int trace (int argc, char** argv)
             i % static_cast<std::size_t> (ms) == 0)
         {
             std::printf ("t %.4f %s%s hz %7.2f (%5.2f) est %7.2f clar %.2f lvl %6.1f dB gate %6.1f "
-                         "note %3d",
+                         "early %7.2f note %3d",
                          t, pick ? "PICK " : "",
                          ev == analysis::MonoTracker::Event::noteOn
                              ? "ON "
@@ -317,7 +322,8 @@ int trace (int argc, char** argv)
                          m.hz() > 0 ? 69 + 12 * std::log2 (m.hz() / 440.0) : 0.0,
                          static_cast<double> (m.estimateHz()), static_cast<double> (m.clarity()),
                          static_cast<double> (conv.levelDb()),
-                         static_cast<double> (conv.gateLevelDb()), conv.note());
+                         static_cast<double> (conv.gateLevelDb()),
+                         static_cast<double> (conv.earlyHz()), conv.note());
             for (const auto& e : out)
                 std::printf ("  [%s %d v%d]", e.isNoteOn() ? "on" : (e.isNoteOff() ? "off" : "cc"),
                              e.note(), e.velocity());
@@ -423,10 +429,14 @@ int why (int argc, char** argv)
         double on = -1.0;
         int velocity = 0;
         std::string start;
+        double pick = 0.0;
+        bool early = false;
     };
     std::vector<Open> open (128);
     midi::EventList out;
-    std::printf ("    on       off     ms  note        vel  started                 ended\n");
+    std::uint32_t earlyCount = 0;
+    std::printf ("    on       off     ms  note        vel  started                 ended     "
+                 "pick at (early: sent before the tracker read the note)\n");
     for (std::size_t i = 0; i < audio->mono.size(); ++i)
     {
         const float x = g * audio->mono[i];
@@ -444,14 +454,18 @@ int why (int argc, char** argv)
                 if (conv.startWhy() == midi::Why::pick || conv.startWhy() == midi::Why::repick ||
                     conv.startWhy() == midi::Why::correction)
                     o.start += std::string ("/") + pickName (conv.pickKind());
+                o.pick = static_cast<double> (conv.pickedAt()) / fs;
+                o.early = conv.earlyNotes() != earlyCount;
+                earlyCount = conv.earlyNotes();
             }
             else if (e.isNoteOff())
             {
                 auto& o = open[static_cast<std::size_t> (e.note())];
                 if (o.on >= 0.0 && o.on >= from && o.on <= to)
-                    std::printf ("%8.3f  %8.3f  %4.0f  %-2s%d (%3d)  %3d  %-22s  %s\n", o.on, t,
-                                 1000.0 * (t - o.on), noteName (e.note()), e.note() / 12 - 1,
-                                 e.note(), o.velocity, o.start.c_str(), whyName (conv.endWhy()));
+                    std::printf ("%8.4f  %8.4f  %4.0f  %-2s%d (%3d)  %3d  %-22s  %-8s  %.4f%s\n",
+                                 o.on, t, 1000.0 * (t - o.on), noteName (e.note()),
+                                 e.note() / 12 - 1, e.note(), o.velocity, o.start.c_str(),
+                                 whyName (conv.endWhy()), o.pick, o.early ? " early" : "");
                 o.on = -1.0;
             }
         }
@@ -722,7 +736,7 @@ int sets (int argc, char** argv)
 }
 
 // ---------------------------------------------------------------------------------------------
-// Pick to note-on for every note from F#1 to E4, in each range: a note picked a second time (the
+// Pick to note-on for every note from E1 to E5, in each range: a note picked a second time (the
 // converter knows the player and the instrument by then), on a bridge and a neck pickup, with a
 // pick and with the fingers.
 
@@ -745,7 +759,7 @@ int latency (int argc, char** argv)
     std::printf (
         "note    Hz    two periods   E2 range      B1 range      F#1 range     Automatic   "
         "(median / max ms; -: not played)\n");
-    for (int pitch = 28; pitch <= 64; ++pitch)
+    for (int pitch = 28; pitch <= 76; ++pitch)
     {
         std::printf ("%-3s%d %6.1f  %8.1f   ", noteName (pitch), pitch / 12 - 1, hzOf (pitch),
                      2000.0 / hzOf (pitch));
@@ -937,6 +951,91 @@ int provisional (int argc, char** argv)
 }
 
 // ---------------------------------------------------------------------------------------------
+// The early reading: every note started on it in the synthetic sets, right or wrong, with what
+// its period left unexplained and how long a stretch repeated.
+
+int early (int argc, char** argv)
+{
+    const double fs = 48000.0;
+    midi::Settings s;
+    s.octave = 0;
+    s.lowNote = lowNoteNamed (option (argc, argv, "--low"));
+    const auto learned = lowNoteNamed (option (argc, argv, "--learned", "e2"));
+    const int shift = std::atoi (option (argc, argv, "--shift", "0").c_str());
+    const bool list = option (argc, argv, "--list") == "1";
+    int notes = 0, started = 0, right = 0, wrong = 0;
+    std::vector<double> rightLeft, wrongLeft;
+    const auto over = [&] (const char* set, const Scenario& sc) {
+        midi::GuitarToMidi conv;
+        conv.setSettings (s);
+        conv.prepare (fs);
+        conv.setLearnedLowNote (learned);
+        midi::EventList out;
+        std::uint32_t count = 0;
+        notes += static_cast<int> (sc.notes.size());
+        for (std::size_t i = 0; i < sc.signal.size(); ++i)
+        {
+            out.clear();
+            conv.process (&sc.signal[i], 1, out);
+            if (conv.earlyNotes() == count)
+                continue;
+            count = conv.earlyNotes();
+            const float left = conv.earlyLeft();
+            const double window = conv.earlyWindow();
+            const double t = static_cast<double> (i) / fs;
+            int sent = -1;
+            for (const auto& e : out)
+                if (e.isNoteOn())
+                    sent = e.note();
+            // The played note this answers: the latest one started before now.
+            const RefNote* ref = nullptr;
+            for (const auto& n : sc.notes)
+                if (n.start <= t + 0.002 && (ref == nullptr || n.start > ref->start))
+                    ref = &n;
+            const bool ok = ref != nullptr && ref->pitch == sent && t - ref->start < 0.08;
+            const double hz = sent >= 0 ? hzOf (sent) : 0.0;
+            ++started;
+            (ok ? right : wrong) += 1;
+            (ok ? rightLeft : wrongLeft).push_back (static_cast<double> (left));
+            if (list || !ok)
+                std::printf (
+                    "  %s %-6s at %.3f: sent %s%d (%.1f Hz) %.1f ms after %s%d, left %.3f, "
+                    "%.1f ms repeat (%.2f of the period)\n",
+                    set, ok ? "right" : "WRONG", t, noteName (sent), sent / 12 - 1, hz,
+                    ref ? 1000.0 * (t - ref->start) : 0.0, ref ? noteName (ref->pitch) : "-",
+                    ref ? ref->pitch / 12 - 1 : 0, static_cast<double> (left), 1000.0 * window,
+                    window * hz);
+        }
+    };
+    for (auto pickup : { Pickup::bridge, Pickup::neck, Pickup::piezo })
+    {
+        for (std::uint32_t seed = 1; seed <= 6; ++seed)
+        {
+            over ("bass", lowered (shift, [&] {
+                      return bassLine (seed, pickup, 120.0 + 4.0 * seed, fs, 48, false);
+                  }));
+            over ("sloppy", lowered (shift, [&] {
+                      return sloppyLine (seed, pickup, 110.0 + 5.0 * seed, fs, 48);
+                  }));
+        }
+        for (std::uint32_t seed = 1; seed <= 4; ++seed)
+            over ("fretted", lowered (shift, [&] { return fretThenPick (seed, pickup, fs); }));
+    }
+    for (int tuning = 0; tuning < 3; ++tuning)
+        for (auto pickup : { Pickup::bridge, Pickup::neck })
+            for (std::uint32_t seed = 1; seed <= 3; ++seed)
+                over ("silence",
+                      lowered (shift, [&] { return fromSilence (seed, tuning, pickup, fs); }));
+    std::printf ("%d notes played: %d started early, %d right, %d wrong; left "
+                 "unexplained when right p50 %.3f p90 %.3f p99 %.3f, when wrong p50 %.3f min "
+                 "%.3f\n",
+                 notes, started, right, wrong, percentile (rightLeft, 0.5),
+                 percentile (rightLeft, 0.9), percentile (rightLeft, 0.99),
+                 percentile (wrongLeft, 0.5), percentile (wrongLeft, 0.0));
+    return 0;
+}
+
+// ---------------------------------------------------------------------------------------------
 // Bends, slides and vibrato on synthetic strings: what each mode sends, next to where the string's
 // pitch was.
 
@@ -1102,6 +1201,52 @@ int main (int argc, char** argv)
         return bends (argc, argv);
     if (mode == "sets")
         return sets (argc, argv);
+    if (mode == "cases" && argc >= 3)
+    {
+        // The early reading's own test cases as recordings, each with its notes
+        // ("<start> <end> <pitch> <picked>" per line): the same note picked again, a fret that
+        // lands just after the pick, and a note picked over a ringing one.
+        const std::string dir = argv[2];
+        const double fs = 48000.0;
+        const char* pickups[] = { "bridge", "neck", "piezo" };
+        const auto write = [&] (const std::string& name, const Scenario& sc) {
+            writeWavMono (dir + "/" + name + ".wav", sc.signal, fs);
+            std::ofstream ref (dir + "/" + name + ".ref.txt");
+            for (const auto& r : sc.notes)
+                ref << r.start << " " << r.end << " " << r.pitch << " " << (r.picked ? 1 : 0)
+                    << "\n";
+        };
+        for (int pitch : { 40, 45, 50, 55 })
+            for (int p = 0; p < 3; ++p)
+                for (std::uint32_t seed = 1; seed <= 3; ++seed)
+                    write ("repeated-" + std::to_string (pitch) + "-" + pickups[p] + "-" +
+                               std::to_string (seed),
+                           repeated (pitch, static_cast<Pickup> (p), seed, 6, 0.25, fs));
+        for (int pitch : { 45, 50, 55, 59 })
+            for (int cents : { 100, -100, 200 })
+                for (int after : { 4, 6, 9 })
+                    for (int p = 0; p < 2; ++p)
+                        write ("fret-" + std::to_string (pitch) + "-" + std::to_string (cents) +
+                                   "-" + std::to_string (after) + "ms-" + pickups[p],
+                               fretAfterPick (pitch, cents, 0.001 * after, static_cast<Pickup> (p),
+                                              3, fs));
+        for (int pitch : { 30, 33, 37, 40 })
+            for (std::uint32_t seed = 1; seed <= 2; ++seed)
+                write ("twice-" + std::to_string (pitch) + "-neck-" + std::to_string (seed),
+                       twice (pluckFor (Pickup::neck, hzOf (pitch), 0.25f, 1), fs, -80.0f, seed));
+        for (double hz : { 110.0, 164.814, 220.0 })
+            for (int cents : { -1200, 1200, -1900, 1900, -500, 700, -100, 100 })
+            {
+                const double old = hz * std::exp2 (cents / 1200.0);
+                if (old >= 82.0 && old <= 700.0)
+                    write ("ringing-" + std::to_string (static_cast<int> (hz)) + "-" +
+                               std::to_string (cents),
+                           overRinging (hz, cents, fs));
+            }
+        return 0;
+    }
+    if (mode == "early")
+        return early (argc, argv);
     if (mode == "provisional")
         return provisional (argc, argv);
     if (mode == "latency")

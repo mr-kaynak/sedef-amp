@@ -66,4 +66,10 @@ if(SEDEF_BUILD_TESTS)
     add_executable(sedef-midi-render midi/sedef_midi_render.cpp)
     target_include_directories(sedef-midi-render PRIVATE ${PROJECT_SOURCE_DIR}/engine/tests)
     target_link_libraries(sedef-midi-render PRIVATE sedef::engine sedef::compiler_settings Catch2::Catch2)
+    # The same recording gives the same events and the same MIDI file: twice, and at two block
+    # sizes.
+    add_test(NAME midi-render-is-deterministic
+        COMMAND ${CMAKE_COMMAND} -DRENDER=$<TARGET_FILE:sedef-midi-render>
+                -DDIR=${CMAKE_CURRENT_BINARY_DIR}/midi-render-determinism
+                -P ${CMAKE_CURRENT_SOURCE_DIR}/midi/render_determinism.cmake)
 endif()

@@ -94,8 +94,8 @@ every OS.
   the guitar track.
 - **In Logic:** load **Sedef MIDI (Instrument)** on an instrument track with the guitar track as its
   side chain, then record on a second instrument track that takes **MIDI From** it.
-- **Fastest** timing (28 ms on the low E, 16 ms from the G string up) or **Steady** (every note
-  38 ms after you play it, for one fixed track delay).
+- **Fastest** timing (22 ms on the low E, 13 ms on the G string, 9 to 12 ms above) or **Steady**
+  (every note 38 ms after you play it, for one fixed track delay).
 
 <img src="docs/images/midi.png" alt="Sedef MIDI: the input meter with its automatic gate, the note being sent with its tuning, velocity, and the note and output settings" width="760">
 

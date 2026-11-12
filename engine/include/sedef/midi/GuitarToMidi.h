@@ -143,12 +143,56 @@ struct Settings
 ///   above the low E's second partial waits until one period of the low E has passed after the
 ///   attack (kAttackSkipSeconds), and is held back while a longer period is clearly more
 ///   periodic than its own (kLongerPeriodic, kLongerMargin). That wait is the latency floor of
-///   notes above A3 (about 16 ms). Within kPickWindowSeconds of the pick the tracker may still
+///   notes above A3 on the tracker's reading (about 16 ms; the early reading, below, often
+///   names them sooner). Within kPickWindowSeconds of the pick the tracker may still
 ///   correct its reading; a correction must hold for kCorrectionConfirmSeconds, never goes back
 ///   to the note before the pick, and one down to a whole multiple of the note's period (an
 ///   octave, a twelfth) needs the input to repeat clearly better there than at the note's own
 ///   period (kCorrectionMargin, over the same stretch of signal): a string an octave apart
 ///   ringing under the note, or the body, can make the longer period look as good.
+/// - **The early reading (Fastest).** The tracker judges a period on two of its lengths, so it
+///   cannot name a low note before two long periods have passed, and the waits above come on
+///   top. A picked string repeats from its pick on, though. So for every period the layer
+///   keeps how well the signal since the pick's attack (the stretch, from kAttackSkipSeconds
+///   after the pick) repeats one period on, a difference function as in YIN over a stretch
+///   that grows from the pick instead of a window that slides, and what each period leaves
+///   unexplained of it (0: the stretch repeats exactly). The shortest period that qualifies
+///   starts the note, before the tracker has read it:
+///   - when nothing an octave under it is a note of the range (on a six-string, up to C#3),
+///     once kEarlyShare of the period (kEarlyWindowSeconds at least) has come round again,
+///     leaving no more than kEarlyClean: 1.6 periods and the attack;
+///   - when a lower string could be under it (a first reading can name one of a low string's
+///     partials), only if it alone accounts for the stretch (kEarlyAlone, over two periods
+///     and kEarlyAloneSeconds at least), which a string's partial never does;
+///   - and only if no shorter period accounts for much of the stretch (kEarlyOther): two
+///     strings ringing together repeat at a period neither has, and an octave under the
+///     played note is a multiple of its period.
+///
+///   The note that sounded when the pick came may ring on under the new one, and then the
+///   input repeats at its period too. When it was steady, the stretch is kept a second time,
+///   less what that note would have gone on to do (its last period before the pick, repeated):
+///   if that leaves clearly less (kEarlyRingsOn), the old note rings on, and what is left,
+///   what the pick brought (kEarlyBrought at least), is what is read. Otherwise, while the
+///   note before still rings (kEarlyRingDb), the same note and every note it is a partial of
+///   wait for the tracker.
+///
+///   The same note picked again (the staple of a bass line) used to wait for the lowest note
+///   the instrument has, since a pick no louder than what rang drowns nothing. It is read
+///   against the note the tracker held at the pick: the stretch from kEarlyHeldSkipSeconds
+///   after the pick (a pick on the sounding string ends what it did) repeating at that period
+///   (kEarlyHeld), on its semitone, the semitones next to it clearly worse (kEarlyHeldApart),
+///   not before kEarlyHeldSeconds (a fretting finger landing just after the pick must show),
+///   and, with the old note taken out, not repeating at a half or a third of the period (a
+///   note picked an octave or a twelfth over a ringing one). A sounding note is picked again
+///   only when its periodicity broke; from silence, only by a pick that drowned what rang.
+///
+///   A note started this way is the tracker's to confirm. Until the tracker has had its two
+///   periods (counted from the pick it saw itself), what it still holds says nothing; once it
+///   names the note, the note is like any other. If it never does and the stretch, longer by
+///   then, no longer repeats at the note's period (kEarlyStill), whatever the tracker names
+///   next may replace the note. The early reading only starts a note for a pick the tracker's
+///   detector saw (or, for the same note again, one seen as its lost period), as loud as this
+///   player's picks, its level checked; Steady never uses it, and plays exactly as before.
 /// - **The octave up.** After a pick, a string ringing an octave (or two) under the played note,
 ///   left ringing or in sympathy, makes the input repeat at its longer period as well, and the
 ///   tracker may name it. When the input also repeats at half that period (kOctaveUpClean, over
@@ -202,7 +246,8 @@ struct Settings
 ///   for the tracker's detector: on a faded string, a pick counts only when its level (3-12 ms
 ///   on) comes back within kFadedDropDb of that attack or rises kLockRiseDb over the loudest
 ///   millisecond of the 16 before it (a pick puts energy into the string, a fretting hand does
-///   not), and no note starts from it until that is known. The next pick starts the next note.
+///   not), and no note starts from it until that is known (in Fastest, as soon as the level
+///   has shown it; in Steady, 12 ms on). The next pick starts the next note.
 /// - **The same note picked again** ends the old note and starts a new one when the pick shows
 ///   in the signal as a new waveform (the note's periodicity dips under kRetriggerPeriodic) and
 ///   the input repeats at the note's own period again. A rise of the level is no proof (pick
@@ -223,7 +268,8 @@ struct Settings
 ///   note), so the same playing gets the same velocities at any input level (88 at the player's
 ///   level with the default settings), and as the player's level moves slowly, the dynamics of a
 ///   phrase stay in them. A legato note takes its velocity from the level.
-/// - **Timing.** Fastest sends each event at the sample it was decided on. Steady sends a picked
+/// - **Timing.** Fastest sends each event at the sample it was decided on, and decides a picked
+///   note on the early reading when that names it. Steady sends a picked
 ///   note's note-on kSteadyLagSeconds after its pick, and every other event that long after it
 ///   was decided, so all notes have the same latency and a recording can be moved earlier by one
 ///   amount. A note sure only after the lag is still sent, at once, and counted as late. Steady
@@ -326,6 +372,30 @@ public:
     static constexpr double kWarmupSeconds = 0.05;
     static constexpr double kTouchWaitSeconds = 0.06;
     static constexpr float kTouchBelowDb = 10.0f;
+    // The early reading (Fastest): what a period may leave unexplained of the signal since
+    // the pick, and how long a stretch must repeat. The design's "Why the early reading can be
+    // trusted, and when" says which line of its argument, or which measurement, each comes from.
+    static constexpr double kEarlyWindowSeconds = 0.004; ///< at least this much must repeat
+    static constexpr float kEarlyShare = 0.6f;           ///< ...and this share of the period
+    static constexpr float kEarlyClean = 0.05f;          ///< ...leaving no more than this
+    static constexpr double kEarlyAloneSeconds = 0.005;  ///< a note a lower one could be under:
+    static constexpr float kEarlyAlone = 0.02f; ///< ...this long (and a period), this clean
+    static constexpr float kEarlyOther = 0.4f; ///< what every shorter period must leave unexplained
+    static constexpr float kEarlyRingDb =
+        20.0f; ///< the note before still rings: this near the pick
+    static constexpr float kEarlyOldClean = 0.1f;   ///< a note steady enough to be taken out
+    static constexpr float kEarlyRingsOn = 0.7f;    ///< it rings on: without it, this much is left
+    static constexpr float kEarlyBrought = 0.25f;   ///< ...of which the pick brought at least this
+    static constexpr float kEarlyHeld = 0.1f;       ///< the same note again: this clean
+    static constexpr float kEarlyHeldCents = 45.0f; ///< ...this near where the note was
+    static constexpr float kEarlyHeldApart = 0.2f;  ///< ...a semitone off leaving at least this
+    static constexpr float kEarlyHeldPart = 0.25f;  ///< ...no note over it, the old one out
+    static constexpr double kEarlyHeldSeconds = 0.012;     ///< ...not before this after the pick
+    static constexpr double kEarlyHeldSkipSeconds = 0.005; ///< ...read from this after the pick
+    static constexpr float kEarlyStill = 0.25f; ///< a note read early still holds: this clean
+    static constexpr double kEarlyFineSeconds = 0.005; ///< periods under this: read between lags
+    static constexpr float kEarlyFine = 0.3f;          ///< ...when a whole lag leaves under this
+    static constexpr float kEarlyDensity = 0.25f; ///< the windows hold this much of their share
 
     void prepare (double sampleRate);
     /// Forgets the signal and every pending event, without sending anything: call allNotesOff()
@@ -377,6 +447,15 @@ public:
     std::uint32_t lateNotes() const noexcept { return lateNotes_; }
     /// Notes still sounding at the receiver (note-on sent, note-off not yet).
     int soundingCount() const noexcept;
+    /// Note-ons sent on the early reading (Fastest), before the tracker had read the note.
+    std::uint32_t earlyNotes() const noexcept { return earlyNotes_; }
+    /// The latest pick's date, in samples since reset() (diagnostics).
+    std::int64_t pickedAt() const noexcept { return pickAt_; }
+    /// The early reading of the latest pick, 0 when there is none (diagnostics).
+    float earlyHz() const noexcept { return earlyHz_; }
+    /// ...the share of the signal its period leaves unexplained, and the stretch that repeats (s).
+    float earlyLeft() const noexcept { return earlyLeft_; }
+    double earlyWindow() const noexcept { return earlyRepeat_ / rate_; }
     /// Why the latest note started and ended, and how the latest pick was seen.
     Why startWhy() const noexcept { return startWhy_; }
     Why endWhy() const noexcept { return endWhy_; }
@@ -445,6 +524,21 @@ private:
     /// How periodic the band is at this frequency's period, over one period (or `window`
     /// decimated samples if longer): 1 for a perfect repeat.
     float periodicityAt (float hz, int window = 0) const noexcept;
+    /// The early reading: keeps, for every period, how well the signal since the pick repeats.
+    void earlyPush() noexcept;
+    void earlyBegin() noexcept;
+    void earlyAdd (int ago) noexcept;
+    void earlyEstimate() noexcept;
+    float earlyFineLeft (const float* x, int n, int lag, float& period) const noexcept;
+    /// The period the later half of the windows puts the dip at, near `period`: 0 if none.
+    float earlyLatePeriod (const float* x, int n, float period) const noexcept;
+    /// The stretch says the note the tracker held at the pick was picked again.
+    bool earlyHeldNote (float heldPeriod) noexcept;
+    /// The note the early reading names for the latest pick, when it may start one: -1 if none.
+    int earlyNoteFor (float& hz) const noexcept;
+    bool earlyStillRepeats (float hz) const noexcept;
+    /// The note just started was started on the early reading, at `hz`.
+    void startedEarly (float hz) noexcept;
     float pickLevelDb() const noexcept;
     int velocityAt (float levelDb) const noexcept;
     void rememberPick (float levelDb) noexcept;
@@ -457,6 +551,10 @@ private:
     float ringAt (int ago) const noexcept
     {
         return ring_[static_cast<std::size_t> ((ringWrite_ - 1 - ago) & ringMask_)];
+    }
+    float earlyAt (int ago) const noexcept
+    {
+        return earlyRing_[static_cast<std::size_t> ((ringWrite_ - 1 - ago) & ringMask_)];
     }
     int quantise (float p) const noexcept;
     /// `hz`, or the octave above it (or two) when the input repeats cleanly at that period too.
@@ -483,7 +581,7 @@ private:
             return y;
         }
     };
-    Section hp_, lp_, clickHp_;
+    Section hp_, lp_, clickHp_, earlyLp_;
     float clickPower_ = 0.0f, clickCoeff_ = 0.0f;
     std::vector<float> clickRing_; ///< the click's power at every sample of the last 32 ms
     int clickMask_ = 0;
@@ -501,6 +599,7 @@ private:
 
     // The band at a decimated rate (about 7 kHz), for the periodicity measures.
     std::vector<float> ring_;
+    std::vector<float> earlyRing_; ///< the same, cut once more above the band: the early reading's
     int ringMask_ = 0, ringWrite_ = 0, factor_ = 6, phase_ = 0;
     double rate_ = 8000.0;
     // Periodicity at the note's period, every hop.
@@ -510,6 +609,7 @@ private:
     float leastPeriodicity_ = 1.0f; ///< the lowest periodicity since the latest pick
     int steadySamples_ = 480, breakWindowSamples_ = 960, refractorySamples_ = 1200;
     int weakRefractorySamples_ = 2880, weakCheckSamples_ = 576, lockPickGapSamples_ = 2400;
+    int pickLevelSamples_ = 192;
     int correctionConfirmSamples_ = 384, touchWaitSamples_ = 1440;
 
     // Clock and timing constants (samples).
@@ -598,7 +698,36 @@ private:
     std::array<std::array<std::uint64_t, 2>, 16> on_ {};
     std::uint16_t channelsUsed_ = 0;
 
-    std::uint32_t notesSent_ = 0, lateNotes_ = 0;
+    // The early reading.
+    /// For every period, how the stretch since the pick repeats one period on: the stretch as
+    /// it is [0], and with the note that sounded before the pick taken out [1].
+    struct EarlySums
+    {
+        std::vector<double> r, m;
+        std::vector<float> stretch;
+        double energy = 0.0;
+    };
+    std::array<EarlySums, 2> early_;
+    bool earlyOld_ = false;        ///< a steady note sounded at the pick: it can be taken out
+    bool earlyRest_ = false;       ///< ...and rings on: the reading is of what is left without it
+    double earlyOldPeriod_ = 0.0;  ///< its period, in decimated samples
+    std::int64_t earlyOldEnd_ = 0; ///< where what it did before the pick ends
+    int earlyGuardSamples_ = 24, earlyHeldCount_ = 76, earlyHeldSkip_ = 20, earlyFineLag_ = 40;
+    std::int64_t earlyPickAt_ = -1; ///< the pick the sums are counted from
+    int earlyCount_ = 0;            ///< decimated samples since that pick's attack
+    int earlyLagLimit_ = 0, earlyMinLag_ = 4, earlyWindow_ = 32, earlyAloneWindow_ = 40;
+    int earlySpanSamples_ = 2880, earlySkipSamples_ = 120;
+    float earlyHz_ = 0.0f, earlyLeft_ = 0.0f;
+    bool earlyHeld_ = false; ///< the early reading is the note the tracker held at the pick
+    int earlyRepeat_ = 0;
+    bool earlyNote_ = false;   ///< the sounding note started early; the tracker has not read it yet
+    bool earlyUnread_ = false; ///< the tracker has not named the sounding note since its pick
+    bool earlyDoubt_ = false; ///< ...and never did, and the stretch stopped repeating at its period
+    bool earlyStart_ = false; ///< startNote() is starting a note on the early reading
+    std::int64_t earlyLimit_ = 0;
+    int earlyGrace_ = 0; ///< the tracker has no say until this long after its own latest pick
+
+    std::uint32_t notesSent_ = 0, lateNotes_ = 0, earlyNotes_ = 0;
     Why startWhy_ = Why::none, endWhy_ = Why::none;
     PickKind pickKind_ = PickKind::none;
 };

@@ -253,6 +253,62 @@ test::Pluck together (double hz, double pluck, double pickup, double fundamental
     return p;
 }
 
+/// A string picked twice, at 0.1 and 0.6 s, as the design's recordings of strings whose
+/// partials start together were made: partials n f0 sqrt((1 + B n^2) / (1 + B)) up to 7 kHz with
+/// B = 1e-4, plucked at `pluck` of the string and heard at `pickup` (0: a piezo, no comb), the
+/// fundamental at `fundamental`, partial n decaying in 0.6 / (1 + 0.1 (n - 1) + (f_n / 2 kHz)^2)
+/// seconds, every one in sine phase (a pulse a period) or cosine phase (a step), 0.25 at most, a
+/// 0.5 ms attack, damped over 5 ms after 0.395 s; uniform noise 1e-4 rms from sedef::Random.
+/// Unlike pluckFor(), no glide and fast-fading upper partials: closer to a string plucked hard
+/// near the bridge.
+Scenario recordedTogether (int pitch, double pluck, double pickup, double fundamental, bool step)
+{
+    const double f0 = hzOf (pitch);
+    std::vector<double> amp, hz, tau;
+    double sum = 0.0;
+    for (int n = 1; n < 400; ++n)
+    {
+        const double nd = n;
+        const double ratio = nd * std::sqrt ((1.0 + 1.0e-4 * nd * nd) / 1.0001);
+        if (ratio * f0 >= 7000.0)
+            break;
+        double a = std::sin (nd * kPiD * pluck) / nd *
+                   (pickup > 0.0 ? std::sin (nd * kPiD * pickup) : 1.0);
+        if (n == 1)
+            a *= fundamental;
+        amp.push_back (a);
+        hz.push_back (ratio * f0);
+        tau.push_back (0.6 /
+                       (1.0 + 0.1 * (nd - 1.0) + (ratio * f0 / 2000.0) * (ratio * f0 / 2000.0)));
+        sum += std::abs (a);
+    }
+    const double phase = step ? 0.5 * kPiD : 0.0;
+    const auto length = static_cast<std::size_t> (0.4 * kFs);
+    std::vector<double> one (length, 0.0);
+    for (std::size_t i = 0; i < length; ++i)
+    {
+        const double t = static_cast<double> (i) / kFs;
+        double x = 0.0;
+        for (std::size_t k = 0; k < amp.size(); ++k)
+            x += amp[k] * std::exp (-t / tau[k]) * std::sin (kTwoPiD * hz[k] * t + phase);
+        const double attack = t < 5.0e-4 ? 0.5 - 0.5 * std::cos (kPiD * t / 5.0e-4) : 1.0;
+        const double mute = std::clamp ((0.4 - 0.005 - t) / 0.005, 0.0, 1.0);
+        one[i] = 0.25 / sum * x * attack * mute;
+    }
+    Scenario sc;
+    sc.name = "together";
+    sc.signal.assign (static_cast<std::size_t> (1.2 * kFs), 0.0f);
+    for (double at : { 0.1, 0.6 })
+        for (std::size_t i = 0; i < length; ++i)
+            sc.signal[static_cast<std::size_t> (at * kFs) + i] += static_cast<float> (one[i]);
+    Random rng (9u);
+    for (auto& v : sc.signal)
+        v += 1.7320508e-4f * rng.bipolar();
+    sc.notes.push_back ({ pitch, 0.1, 0.5, true, 0.25f });
+    sc.notes.push_back ({ pitch, 0.6, 1.0, true, 0.25f });
+    return sc;
+}
+
 /// The same playing `k` samples later.
 std::vector<float> later (const std::vector<float>& x, std::size_t k)
 {
@@ -576,6 +632,44 @@ TEST_CASE ("Guitar to MIDI names the model's hardest signals right", "[midi][inv
         std::printf ("partials that start together: %d of %d strings with a wrong or extra note\n",
                      wrong, runs);
     }
+    SECTION ("a knock under the pick")
+    {
+        // Something slow at the pick (the body knocked, a piezo's step): the band's high-pass
+        // answers it with a ring at about 28 Hz, which repeats at every short period and leaves
+        // a quarter of that at half of one (the design, 10): half the period must leave what a
+        // string's octave above does, or the shortest period is read as a note.
+        for (int pitch : { 40, 45, 52, 57 })
+            for (double knock : { 0.5, 2.0 })
+            {
+                INFO ("note " << pitch << ", knock " << knock);
+                auto sc = twice (pluckFor (Pickup::bridge, hzOf (pitch), 0.25f, 1), kFs, -80.0f, 1,
+                                 0.4, 0.8);
+                const auto at = static_cast<std::size_t> (0.4 * kFs);
+                for (std::size_t i = at; i < sc.signal.size(); ++i)
+                    sc.signal[i] += static_cast<float> (
+                        knock * std::exp (-static_cast<double> (i - at) / (0.03 * kFs)));
+                CHECK (right (sc, fastest()));
+            }
+    }
+    SECTION ("partials that start together, as the design's recordings were made")
+    {
+        // The strings on which each guard of the rule was needed (the design, "Why the early
+        // reading can be trusted", 7): a bridge pickup's pulse plucked at 0.18 of the string,
+        // where without kEarlyDensity an E2 was read as F2; and a piezo's step, where without the
+        // later half's place an F#1 was read as F1.
+        for (int pitch = 40; pitch <= 48; ++pitch)
+        {
+            INFO ("pulse, note " << pitch);
+            CHECK (right (recordedTogether (pitch, 0.18, 0.05, 0.2, false),
+                          inRange (rangeFor (pitch))));
+        }
+        for (int pitch = 30; pitch <= 38; ++pitch)
+        {
+            INFO ("step, note " << pitch);
+            CHECK (
+                right (recordedTogether (pitch, 0.18, 0.0, 0.5, true), inRange (rangeFor (pitch))));
+        }
+    }
 }
 
 TEST_CASE ("Guitar to MIDI waits two periods for a string that gives one pulse a period",
@@ -599,6 +693,24 @@ TEST_CASE ("Guitar to MIDI waits two periods for a string that gives one pulse a
         CHECK (t >= 2.0 / hz - 0.001);
         CHECK (t <= trackerSeconds (hz));
     }
+}
+
+TEST_CASE ("Guitar to MIDI's early reading names no note the tracker could not",
+           "[midi][invariance][high]")
+{
+    // Strings around and above the tracker's highest note (it reads up to A6; a guitar's highest
+    // fret is E6): the early reading looks no higher (kEarlyHighestHz), so Fastest sends the
+    // notes Steady sends, sooner. Over the tracker's reach a string is either not a note (B6) or
+    // read an octave down by both (C#7).
+    for (int pitch : { 89, 93, 95, 97 })
+        for (auto pickup : { Pickup::bridge, Pickup::neck })
+        {
+            INFO ("note " << pitch << (pickup == Pickup::neck ? ", neck" : ", bridge"));
+            const auto sc =
+                twice (pluckFor (pickup, hzOf (pitch), 0.25f, 1), kFs, -80.0f, 1, 0.4, 0.5);
+            CHECK (pitches (noteOns (sent (sc.signal, kFs, fastest(), 64))) ==
+                   pitches (noteOns (sent (sc.signal, kFs, steady(), 64))));
+        }
 }
 
 namespace

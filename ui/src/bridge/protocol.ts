@@ -526,6 +526,17 @@ export interface NativeFunctions {
   sedef_metronome_setPattern(steps: number[]): void;
   sedef_metronome_tap(): number; // returns new BPM
 
+  /**
+   * The looper (docs/looper.md), standalone app only. Reserves its memory the first time (about
+   * 92 MB) and answers whether it is ready; false in a plug-in.
+   */
+  sedef_looper_open(): boolean;
+  /**
+   * A press. The engine decides what "main" means from its own state (record, close and play,
+   * overdub, play, cancel a wait), at the start of its next audio block.
+   */
+  sedef_looper_command(action: LooperAction): void;
+
   sedef_ui_setState(state: UiState): void;
   /** Requests a new editor size in CSS pixels at scale 1 multiplied by scale. */
   sedef_ui_setScale(scale: number): void;
@@ -557,6 +568,43 @@ export interface NativeFunctions {
 }
 
 // ---------------------------------------------------------------------------------------------
+// The looper (docs/looper.md)
+
+export type LooperAction = 'main' | 'stop' | 'undo' | 'redo' | 'clear';
+
+export type LooperStateName =
+  /** No memory yet: sedef_looper_open has not been called. */
+  | 'unavailable'
+  | 'empty'
+  /** Waiting for the click's downbeat to start a take (or to play, armedForPlay). */
+  | 'armed'
+  | 'recording'
+  /** A take recording on to the bar line its closing press was rounded to. */
+  | 'closing'
+  | 'playing'
+  | 'overdubbing'
+  | 'stopped';
+
+export interface LooperTelemetry {
+  state: LooperStateName;
+  /** Samples: the loop's length, or how much of a take is recorded so far. */
+  length: number;
+  /** Samples: where the loop plays (0 when stopped). */
+  position: number;
+  /** Whole bars of a loop recorded with the click (0 for a free loop), or bars so far. */
+  bars: number;
+  /** Downbeats still to pass before an armed start (2 during a count-in's wait for its bar). */
+  waitBars: number;
+  armedForPlay: boolean;
+  /** Recorded in bars: the click is locked to it while the tempo and meter are unchanged. */
+  synced: boolean;
+  canUndo: boolean;
+  canRedo: boolean;
+  /** The Undo on offer brings back a cleared loop. */
+  undoIsClear: boolean;
+}
+
+// ---------------------------------------------------------------------------------------------
 // Events (C++ -> UI). Event ids are the keys of this interface.
 
 export interface TelemetryEvent {
@@ -572,6 +620,8 @@ export interface TelemetryEvent {
   metronomeStep: number;
   /** Effective Drift delay time in ms (after sync). */
   driftTimeMs: number;
+  /** The looper, in the standalone app (null in a plug-in; absent before 0.9.0). */
+  looper?: LooperTelemetry | null;
   /** Audio thread load estimate 0..1. */
   cpu: number;
 }

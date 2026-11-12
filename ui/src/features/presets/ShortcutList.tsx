@@ -4,6 +4,7 @@ import { Fragment } from 'react';
 import { Icon } from '../../controls/Icon';
 import buttons from '../../controls/Button.module.css';
 import { shortcuts } from '../../app/shortcuts';
+import { useAppStore } from '../../state/appStore';
 import styles from './ShortcutList.module.css';
 
 export function ShortcutList({
@@ -13,6 +14,7 @@ export function ShortcutList({
   open: boolean;
   onToggle: (open: boolean) => void;
 }) {
+  const looper = useAppStore((s) => s.session.isStandalone);
   return (
     <div className={styles.anchor}>
       <button
@@ -28,7 +30,7 @@ export function ShortcutList({
       </button>
       {open && (
         <div id="preset-shortcuts" className={styles.panel} role="group" aria-label="Shortcuts">
-          {shortcuts().map((group) => (
+          {shortcuts({ looper }).map((group) => (
             <section key={group.title}>
               <h3 className={styles.heading}>{group.title}</h3>
               <dl className={styles.list}>

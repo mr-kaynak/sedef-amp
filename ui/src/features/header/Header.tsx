@@ -7,6 +7,8 @@ import { Popover } from '../../controls/Popover';
 import buttons from '../../controls/Button.module.css';
 import { useAppStore } from '../../state/appStore';
 import { uiActions, useUiStore } from '../../state/uiStore';
+import { LooperButton } from '../looper/LooperButton';
+import { LooperPanel } from '../looper/LooperPanel';
 import { MetronomePanel } from '../metronome/MetronomePanel';
 import { presetBrowser } from '../presets/session';
 import { SettingsPanel } from '../settings/SettingsPanel';
@@ -46,6 +48,7 @@ export function Header() {
   const popover = useUiStore((s) => s.popover);
   const standalone = useAppStore((s) => s.session.isStandalone);
   const metroRef = useRef<HTMLButtonElement>(null);
+  const looperRef = useRef<HTMLButtonElement>(null);
   const settingsRef = useRef<HTMLButtonElement>(null);
   const closePopover = useCallback(() => uiActions.setPopover(null), []);
 
@@ -107,6 +110,24 @@ export function Header() {
               className={styles.rightPopover}
             >
               <MetronomePanel />
+            </Popover>
+          </div>
+        )}
+        {standalone && (
+          <div className={styles.anchor}>
+            <LooperButton
+              ref={looperRef}
+              expanded={popover === 'looper'}
+              onToggle={() => uiActions.togglePopover('looper')}
+            />
+            <Popover
+              open={popover === 'looper'}
+              onClose={closePopover}
+              anchorRef={looperRef}
+              label="Looper"
+              className={styles.rightPopover}
+            >
+              <LooperPanel />
             </Popover>
           </div>
         )}

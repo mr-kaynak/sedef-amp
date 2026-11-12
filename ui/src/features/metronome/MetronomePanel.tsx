@@ -65,29 +65,35 @@ export function MetronomePanel() {
         </button>
       </div>
 
-      <div
-        className={styles.grid}
-        style={{ gridTemplateColumns: `repeat(${count}, 1fr)` }}
-        role="group"
-        aria-label="Beat pattern. Click a beat to cycle off, normal, accent, soft."
-      >
-        {Array.from({ length: count }, (_, i) => {
-          const state = steps[i] ?? STEP_NORMAL;
-          return (
-            <button
-              key={i}
-              type="button"
-              className={`${buttons.press} ${styles.step}`}
-              data-state={STEP_NAMES[state]}
-              data-now={i === currentStep || undefined}
-              aria-label={`Beat ${i + 1}: ${STEP_NAMES[state]}`}
-              onClick={() => toggleStep(i)}
-            >
-              <span className={styles.bar} />
-              <span className={styles.index}>{i + 1}</span>
-            </button>
-          );
-        })}
+      <div className={styles.pattern}>
+        <div
+          className={styles.grid}
+          style={{ gridTemplateColumns: `repeat(${count}, 1fr)` }}
+          role="group"
+          aria-label="Beat pattern"
+          aria-describedby="metronome-pattern-hint"
+        >
+          {Array.from({ length: count }, (_, i) => {
+            const state = steps[i] ?? STEP_NORMAL;
+            return (
+              <button
+                key={i}
+                type="button"
+                className={`${buttons.press} ${styles.step}`}
+                data-state={STEP_NAMES[state]}
+                data-now={i === currentStep || undefined}
+                aria-label={`Beat ${i + 1}: ${STEP_NAMES[state]}`}
+                onClick={() => toggleStep(i)}
+              >
+                <span className={styles.bar} />
+                <span className={styles.index}>{i + 1}</span>
+              </button>
+            );
+          })}
+        </div>
+        <p id="metronome-pattern-hint" className={styles.hint}>
+          Click a beat to change it: normal, accent, soft, off.
+        </p>
       </div>
 
       <div className={styles.row}>

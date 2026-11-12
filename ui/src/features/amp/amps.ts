@@ -30,7 +30,7 @@ export const AMPS: AmpDefinition[] = [
   {
     index: 0,
     name: 'Lagoon',
-    character: 'Clean, glassy and wide, with plenty of headroom',
+    character: 'Glassy clean with plenty of headroom',
     finish: {
       plate: ['#d6e5df', '#b7cdc6'],
       legend: '#12283a',
@@ -51,7 +51,7 @@ export const AMPS: AmpDefinition[] = [
   {
     index: 1,
     name: 'Reef',
-    character: 'Crunch with three voicings, from open to thick',
+    character: 'Crunch in three voicings, open to thick',
     finish: {
       plate: ['#643539', '#47252a'],
       legend: '#f3e6d2',
@@ -75,7 +75,7 @@ export const AMPS: AmpDefinition[] = [
   {
     index: 2,
     name: 'Abyss',
-    character: 'High-gain lead with bright and shifted-mid voicings',
+    character: 'Tight high gain, from rhythm to lead',
     finish: {
       plate: ['#0d1923', '#060d13'],
       legend: '#e8e2d3',

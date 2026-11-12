@@ -75,7 +75,9 @@ function AmpPicker({ selected, withCapture }: { selected: number; withCapture: b
           />
           <span className={styles.cardText}>
             <span className={styles.cardName}>{amp.name}</span>
-            <span className={styles.cardCharacter}>{amp.character}</span>
+            <span className={styles.cardCharacter} title={amp.character}>
+              {amp.character}
+            </span>
           </span>
         </button>
       ))}

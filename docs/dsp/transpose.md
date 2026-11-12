@@ -1,26 +1,313 @@
 # Transpose: polyphonic pitch shifter
 
 Source: `engine/src/dsp/PitchShifter.cpp`. Interface: `engine/include/sedef/dsp/PitchShifter.h`.
-Tests: `engine/tests/reverb/PitchShifterTests.cpp`.
+Tests: `engine/tests/reverb/PitchShifterTests.cpp`, `engine/tests/engine/EngineTests.cpp`.
+Bench: `tools/transpose-bench`.
 
-> **Removed from the signal chain in 0.3.0.** The `transpose` parameter is kept, so sessions
-> still load, and it is ignored. This page keeps the evaluation behind that decision. §2–§8
-> describe the 0.2.0 shifter, whose code stays for one release.
+> **History.** 0.2.0 shipped a time-domain shifter. 0.3.0 removed it: a player found it far
+> worse than other amp sims, and no design measured then cleared the quality bars at a playable
+> latency (Appendix A and B keep that evaluation). 0.9.0 brings Transpose back with the design
+> below, measured against the same bars.
 
-## 1. What it models
+## 1. What it does
 
-Transpose shifts the guitar by −12 to +12 semitones before anything else in the chain. It has
-two uses:
+Transpose plays the whole rig −12 to +12 semitones away from the strings: drop the guitar a half
+step, a whole step or more without retuning, or play an octave up or down. It is polyphonic:
+chords keep every note.
 
-- **Alternate tunings.** Play "in E♭, D or C♯" on a guitar in standard tuning.
-- **Octave effects.**
+It sits at the very start of the chain, right after Input Gain and before the pedalboard, so the
+pedals, the amp and the cab hear the shifted string as they would hear a retuned guitar. The
+tuner still listens to the strings themselves (it is for tuning the guitar).
 
-It is polyphonic: chords keep every note. It works in the time domain. At 0 semitones it is a
-true bypass: the audio is not touched. The v0.3.0 evaluation below measured it against an ideal
-reference and against other designs. It falls well short of the bars on chords, attacks and
-latency, and so did every alternative.
+At 0 semitones it is off: the audio is not touched (bit-exact) and it adds no latency.
 
-## Quality bars (v0.3.0)
+## 2. Requirements
+
+The 0.3.0 quality bars (Appendix A) are the yardstick, unchanged: they were written before
+anything was measured, for two jobs, alternate tunings (−1 to −5 st, played live) and octaves
+(±12 st). The ones that drive the design:
+
+- **Latency (B1–B3).** At most 10 ms added, the same at every attack, and exactly what the
+  plug-in reports. The player hears it live: a 64-sample interface round trip is 4–6 ms, and
+  10 ms more is about standing 5 m from the amp. Lower is better, so the design takes as little
+  as each direction needs (§5).
+- **Chords (B4–B7).** A sustained open chord keeps its partials clean (−35 dB off-partial
+  energy for tunings, −30 dB for octaves) and steady (no level warble).
+- **Attacks (B8–B10).** No pre-echo, no doubled attack (flam), attack level and rise like a
+  retuned string.
+- **Pitch (B11).** Median within 2 cents, 95th percentile within 10 cents, bends included.
+- **CPU (B13)** within 2 % of one core; **0 st (B14)** bit-exact with no latency;
+  **changes (B15)** click-free.
+
+## 3. Why it failed before, and what is new
+
+The 0.3.0 evaluation found two families, each failing on the other's strength:
+
+- **Time-domain splicing** (resampling read heads, crossfaded when they drift too far) keeps
+  attacks and pitch exact and can run at a few ms, but each splice can only keep the strongest
+  partials in phase. On a chord the rest jump, so purity stopped at −28 to −33 dB.
+- **Frequency-domain methods** (phase vocoders) keep chords clean, but only with 85–170 ms
+  windows, which smear attacks and cost that much latency. With short windows they fell apart.
+
+What would clear the bars, the page concluded, is a model that estimates each partial over a long
+window and resynthesises it in the present. The new design builds that, but uses it only for what
+splicing cannot do. The argument in one line: **splices only hurt what is spliced**. The design
+subtracts a model of the sustained partials from the input, splices only the remainder, and
+resynthesises the model shifted, continuously, without splices. Between splices the output is
+exactly a resampled input (§4.3), so attacks and pitch keep everything time-domain shifting
+gets right, while the chord's steady partials never pass through a splice.
+
+## 4. Method
+
+### 4.1 Signal flow
+
+```
+x ─┬─────────────► analysis (Hann N, every H) ─► tracks: f, A, φ, decay
+   │                                               │
+   │                       ┌───── U: predicted partials at the input's pitch, now
+   │                       ▼                       │
+   └──► (−) ─► residual e = x − U ─► history       │ parameter history (per hop)
+                      │                │           ▼
+                      ▼                ▼        S: the same partials × r, read where
+               onset detector ─► grains: resample e at rate r      the newest grain reads
+                                       │                           │
+                                       └───────────── (+) ◄────────┘ ─► y
+```
+
+`r = 2^(st/12)` is the pitch ratio. Everything runs per sample; the analysis runs at fixed
+sample indices, so the output does not depend on the host's block size.
+
+### 4.2 Grains
+
+A grain `g` reads the residual history at `p_g(τ) = a_g + r (τ − τ_g)`: at output sample `τ_g` it
+reads input sample `a_g` (its anchor) and then moves at `r` input samples per output sample,
+which scales every frequency by exactly `r`. Its delay `d_g(τ) = τ − p_g(τ)` changes by `1 − r`
+per sample: it grows for downward shifts and shrinks for upward ones. When it leaves its range a
+new grain takes over through a crossfade (a splice). The time-domain output is
+`TD[e](τ) = Σ_g w_g(τ) (h_r ∗ e)(p_g(τ))` with fade gains `w_g`.
+
+`h_r` is a windowed-sinc interpolator (Kaiser, 16 taps). Upward, reading faster folds content
+above `fs / 2r` back into the band, so for `r > 1` the kernel is stretched by `r` (up to 32 taps)
+and its cut-off scaled by `1/r` (band-limited resampling, Smith 2002). It passes every sample at
+an integer position unchanged, which §5's latency test relies on.
+
+### 4.3 The identity that makes it work
+
+The output is
+
+```
+y = TD[x − U] + S
+```
+
+where `U` is the model of the sustained partials at the input's pitch and `S` is the same
+partials shifted. TD is linear, so if `S = TD[U]`, then `y = TD[x]`: the output is exactly the
+resampled input, whatever the model got wrong. `S` is built to equal `TD[U]` for every partial as
+long as the newest grain runs (it reads the model's parameter history at that grain's position
+`p(τ)`, with the phase it would have there). At a splice, `S` keeps its phase running instead of
+jumping with the grains. So:
+
+- Between splices, `y = TD[x]`. Attacks, bends, vibrato and single notes come out as a
+  resampled string: exact pitch, no smearing.
+- At a splice, only `e = x − U` is crossfaded. On a sustained chord the model explains most of
+  the signal, so the splice touches only the small remainder, while `S` carries the chord's
+  partials on through, continuously.
+- A wrong model costs nothing between splices; at a splice it costs what a plain time-domain
+  splice of the unexplained part would.
+
+### 4.4 The partial model U
+
+Every `H` input samples, a frame of the last `N` samples is windowed (Hann, zero-phase) and
+transformed.
+
+- **Peaks.** Local maxima of the magnitude above `−70 dB` of the frame's strongest peak and
+  above an absolute floor. Parabolic interpolation of the log magnitude gives the frequency and
+  amplitude; the bin's phase is the partial's phase at the window centre `c = t − N/2`.
+- **Tracks.** Each existing track takes the nearest unclaimed peak within one bin (or 1 % of its
+  frequency), strongest track first. Peaks left over start new tracks, tracks left over end.
+  At most `K` tracks; the weakest give way.
+- **Frequency.** From the phase advance of the track over the last `q ≤ 8` frames, the wrap count
+  taken from the parabolic estimate. Over `qH = 43 ms` this is about 8 times more precise than
+  one hop, and the phase must be carried `N/2 + H` ahead (below).
+- **Decay.** From the amplitude ratio over the same `q` frames, clamped to `[0, 1/(5 ms)]`:
+  never a predicted growth (a growing peak is a note arriving, which the residual carries).
+- **Prediction.** For the hop `[t, t + H)`, `U` synthesises each track as an oscillator whose phase
+  reaches `φ + ω (t + H − c)` at the end of the hop (continuously, by choosing the hop's
+  frequency) and whose amplitude ramps to `A e^(−λ (t + H − c))`. That is a prediction
+  `N/2 + H` samples past the window centre; with the frequency error of `q` frames the phase
+  error stays near 1°, so a steady partial cancels in `e` by about 35 dB.
+- **Confidence.** A model that predicts a string the player has just damped, or a pitch that has
+  moved, would make `e` larger than `x`. Each hop, `U` is scaled by its least-squares gain onto
+  `x` over the previous hop, `g = clamp(Σ x U / Σ U², 0, 1)` (ramped). A damped chord drops `g`
+  to 0 within two hops; an added note leaves it at 1.
+- **Band.** Only partials whose shifted frequency lies inside the interpolator's pass band are
+  modelled; the rest stay in `e`, where `h_r` treats them like any other content.
+
+### 4.5 The shifted model S
+
+`S` evaluates `U`'s parameter history (per hop: phase at the hop start, frequency, start and end
+amplitude, the confidence ramp) at the newest grain's read position `p(τ)`, with every frequency
+times `r`, plus a per-track phase offset `θ`. A track enters `S` with `θ = 0` when `p(τ)` reaches
+the hop where it was born, so it starts exactly in phase with what the grains subtracted. When a
+new grain takes over, `θ` absorbs the jump so every partial of `S` continues without a break,
+and the amplitude difference between the two read positions is ramped out over the crossfade.
+Within a stretch where `p(τ)` stays inside one hop, phase and amplitude are linear in `τ`, so `S`
+runs as complex oscillators, one sine and cosine per track per stretch.
+
+### 4.6 Attacks
+
+An attack must come out exactly `L` after it went in, every time (B1–B3), and no grain may play
+it twice (B9) or early (B8).
+
+- **Detector.** On the residual, which has the sustained partials removed, so a pick over a
+  ringing chord still stands out: the energy of the first difference (a +6 dB/octave tilt that
+  favours the broadband pick over tonal changes), smoothed over 0.2 ms, against its own floor
+  over 40 ms. An onset is a rise of 12 dB over the floor, while the input's own energy also
+  rises (so a damped string, which makes the residual jump while the input falls, is not one).
+  Re-armed after 30 ms.
+- **Anchor.** The onset's first sample: going back from the detection, the last sample where the
+  fast energy was still under twice the floor. For a click this is the click itself.
+- **Grain.** A new grain is anchored so that it reads the anchor `a` at output sample `a + L`. It
+  starts at once and fades in over `F_on = 1 ms` while every older grain fades out. It reads the
+  residual before the attack during the fade, so nothing of the attack sounds early. For this to
+  work, the fade must end before the old grain reaches `a`: a grain may never get closer than
+  `d_min = δ + r F_on` to the input (`δ` the detection delay), and `L ≥ δ + F_on`.
+- **Protection.** For 5 ms of input after an anchor, no later grain may start reading inside it,
+  so an upward splice cannot replay the pick.
+
+### 4.7 Sustain splices
+
+When the newest grain's delay leaves `[d_min, d_max]`, a new grain starts at a delay in the search
+span `[L, L + 16 ms]` (inside the protection rule), at the offset where the residual around the
+two read positions correlates best (normalised, 10 ms segments; WSOLA, Verhelst and Roelands
+1993). The crossfade is 10 ms, with the correlation-aware gains of 0.2.0 (equal gain for a
+perfect match, moving to equal power as the match drops). On a well-modelled chord the residual
+is small and these splices are inaudible; on a single note or a bend the residual is the string
+itself and the search lands on a whole period, as plain WSOLA does.
+
+### 4.8 Constants
+
+| Constant | Value (48 kHz) | Serves | Why this value |
+|---|---|---|---|
+| Analysis window `N` | 4096 (85 ms), scaled to the rate | B4–B7 | Hann resolves partials 2 bins = 23 Hz apart, under the 41 Hz grid of an open E chord and the 82 Hz of a low E's harmonics. A new note is in the model within about `N/2` |
+| Hop `H` | `N/16` = 256 (5.3 ms) | B4, B6 | The model follows a decaying chord in steps short against its decay; the prediction distance `N/2 + H` stays near `N/2` |
+| Tracks `K` | 128 | B13 | Six strings with their strong partials; the rest stay in `e` |
+| Peak floor | −70 dB under the strongest | B4 | What is left in `e` is at most −70 dB per partial |
+| Frequency span `q` | up to 8 hops (43 ms) | B4 | Phase error ≈ 1° after `N/2 + H` |
+| Decay clamp | `[0, 1/5 ms]` | B6, B7 | No growth predicted; a damped string decays in about 5 ms |
+| Interpolator | Kaiser-windowed sinc, 16 taps, ×r for r > 1 | B5, B12 | Flat pass band; upward, alias rejection over 60 dB |
+| Onset fade `F_on` | 1 ms | B8–B10 | Over before the attack arrives; spread under 2 kHz |
+| Detection budget `δ` | ≤ 1.5 ms | B2 | A pick's broadband rise crosses +12 dB within 0.1–0.5 ms |
+| Latency down `L` | 3 ms | B1 | `δ + F_on` plus the interpolator's half length, rounded up |
+| Latency up `L` | 10 ms | B1, B9 | Reading `r` times faster, the attack grain lasts `(L − d_min)/(r − 1)`: 6.5 ms at +12, 19 ms at +5; 10 ms is the B1 ceiling |
+| `d_min` | `δ + r F_on` (3.5 ms) | B8 | An old grain fades out before it reaches a new attack |
+| Search span | 16 ms | B4, B11 | One period of 62.5 Hz (a seven-string's low B) |
+| `d_max` (down) | `L + 16 + 5 ms` = 24 ms | B4 | Each sustain grain lasts at least `5 ms / (1 − r)`: 89 ms at −1, 20 ms at −5 |
+| Splice fade | 10 ms | B4 | Long enough for a small residual, short against the grain |
+| Correlation segment | 10 ms | B11 | About one period of a low E |
+| Protection | 5 ms | B9 | A pick's high-frequency burst |
+| Setting-change fade | 20 ms, equal power | B15 | The two pitches don't add coherently |
+
+## 5. Latency and the host
+
+Transpose adds `L` = 3 ms when it shifts down and 10 ms when it shifts up (rounded to whole
+samples at the session rate), and nothing at 0. The plug-in reports it like the other latency it
+has (Settings > Latency):
+
+- Steps that keep the direction (−1 to −5, or +2 to +7) never change the reported latency.
+- Turning Transpose on or off, or changing direction, does. The plug-in tells the host, which
+  re-aligns its tracks; some hosts only do that when playback stops. Hosts dislike latency that
+  changes, which is why it changes only on those steps.
+
+"Latency" is exact in the time-domain sense: an attack anchored at input sample `a` is read at
+output sample `a + L` (the tests check a click to the sample). Between attacks the grains' delay
+moves within `[d_min, d_max]`, which only shifts when a held note's partials are read, never
+when a note starts.
+
+## 6. Changing the setting
+
+A change starts a new shifter state (the grains and `S`'s phases; the model and the residual are
+shared, they don't depend on `r`) and crossfades to it over 20 ms with equal-power gains. A
+change that arrives during that fade waits for it to finish. Moving to 0 crossfades to the
+untouched input; when the fade ends, processing stops and the output is bit-exact again. From 0,
+the new state starts from an empty model, so the first `N/2` are plain time-domain shifting
+while the model fills in. The input history is kept current while off, so switching on needs
+no warm-up.
+
+## 7. In the engine
+
+- `Chain::process`: input gain → **Transpose** → the pedalboard → amp → cab.
+- The gate's sidechain (the DI before input gain) is delayed by Transpose's latency, so the gate
+  stays aligned with what it gates. The Doubler, which times its double from that sidechain, is
+  told the sidechain's lead without Transpose's share.
+- `Engine::latencySamples()` adds Transpose's latency for the active direction. The plug-in
+  checks it on its message-thread timer and reports a change to the host, as it does for the
+  oversampling setting.
+- The parameter keeps its id `transpose` (ADR-0004: ids are the contract). Its display name goes
+  back to "Transpose" and it is automatable again. Hosts save parameters by id (each plug-in format keys
+  a parameter by a hash of its id string), never by name; the name only labels automation
+  lanes, so sessions and automation saved under "Transpose (Unused)" load unchanged. Presets do
+  not store it (`PresetManager.cpp`), so factory presets are unchanged.
+
+## 8. Tests
+
+`[transpose]` in `PitchShifterTests.cpp`, plus the engine's:
+
+- **Pitch, every step.** For −12..+12, single plucked strings (E2 to E4) and the open E chord: every
+  strong partial of the sustained output (long FFT, interpolated peak) against `r` times the input
+  partial, within 2 cents.
+- **Bars.** The Appendix A harness at −1, −2, −3, −5, −12 and +12 st: every bar each job sets.
+- **Latency to the sample.** A click after silence comes out at exactly `a + L`, for every step,
+  and `latencySamples()` says `L`.
+- **0 st.** Bit-exact and zero latency from the start, and again once a shift has faded back to 0.
+- **Invariance.** The same output, bit for bit, for block sizes 1, 7, 64, 333 and 4096; the pitch,
+  latency (in ms) and purity bars at 44.1, 48, 88.2 and 96 kHz.
+- **Changes.** Stepping through random settings every 40 ms while a chord rings: finite, and no
+  sample step larger than twice the steepest legitimate one.
+- **Real time.** `Engine::process` never allocates with Transpose on (the engine's counting
+  allocator).
+- **Engine.** The reported latency follows the direction; the gate stays aligned; factory presets
+  render byte-identical to main at 0.
+
+## 9. Results
+
+(Filled in from the bench once the code exists.)
+
+## 10. Known limitations
+
+(Filled in from the measurements.)
+
+## 11. References
+
+For the evaluation:
+
+- J. Laroche and M. Dolson, "New Phase-Vocoder Techniques for Pitch-Shifting, Harmonizing and
+  Other Exotic Effects", *Proc. IEEE WASPAA*, 1999. Shifting peak regions in the frequency
+  domain.
+- J. Laroche and M. Dolson, "Improved Phase Vocoder Time-Scale Modification of Audio", *IEEE
+  Trans. Speech and Audio Processing* 7(3), 1999. Identity phase locking.
+- A. Röbel, "A New Approach to Transient Processing in the Phase Vocoder", *Proc. DAFx*, 2003.
+  Energy centre of gravity per bin to find attacks.
+- D. Mauler and R. Martin, "A Low Delay, Variable Resolution, Perfect Reconstruction Spectral
+  Analysis-Synthesis System for Speech Enhancement", *Proc. EUSIPCO*, 2007. Asymmetric
+  analysis and synthesis windows.
+- A. Kohlrausch, R. Fassel and T. Dau, "The Influence of Carrier Level and Frequency on
+  Modulation and Beat-Detection Thresholds for Sinusoidal Carriers", *J. Acoust. Soc. Am.*
+  108(2), 2000. Amplitude-modulation thresholds behind B6 and B7.
+- Signalsmith Stretch 1.4.0 (MIT), https://github.com/Signalsmith-Audio/signalsmith-stretch.
+  Measured as a third-party candidate only.
+
+For the 0.2.0 shifter:
+
+- W. Verhelst and M. Roelands, "An Overlap-Add Technique Based on Waveform Similarity (WSOLA)
+  for High Quality Time-Scale Modification of Speech", *Proc. IEEE ICASSP*, 1993. Splice
+  positions chosen by waveform similarity.
+- J. Dattorro, "Effect Design, Part 2: Delay-Line Modulation and Chorus", *J. Audio Eng. Soc.*
+  45(10), 1997. Moving delay taps, interpolation.
+- U. Zölzer (ed.), *DAFX: Digital Audio Effects*, 2nd ed., Wiley, 2011, chapter "Time-segment
+  processing". Delay-line pitch shifting and SOLA-family methods.
+
+
+## Appendix A. Quality bars (v0.3.0)
 
 A player compared 0.2.0's transpose with commercial amp sims and found it far worse. These bars
 say, in numbers, what "very good" means for its two jobs. They were written before any
@@ -134,7 +421,7 @@ A second "Studio" mode with more latency is allowed only if no design clears the
 ≤ 10 ms. It must keep its latency constant and report it to the host. It may relax B1 to
 ≤ 100 ms, but nothing else, and must reach B4 ≤ −40 dB.
 
-## Evaluation (v0.3.0)
+## Appendix B. Evaluation of the 0.3.0 candidates
 
 ### Harness
 
@@ -303,8 +590,7 @@ them as rough (the 0.2.0 shifter's 0.1 % matches §5).
 ### Decision
 
 No candidate clears the bars for either job, at 10 ms or at Studio latency. Under the decision
-rule, the 0.2.0 shifter is not replaced, and nothing has been removed on this branch. The data
-supports removal.
+rule, the 0.2.0 shifter was not replaced, and the data supported removal, which 0.3.0 did.
 
 **Removal proposal.**
 
@@ -332,152 +618,3 @@ A sinusoidal model that estimates each partial's frequency, amplitude slope and 
 long window, then resynthesises it at the shifted frequency and extrapolates its envelope to the
 present, might. That is research, not a release item.
 
-## 2. Algorithm
-
-The shifter is a delay-line design with correlation-chosen splice points (WSOLA-style).
-
-```
-input ─► history (mirrored ring buffer, 160 ms)
-            │
-            ├─► read head(s): position moves at `rate = 2^(st/12)` input samples per output
-            │   sample, Catmull-Rom interpolation ─► Hann crossfade ─► output
-            │
-            └─► mono sum ─► LP ─► decimate to ~12 kHz ─► coarse correlation search
-```
-
-**Read head.** A head reads the input history at `rate` times real time, which shifts the pitch
-by exactly `rate`. Its delay behind the write point therefore drifts by `1 − rate` samples per
-sample:
-
-- **Downward shifts:** the head falls further behind.
-- **Upward shifts:** the head catches up.
-
-**Splice.** When the delay reaches its limit, a new head starts one "grain" earlier or later.
-The output crosses from the old head to the new one with a Hann (raised-cosine) fade. Both
-heads keep moving at `rate` during the fade.
-
-**Choosing the splice offset.** Candidate positions for the new head span 16 ms, more than one
-period of a low D string. For each candidate:
-
-1. Compute the normalised cross-correlation between the old head's waveform and the
-   candidate's, over a 12 ms segment that reaches 3 ms past the splice point.
-2. Search coarsely on a decimated mono copy (about 12 kHz) for efficiency.
-3. Refine at full rate, ±1 decimated step around the winner.
-4. Place the peak with sub-sample accuracy by parabolic interpolation.
-
-For a single note this picks a whole number of periods, and the splice is seamless: a shifted
-sine stays 100 % on its target frequency. For chords it picks the best compromise, weighted by
-energy.
-
-**Correlation-aware fade gains.**
-- The Hann gains `gOld + gNew = 1` are right when the two heads match (ρ = 1).
-- When they don't match, both gains are divided by `√(gOld² + gNew² + 2ρ·gOld·gNew)`. This
-  moves the fade smoothly toward equal power, so the loudness does not dip at poor splices.
-
-**Grain length.** The jump, and so the time between splices, starts at 8 ms and grows by
-10 ms per octave of shift, plus up to 16 ms chosen by the search. Splices happen every
-`jump / |1 − rate|`:
-- 1 semitone down: every 160–440 ms.
-- 2 semitones down: every 90–240 ms.
-- An octave up: every 18–34 ms.
-
-The fade lasts up to 40 ms, or at most 80 % of the minimum splice interval.
-
-**Stereo.** Both channels share one set of heads, and the splice decisions come from the mono
-sum, so the image stays coherent.
-
-**Semitone changes.** A change starts a new head at the new rate and crossfades to it over
-30 ms (equal power, because the two pitches don't add coherently). Changing to 0 crossfades
-into the untouched input. When that fade ends, processing stops and the output is bit-exact
-again. A change that arrives during a splice fade waits for it to finish (≤ 40 ms).
-
-## 3. Control mapping
-
-| Setting | Range | Mapping |
-|---|---|---|
-| `semitones` | −12..+12 (clamped) | `rate = 2^(semitones/12)`; 0 = true bypass |
-
-## 4. Latency
-
-The head must stay far enough behind the write point to look ahead and to absorb a jump. That
-makes the delay inherent and time-varying. `latencySamples()` is not part of this module's
-interface, and the engine reports none for it. Mean delay of the active head, measured at
-48 kHz (it scales with time, not samples):
-
-| Shift | −12 | −7 | −5 | −3 | −2 | −1 | +1 | +2 | +3 | +5 | +7 | +12 |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| mean delay (ms) | 30.2 | 26.2 | 24.6 | 22.0 | 20.6 | 19.1 | 11.3 | 12.1 | 14.3 | 16.0 | 17.5 | 21.3 |
-
-The instantaneous delay sweeps across roughly 3–50 ms between splices. At 0 semitones the delay
-is zero.
-
-## 5. Measurements (48 kHz, Apple M2)
-
-- **Pitch.** For a 220 Hz sine at every shift from −12 to +12, the spectral peak is within
-  0.002 % of `220 · 2^(st/12)`, and 100 % of the energy is within ±3 % of it.
-- **Chords.** For a G major triad of harmonic-rich notes (8 partials each), the energy away from
-  the expected partials is −26 to −29 dB, depending on the shift (−1 to ±12 st).
-- **CPU** (64-sample blocks, stereo): 11–17 ns/frame (≤ 0.08 % of a core). Bypass costs
-  11 ns/frame to keep the history current.
-
-## 6. References
-
-For the evaluation:
-
-- J. Laroche and M. Dolson, "New Phase-Vocoder Techniques for Pitch-Shifting, Harmonizing and
-  Other Exotic Effects", *Proc. IEEE WASPAA*, 1999. Shifting peak regions in the frequency
-  domain.
-- J. Laroche and M. Dolson, "Improved Phase Vocoder Time-Scale Modification of Audio", *IEEE
-  Trans. Speech and Audio Processing* 7(3), 1999. Identity phase locking.
-- A. Röbel, "A New Approach to Transient Processing in the Phase Vocoder", *Proc. DAFx*, 2003.
-  Energy centre of gravity per bin to find attacks.
-- D. Mauler and R. Martin, "A Low Delay, Variable Resolution, Perfect Reconstruction Spectral
-  Analysis-Synthesis System for Speech Enhancement", *Proc. EUSIPCO*, 2007. Asymmetric
-  analysis and synthesis windows.
-- A. Kohlrausch, R. Fassel and T. Dau, "The Influence of Carrier Level and Frequency on
-  Modulation and Beat-Detection Thresholds for Sinusoidal Carriers", *J. Acoust. Soc. Am.*
-  108(2), 2000. Amplitude-modulation thresholds behind B6 and B7.
-- Signalsmith Stretch 1.4.0 (MIT), https://github.com/Signalsmith-Audio/signalsmith-stretch.
-  Measured as a third-party candidate only.
-
-For the 0.2.0 shifter:
-
-- W. Verhelst and M. Roelands, "An Overlap-Add Technique Based on Waveform Similarity (WSOLA)
-  for High Quality Time-Scale Modification of Speech", *Proc. IEEE ICASSP*, 1993. Splice
-  positions chosen by waveform similarity.
-- J. Dattorro, "Effect Design, Part 2: Delay-Line Modulation and Chorus", *J. Audio Eng. Soc.*
-  45(10), 1997. Moving delay taps, interpolation.
-- U. Zölzer (ed.), *DAFX: Digital Audio Effects*, 2nd ed., Wiley, 2011, chapter "Time-segment
-  processing". Delay-line pitch shifting and SOLA-family methods.
-
-## 7. Tests (`[reverb][transpose]`)
-
-- Finite, bounded output for random semitone changes every 40 ms with full-scale stereo
-  noise, at 44.1 / 48 / 96 kHz and block sizes 1, 17, 64, 512.
-- 220 Hz sine:
-  - −2 st reads 196.0 Hz, +12 st 440 Hz, −12 st 110 Hz; −1, +5 and −7 st are also checked.
-  - All within ±0.5 %, with ≥ 90 % of the energy within ±3 % of the target.
-- Chord (G–B–D) at −5, −2, +2 and +12 st:
-  - all three shifted notes are present, within ±0.5 % and within 6 dB of each other;
-  - the unshifted notes are at least 25 dB down.
-- 0 st is bit-exact: from the start, mono and stereo, block sizes 1, 64 and 333, and after
-  returning from a shift once the fades have finished.
-- Semitone automation sweeping −12..+12 at 0.4 Hz is click-free: no sample step larger than
-  twice the steepest legitimate slope.
-- Stereo channels are shifted independently.
-- The evaluation harness (`TransposeEvalTests.cpp`): see "Evaluation (v0.3.0)" above.
-
-## 8. Known limitations / future work
-
-All four are measured in "Evaluation (v0.3.0)" above.
-
-- **Dense or inharmonic chords.** No single splice offset aligns every note, so each splice
-  shifts the phase of the partials that don't fit. The result is a faint warble at the splice
-  rate. It is least audible for small shifts, where splices are rare. A larger search span or
-  longer jumps reduce it, at the cost of latency.
-- **Transients across a splice** can briefly double (flam). The 3 ms look-ahead limits this,
-  but it does not remove it.
-- **Upward shifts do not band-limit the input**, so content above `fs / (2·rate)` folds back
-  (above 12 kHz for +12 at 48 kHz). Guitar DI has little energy there. A rate-dependent
-  windowed-sinc reader would fix it.
-- **Latency is time-varying** (see §4) and not reported to the host.

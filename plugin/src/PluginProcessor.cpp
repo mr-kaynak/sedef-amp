@@ -99,6 +99,7 @@ void SedefProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
         const std::scoped_lock lock (engineLock_);
         engine_.setOversampling (requestedOversampling());
         engine_.prepare (sampleRate, samplesPerBlock, ins, outs);
+        engine_.expectTranspose (paramValue (ParamId::transpose));
         engine_.setMetronomeAllowed (isStandalone());
         engine_.setMetronomePattern (metronomePattern());
     }
@@ -316,6 +317,10 @@ void SedefProcessor::timerCallback()
     // Settings > Latency: the oversampling is a session setting that changes the latency.
     if (prepared_ && requestedOversampling() != engine_.oversampling())
         applyOversampling();
+    // Transpose's latency follows its direction (docs/dsp/transpose.md, section 5): the host is
+    // told when it changes, from here, as hosts expect latency changes on the message thread.
+    if (prepared_ && engine_.latencySamples() != getLatencySamples())
+        setLatencySamples (engine_.latencySamples());
 }
 
 OversamplingMode SedefProcessor::requestedOversampling() const noexcept
@@ -336,6 +341,7 @@ void SedefProcessor::applyOversampling()
         engine_.setOversampling (requestedOversampling());
         engine_.prepare (engine_.sampleRate(), engine_.maxBlockSize(), engine_.numInputs(),
                          engine_.numOutputs());
+        engine_.expectTranspose (paramValue (ParamId::transpose));
         engine_.setMetronomeAllowed (isStandalone());
         engine_.setMetronomePattern (metronomePattern());
     }

@@ -66,10 +66,19 @@ public:
     void process (const float* const* inputs, float* const* outputs, int numFrames,
                   const ParamSnapshot& params, const Transport& transport) noexcept;
 
-    /// Constant for a given prepare() (oversampled stages are always latency-aligned): the
-    /// low-frequency delay of the whole rig, whatever is switched on.
+    /// The low-frequency delay of the whole rig, whatever is switched on (oversampled stages are
+    /// always latency-aligned). Constant for a given prepare(), except for Transpose's share,
+    /// which follows its setting: 0 when off, more when shifting up than down
+    /// (docs/dsp/transpose.md, section 5). Hosts are told on a change.
     /// These getters are safe from any thread.
-    int latencySamples() const noexcept { return latency_.load (std::memory_order_acquire); }
+    int latencySamples() const noexcept
+    {
+        return latency_.load (std::memory_order_acquire) +
+               transposeLatency_.load (std::memory_order_acquire);
+    }
+    /// After prepare(), before the first block: the transpose setting (in semitones) that block
+    /// will bring, so latencySamples() is right from the start. Message thread, audio stopped.
+    void expectTranspose (float semitones) noexcept;
     double sampleRate() const noexcept { return sampleRate_.load (std::memory_order_acquire); }
     int maxBlockSize() const noexcept { return maxBlockSize_.load (std::memory_order_acquire); }
     int numInputs() const noexcept { return numInputs_.load (std::memory_order_acquire); }
@@ -124,7 +133,8 @@ private:
     std::atomic<int> maxBlockSize_ { 512 };
     std::atomic<int> numInputs_ { 1 };
     std::atomic<int> numOutputs_ { 2 };
-    std::atomic<int> latency_ { 0 };
+    std::atomic<int> latency_ { 0 };          // everything but Transpose
+    std::atomic<int> transposeLatency_ { 0 }; // updated by the audio thread every block
     std::atomic<OversamplingMode> oversampling_ { OversamplingMode::lowLatency };
 };
 

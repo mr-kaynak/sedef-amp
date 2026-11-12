@@ -13,6 +13,7 @@
 #include "sedef/dsp/Fathom.h"
 #include "sedef/dsp/GraphicEq.h"
 #include "sedef/dsp/Metronome.h"
+#include "sedef/dsp/PitchShifter.h"
 #include "sedef/dsp/amp/AmpSection.h"
 #include "sedef/dsp/cab/CabSim.h"
 #include "sedef/dsp/capture/CaptureStage.h"
@@ -34,6 +35,7 @@ using P = ParamId;
 struct ChainSettings
 {
     float inputGain = 1.0f;
+    int transpose = 0;    // semitones
     PedalSettings pedals; // every pedal's, on the board or not (board/PedalList.inc)
     dsp::AmpSection::Settings amp;
     dsp::CabSim::Settings cab;
@@ -64,12 +66,16 @@ dsp::CabSim::MicSettings micSettings (const ParamSnapshot& p, int mic, int cab)
     return m;
 }
 
+int transposeSemitones (const ParamSnapshot& p) noexcept
+{
+    return std::clamp (static_cast<int> (std::lround (p[P::transpose])), -12, 12);
+}
+
 ChainSettings chainSettings (const ParamSnapshot& p)
 {
     ChainSettings s;
-    // P::transpose is kept for old sessions and ignored: transpose was removed in 0.3.0
-    // (docs/dsp/transpose.md, "Decision").
     s.inputGain = dbToGain (p[P::inputGain]);
+    s.transpose = transposeSemitones (p);
     s.pedals = PedalSettings::from (p);
 
     auto& a = s.amp;
@@ -184,10 +190,12 @@ struct StereoSlot
     }
 };
 
-/// One instrument chain: input gain -> the pedalboard -> amp -> cab. Mono in, stereo out.
+/// One instrument chain: input gain -> Transpose -> the pedalboard -> amp -> cab. Mono in,
+/// stereo out.
 struct Chain
 {
     LinearSmoothed inputGain;
+    dsp::PitchShifter transpose;
     PedalRack rack;
     dsp::AmpSection amp;
     dsp::CabSim cab;
@@ -195,6 +203,9 @@ struct Chain
 
     std::vector<float> buffer;
     std::vector<float> sidechain;
+    // The gate's sidechain, delayed by Transpose's latency (docs/dsp/transpose.md, section 7).
+    std::vector<float> sidechainDelay;
+    size_t sidechainMask = 0, sidechainWrite = 0;
     float inputPeak = 0.0f;
     bool snapGain = true;
 
@@ -202,6 +213,12 @@ struct Chain
     {
         const ProcessSpec mono { sampleRate, maxBlock, 1, oversampling };
         inputGain.reset (sampleRate, 0.02);
+        transpose.prepare (mono);
+        size_t size = 1;
+        while (size < static_cast<size_t> (dsp::PitchShifter::latencyFor (12, sampleRate)) + 1)
+            size <<= 1;
+        sidechainDelay.assign (size, 0.0f);
+        sidechainMask = size - 1;
         rack.prepare (mono);
         amp.prepare (mono);
         capture.prepare (mono, amp.latencySamples());
@@ -210,6 +227,7 @@ struct Chain
         sidechain.assign (static_cast<size_t> (maxBlock), 0.0f);
     }
 
+    /// From the pedalboard's input on, without Transpose (which the gate's sidechain shares).
     int latency() const noexcept
     {
         // Every pedal's latency, whatever is on the board (PedalRack keeps the delays).
@@ -219,6 +237,9 @@ struct Chain
     void reset() noexcept
     {
         snapGain = true;
+        transpose.reset();
+        std::fill (sidechainDelay.begin(), sidechainDelay.end(), 0.0f);
+        sidechainWrite = 0;
         rack.reset();
         amp.reset();
         capture.reset();
@@ -251,6 +272,10 @@ struct Chain
         }
         inputPeak = peak;
 
+        transpose.setSettings ({ s.transpose });
+        transpose.process (x, n);
+        delaySidechain (n, transpose.latencySamples());
+
         // Ducked on the way in and out while the board rewires (BoardSwitch).
         BoardSwitch::apply (x, duck.input, n);
         rack.process (x, sidechain.data(), n, s.pedals, leaving);
@@ -259,6 +284,20 @@ struct Chain
         capture.setSettings (s.capture);
         capture.process (amp, s.amp, AudioView (x, n));
         capture.processCab (cab, s.cab, x, stereoOut);
+    }
+
+    /// Delays the sidechain by `delay` samples (at most Transpose's largest latency), so the gate
+    /// hears an attack when the shifted attack reaches it.
+    void delaySidechain (int n, int delay) noexcept
+    {
+        float* sc = sidechain.data();
+        const auto d = static_cast<size_t> (delay);
+        for (int i = 0; i < n; ++i)
+        {
+            sidechainDelay[sidechainWrite] = sc[i];
+            sc[i] = sidechainDelay[(sidechainWrite - d) & sidechainMask];
+            sidechainWrite = (sidechainWrite + 1) & sidechainMask;
+        }
     }
 };
 
@@ -357,7 +396,17 @@ void Engine::prepare (double sampleRate, int maxBlockSize, int numInputs, int nu
     numInputs_.store (numInputs, std::memory_order_release);
     numOutputs_.store (numOutputs, std::memory_order_release);
     latency_.store (d.chains[0].latency(), std::memory_order_release);
+    transposeLatency_.store (d.chains[0].transpose.latencySamples(), std::memory_order_release);
     reset();
+}
+
+void Engine::expectTranspose (float semitones) noexcept
+{
+    auto& d = *impl_;
+    const int st = std::clamp (static_cast<int> (std::lround (semitones)), -12, 12);
+    for (auto& chain : d.chains)
+        chain.transpose.setSettings ({ st });
+    transposeLatency_.store (d.chains[0].transpose.latencySamples(), std::memory_order_release);
 }
 
 void Engine::reset()
@@ -650,6 +699,7 @@ void Engine::process (const float* const* inputs, float* const* outputs, int num
     telemetry_.boardChanging.store (d.board.changing (rack0), std::memory_order_relaxed);
     telemetry_.metronomeStep.store (d.metronome.currentStep(), std::memory_order_relaxed);
     telemetry_.driftTimeMs.store (d.drift.effectiveTimeMs(), std::memory_order_relaxed);
+    transposeLatency_.store (d.chains[0].transpose.latencySamples(), std::memory_order_release);
 }
 
 } // namespace sedef

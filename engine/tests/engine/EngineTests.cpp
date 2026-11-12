@@ -3,6 +3,7 @@
 #include "capture/CaptureTestUtils.h"
 #include "midi/MidiTestSignals.h"
 #include "sedef/Engine.h"
+#include "sedef/dsp/PitchShifter.h"
 #include "sedef/dsp/cab/CabSim.h"
 #include "sedef/dsp/capture/CaptureStage.h"
 
@@ -187,8 +188,12 @@ TEST_CASE ("Engine::process never allocates after prepare", "[engine]")
         {
             p[ParamId::ampModel] = static_cast<float> (model);
             p[ParamId::stereoMode] = static_cast<float> (model % 2);
+            // Transpose changes direction, turns off and on: new voices and a new model.
+            p[ParamId::transpose] = model == 1 ? 7.0f : (model == 2 ? 0.0f : -2.0f);
             rig.run (p, 16384, 4096 + model * 16384);
         }
+        p[ParamId::transpose] = -12.0f;
+        rig.run (p, 8192, 4096 + 3 * 16384);
     }
     CHECK (gAllocations.load() == 0);
 }
@@ -569,20 +574,82 @@ TEST_CASE ("Custom IRs installed before a two-input prepare reach both chains", 
     CHECK (left == right); // both chains convolve with the IR
 }
 
-TEST_CASE ("The transpose parameter is ignored", "[engine]")
+TEST_CASE ("Transpose's latency is reported and follows its direction", "[engine][transpose]")
 {
-    // Transpose was removed in 0.3.0 (docs/dsp/transpose.md); old sessions may still set it.
-    const auto render = [] (float semitones) {
-        Rig rig (48000.0, 64, 1, 2);
-        test::fillNoise (rig.in[0], 0.2f, 5);
-        auto p = ParamSnapshot::defaults();
-        p[ParamId::transpose] = semitones;
-        rig.run (p, 1 << 15);
-        return rig.out.data;
+    // docs/dsp/transpose.md, section 5: 3 ms down, 10 ms up, nothing at 0; steps that keep the
+    // direction keep the latency.
+    const double fs = GENERATE (44100.0, 48000.0);
+    Rig rig (fs, 128, 1, 2);
+    test::fillNoise (rig.in[0], 0.2f, 5);
+    auto p = ParamSnapshot::defaults();
+    rig.run (p, 1024);
+    const int base = rig.engine.latencySamples();
+    const auto down = static_cast<int> (std::lround (0.003 * fs));
+    const auto up = static_cast<int> (std::lround (0.010 * fs));
+    int offset = 1024;
+    for (const auto [st, added] :
+         { std::pair { -2, down }, std::pair { -5, down }, std::pair { 7, up },
+           std::pair { 12, up }, std::pair { 0, 0 }, std::pair { -12, down } })
+    {
+        CAPTURE (st);
+        p[ParamId::transpose] = static_cast<float> (st);
+        rig.run (p, 1024, offset);
+        offset += 1024;
+        CHECK (rig.engine.latencySamples() == base + added);
+    }
+
+    // Before the first block after prepare(), the host can already be told.
+    rig.engine.prepare (fs, 128, 1, 2);
+    rig.engine.expectTranspose (5.0f);
+    CHECK (rig.engine.latencySamples() == base + up);
+}
+
+TEST_CASE ("The gate follows Transpose's latency", "[engine][transpose]")
+{
+    // The gate listens to the DI (before input gain), delayed by Transpose's latency, so it
+    // closes when the shifted note has faded, not that much earlier. A decaying tone into a clean
+    // amp: the time the gated output falls 30 dB under the ungated one moves by the latency.
+    const double fs = 48000.0;
+    const auto gatedEnd = [fs] (int semitones) {
+        const auto render = [&] (bool gate) {
+            Rig rig (fs, 64, 1, 1);
+            for (int i = 0; i < static_cast<int> (0.6 * fs); ++i)
+            {
+                const double t = i / fs;
+                const double level = t < 0.2 ? 0.3 : 0.3 * std::exp (-(t - 0.2) / 0.05);
+                rig.in[0][static_cast<size_t> (i)] =
+                    static_cast<float> (level * std::sin (kTwoPiD * 220.0 * t));
+            }
+            auto p = ParamSnapshot::defaults();
+            p[ParamId::gateEnabled] = gate ? 1.0f : 0.0f;
+            p[ParamId::gateThreshold] = -40.0f;
+            p[ParamId::ampModel] = 0.0f;
+            p[ParamId::transpose] = static_cast<float> (semitones);
+            rig.run (p, static_cast<int> (0.6 * fs));
+            return rig.out[0];
+        };
+        const auto open = render (false), gated = render (true);
+        const auto energy = [] (const std::vector<float>& x, size_t i) {
+            double e = 0.0;
+            for (size_t k = i; k < i + 96; ++k)
+                e += static_cast<double> (x[k]) * x[k];
+            return e;
+        };
+        for (auto i = static_cast<size_t> (0.25 * fs); i < static_cast<size_t> (0.55 * fs); ++i)
+            if (energy (gated, i) < 1.0e-3 * energy (open, i))
+                return static_cast<double> (i);
+        return -1.0;
     };
-    const auto dry = render (0.0f);
-    CHECK (render (-5.0f) == dry);
-    CHECK (render (12.0f) == dry);
+    const double off = gatedEnd (0);
+    REQUIRE (off > 0.0);
+    for (int st : { -3, 5 })
+    {
+        CAPTURE (st);
+        const double latency = dsp::PitchShifter::latencyFor (st, fs);
+        // Without the delay the gate would close the whole latency early. (The shifted tone meets
+        // the amp at another pitch, so the crossing moves by a little more or less.)
+        CHECK (std::abs (gatedEnd (st) - off - latency) <= std::max (48.0, 0.3 * latency));
+    }
 }
 
 TEST_CASE ("Engine::process never allocates while captures play, switch and swap",

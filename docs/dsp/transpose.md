@@ -349,35 +349,35 @@ them).
 
 48 kHz, 64-sample blocks, `sedef-transpose-bench --candidates engine`. Latency columns in ms
 (mean over 40 attacks, their range, reported); purity, flam and attack in dB; rise in ms; pitch
-in cents. CPU is one core of an Apple M-series laptop, measured on a quiet machine for the
-shifts listed and about 1.8–2.1 % for the others.
+in cents. CPU is one core of an Apple M2, best of three runs, with the usual background load
+of a desktop (load average about 3); quieter runs measured 0.05–0.3 % less.
 
 | st | latency | range | reported | purity | flam | attack | rise | pitch med / p95 | CPU % |
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| −12 | 3.29 | 3.54 | 3.00 | −27.4 | 9.4 | 4.1 | 0.9 | 1.9 / 22.2 | 1.86 |
-| −11 | 3.17 | 3.31 | 3.00 | −27.0 | 8.1 | 3.4 | 1.8 | 1.8 / 21.4 | |
-| −10 | 3.14 | 3.22 | 3.00 | −27.5 | 8.7 | 3.4 | 4.3 | 1.4 / 18.0 | |
-| −9 | 2.95 | 6.12 | 3.00 | −27.7 | 8.1 | 4.0 | 4.0 | 1.3 / 17.2 | |
-| −8 | 3.03 | 2.23 | 3.00 | −27.9 | 7.0 | 2.5 | 3.8 | 1.6 / 17.3 | |
-| −7 | 2.91 | 4.39 | 3.00 | −27.3 | 7.1 | 4.5 | 4.0 | 1.6 / 14.7 | |
-| −6 | 2.90 | 3.83 | 3.00 | −27.7 | 5.0 | 4.5 | 4.6 | 1.7 / 14.0 | |
-| −5 | 3.00 | 0.28 | 3.00 | −28.1 | 5.5 | 1.8 | 4.2 | 1.4 / 12.9 | 1.78 |
-| −4 | 2.93 | 3.48 | 3.00 | −28.1 | 4.1 | 4.9 | 0.3 | 1.2 / 12.3 | |
-| −3 | 3.02 | 0.60 | 3.00 | −29.5 | 3.8 | 1.6 | 0.3 | 0.7 / 11.7 | |
-| −2 | 3.01 | 0.35 | 3.00 | −29.5 | 2.6 | 1.5 | 0.5 | 0.2 / 9.3 | 1.73 |
+| −12 | 3.29 | 3.54 | 3.00 | −27.4 | 9.4 | 4.1 | 0.9 | 1.9 / 22.2 | 1.88 |
+| −11 | 3.17 | 3.31 | 3.00 | −27.0 | 8.1 | 3.4 | 1.8 | 1.8 / 21.4 | 1.86 |
+| −10 | 3.14 | 3.22 | 3.00 | −27.5 | 8.7 | 3.4 | 4.3 | 1.4 / 18.0 | 1.85 |
+| −9 | 2.95 | 6.12 | 3.00 | −27.7 | 8.1 | 4.0 | 4.0 | 1.3 / 17.2 | 1.84 |
+| −8 | 3.03 | 2.23 | 3.00 | −27.9 | 7.0 | 2.5 | 3.8 | 1.6 / 17.3 | 1.82 |
+| −7 | 2.91 | 4.39 | 3.00 | −27.3 | 7.1 | 4.5 | 4.0 | 1.6 / 14.7 | 1.81 |
+| −6 | 2.90 | 3.83 | 3.00 | −27.7 | 5.0 | 4.5 | 4.6 | 1.7 / 14.0 | 1.80 |
+| −5 | 3.00 | 0.28 | 3.00 | −28.1 | 5.5 | 1.8 | 4.2 | 1.4 / 12.9 | 1.79 |
+| −4 | 2.93 | 3.48 | 3.00 | −28.1 | 4.1 | 4.9 | 0.3 | 1.2 / 12.3 | 1.77 |
+| −3 | 3.02 | 0.60 | 3.00 | −29.5 | 3.8 | 1.6 | 0.3 | 0.7 / 11.7 | 1.75 |
+| −2 | 3.01 | 0.35 | 3.00 | −29.5 | 2.6 | 1.5 | 0.5 | 0.2 / 9.3 | 1.74 |
 | −1 | 3.00 | 0.14 | 3.00 | −32.1 | 1.3 | 0.6 | 1.9 | 0.0 / 6.9 | 1.72 |
-| +1 | 10.00 | 0.21 | 10.00 | −32.8 | 0.4 | 0.5 | 0.2 | 0.0 / 6.2 | 1.73 |
-| +2 | 10.00 | 0.20 | 10.00 | −28.1 | 0.8 | 0.7 | 1.5 | 0.6 / 9.3 | 1.76 |
-| +3 | 9.99 | 0.25 | 10.00 | −27.7 | 4.1 | 0.7 | 1.5 | 0.5 / 9.8 | |
-| +4 | 9.98 | 0.55 | 10.00 | −27.2 | 2.3 | 0.9 | 1.2 | 0.7 / 9.6 | |
-| +5 | 9.91 | 3.18 | 10.00 | −27.0 | 5.8 | 1.2 | 1.6 | 0.5 / 11.0 | 1.86 |
-| +6 | 9.88 | 2.98 | 10.00 | −26.5 | 5.3 | 0.9 | 2.0 | 0.7 / 12.1 | |
-| +7 | 9.87 | 2.83 | 10.00 | −26.3 | 5.8 | 1.8 | 2.5 | 0.6 / 12.7 | 1.90 |
-| +8 | 9.85 | 2.74 | 10.00 | −26.0 | 5.8 | 1.5 | 1.3 | 0.7 / 14.6 | |
-| +9 | 9.85 | 2.59 | 10.00 | −25.4 | 6.5 | 1.6 | 1.1 | 1.0 / 13.8 | |
-| +10 | 9.83 | 2.45 | 10.00 | −24.6 | 7.8 | 1.7 | 1.2 | 1.2 / 14.1 | |
-| +11 | 9.83 | 2.33 | 10.00 | −23.5 | 5.0 | 1.9 | 1.1 | 1.3 / 18.1 | |
-| +12 | 9.85 | 2.21 | 10.00 | −20.8 | 6.6 | 2.4 | 0.7 | 0.8 / 17.0 | 2.05 |
+| +1 | 10.00 | 0.21 | 10.00 | −32.8 | 0.4 | 0.5 | 0.2 | 0.0 / 6.2 | 1.75 |
+| +2 | 10.00 | 0.20 | 10.00 | −28.1 | 0.8 | 0.7 | 1.5 | 0.6 / 9.3 | 1.77 |
+| +3 | 9.99 | 0.25 | 10.00 | −27.7 | 4.1 | 0.7 | 1.5 | 0.5 / 9.8 | 1.80 |
+| +4 | 9.98 | 0.55 | 10.00 | −27.2 | 2.3 | 0.9 | 1.2 | 0.7 / 9.6 | 1.83 |
+| +5 | 9.91 | 3.18 | 10.00 | −27.0 | 5.8 | 1.2 | 1.6 | 0.5 / 11.0 | 1.87 |
+| +6 | 9.88 | 2.98 | 10.00 | −26.5 | 5.3 | 0.9 | 2.0 | 0.7 / 12.1 | 1.90 |
+| +7 | 9.87 | 2.83 | 10.00 | −26.3 | 5.8 | 1.8 | 2.5 | 0.6 / 12.7 | 1.92 |
+| +8 | 9.85 | 2.74 | 10.00 | −26.0 | 5.8 | 1.5 | 1.3 | 0.7 / 14.6 | 1.99 |
+| +9 | 9.85 | 2.59 | 10.00 | −25.4 | 6.5 | 1.6 | 1.1 | 1.0 / 13.8 | 2.16 |
+| +10 | 9.83 | 2.45 | 10.00 | −24.6 | 7.8 | 1.7 | 1.2 | 1.2 / 14.1 | 2.28 |
+| +11 | 9.83 | 2.33 | 10.00 | −23.5 | 5.0 | 1.9 | 1.1 | 1.3 / 18.1 | 2.43 |
+| +12 | 9.85 | 2.21 | 10.00 | −20.8 | 6.6 | 2.4 | 0.7 | 0.8 / 17.0 | 2.38 |
 
 Every step clears timbre (≤ 0.06 dB), the pitch median (≤ 1.9 cents) and, at +12, aliasing
 (−75 dB). Both warbles clear their bars except the envelope warble at −11 and −10 (0.40 and
@@ -423,8 +423,9 @@ the chord take: at −2 st 9.7–36.6 cents against 4.9–15.4. See section 10.
   inside the 40 ms flam window. A longer latency would fix it, past B1's 10 ms.
 - **Pitch p95 (B11)** misses beyond ±2: the bend in the test line comes out up to 22 cents off
   at its fastest point, because the grains carry it while the model drops it (section 4.7).
-- **CPU (B13)** is at the 2 % bar at +12 and 48 kHz (2.05 %) and scales with the rate: 2.6–3.5 %
-  at 88.2–96 kHz, because the analysis window doubles. Dual mode runs one shifter per chain.
+- **CPU (B13)** clears the 2 % bar up to +8 and misses it from +9 to +12 (2.2–2.4 %): upward,
+  sustain splices come every 6–60 ms, and each searches 16 ms of offsets. At 88.2–96 kHz it
+  is 2.3–3.5 %, because the analysis window doubles. Dual mode runs one shifter per chain.
 - **Recorded DI** shows the 95th percentile of the frame-by-frame shift worse than 0.2.0's on
   two piezo recordings and a chord take (section 9). Not traced yet; the likeliest cause is the
   model being wrong for a few hops at note changes, where splices then carry its error.

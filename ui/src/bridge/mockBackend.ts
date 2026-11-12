@@ -21,6 +21,7 @@ import {
   type WrapperType,
 } from './protocol';
 import { cleanDetails, renameClashes, renamedPresetId, savedPresetId } from '../lib/presetFiles';
+import { transposeLatencyMs } from '../lib/transpose';
 import { bundledSchema, defaultValues, indexSchema } from '../params/schema';
 import { snapValue } from '../params/normalise';
 import { isGlobalParam, sameValue } from '../params/presetScope';
@@ -568,9 +569,11 @@ export class MockBackend implements Backend {
 
   // --- Internals ------------------------------------------------------------------------------
 
-  /** The rig's latency at the mock's 48 kHz: what the engine reports for each oversampling. */
+  /** The rig's latency at the mock's 48 kHz: what the engine reports for each oversampling,
+   * plus Transpose's while it shifts. */
   private latency(): number {
-    return this.value('oversampling') >= 0.5 ? 298 : 41;
+    const rig = this.value('oversampling') >= 0.5 ? 298 : 41;
+    return rig + Math.round((transposeLatencyMs(this.value('transpose')) * MOCK_RATE) / 1000);
   }
 
   private setValue(id: string, value: number): void {
@@ -579,8 +582,8 @@ export class MockBackend implements Backend {
     const next = snapValue(spec, value);
     if (this.values[id] === next) return;
     this.values[id] = next;
-    if (id === 'oversampling')
-      // Like the plug-in: prepared again, and the editor reports the new latency.
+    if (id === 'oversampling' || id === 'transpose')
+      // Like the plug-in: the editor reports the new latency.
       this.emit('sedef:session', {
         sampleRate: MOCK_RATE,
         latencySamples: this.latency(),

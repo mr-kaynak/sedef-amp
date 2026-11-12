@@ -1,0 +1,86 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* Under the input meter, as the Doubler's switch is under the output meter, so it takes no width
+   from the header. */
+.anchor {
+  position: relative;
+}
+
+/* The Doubler's chip (DoublerSwitch.module.css), with the same "on" look while it shifts or while
+   its panel is open. */
+.chip {
+  composes: switch from './DoublerSwitch.module.css';
+}
+
+.chip[aria-expanded='true'] {
+  color: var(--bone);
+  background: var(--on-fill);
+  border-color: var(--on-line);
+}
+
+/* Forced colors drop the fill: shifting keeps its edge in the selection colour. */
+@media (forced-colors: active) {
+  .chip[data-on] {
+    border-color: Highlight;
+  }
+}
+
+.value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.popover {
+  top: calc(100% + 10px);
+  left: -8px;
+}
+
+.panel {
+  width: 280px;
+  padding: 14px 16px 12px;
+}
+
+.heading {
+  margin: 0 0 10px;
+  color: var(--bone-2);
+  font-size: var(--t-12);
+  font-weight: 600;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+/* Sizes only: the well and its buttons are the shared stepper (controls/Button.module.css). */
+.stepper {
+  height: 32px;
+}
+
+.stepper button {
+  width: 32px;
+  height: 30px;
+  font-size: var(--t-16);
+}
+
+.stepper output {
+  min-width: 64px;
+  font-size: var(--t-14);
+  font-weight: 560;
+  font-variant-numeric: tabular-nums;
+}
+
+.reset {
+  font-size: var(--t-11);
+}
+
+.note {
+  margin: 10px 0 0;
+  color: var(--bone-3);
+  font-size: var(--t-11);
+  line-height: 1.45;
+}
+
+.note + .note {
+  margin-top: 4px;
+}

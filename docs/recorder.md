@@ -39,6 +39,10 @@ already is in a narrow plug-in window. A screen reader hears a take start, its f
 and how it ended ("Take saved, 1 minute 23 seconds, 2 dropouts") from a polite status region,
 with or without the panel open.
 
+![The Recorder panel while a take records: the stop button, the time, the levels going into the DI and Output files, and the folder they go to](images/recorder.png)
+
+![The Re-amp tab playing a recorded take through the rig, looping, with the live guitar muted, above the list of takes and files](images/reamp.png)
+
 ## 2. Signal points
 
 ```

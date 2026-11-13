@@ -18,12 +18,13 @@ Input ─► Tuner tap ─► Input Gain ─► Transpose ─► Pedalboard: the
       ─► Breaker (treble booster)
       ─► Amp (Lagoon | Reef | Abyss) ─► Cab (2 mics + room)
       ─► 9-band EQ (one bank per amp) ─► Doubler ─► Drift (tape echo)
-      ─► Fathom (plate | hall reverb) ─► Metronome ─► Output Gain ─► Output
+      ─► Fathom (plate | hall reverb) ─► Looper ─► Metronome ─► Output Gain ─► Output
 ```
 
-On top of the rig it ships musician tools: a precision chromatic tuner and a
+On top of the rig it ships musician tools: a precision chromatic tuner, a
 guided **intonation workbench** that tells a player which way, and roughly how
-far, to move each saddle.
+far, to move each saddle, and in the standalone app a metronome and a
+**looper** ([looper.md](looper.md)).
 
 ### Goals
 
@@ -96,6 +97,10 @@ Communication:
 - **Pedalboard → audio:** the board (an ordered, fixed-capacity list of pedal ids) goes
   through `core/RtMailbox.h`, a wait-free triple buffer in which the newest board wins. The
   engine picks it up at the start of a block ([The pedalboard](#the-pedalboard)).
+- **Looper → audio:** its memory (about 92 MB) is reserved once, on the message thread, the first
+  time the standalone app opens the looper, and published through one atomic pointer; presses go
+  through a lock-free SPSC queue read at the start of a block, and its state comes back through
+  `Engine::Telemetry` ([looper.md](looper.md#9-real-time-adr-0005)).
 - **Heavy objects → audio (IRs, captures):** built on the loader thread, published through
   `core/RtHandoff.h` (atomic pointer swap; the old object is reclaimed on the
   message thread, never freed on the audio thread). Captures use the same scheme with room for
@@ -174,7 +179,8 @@ own instead, so their tails ring out ("spillover") after being switched off.
 - `Channel`: Input Gain → Transpose → pedalboard (`PedalRack`) → Amp → Cab. Mono in, mono or
   stereo out. The gate's sidechain is delayed by Transpose's latency, which the engine adds to
   the latency it reports while Transpose shifts ([transpose.md](dsp/transpose.md)).
-- `PostChain`: EQ → Doubler → Drift → Fathom → Metronome → Output Gain. Stereo.
+- `PostChain`: EQ → Doubler → Drift → Fathom → Looper → Metronome → Output Gain. Stereo. The
+  looper records what reaches it and adds the loop there, so the click is never recorded.
 
 | Host layout | Mode | Graph |
 |---|---|---|
@@ -404,6 +410,7 @@ The EQ bank always follows the amp.
 | Drift | Multi-head tape echo, wow/flutter, tape drive | host/tap/free sync |
 | Fathom | Plate (Dattorro topology) and hall (FDN) | 1–60 s decay |
 | Doubler | Mono → stereo double tracking | second take re-timed per note, 3–20 ms spread; onsets from the DI |
+| Looper | Record, overdub with feedback, undo; free length or whole bars of the metronome, locked to it | standalone only; copy-on-write chunks for undo, 10 ms raised-cosine crossfades, latency-compensated writes ([looper.md](looper.md)) |
 
 Each module has a page in [`docs/dsp/`](dsp/) describing its model, the public
 references it is based on, and its test coverage.

@@ -11,8 +11,8 @@ const spec = (id: string) => {
 };
 
 describe('schema', () => {
-  it('bundles all 277 parameters', () => {
-    expect(bundledSchema).toHaveLength(277);
+  it('bundles all 280 parameters', () => {
+    expect(bundledSchema).toHaveLength(280);
   });
 });
 

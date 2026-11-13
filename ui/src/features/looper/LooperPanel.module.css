@@ -1,0 +1,236 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* The state's colour: recording red, overdub amber, playing nacre aqua; waiting a dim amber. */
+.panel {
+  --tone: var(--bone-3);
+  width: 400px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.panel[data-tone='record'] {
+  --tone: var(--coral);
+}
+
+.panel[data-tone='dub'] {
+  --tone: var(--amber);
+}
+
+.panel[data-tone='play'] {
+  --tone: var(--nacre-aqua);
+}
+
+.panel[data-tone='wait'] {
+  --tone: rgb(233 199 125 / 0.7);
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.mainWrap {
+  position: relative;
+  flex: none;
+  width: 84px;
+  height: 84px;
+  display: grid;
+  place-items: center;
+}
+
+.ring {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.ring [data-part='track'] {
+  stroke: var(--line-strong);
+}
+
+.ring [data-part='progress'] {
+  stroke: var(--tone);
+  transition: stroke var(--dur-1) var(--ease-out);
+}
+
+/* The big button: what the next press does (Record, Play, Overdub, Cancel). */
+.main {
+  width: 68px;
+  height: 68px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 35%, var(--ink-4), var(--ink-2) 70%);
+  color: var(--bone);
+  box-shadow: var(--shadow-hw);
+  transition:
+    border-color var(--dur-1) var(--ease-out),
+    color var(--dur-1) var(--ease-out),
+    scale 150ms ease-out;
+}
+
+/* Its own shadow would hide the global ring: the ring goes on top of it. */
+.main:focus-visible {
+  box-shadow: var(--focus), var(--shadow-hw);
+}
+
+@media (hover: hover) {
+  .main:not([aria-disabled='true']):hover {
+    border-color: var(--line-hover);
+  }
+}
+
+.main[aria-disabled='true'] {
+  opacity: var(--disabled-opacity);
+  cursor: default;
+}
+
+/* The icon takes the colour of what it starts: record red, overdub amber, play nacre. */
+.main[data-action='record'] {
+  color: var(--coral);
+}
+
+.main[data-action='overdub'] {
+  color: var(--amber);
+}
+
+.main[data-action='play'] {
+  color: var(--nacre-aqua);
+}
+
+.state {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.title {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-display);
+  font-size: var(--t-24);
+  font-style: italic;
+  font-weight: 500;
+  font-variation-settings: 'opsz' 28;
+  line-height: 1.1;
+  color: var(--bone);
+}
+
+.lamp {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--tone);
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.4);
+}
+
+.panel:is([data-tone='record'], [data-tone='dub'], [data-tone='play']) .lamp {
+  box-shadow:
+    0 0 0 1px rgb(0 0 0 / 0.4),
+    0 0 10px 1px var(--tone);
+}
+
+/* Recording breathes, where motion is welcome; otherwise it stays lit. */
+@media (prefers-reduced-motion: no-preference) {
+  .panel[data-tone='record'] .lamp {
+    animation: breathe 1.2s ease-in-out infinite;
+  }
+}
+
+@keyframes breathe {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.detail {
+  margin: 0;
+  color: var(--bone-2);
+  font-size: var(--t-14);
+  font-variant-numeric: tabular-nums;
+}
+
+.hint {
+  margin: 0;
+  color: var(--bone-3);
+  font-size: var(--t-12);
+  line-height: 1.35;
+  text-wrap: pretty;
+}
+
+.actions {
+  display: flex;
+  gap: 4px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.actions button {
+  flex: 1;
+  height: 34px;
+}
+
+.settings {
+  display: flex;
+  align-items: flex-end;
+  gap: 18px;
+}
+
+.countIn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding-bottom: 2px;
+}
+
+.note {
+  color: var(--bone-3);
+  font-size: var(--t-11);
+}
+
+.keys {
+  margin: 0;
+  color: var(--bone-3);
+  font-size: var(--t-11);
+}
+
+.keys kbd {
+  display: inline-block;
+  min-width: 18px;
+  padding: 1px 5px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-hw);
+  color: var(--bone-2);
+  font-family: var(--font-ui);
+  font-size: var(--t-10);
+  text-align: center;
+}
+
+/* Forced colors drop the fills: the ring, the lamp and the button keep system colours. */
+@media (forced-colors: active) {
+  .ring [data-part='progress'] {
+    stroke: Highlight;
+  }
+
+  .ring [data-part='track'] {
+    stroke: CanvasText;
+  }
+
+  .lamp {
+    background: Highlight;
+  }
+
+  .main {
+    border-color: ButtonText;
+  }
+}

@@ -50,6 +50,19 @@ public:
     /// Index of the step that sounded last, or -1 when stopped (telemetry for the UI).
     int currentStep() const noexcept;
 
+    /// Counting, or about to start at the next process() (after setSettings).
+    bool isRunning() const noexcept { return settings_.enabled && (running_ || startPending_); }
+    /// Samples per bar at the current settings (steps x interval).
+    double barSamples() const noexcept;
+    /// The samples, in the next `frames` that process() will be given, on which step 0 (a
+    /// downbeat) will sound: the same scheduler run forward on a copy of the state, so the result
+    /// is exactly what process() does. Call after setSettings(). Returns how many it wrote.
+    int downbeats (int frames, int* offsets, int maxOffsets) const noexcept;
+    /// A loop wraps on this sample of the next process() (docs/looper.md, "Lock"): a bar starts
+    /// there, its step 0 sounds there and the grid continues from it. A step that sounded less
+    /// than half a step before counts as that downbeat, so the click never doubles.
+    void alignDownbeat (int offset) noexcept;
+
 private:
     static constexpr int kMaxVoices = 4;
     static constexpr int kMaxPartials = 3;
@@ -100,6 +113,7 @@ private:
     long long anchor_ = 0;
     long long stepsSinceAnchor_ = 0;
     long long lastTrigger_ = 0;
+    long long startedAt_ = 0; ///< where the current run started (a trigger before it is stale)
     double interval_ = 0.0;
     int nextStep_ = 0;
     std::atomic<int> currentStep_ { -1 };

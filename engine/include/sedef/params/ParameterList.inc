@@ -211,7 +211,10 @@ SEDEF_PARAM(beaconDepth, "Beacon Depth", "Beacon", Float, 0.0f, 1.0f, 0.7f, 1.0f
 SEDEF_PARAM(beaconMode, "Beacon Mode", "Beacon", Choice, 0.0f, 1.0f, 0.0f, 1.0f, "", "Chorus|Vibrato", true)
 SEDEF_PARAM(trenchMode, "Trench Mode", "Trench", Choice, 0.0f, 1.0f, 0.0f, 1.0f, "", "Mono|Poly", true)
 SEDEF_PARAM(scene, "Scene", "Global", Choice, 0.0f, 7.0f, 0.0f, 1.0f, "", "1|2|3|4|5|6|7|8", true)
-// The board lane: every pedal's second copy (docs/board.md, section 7). Each mirrors the first copy's
+SEDEF_PARAM(looperLevel, "Looper Level", "Looper", Float, -30.0f, 6.0f, 0.0f, 1.0f, "dB", "", false)
+SEDEF_PARAM(looperFeedback, "Looper Feedback", "Looper", Float, 0.0f, 100.0f, 100.0f, 1.0f, "%", "", false)
+SEDEF_PARAM(looperCountIn, "Looper Count-in", "Looper", Bool, 0.0f, 1.0f, 0.0f, 1.0f, "", "", false)
+// Every pedal's second copy (docs/board.md, section 7). Each mirrors the first copy's
 // parameter of the same name, with the pedal id followed by 2; the switches start off.
 SEDEF_PARAM(gate2Enabled, "Gate 2", "Gate 2", Bool, 0.0f, 1.0f, 0.0f, 1.0f, "", "", true)
 SEDEF_PARAM(gate2Threshold, "Gate 2 Threshold", "Gate 2", Float, -96.0f, 0.0f, -72.0f, 1.0f, "dB", "", true)

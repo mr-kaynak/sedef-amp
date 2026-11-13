@@ -6,6 +6,24 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **A looper in the standalone app**, next to the metronome. One button, or the `L` key so a
+  hand stays on the guitar, records, closes the loop and plays it, then lays parts on top; press
+  it again to go back to playing. `Shift+L` stops. Up to two minutes at 48 kHz (one at 96).
+- **Loops that keep time with the click**: while the click runs, a loop starts exactly on the
+  next "1" (a press just after the "1" still catches it), the closing press is rounded to the
+  nearest bar line, and an optional one-bar count-in gives you a bar of clicks first. Once it
+  plays, the click stays locked to the loop, pass after pass. Without the click the loop is as
+  long as you played.
+- **Undo and Redo of the last overdub, and Clear with Undo.** Feedback sets how much of the old
+  take stays under a new part (100 %: all of it, 0 %: you replace it); Level sets how loud the
+  loop plays.
+- The looper records what you hear, effects included and the click left out, so you can change
+  presets and solo over your rhythm part. It allows for the interface's delay and Transpose's,
+  so what you play in time with the click plays back in time with it, layer after layer, and
+  every start, stop, punch-in and the seam where the loop wraps is a 10 ms crossfade: no clicks.
+
 ## [0.9.0] - 2026-11-13
 
 Play Sedef Amp live: learn any control to a foot controller, load presets with program changes and

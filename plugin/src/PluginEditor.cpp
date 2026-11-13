@@ -402,6 +402,21 @@ juce::WebBrowserComponent::Options SedefEditor::makeOptions()
     });
     fn ("sedef_metronome_tap",
         [&proc] (const juce::Array<juce::var>&, Completion done) { done (proc.tapTempo()); });
+    // The looper (docs/looper.md): the standalone app only. Opening it reserves its memory.
+    fn ("sedef_looper_open",
+        [&proc] (const juce::Array<juce::var>&, Completion done) { done (proc.openLooper()); });
+    fn ("sedef_looper_command", [&proc] (const juce::Array<juce::var>& a, Completion done) {
+        static const std::pair<const char*, LooperCommand> kCommands[] = {
+            { "main", LooperCommand::main },   { "stop", LooperCommand::stop },
+            { "undo", LooperCommand::undo },   { "redo", LooperCommand::redo },
+            { "clear", LooperCommand::clear },
+        };
+        const auto name = a.isEmpty() ? juce::String() : a[0].toString();
+        for (const auto& [text, command] : kCommands)
+            if (name == text && proc.openLooper())
+                proc.engine().looperCommand (command);
+        done ({});
+    });
     fn ("sedef_ui_setState", [&proc] (const juce::Array<juce::var>& a, Completion done) {
         if (!a.isEmpty())
             proc.setUiState (a[0]);
@@ -715,6 +730,26 @@ void SedefEditor::emitTelemetry()
     for (int c = 0; c < outs; ++c)
         out.add (toDb (t.outputPeak[static_cast<size_t> (c)].exchange (0.0f)));
 
+    juce::var looper;
+    if (processor_.isStandalone())
+    {
+        static constexpr const char* kStates[] = { "unavailable", "empty",   "armed",
+                                                   "recording",   "closing", "playing",
+                                                   "overdubbing", "stopped" };
+        const int state = juce::jlimit (0, 7, t.looperState.load());
+        const int flags = t.looperFlags.load();
+        looper = object ({ { "state", kStates[state] },
+                           { "length", t.looperLength.load() },
+                           { "position", t.looperPosition.load() },
+                           { "bars", t.looperBars.load() },
+                           { "waitBars", t.looperWait.load() },
+                           { "armedForPlay", (flags & Engine::kLooperArmedForPlay) != 0 },
+                           { "synced", (flags & Engine::kLooperSynced) != 0 },
+                           { "canUndo", (flags & Engine::kLooperCanUndo) != 0 },
+                           { "canRedo", (flags & Engine::kLooperCanRedo) != 0 },
+                           { "undoIsClear", (flags & Engine::kLooperUndoIsClear) != 0 } });
+    }
+
     browser_->emitEventIfBrowserIsVisible (
         "sedef:telemetry", object ({ { "inputDb", in },
                                      { "outputDb", out },
@@ -727,6 +762,7 @@ void SedefEditor::emitTelemetry()
                                      { "tide2ReductionDb", t.tide2ReductionDb.load() },
                                      { "metronomeStep", t.metronomeStep.load() },
                                      { "driftTimeMs", t.driftTimeMs.load() },
+                                     { "looper", looper },
                                      { "cpu", processor_.cpuLoad() } }));
 }
 

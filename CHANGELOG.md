@@ -6,6 +6,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-11-13
+
+Sedef MIDI reads each note from the moment you pick it, so notes come sooner, with the maths and the
+tests that keep them right; and the input meter now tells you when your level is right.
+
 ### Added
 
 - **Sedef MIDI is tested to play the same whatever the host does**: the same notes at the same
@@ -520,7 +525,8 @@ The first public build: a complete guitar rig with a tuner and an intonation wor
 - Every CI build is checked with pluginval (strictness 8), clap-validator and auval, and a smoke
   test opens the editor in a real host and WebView on every OS.
 
-[Unreleased]: https://github.com/mr-kaynak/sedef-amp/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/mr-kaynak/sedef-amp/compare/v0.8.1...HEAD
+[0.8.1]: https://github.com/mr-kaynak/sedef-amp/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.5.0...v0.6.0

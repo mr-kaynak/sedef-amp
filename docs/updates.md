@@ -95,7 +95,7 @@ One HTTPS request per check, and nothing else:
 GET https://api.github.com/repos/mr-kaynak/sedef-amp/releases/latest
 Accept: application/vnd.github+json
 X-GitHub-Api-Version: 2022-11-28
-User-Agent: SedefAmp/0.8.0 (macOS)
+User-Agent: SedefAmp/0.8.1 (macOS)
 ```
 
 The User-Agent carries the Sedef version and the OS family, nothing more: no identifier, no OS

@@ -188,6 +188,15 @@
   }
 }
 
+/* Its own shadows would replace the global focus ring (same specificity, later): the ring goes
+   in front of them. */
+.amp:focus-visible {
+  box-shadow:
+    var(--focus),
+    inset 0 1px 0 rgb(255 255 255 / 0.18),
+    inset 0 -2px 0 rgb(0 0 0 / 0.25);
+}
+
 .amp:focus-visible .ampGo {
   opacity: 1;
 }

@@ -192,8 +192,8 @@ describe('PedalBoard', () => {
       const kelp = within(picker()).getByRole('button', {
         name: 'Add another Kelp, mid overdrive',
       });
-      expect(within(kelp).getByText('On the board')).toBeInTheDocument();
-      expect(within(kelp).getByText('Add another')).toBeInTheDocument();
+      expect(within(kelp).getByText('Another')).toBeInTheDocument();
+      expect(kelp.closest('li')).toHaveAttribute('data-on-board');
       fireEvent.click(kelp);
       await settle();
       expect(shown()).toEqual(['gate', 'kelp', 'kelp#2', 'ripple']);
@@ -233,13 +233,13 @@ describe('PedalBoard', () => {
       await start({ board: ['gate', ...drives] });
       fireEvent.click(screen.getByRole('button', { name: 'Add pedal' }));
       const kelp = within(picker()).getByRole('button', {
-        name: 'Add another Kelp, mid overdrive',
+        name: 'Add another Kelp, mid overdrive, 7 drives max',
       });
       expect(kelp).toHaveAttribute('aria-disabled', 'true');
       expect(kelp).toHaveAccessibleDescription(
         'Mid-hump drive, or a tight boost into a high-gain amp. The board holds 7 drives and fuzzes at most.',
       );
-      expect(within(kelp).getByText('7 drives and fuzzes at most')).toBeInTheDocument();
+      expect(within(kelp).getByText('7 drives max')).toBeInTheDocument();
       fireEvent.click(kelp);
       await settle();
       expect(shown()).toEqual(['gate', ...drives]);
@@ -309,7 +309,8 @@ describe('PedalBoard', () => {
         'Add Gate, noise gate',
         'Add another Tide, compressor',
       ]);
-      expect(within(dynamics[1]!).getByText('On the board')).toBeInTheDocument();
+      expect(within(dynamics[1]!).getByText('Another')).toBeInTheDocument();
+      expect(dynamics[1]!.closest('li')).toHaveAttribute('data-on-board');
       expect(within(dynamics[0]!).getByText('Add')).toBeInTheDocument();
       // The first row takes focus, so the keyboard starts in the list.
       expect(dynamics[0]).toHaveFocus();
@@ -375,7 +376,7 @@ describe('PedalBoard', () => {
         screen.getByRole('region', { name: 'Tide Compressor' }).style.getPropertyValue('--u');
       expect(unit()).toBe('1.4px');
       fireEvent.click(screen.getByRole('button', { name: 'Add pedal' }));
-      expect(unit()).toBe('1.2px');
+      expect(unit()).toBe('1.08px');
       fireEvent.click(within(picker()).getByRole('button', { name: 'Close' }));
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
       expect(unit()).toBe('1.4px');

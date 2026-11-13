@@ -37,16 +37,26 @@ function EqStatus() {
   return <Leds ids={[`eq${amp}Enabled`]} />;
 }
 
-/** A lamp per pedal on the board, in its order; past eight, a count of the rest. */
+/**
+ * A lamp per pedal on the board, in its order, up to eight. Past eight, five lamps and a count of
+ * the rest ("+20" on the largest board), so the tab is never wider than with eight pedals: the
+ * row is full (Transpose and the scenes follow).
+ */
 const MAX_PEDAL_LEDS = 8;
+const LEDS_BESIDE_COUNT = 5;
+
+function pedalLamps(count: number): { lamps: number; more: number } {
+  const lamps = count > MAX_PEDAL_LEDS ? LEDS_BESIDE_COUNT : count;
+  return { lamps, more: count - lamps };
+}
 
 function PedalsStatus() {
   const pedals = useBoardStore((s) => s.pedals).filter((token) => token !== AMP);
+  const { lamps, more } = pedalLamps(pedals.length);
   const enables = pedals
-    .slice(0, MAX_PEDAL_LEDS)
+    .slice(0, lamps)
     .map(enableOf)
     .filter((id) => id !== '');
-  const more = pedals.length - MAX_PEDAL_LEDS;
   return (
     <>
       <Leds ids={enables} />

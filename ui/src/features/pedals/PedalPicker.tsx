@@ -186,19 +186,22 @@ export function PedalPicker({
                   const describedBy = `${titleId}-${p.id}`;
                   const afterId = `${titleId}-${p.id}-after`;
                   const size = pedalBox(p.id);
+                  // The card's line is short, so sixteen cards fit the shelf's width; the name and
+                  // the description say it in full.
+                  const drivesMax = `${LATENCY_SLOTS} drives max`;
                   const label =
                     blocked === 'both'
                       ? `${p.name}, ${kind}, both on the board. Show them`
-                      : `Add ${copies > 0 ? 'another ' : ''}${p.name}, ${kind}`;
+                      : `Add ${copies > 0 ? 'another ' : ''}${p.name}, ${kind}${blocked === 'drives' ? `, ${drivesMax}` : ''}`;
                   const state =
                     blocked === 'both' ? (
-                      'Both on the board'
+                      'Both on board'
                     ) : blocked === 'drives' ? (
-                      `${LATENCY_SLOTS} drives and fuzzes at most`
+                      drivesMax
                     ) : copies > 0 ? (
                       <>
                         <Icon name="plus" size={10} />
-                        Add another
+                        Another
                       </>
                     ) : (
                       <>
@@ -241,15 +244,12 @@ export function PedalPicker({
                         }}
                       >
                         <span className={styles.name}>{p.name}</span>
-                        {copies > 0 && blocked !== 'both' && (
-                          <span className={styles.onBoard}>On the board</span>
-                        )}
                         <span className={styles.state}>{state}</span>
                       </button>
                       {p.afterAmp && (
                         <button
                           type="button"
-                          className={styles.after}
+                          className={`${buttons.press} ${styles.after}`}
                           data-pedal-card={p.id}
                           aria-label={`Add ${copies > 0 ? 'another ' : ''}${p.name} after the amp`}
                           aria-describedby={afterId}
@@ -262,8 +262,9 @@ export function PedalPicker({
                             if (afterAmp) onAdd(p.id, 'post');
                           }}
                         >
-                          <Icon name="plus" size={9} />
-                          After the amp
+                          After
+                          <br />
+                          the amp
                         </button>
                       )}
                       <span id={describedBy} className="visually-hidden">

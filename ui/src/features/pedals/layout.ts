@@ -48,8 +48,12 @@ function metrics(scale: number): Metrics {
   };
 }
 
-/** The largest the board is drawn while the Add pedal shelf takes the lower part of the page. */
-const SHELF_SCALE = 1.2;
+/**
+ * The largest the board is drawn while the Add pedal shelf takes the lower part of the page: 317 px
+ * are left between the toolbar and the shelf (its modulation cards carry After the amp), and a
+ * row of the tallest pedals at 1.08 is 302 px plus the padding.
+ */
+const SHELF_SCALE = 1.08;
 
 export interface Rect {
   x: number;

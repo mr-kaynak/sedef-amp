@@ -183,11 +183,11 @@ describe('the board layout', () => {
   });
 
   it('draws the board no larger than fits above the Add pedal shelf while it is open', () => {
-    expect(layoutBoard(['gate', 'pearl'], false).scale).toBe(1.2);
+    expect(layoutBoard(['gate', 'pearl'], false).scale).toBe(1.08);
     expect(layoutBoard(['gate', 'pearl'], true).scale).toBe(1.4);
     const open = layoutBoard(['gate', 'trench', 'pearl'], false);
-    // 350 px are left between the toolbar and the shelf.
-    expect(open.height).toBeLessThanOrEqual(350);
+    // 317 px are left between the toolbar and the shelf.
+    expect(open.height).toBeLessThanOrEqual(317);
   });
 
   it('runs the cable from the input jack to the amp, turning back between rows', () => {

@@ -7,7 +7,8 @@
 //   ?errors=3.6,-2.4,1.1             12th-fret errors (cents) the simulated guitar produces
 //   ?preset=soft-focus               start from a factory preset (slug, default nacre)
 //   ?set=pearlEnabled:1,pearlGain:0.4  parameter values applied as part of that preset
-//   ?board=gate,pearl,ripple         the pedalboard, as part of that preset
+//   ?board=gate,pearl,ripple         the pedalboard, as part of that preset (kelp%232: a second
+//                                    Kelp; amp: the pedals after it stand after the amp)
 //   ?freeze                          no simulation: static meters, pitch only from the demo hook
 //   ?demo                            expose window.__sedefDemo for scripted frames (captures)
 //   ?grain=0                         hide the lacquer grain (smaller screenshots)

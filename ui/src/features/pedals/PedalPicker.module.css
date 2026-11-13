@@ -202,3 +202,71 @@
 .card[data-on-board] .state {
   color: var(--nacre-aqua);
 }
+
+/* Every copy is on the board, or the board holds its drives and fuzzes: the card says so and
+   adds nothing. It stays focusable, so the reason can be read. */
+.card[data-blocked] .thumb {
+  opacity: 0.5;
+}
+
+.pick[aria-disabled] {
+  cursor: default;
+}
+
+@media (hover: hover) {
+  .pick[aria-disabled]:hover::after {
+    background: transparent;
+    border-color: transparent;
+  }
+}
+
+/* Modulation's second way on: after the amp, on two lines so the card stays as narrow as the
+   others. It stands above the card's own button, which covers the card. */
+.after {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  margin-top: -2px;
+  padding: 2px 7px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-ctl);
+  background: transparent;
+  color: var(--bone-2);
+  font-size: var(--t-10);
+  font-stretch: var(--legend-stretch);
+  font-weight: 500;
+  line-height: 1.15;
+  text-align: center;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    color var(--dur-1) var(--ease-out),
+    background-color var(--dur-1) var(--ease-out),
+    border-color var(--dur-1) var(--ease-out),
+    scale 150ms ease-out;
+}
+
+@media (hover: hover) {
+  .after:not([aria-disabled]):hover {
+    border-color: var(--line-hover);
+    background: rgb(237 230 214 / 0.08);
+    color: var(--bone);
+  }
+}
+
+.after:focus-visible {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  box-shadow: var(--focus);
+}
+
+.after[aria-disabled] {
+  opacity: var(--disabled-opacity);
+  cursor: default;
+}
+
+/* A press on a button that can't add doesn't press. */
+.card .after[aria-disabled]:active {
+  scale: 1;
+}

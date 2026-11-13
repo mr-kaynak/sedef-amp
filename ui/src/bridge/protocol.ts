@@ -125,6 +125,101 @@ export interface BoardState {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Playing live: MIDI learn, program changes and scenes (docs/live.md). Bindings and program
+// assignments are the player's (midi.json, shared by every instance); scenes belong to a preset.
+
+/** How a footswitch drives a switch-like target: Toggle flips on presses, Latch follows. */
+export type LiveSwitchMode = 'toggle' | 'latch';
+
+/**
+ * What a binding drives: "param:<id>", "scene:<1-8>", "scene:next", "scene:previous",
+ * "preset:next" or "preset:previous".
+ */
+export type LiveTarget = string;
+
+export interface LiveBinding {
+  /** Position in the list; the edit calls take it. */
+  index: number;
+  target: LiveTarget;
+  /** 1-16. */
+  channel: number;
+  /** The control change number. */
+  controller: number;
+  /** A switch-like target (an on/off parameter, a scene or a preset step): `mode` applies. */
+  switch: boolean;
+  mode: LiveSwitchMode;
+  /** Continuous targets: the knob's travel (0-1, normalised) at controller 0 and at 127. */
+  low: number;
+  high: number;
+}
+
+export interface LiveProgram {
+  /** 1-128, as controllers label them. */
+  program: number;
+  /** The preset it loads, or */
+  preset?: string;
+  /** the scene it selects, 0-7. */
+  scene?: number;
+}
+
+export interface LiveLearn {
+  target: LiveTarget;
+  /**
+   * waiting: for the controller; listening: bound, watching a footswitch for its release (at
+   * most 1.5 s); done: bound (`binding` is its index), until the editor dismisses it.
+   */
+  phase: 'waiting' | 'listening' | 'done';
+  binding: number;
+}
+
+export interface LiveInput {
+  id: string;
+  name: string;
+  enabled: boolean;
+}
+
+export interface LiveState {
+  scenes: {
+    /** The scene in use, 0-7. */
+    active: number;
+    count: number;
+    /** Per scene: made (selected at least once, or saved with the preset). */
+    made: boolean[];
+    /** Values the player picked to keep per scene (parameter ids). */
+    values: string[];
+    maxValues: number;
+    /** The switches every scene holds (parameter ids). */
+    switches: string[];
+  };
+  bindings: LiveBinding[];
+  maxBindings: number;
+  programs: {
+    /** 0: any channel, else 1-16. */
+    channel: number;
+    assigned: LiveProgram[];
+  };
+  learn: LiveLearn | null;
+  /**
+   * What MIDI reaches this format: "full" (controllers and program changes), "controllers"
+   * (VST3: no program changes), "host" (AU: what the host sends; Logic sends effects none).
+   */
+  midiIn: 'full' | 'controllers' | 'host';
+  /** The standalone app's MIDI inputs; null in plug-ins (the host routes MIDI). */
+  inputs: LiveInput[] | null;
+  /** Counts up; drop a state older than the one you have. */
+  revision?: number;
+}
+
+/** The last control or program change that arrived, for the activity light. */
+export interface LiveActivity {
+  /** How many have arrived since the plug-in started. */
+  count: number;
+  status: number;
+  data1: number;
+  data2: number;
+}
+
+// ---------------------------------------------------------------------------------------------
 // Custom impulse responses (one slot per mic x cab)
 
 export interface IrSlot {
@@ -314,6 +409,10 @@ export interface HelloResponse {
   board?: BoardState;
   /** The recorder and re-amp: the standalone app only (null in a plug-in; absent before 0.10.0). */
   recorder?: RecorderBridgeState | null;
+  /** Absent from plug-ins built before 0.10.0 (no MIDI, no scenes). */
+  live?: LiveState;
+  /** The last control or program change before the editor opened. */
+  liveActivity?: LiveActivity;
 }
 
 /** UI-owned state persisted inside the plugin state. The plugin treats it as opaque JSON. */
@@ -387,6 +486,36 @@ export interface NativeFunctions {
    * engine takes it at the next block, through bypass fades or a short duck.
    */
   sedef_board_set(pedals: string[]): BoardState;
+
+  /** Live (docs/live.md). Every call answers with the live state. */
+  sedef_live_get(): LiveState;
+  /** Selects a scene (0-7). A scene not made yet is made as a copy of the one in use. */
+  sedef_live_selectScene(scene: number): LiveState;
+  /** Puts the sound of the scene in use into another scene (0-7), making it. */
+  sedef_live_copyScene(scene: number): LiveState;
+  /** Keeps a continuous parameter per scene, or the same in every scene again. */
+  sedef_live_remember(id: string, remember: boolean): LiveState;
+  /** Waits for a controller to bind to the target; the next control change does it. */
+  sedef_live_learn(target: LiveTarget): LiveState;
+  /** Ends learn: waiting stops, a result is dismissed. */
+  sedef_live_cancelLearn(): LiveState;
+  /** Removes the binding of a target. */
+  sedef_live_forget(target: LiveTarget): LiveState;
+  sedef_live_updateBinding(
+    index: number,
+    changes: Partial<Pick<LiveBinding, 'mode' | 'low' | 'high'>>,
+  ): LiveState;
+  sedef_live_removeBinding(index: number): LiveState;
+  sedef_live_clearBindings(): LiveState;
+  /** Assigns a program (1-128) to a preset or a scene (0-7); null goes back to library order. */
+  sedef_live_setProgram(
+    program: number,
+    target: { preset: string } | { scene: number } | null,
+  ): LiveState;
+  /** 0: any channel, else 1-16. */
+  sedef_live_setProgramChannel(channel: number): LiveState;
+  /** The standalone app's MIDI inputs. */
+  sedef_live_setInput(id: string, enabled: boolean): LiveState;
 
   /** Starts/stops pitch analysis (tuner and intonation). Events flow only while active. */
   sedef_tuner_setActive(active: boolean): void;
@@ -621,6 +750,10 @@ export interface Events {
   'sedef:update': UpdateState;
   /** The recorder or re-amp changed state (standalone app). */
   'sedef:recorder': RecorderBridgeState;
+  /** Scenes, bindings, program assignments or learn changed (a footswitch, another window). */
+  'sedef:live': LiveState;
+  /** A control or program change arrived (at most 15 Hz). */
+  'sedef:liveActivity': LiveActivity;
 }
 
 export type EventName = keyof Events;

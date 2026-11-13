@@ -9,6 +9,7 @@ import { NO_CAPTURE, useAppStore } from '../state/appStore';
 import { setBackend } from '../state/backendRef';
 import { resetBoardStore } from '../state/boardStore';
 import { pitch, telemetry } from '../state/live';
+import { resetLiveStore } from '../state/liveStore';
 import { EMPTY_PRESET_STATE, usePresetStore } from '../state/presetStore';
 import { useToastStore } from '../state/toastStore';
 import { resetBrowserSession } from '../features/presets/session';
@@ -26,6 +27,7 @@ export function resetStores(): void {
   resetBrowserSession();
   useToastStore.setState({ toast: null });
   resetBoardStore();
+  resetLiveStore();
   useUiStore.setState({
     section: 'amp',
     overlay: null,

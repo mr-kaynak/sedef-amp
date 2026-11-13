@@ -105,6 +105,7 @@ export function PresetBar() {
           type="button"
           className={`${buttons.press} ${styles.step}`}
           aria-label="Previous preset"
+          data-learn="preset:previous"
           aria-keyshortcuts="["
           title="Previous preset ([)"
           onClick={() => void stepPreset(-1)}
@@ -136,6 +137,7 @@ export function PresetBar() {
           type="button"
           className={`${buttons.press} ${styles.step}`}
           aria-label="Next preset"
+          data-learn="preset:next"
           aria-keyshortcuts="]"
           title="Next preset (])"
           onClick={() => void stepPreset(1)}

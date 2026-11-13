@@ -2,6 +2,7 @@
 // The real factory presets (presets/factory/*.sedefpreset), bundled at build time so the browser
 // mock offers exactly what the plugin ships. Ids follow PresetManager: "factory:<slug>", the slug
 // from the file's "id" (it survives a rename), else from its name.
+import type { ScenesFile } from './liveSim';
 import type { PresetInfo } from '../protocol';
 import { isGlobalParam, slugify } from '../../params/presetScope';
 import { bundledSchema, indexSchema } from '../../params/schema';
@@ -14,6 +15,8 @@ export interface MockPreset {
   values: Record<string, number>;
   /** Its pedalboard; absent in presets saved before the board (they get legacyBoardFor). */
   board?: string[];
+  /** Its scenes (docs/live.md §6.4); absent when only the scene it was saved in is made. */
+  scenes?: ScenesFile;
 }
 
 interface PresetFile {

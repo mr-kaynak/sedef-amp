@@ -11,6 +11,7 @@ import { pitch, telemetry } from '../state/live';
 import { applyPresetState } from '../state/presetStore';
 import { applyBoardState } from '../state/boardStore';
 import { applyRecorderState } from '../features/recorder/store';
+import { applyLiveActivity, applyLiveState } from '../state/liveStore';
 import { connectUpdates } from '../features/updates/updateStore';
 import { startInputLevel } from '../features/header/inputLevel';
 import { useUiStore } from '../state/uiStore';
@@ -32,6 +33,7 @@ export async function createBackend(flags: DemoFlags): Promise<Backend> {
     ...(flags.board ? { board: flags.board } : {}),
     ...(flags.input ? { input: flags.input } : {}),
     ...(flags.recorder ? { recorder: flags.recorder } : {}),
+    liveDemo: flags.midi,
   });
 }
 
@@ -48,6 +50,8 @@ export async function connect(backend: Backend): Promise<() => void> {
     backend.on('sedef:board', (board) => applyBoardState(board)),
     backend.on('sedef:session', (e) => applySession(e)),
     backend.on('sedef:recorder', (state) => applyRecorderState(state)),
+    backend.on('sedef:live', (s) => applyLiveState(s)),
+    backend.on('sedef:liveActivity', (a) => applyLiveActivity(a)),
   ];
 
   try {
@@ -55,6 +59,8 @@ export async function connect(backend: Backend): Promise<() => void> {
     initParams(hello.schema, hello.values);
     applyPresetState(hello.presets);
     applyBoardState(hello.board);
+    applyLiveState(hello.live);
+    if (hello.liveActivity) applyLiveActivity(hello.liveActivity);
     applyHello(hello, backend.kind);
     applyRecorderState(hello.recorder ?? null);
     hydrateUiState(hello.uiState);

@@ -115,7 +115,9 @@ juce_add_plugin(SedefAmp
     PLUGIN_CODE Sda1
     FORMATS AU VST3 Standalone
     IS_SYNTH FALSE
-    NEEDS_MIDI_INPUT FALSE
+    # MIDI in for playing live (docs/live.md §2). AU_MAIN_TYPE below stays aufx, so the AU keeps
+    # its identity; VST3 gains an event bus and CLAP a note port, ids and audio buses unchanged.
+    NEEDS_MIDI_INPUT TRUE
     NEEDS_MIDI_OUTPUT FALSE
     IS_MIDI_EFFECT FALSE
     EDITOR_WANTS_KEYBOARD_FOCUS TRUE
@@ -266,8 +268,9 @@ if(SEDEF_BUILD_PLUGIN_TESTS)
 
     juce_add_console_app(sedef_plugin_tests PRODUCT_NAME "sedef_plugin_tests")
     target_sources(sedef_plugin_tests PRIVATE
-        tests/BoardStateTests.cpp tests/RecorderTests.cpp
+        tests/BoardStateTests.cpp tests/LiveStateTests.cpp tests/RecorderTests.cpp
         src/PluginProcessor.cpp src/PluginProcessor.h src/PresetManager.cpp src/PresetManager.h
+        src/LiveState.cpp src/LiveState.h src/LiveSettings.cpp src/LiveSettings.h
         src/BoardText.cpp src/BoardText.h src/ParameterLayout.cpp src/ParameterLayout.h
         src/CaptureLibrary.cpp src/CaptureLibrary.h src/IrLibrary.cpp src/IrLibrary.h
         src/AnalysisWorker.cpp src/AnalysisWorker.h

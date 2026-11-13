@@ -4,6 +4,7 @@ import { useParamValue } from '../params/useParam';
 import { useAppStore } from '../state/appStore';
 import { clock } from '../features/recorder/format';
 import { telemetry, useLiveSelector } from '../state/live';
+import { UpdatePill } from '../features/updates/UpdateSlot';
 import styles from './StatusBar.module.css';
 
 /** A take recording or a file re-amping (docs/recorder.md): always in sight, the preset browser
@@ -47,6 +48,7 @@ export function StatusBar() {
       )}
       <span className={styles.spacer} />
       <RecorderStatus />
+      <UpdatePill />
       <span aria-label="Audio processing load">DSP {cpu === null ? '—' : `${cpu}%`}</span>
     </footer>
   );

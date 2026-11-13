@@ -24,6 +24,7 @@ SedefProcessor::SedefProcessor()
         raw_[i] = state_.getRawParameterValue (toJuce (kParamSpecs[i].id));
         jassert (raw_[i] != nullptr);
     }
+    live_ = std::make_unique<LiveState> (*this);
     engine_.setMetronomePattern (metronomePattern_);
     engine_.setBoard (board_);
     if (isStandalone())
@@ -45,11 +46,13 @@ SedefProcessor::SedefProcessor()
           [this] (const juce::var& ref, bool exact) { captures_.select (ref, exact); },
           [this] (const juce::var& ref) { return captures_.differs (ref); },
           {},
-          false });
+          false,
+          {} });
     // Presets carry the pedalboard. One saved before it existed loads the board that matches its
     // parameters (Board::legacyFor). Init, which has no file and so no parameters, gets only the
     // pedals the defaults switch on, as a fresh instance does (board_).
-    presets_.addAttachment ({ "board", [this] (bool) { return boardToVar (board()); },
+    presets_.addAttachment ({ "board",
+                              [this] (bool) { return boardToVar (board()); },
                               [this] (const juce::var& ref, bool) {
                                   if (const auto b = boardFromVar (ref))
                                       setBoard (*b);
@@ -65,7 +68,18 @@ SedefProcessor::SedefProcessor()
                                                          ? legacyBoardFor (parameters)
                                                          : switchedOnBoardFor (parameters));
                               },
-                              true });
+                              true,
+                              {} });
+    // Presets carry their scenes (docs/live.md §6.4); the scenes judge their own parameters for
+    // "dirty", scene by scene.
+    presets_.addAttachment (
+        { "scenes", [this] (bool forPreset) { return live_->reference (forPreset); },
+          [this] (const juce::var& ref, bool exact) { live_->select (ref, exact); },
+          [this] (const juce::var& ref) { return live_->differs (ref); },
+          [this] (const juce::var& stored, const juce::var& parameters) {
+              return live_->resolve (stored, parameters);
+          },
+          true, [this] (ParamId id) { return live_->owns (id); } });
     startTimerHz (20);
 }
 
@@ -134,7 +148,7 @@ void SedefProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     });
 }
 
-void SedefProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
+void SedefProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
 {
     const int numSamples = buffer.getNumSamples();
     const juce::AudioProcessLoadMeasurer::ScopedTimer timer (loadMeasurer_, numSamples);
@@ -145,9 +159,27 @@ void SedefProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiB
         return;
     }
 
+    // The live layer (docs/live.md §7.1): overrides the message thread acknowledged end before
+    // the parameters are read; then the block's controllers and program changes, in order.
+    auto& liveControl = live_->control();
+    liveControl.acknowledge();
     ParamSnapshot snapshot;
     for (std::size_t i = 0; i < kNumParams; ++i)
         snapshot.values[i] = raw_[i]->load (std::memory_order_relaxed);
+    std::array<live::MidiMessage, 512> messages;
+    int count = 0;
+    for (const auto event : midi)
+    {
+        if (count == static_cast<int> (messages.size()))
+            break; // more than a controller sends: the rest is dropped (§7.3)
+        const auto* d = event.data;
+        const int kind = event.numBytes >= 2 ? (d[0] & 0xf0) : 0;
+        if ((kind == 0xb0 && event.numBytes >= 3) || kind == 0xc0)
+            messages[static_cast<std::size_t> (count++)] = { d[0], d[1],
+                                                             kind == 0xb0 ? d[2]
+                                                                          : std::uint8_t {} };
+    }
+    liveControl.process (snapshot, messages.data(), count, numSamples);
 
     Transport transport;
     if (auto* playHead = getPlayHead())
@@ -433,6 +465,8 @@ void SedefProcessor::getStateInformation (juce::MemoryBlock& dest)
         extra.setProperty ("metronomePattern", steps.joinIntoString (","), nullptr);
         extra.setProperty ("board", boardToText (board_), nullptr);
     }
+    if (const auto scenes = live_->sessionText(); scenes.isNotEmpty())
+        extra.setProperty ("scenes", scenes, nullptr);
     extra.setProperty ("uiScale", uiScale(), nullptr);
     root.appendChild (extra, nullptr);
 
@@ -479,6 +513,20 @@ void SedefProcessor::setStateInformation (const void* data, int size)
         // their values into the restored ones.
         const auto parametersLock = presets_.lockParameters();
         std::array<LoadedValue, kNumParams> loaded {};
+        // The scenes first, read against the session's own values, so the audio thread never
+        // takes the restored Scene parameter for a switch (docs/live.md §7.4).
+        const auto saved = [&params, this] (ParamId id) {
+            const auto& s = spec (id);
+            if (!params.isValid())
+                return paramValue (id);
+            const auto child = params.getChildWithProperty ("id", toJuce (s.id));
+            const auto v = child.getProperty ("value");
+            return child.isValid() && (v.isDouble() || v.isInt() || v.isString())
+                       ? s.sanitise (static_cast<float> (static_cast<double> (v)))
+                       : s.defaultValue;
+        };
+        const int activeScene =
+            live_->restoreSession (extra.getProperty ("scenes").toString(), saved);
         if (params.isValid())
         {
             // Read the saved values first: replaceState() adopts this tree, and APVTS then writes
@@ -496,6 +544,8 @@ void SedefProcessor::setStateInformation (const void* data, int size)
             state_.replaceState (params);
             lastPrev_ = paramValue (ParamId::presetPrevious) >= 0.5f;
             lastNext_ = paramValue (ParamId::presetNext) >= 0.5f;
+            if (std::lround (paramValue (ParamId::scene)) != activeScene)
+                setParamValue (ParamId::scene, static_cast<float> (activeScene));
             for (std::size_t i = 0; i < kNumParams; ++i)
                 loaded[i].applied = paramValue (static_cast<ParamId> (i));
         }

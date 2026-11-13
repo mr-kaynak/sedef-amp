@@ -1,11 +1,13 @@
 /* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* The row's lacquer and hairline belong to the row it sits in (App.module.css .tabRow), which
+   also holds the scene bar after this. */
 .bar {
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: stretch;
   height: 42px;
   padding: 0 12px;
-  background: var(--ink-1);
-  border-bottom: 1px solid var(--line);
 }
 
 .tabs {

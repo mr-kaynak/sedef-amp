@@ -21,7 +21,7 @@ for their next update; once a newer release is installed, every later update ins
    holds, one check runs, and a small file (`update.json`, below) keeps other processes and later
    sessions from repeating it. After a failed check Sedef waits an hour before trying again.
 2. **Notice.** When the latest stable release is newer than the one you run, a small "Update
-   available" pill appears at the right end of the section tabs, under the header's tools. Drafts
+   available" pill appears in the status bar, at the bottom right, before the DSP load. Drafts
    and pre-releases are never offered. The pill opens the Updates panel (also in Settings →
    Updates) with the release notes and three choices: **Update now**, **Skip this version** (no
    pill for that version again) and **Later** (no pill until you next open Sedef).
@@ -95,7 +95,7 @@ One HTTPS request per check, and nothing else:
 GET https://api.github.com/repos/mr-kaynak/sedef-amp/releases/latest
 Accept: application/vnd.github+json
 X-GitHub-Api-Version: 2022-11-28
-User-Agent: SedefAmp/0.8.1 (macOS)
+User-Agent: SedefAmp/0.9.0 (macOS)
 ```
 
 The User-Agent carries the Sedef version and the OS family, nothing more: no identifier, no OS
@@ -277,7 +277,7 @@ from a different release.
 | `plugin/tests/` | `sedef_update_tests`: the logic, the client against a local HTTP server, the service with a scripted installer, and on macOS and Linux the real routes with a stand-in for the prompt |
 | `plugin/tools/sedef_update_check.cpp` | `sedef-update-check`: the same code against the real API, and `--install` |
 | `tools/ci/install-test.sh` | the release workflow's install test (CI machines only) |
-| `ui/src/features/updates/` | the header pill, the Updates panel, the Markdown renderer |
+| `ui/src/features/updates/` | the status bar pill, the Updates panel, the Markdown renderer |
 | `ui/src/bridge/mock/updateSim.ts` | the mock backend's updates (`?update=` in the browser) |
 
 ```sh

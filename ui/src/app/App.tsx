@@ -6,6 +6,9 @@ import { CabSection } from '../features/cab/CabSection';
 import { EqSection } from '../features/eq/EqSection';
 import { FxSection } from '../features/fx/FxSection';
 import { IntonationWorkbench } from '../features/intonation/IntonationWorkbench';
+import { ControlMenu } from '../features/live/ControlMenu';
+import { LearnBanner } from '../features/live/LearnBanner';
+import { LiveBar } from '../features/live/LiveBar';
 import { PedalBoard } from '../features/pedals/PedalBoard';
 import { PresetBrowser } from '../features/presets/PresetBrowser';
 import { presetBrowser, useBrowserStore } from '../features/presets/session';
@@ -43,7 +46,10 @@ export function App() {
         <div className={styles.body}>
           {/* The preset browser covers the rig; what it covers is out of reach until it closes. */}
           <div className={styles.rig} inert={browsing}>
-            <SectionTabs />
+            <div className={styles.tabRow}>
+              <SectionTabs />
+              <LiveBar />
+            </div>
             <main className={styles.main}>
               {message && (
                 <p className={styles.message} role="alert">
@@ -65,6 +71,7 @@ export function App() {
                 {overlay === 'tuner' && <TunerOverlay />}
                 {overlay === 'intonation' && <IntonationWorkbench />}
               </ErrorBoundary>
+              <LearnBanner />
             </main>
           </div>
           {/* A broken browser still covers the rig (it is inert behind it): Close keeps the sound
@@ -77,6 +84,7 @@ export function App() {
             <PresetBrowser />
           </ErrorBoundary>
           <Toasts />
+          <ControlMenu />
         </div>
         <StatusBar />
       </div>

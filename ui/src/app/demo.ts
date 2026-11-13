@@ -12,6 +12,7 @@
 //   ?demo                            expose window.__sedefDemo for scripted frames (captures)
 //   ?grain=0                         hide the lacquer grain (smaller screenshots)
 //   ?fresh                           ignore UI state saved by earlier browser sessions
+//   ?midi=demo                       a few MIDI bindings, picked scene values and made scenes
 //   ?update=available                what the update checker finds: current|available|skipped|
 //                                    error|noinstaller|mismatch|unsupported (docs/updates.md)
 //   ?input=silent|quiet|clipping     what the simulated interface delivers (docs/ui/input-level.md)
@@ -38,6 +39,8 @@ export interface DemoFlags {
   update: UpdateScenario | null;
   input: InterfaceLevel | null;
   recorder: RecorderDemo | null;
+  /** Seed the live layer with example bindings and scenes (docs/live.md). */
+  midi: boolean;
 }
 
 function parseOverrides(text: string | null): Record<string, number> {
@@ -83,6 +86,7 @@ export function readDemoFlags(
     demo: q.has('demo'),
     grain: q.get('grain') !== '0',
     fresh: q.has('fresh'),
+    midi: q.get('midi') === 'demo',
     update: isUpdateScenario(q.get('update')) ? (q.get('update') as UpdateScenario) : null,
     input: isInterfaceLevel(q.get('input')) ? (q.get('input') as InterfaceLevel) : null,
     recorder: isRecorderDemo(q.get('recorder')) ? (q.get('recorder') as RecorderDemo) : null,

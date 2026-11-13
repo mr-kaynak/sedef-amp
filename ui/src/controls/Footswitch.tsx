@@ -28,6 +28,7 @@ export function Footswitch({
       aria-label={label ?? p.spec.name}
       aria-describedby={describedBy}
       className={styles.footswitch}
+      data-param={p.spec.id}
       data-on={on || undefined}
       onClick={toggle}
     >

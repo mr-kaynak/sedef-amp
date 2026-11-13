@@ -39,6 +39,7 @@ export function ChoiceLever({ param, label }: { param: string; label?: string })
       <div
         role="radiogroup"
         aria-label={p.spec.name}
+        data-param={p.spec.id}
         className={styles.lever}
         onKeyDown={onKeyDown}
         style={{ '--tilt': `${tilt}deg` } as CSSProperties}

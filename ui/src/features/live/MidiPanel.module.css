@@ -1,0 +1,317 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* The MIDI panel: the Settings panel's sections and type (features/settings), one list recipe
+   for bindings, programs and scene values. */
+.panel {
+  display: flex;
+  flex-direction: column;
+  /* The panel starts at 115 px on the canvas and the status bar at 736: 621 px, less a 12 px
+     margin above the status bar, rounded down. */
+  max-height: 600px;
+  /* The body's 14 px fade (below) takes the place of the bottom padding. */
+  padding: 14px 16px 2px;
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.title {
+  margin: 0;
+  color: var(--bone);
+  font-size: var(--t-14);
+  font-weight: 600;
+}
+
+.activity {
+  margin: 0;
+  color: var(--bone-2);
+  font-size: var(--t-11);
+  font-variant-numeric: tabular-nums;
+}
+
+.quiet {
+  color: var(--bone-3);
+}
+
+.formatNote {
+  display: flex;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-ctl);
+  background: rgb(6 17 25 / 0.35);
+  color: var(--bone-2);
+  font-size: var(--t-11);
+  line-height: 1.45;
+}
+
+.formatIcon {
+  flex: none;
+  margin-top: 1px;
+  color: var(--bone-3);
+}
+
+.inputs {
+  margin: 12px 0 0;
+  padding: 0;
+  border: none;
+}
+
+.inputs legend {
+  padding: 0;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+  color: var(--bone);
+  font-size: var(--t-12);
+}
+
+.check input {
+  margin: 0;
+  accent-color: var(--nacre-aqua);
+}
+
+.tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  margin-top: 14px;
+}
+
+/* Tabs take the segments' look; the selected one is aria-selected, not aria-checked. */
+.tab[aria-selected='true'] {
+  color: var(--ink-1);
+}
+
+.tab[aria-selected='true']::after {
+  opacity: 1;
+}
+
+@media (forced-colors: active) {
+  .tab.tab[aria-selected='true'] {
+    background: Highlight;
+    color: HighlightText;
+  }
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  margin: 12px -16px 0;
+  padding: 0 16px 14px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ink-4) transparent;
+  /* The preset list's cue (features/presets/PresetList.module.css): what continues below fades
+     out at the edge instead of being cut; at the end only the padding fades. */
+  mask-image: linear-gradient(180deg, #000 calc(100% - 14px), transparent);
+}
+
+.label {
+  margin: 0;
+  color: var(--bone-2);
+  font-size: var(--t-11);
+  font-weight: 600;
+}
+
+/* A heading after a note. */
+.subhead {
+  margin-top: 16px;
+}
+
+.note,
+.empty {
+  margin: 8px 0 0;
+  color: var(--bone-3);
+  font-size: var(--t-11);
+  line-height: 1.45;
+}
+
+.empty {
+  padding: 12px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--r-ctl);
+  text-align: center;
+}
+
+.empty b {
+  color: var(--bone-2);
+  font-weight: 600;
+}
+
+.listHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 24px;
+}
+
+.count {
+  margin: 0;
+  color: var(--bone-3);
+  font-size: var(--t-11);
+  font-variant-numeric: tabular-nums;
+}
+
+.confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--bone-2);
+  font-size: var(--t-11);
+}
+
+.list {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--line);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.what {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* Wraps rather than truncates: the longest names ("Conch Auto Sensitivity") need two lines
+   beside a range. */
+.target {
+  flex: 1;
+  min-width: 0;
+  color: var(--bone);
+  font-size: var(--t-12);
+  font-weight: 540;
+  line-height: 1.3;
+}
+
+.source {
+  color: var(--bone-3);
+  font-size: var(--t-11);
+  font-variant-numeric: tabular-nums;
+}
+
+.range {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--bone-3);
+  font-size: var(--t-11);
+}
+
+/* Two digits and a third: 100. */
+.percent {
+  width: 44px;
+  height: 24px;
+  padding: 0 4px 0 7px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: rgb(6 17 25 / 0.5);
+  color: var(--bone);
+  font: inherit;
+  font-size: var(--t-11);
+  font-variant-numeric: tabular-nums;
+  transition: border-color var(--dur-1) var(--ease-out);
+}
+
+@media (hover: hover) {
+  .percent:hover {
+    border-color: var(--line-hover);
+  }
+}
+
+.invert {
+  margin-inline-start: 2px;
+}
+
+.actions {
+  margin-top: 16px;
+}
+
+.actionGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+/* Label left, what it is bound to right, across the cell. */
+.action {
+  justify-content: space-between;
+  height: 30px;
+  border-color: var(--line);
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.field .label {
+  font-weight: 600;
+}
+
+.assign {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.programField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.programField .percent {
+  height: 28px;
+}
+
+.targetSelect {
+  flex: 1;
+  min-width: 0;
+}
+
+.assign button {
+  height: 28px;
+}
+
+.copy {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.copyField {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.copy button {
+  height: 28px;
+}

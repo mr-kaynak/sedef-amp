@@ -1,21 +1,19 @@
 /* SPDX-License-Identifier: AGPL-3.0-or-later */
 /* Quiet on purpose: a hairline pill with one small nacre dot, the only thing in it that is alive.
-   Absolutely placed against the header (position: relative), so it takes no room in the header
-   row: it sits at the right end of the section tabs line, vertically centred in it. */
+   In the status bar, before the DSP load: 18 px in the 24 px bar, its type a step over the
+   bar's 10 px so it reads as something to click. */
 .pill {
-  position: absolute;
-  top: calc(100% + 9px);
-  right: 16px;
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  height: 24px;
-  padding: 0 10px 0 8px;
+  gap: 6px;
+  height: 18px;
+  padding: 0 8px 0 6px;
   border: 1px solid rgb(205 238 238 / 0.24);
-  border-radius: 12px;
+  border-radius: 9px;
   background: rgb(205 238 238 / 0.05);
   color: var(--bone-2);
   font-size: var(--t-11);
+  font-stretch: 100%;
   font-weight: 540;
   white-space: nowrap;
   transition:
@@ -40,8 +38,8 @@
 }
 
 .dot {
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: var(--nacre);
   box-shadow: 0 0 6px rgb(200 241 234 / 0.45);

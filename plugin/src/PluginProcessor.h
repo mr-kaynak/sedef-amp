@@ -5,6 +5,7 @@
 #include "BoardText.h"
 #include "CaptureLibrary.h"
 #include "IrLibrary.h"
+#include "LiveState.h"
 #include "PresetManager.h"
 #include "Reamp.h"
 #include "Recorder.h"
@@ -38,7 +39,8 @@ public:
     bool hasEditor() const override { return true; }
 
     const juce::String getName() const override { return "Sedef Amp"; }
-    bool acceptsMidi() const override { return false; }
+    /// Controllers and program changes for playing live (docs/live.md §2).
+    bool acceptsMidi() const override { return true; }
     bool producesMidi() const override { return false; }
     double getTailLengthSeconds() const override;
 
@@ -58,6 +60,8 @@ public:
     IrLibrary& irs() noexcept { return irs_; }
     AnalysisWorker& analysis() noexcept { return analysis_; }
     CaptureLibrary& captures() noexcept { return captures_; }
+    /// MIDI learn, program changes and scenes (docs/live.md).
+    LiveState& live() noexcept { return *live_; }
     /// After the player loads a capture: plays it, through the cab or not as its metadata says.
     void captureLoaded();
 
@@ -133,6 +137,7 @@ private:
     IrLibrary irs_;
     AnalysisWorker analysis_;
     CaptureLibrary captures_;
+    std::unique_ptr<LiveState> live_; // made once the parameters can be read
 
     juce::AudioProcessLoadMeasurer loadMeasurer_;
 

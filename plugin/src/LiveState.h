@@ -104,7 +104,7 @@ private:
     live::SceneBank bank_;
 
     LiveSettings settings_;
-    juce::Time settingsTime_;
+    juce::String settingsText_; // midi.json as last read or written
     int ticks_ = 0;
 
     struct Learn

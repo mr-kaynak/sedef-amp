@@ -199,11 +199,13 @@ TEST_CASE ("A scene not made yet starts as a copy of the scene being left", "[li
     h.block ({ cc (22, 127) }); // Gyre on in scene 2
     const auto before = h.block();
     const auto s = h.block ({ cc (35, 127) });
-    CHECK (s.values == [&] {
-        auto expected = before;
-        expected[ParamId::scene] = 5.0f;
-        return expected;
-    }().values);
+    CHECK (s.values ==
+           [&] {
+               auto expected = before;
+               expected[ParamId::scene] = 5.0f;
+               return expected;
+           }()
+               .values);
     CHECK (h.control.bank().isMade (5));
     h.tick();
     CHECK (h.master.isMade (5));

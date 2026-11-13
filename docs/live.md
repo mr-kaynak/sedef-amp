@@ -52,7 +52,7 @@ automatable as before.
 
 | What | Where | Why |
 |---|---|---|
-| Bindings (controller → target), program assignments, the program channel | A per-user file, `midi.json`, next to the presets (`Application Support/Sedef` on macOS, the application data folder elsewhere). Every instance and the standalone app read it; an instance re-reads it when another one changes it. | The controller is the player's hardware. Its switches mean the same thing in every song, session and host; a per-session map would have to be learnt again in every project. Presets are global files too, so a program assignment names something that exists everywhere. |
+| Bindings (controller → target), program assignments, the program channel | A per-user file, `midi.json`, next to the presets (`Application Support/Sedef` on macOS, the application data folder elsewhere). Every instance and the standalone app read it; once a second an instance compares the file's text with what it last read or wrote and re-reads it when another one changed it (the text, not the modification time, which two quick saves can share). | The controller is the player's hardware. Its switches mean the same thing in every song, session and host; a per-session map would have to be learnt again in every project. Presets are global files too, so a program assignment names something that exists everywhere. |
 | Scenes | In the preset (user presets) and in the session, like the pedalboard. | A scene is part of a sound: "the lead scene of this preset". |
 | The active scene | In the session and in the preset (the scene it was saved in). | Reopening a session plays what was playing. |
 
@@ -245,8 +245,15 @@ like the pedalboard.
 ### 6.5 Sessions
 
 The session's `Extra` element gains a `scenes` attribute holding the same JSON object, with
-`"parameters"` read as the session's own parameter values. A session without it gets 8 copies of
-its parameters. Hosts restore it with everything else.
+`"parameters"` read as the session's own parameter values. It is left out while only the scene in
+use is made and no values are picked, so a session that never used scenes is saved exactly as
+before. A session without it has one scene made, the one the *Scene* parameter selects, holding
+the session's sound. Hosts restore it with everything else.
+
+The *Scene* parameter is the selection. A host can move it and save before the message thread
+has heard of the switch (a validator does, with no event loop running), so the attribute may name
+one scene and the parameter another: the parameter wins, and its scene takes the session's sound,
+as the scene in use always does. The state then saves again byte for byte as it was loaded.
 
 ### 6.6 The Scene parameter
 

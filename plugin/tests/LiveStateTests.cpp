@@ -6,6 +6,7 @@
 #include "ParameterLayout.h"
 #include "PluginProcessor.h"
 
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 using namespace sedef;
@@ -407,7 +408,12 @@ TEST_CASE ("Sessions keep the scenes byte for byte; older sessions have one scen
     CHECK (b.live().activeScene() == 6);
     CHECK (is (b.paramValue (ParamId::scene), 6.0f));
     CHECK (is (sceneValue (bankOf (b), 2, ParamId::kelpEnabled), 1.0f));
-    CHECK (is (sceneValue (bankOf (b), 2, ParamId::gyreSpeed), 3.3f));
+    // What scene 3 kept is the parameter's value after its skewed round trip through the host's
+    // 0-1 range, which differs from 3.3f in the last bits with the platform's pow(): compare with
+    // what the first instance kept, exactly.
+    CHECK (is (sceneValue (bankOf (b), 2, ParamId::gyreSpeed),
+               sceneValue (bankOf (a), 2, ParamId::gyreSpeed)));
+    CHECK (sceneValue (bankOf (b), 2, ParamId::gyreSpeed) == Catch::Approx (3.3f).margin (1e-4));
     CHECK (stateOf (b) == saved);
     b.live().selectScene (2);
     CHECK (is (b.paramValue (ParamId::kelpEnabled), 1.0f));
@@ -426,6 +432,31 @@ TEST_CASE ("Sessions keep the scenes byte for byte; older sessions have one scen
     CHECK (bank.made == 1);
     CHECK (bank.numValues() == 0);
     CHECK (stateOf (b) == old);
+}
+
+TEST_CASE ("A Scene parameter saved before the switch was heard restores as saved")
+{
+    // A validator sets parameters, runs a block and saves, with no event loop: the audio thread
+    // has switched, the message thread has not heard of it, and the session names scene 1 while
+    // the parameter says 3. Reloaded, the parameter must read 3 and the state save the same bytes.
+    Fixture f;
+    SedefProcessor a;
+    prepare (a);
+    a.setParamValue (ParamId::scene, 2.0f);
+    play (a, {}, false);
+    const auto saved = stateOf (a);
+
+    SedefProcessor b;
+    prepare (b);
+    restore (b, saved);
+    CHECK (is (b.paramValue (ParamId::scene), 2.0f));
+    CHECK (b.live().activeScene() == 2);
+    CHECK (bankOf (b).made == 0b100); // the session had one scene; it still has one
+    CHECK (stateOf (b) == saved);
+    play (b);
+    CHECK (b.live().activeScene() == 2);
+    CHECK (is (b.paramValue (ParamId::scene), 2.0f));
+    CHECK (stateOf (b) == saved);
 }
 
 TEST_CASE ("Snapshots, Undo and A/B bring the scenes back")

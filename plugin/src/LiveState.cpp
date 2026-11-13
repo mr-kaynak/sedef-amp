@@ -134,7 +134,7 @@ bool scenesAreTrivial (const live::SceneBank& bank)
 LiveState::LiveState (SedefProcessor& processor) : processor_ (processor)
 {
     settings_.load();
-    settingsTime_ = LiveSettings::file().getLastModificationTime();
+    settingsText_ = LiveSettings::file().loadFileAsString();
     control_.setMap (settings_.toMap());
     {
         const std::scoped_lock lock (bankLock_);
@@ -199,11 +199,13 @@ void LiveState::tick()
         }
     }
 
-    // Another instance (or the standalone app) changed the MIDI setup.
+    // Another instance (or the standalone app) changed the MIDI setup. The text is compared, not
+    // the modification time: two saves within the file system's time resolution (a millisecond
+    // in JUCE, a second or two on some volumes) would look like none.
     if (ticks_ % kTickHz == 0)
-        if (const auto time = LiveSettings::file().getLastModificationTime(); time != settingsTime_)
+        if (auto text = LiveSettings::file().loadFileAsString(); text != settingsText_)
         {
-            settingsTime_ = time;
+            settingsText_ = std::move (text);
             LiveSettings fresh;
             if (fresh.load() && !(fresh == settings_) &&
                 !(learn_ && learn_->phase != Learn::Phase::done))
@@ -339,7 +341,7 @@ void LiveState::finishLearn (std::optional<live::SwitchMode> mode)
 void LiveState::settingsChanged()
 {
     settings_.save();
-    settingsTime_ = LiveSettings::file().getLastModificationTime();
+    settingsText_ = LiveSettings::file().loadFileAsString();
     control_.setMap (settings_.toMap());
     ++revision;
 }
@@ -520,7 +522,8 @@ juce::String LiveState::sessionText()
         return liveValue (id);
     };
     const std::scoped_lock lock (bankLock_);
-    if (scenesAreTrivial (bank_) && bank_.active == 0)
+    // Only the scene in use made and nothing picked: the Scene parameter says all there is.
+    if (scenesAreTrivial (bank_))
         return {};
     return juce::JSON::toString (scenesVar (bank_, live, Form::session), true);
 }
@@ -530,6 +533,21 @@ int LiveState::restoreSession (const juce::String& text,
 {
     const auto parsed = text.isEmpty() ? juce::var() : juce::JSON::parse (text);
     auto bank = scenesFromVar (parsed, saved);
+    // The Scene parameter is the selection (§6.6). A host can set it and save before the message
+    // thread hears of the switch (a validator does, with no event loop): the session then says one
+    // scene and the parameter another. The parameter wins, and its scene holds the session's
+    // sound, as the scene in use always does (§6.4), so the state round-trips as saved.
+    if (const auto selected = static_cast<int> (std::lround (saved (ParamId::scene)));
+        selected != bank.active && selected >= 0 && selected < live::kNumScenes)
+    {
+        // A session without scenes (or with only the scene in use) keeps having only one.
+        const auto others = scenesAreTrivial (bank) ? 0u : static_cast<unsigned> (bank.made);
+        const auto row = static_cast<std::size_t> (selected);
+        for (std::size_t i = 0; i < bank.numParams; ++i)
+            bank.values[row][i] = saved (static_cast<ParamId> (bank.params[i]));
+        bank.made = static_cast<std::uint8_t> (others | 1u << selected);
+        bank.active = static_cast<std::uint8_t> (selected);
+    }
     int active = 0;
     {
         const std::scoped_lock lock (bankLock_);

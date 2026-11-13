@@ -504,6 +504,19 @@ void SedefProcessor::setStateInformation (const void* data, int size)
             for (const auto& child : params)
                 if (const auto id = findParam (child.getProperty ("id").toString().toStdString()))
                     loaded[index (*id)] = { child.getProperty ("value"), 0.0f, true };
+            // A parameter the session doesn't hold (it was saved before the parameter existed,
+            // such as the pedals' second copies, docs/board.md §3.3) takes its default, as in a
+            // fresh instance, not whatever this instance last held.
+            auto filled = params;
+            for (std::size_t i = 0; i < kNumParams; ++i)
+                if (!loaded[i].valid)
+                {
+                    juce::ValueTree child ("PARAM");
+                    child.setProperty ("id", toJuce (kParamSpecs[i].id), nullptr);
+                    child.setProperty ("value", static_cast<double> (kParamSpecs[i].defaultValue),
+                                       nullptr);
+                    filled.appendChild (child, nullptr);
+                }
 
             // A session saved with a preset switch held on restores it on (hosts and validators
             // expect state to round-trip exactly), but that must not count as a press. Hold the

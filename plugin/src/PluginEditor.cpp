@@ -723,6 +723,8 @@ void SedefEditor::emitTelemetry()
                                      { "gateOpen", t.gateOpen.load() },
                                      { "gateReductionDb", t.gateReductionDb.load() },
                                      { "tideReductionDb", t.tideReductionDb.load() },
+                                     { "gate2Open", t.gate2Open.load() },
+                                     { "tide2ReductionDb", t.tide2ReductionDb.load() },
                                      { "metronomeStep", t.metronomeStep.load() },
                                      { "driftTimeMs", t.driftTimeMs.load() },
                                      { "cpu", processor_.cpuLoad() } }));

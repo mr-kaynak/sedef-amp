@@ -2,6 +2,7 @@
 #include "BoardText.h"
 
 #include "ParameterLayout.h"
+#include "sedef/board/BoardText.h"
 
 namespace sedef::plugin
 {
@@ -9,8 +10,8 @@ namespace sedef::plugin
 juce::var boardToVar (const Board& board)
 {
     juce::Array<juce::var> ids;
-    for (const auto id : board)
-        ids.add (toJuce (pedalInfo (id).id));
+    for (const auto& token : boardTokens (board))
+        ids.add (juce::String (token));
     return ids;
 }
 
@@ -19,28 +20,20 @@ std::optional<Board> boardFromVar (const juce::var& v)
     const auto* list = v.getArray();
     if (list == nullptr)
         return std::nullopt;
-    Board board;
+    BoardReader reader;
     for (const auto& item : *list)
-        if (const auto id = findPedal (item.toString().toStdString()))
-            board.insert (*id, board.size()); // false for a repeat
-    return board;
+        reader.read (item.toString().toStdString());
+    return reader.board();
 }
 
 juce::String boardToText (const Board& board)
 {
-    juce::StringArray ids;
-    for (const auto id : board)
-        ids.add (toJuce (pedalInfo (id).id));
-    return ids.joinIntoString (",");
+    return juce::String (sedef::boardToText (board));
 }
 
 Board boardFromText (const juce::String& text)
 {
-    Board board;
-    for (const auto& token : juce::StringArray::fromTokens (text, ",", ""))
-        if (const auto id = findPedal (token.trim().toStdString()))
-            board.insert (*id, board.size());
-    return board;
+    return sedef::boardFromText (text.toStdString());
 }
 
 namespace

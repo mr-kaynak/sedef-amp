@@ -6,7 +6,9 @@
 #include "ParameterLayout.h"
 #include "PluginProcessor.h"
 
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <set>
 
 using namespace sedef;
 using sedef::plugin::SedefProcessor;
@@ -15,7 +17,7 @@ namespace
 {
 Board boardOf (std::initializer_list<PedalId> ids)
 {
-    Board b;
+    PedalOrder b;
     for (const auto id : ids)
         b.insert (id, b.size());
     return b;
@@ -351,7 +353,7 @@ TEST_CASE ("A preset file without a board gets the pedals it switches on")
                                                     1.0);
     const auto all = plugin::legacyBoardFor (parameters);
     CHECK (all.size() == kNumPedals);
-    for (const auto id : Board::legacy())
+    for (const auto id : PedalOrder::legacy())
         CHECK (all.contains (id));
 }
 
@@ -426,4 +428,140 @@ TEST_CASE ("The browser lists a preset's pedals in its board's order")
     // The gate is on but not on the board, so it isn't listed.
     CHECK (blocks.joinIntoString (",").startsWith ("ripple,tide"));
     CHECK_FALSE (blocks.contains ("gate"));
+}
+
+// -------------------------------------------------------------------------------------------------
+// After the amp and second copies (docs/board.md §3.3)
+
+namespace
+{
+Board bothSides()
+{
+    Board b;
+    for (const PedalRef r :
+         { PedalRef (PedalId::gate), PedalRef (PedalId::kelp), PedalRef (PedalId::kelp, 1) })
+        b.pre.insert (r, b.pre.size());
+    for (const PedalRef r : { PedalRef (PedalId::gyre), PedalRef (PedalId::ripple, 1) })
+        b.post.insert (r, b.post.size());
+    return b;
+}
+} // namespace
+
+TEST_CASE ("Pedals after the amp and second copies round-trip through the session")
+{
+    Fixture f;
+    SedefProcessor a;
+    a.setBoard (bothSides());
+    setParam (a, ParamId::kelp2Enabled, 1.0f);
+    setParam (a, ParamId::kelp2Drive, 0.85f);
+    setParam (a, ParamId::gyreEnabled, 1.0f);
+    setParam (a, ParamId::ripple2Enabled, 1.0f);
+    setParam (a, ParamId::ripple2Mode, 1.0f);
+    const auto saved = stateOf (a);
+    // Spelt with the amp and the copy's number.
+    auto xml = juce::AudioProcessor::getXmlFromBinary (saved.getData(),
+                                                       static_cast<int> (saved.getSize()));
+    REQUIRE (xml != nullptr);
+    CHECK (xml->getChildByName ("Extra")->getStringAttribute ("board") ==
+           "gate,kelp,kelp#2,amp,gyre,ripple#2");
+
+    SedefProcessor b;
+    restore (b, saved);
+    CHECK (b.board() == bothSides());
+    CHECK (b.paramValue (ParamId::kelp2Drive) == 0.85f);
+    CHECK (b.paramValue (ParamId::kelpDrive) == spec (ParamId::kelpDrive).defaultValue);
+    CHECK (stateOf (b) == saved);
+
+    // The engine plays it: the second Kelp in front of the amp, Gyre and the second Ripple after.
+    render (b);
+    const auto& ran = b.engine().telemetry().pedalRan;
+    CHECK (ran[slotIndex ({ PedalId::kelp, 1 })].load());
+    CHECK_FALSE (ran[slotIndex (PedalId::kelp)].load()); // the first Kelp is switched off
+    CHECK (ran[slotIndex (PedalId::gyre)].load());
+    CHECK (ran[slotIndex ({ PedalId::ripple, 1 })].load());
+}
+
+TEST_CASE ("A session saved before second copies loads as it did")
+{
+    Fixture f;
+    // A session as 0.10 saved it: a board of first copies and none of the new parameters.
+    SedefProcessor source;
+    source.setBoard (boardOf ({ PedalId::gate, PedalId::kelp, PedalId::gyre }));
+    setParam (source, ParamId::kelpEnabled, 1.0f);
+    auto xml = juce::AudioProcessor::getXmlFromBinary (
+        stateOf (source).getData(), static_cast<int> (stateOf (source).getSize()));
+    REQUIRE (xml != nullptr);
+    // The parameters 0.10 didn't have: the second copies'.
+    std::set<juce::String> seconds;
+    for (std::size_t i = 0; i < kNumParams; ++i)
+        if (const auto copy = secondCopyOf (static_cast<ParamId> (i));
+            copy != static_cast<ParamId> (i))
+            seconds.insert (plugin::toJuce (spec (copy).id));
+    int removed = 0;
+    for (auto* group : xml->getChildIterator())
+        for (auto* child = group->getFirstChildElement(); child != nullptr;)
+        {
+            auto* next = child->getNextElement();
+            if (seconds.count (child->getStringAttribute ("id")) > 0)
+            {
+                group->removeChildElement (child, true);
+                ++removed;
+            }
+            child = next;
+        }
+    CHECK (removed == 73);
+    juce::MemoryBlock old;
+    juce::AudioProcessor::copyXmlToBinary (*xml, old);
+
+    SedefProcessor restored;
+    restored.setBoard (bothSides());
+    setParam (restored, ParamId::kelp2Enabled, 1.0f);
+    setParam (restored, ParamId::kelp2Drive, 0.9f);
+    restore (restored, old);
+    CHECK (restored.board() == boardOf ({ PedalId::gate, PedalId::kelp, PedalId::gyre }));
+    // Every parameter it didn't save is back at its default, second copies switched off.
+    CHECK (restored.paramValue (ParamId::kelp2Enabled) == 0.0f);
+    CHECK (restored.paramValue (ParamId::kelp2Drive) == spec (ParamId::kelp2Drive).defaultValue);
+}
+
+TEST_CASE ("User presets keep pedals after the amp and second copies; old ones reset them")
+{
+    Fixture f;
+    SedefProcessor p;
+    auto& presets = p.presets();
+    p.setBoard (bothSides());
+    setParam (p, ParamId::kelp2Enabled, 1.0f);
+    setParam (p, ParamId::kelp2Level, 0.8f);
+    const auto id = presets.save ("Both sides", "");
+    REQUIRE (id.isNotEmpty());
+    const auto file = plugin::PresetManager::userFolder().getChildFile ("Both sides.sedefpreset");
+    const auto json = juce::JSON::parse (file);
+    juce::StringArray tokens;
+    for (const auto& t : *json["board"].getArray())
+        tokens.add (t.toString());
+    CHECK (tokens.joinIntoString (",") == "gate,kelp,kelp#2,amp,gyre,ripple#2");
+    CHECK (static_cast<double> (json["parameters"]["kelp2Level"]) == Catch::Approx (0.8));
+
+    // A preset saved before second copies, loaded on top: their switches go off, their knobs to
+    // their defaults, and its board is first copies in front of the amp.
+    const auto old = plugin::PresetManager::userFolder().getChildFile ("Older.sedefpreset");
+    REQUIRE (old.replaceWithText (R"({ "format": "sedef-preset", "version": 1, "name": "Older",
+                                       "board": ["gate", "kelp"],
+                                       "parameters": { "kelpEnabled": 1 } })"));
+    presets.scan();
+    REQUIRE (presets.load ("user:Older.sedefpreset", true));
+    CHECK (p.board() == boardOf ({ PedalId::gate, PedalId::kelp }));
+    CHECK (p.paramValue (ParamId::kelp2Enabled) == 0.0f);
+    CHECK (p.paramValue (ParamId::kelp2Level) == spec (ParamId::kelp2Level).defaultValue);
+    CHECK_FALSE (presets.isDirty());
+
+    REQUIRE (presets.load (id, true));
+    CHECK (p.board() == bothSides());
+    CHECK (p.paramValue (ParamId::kelp2Level) == Catch::Approx (0.8f));
+    CHECK_FALSE (presets.isDirty());
+    // Moving a pedal across the amp is an edit.
+    auto moved = bothSides();
+    moved.place (PedalId::gyre, Side::pre, 0);
+    p.setBoard (moved);
+    CHECK (presets.isDirty());
 }

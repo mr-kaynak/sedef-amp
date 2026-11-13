@@ -9,13 +9,17 @@
 namespace sedef::plugin
 {
 
-/// The pedalboard as presets and the bridge spell it: pedal ids in signal order.
+/// The pedalboard as presets and the bridge spell it: pedal ids in signal order, "kelp#2" for a
+/// second copy and "amp" before the pedals after the amp (sedef/board/BoardText.h,
+/// docs/board.md §3.3).
 juce::var boardToVar (const Board& board);
-/// The pedals of a list of ids, in order. Ids this build doesn't know (a newer version's pedal)
-/// and repeats are skipped. Nothing when `v` is not a list.
+/// The board of a list of ids, in order (sedef::BoardReader). Ids this build doesn't know (a newer
+/// version's pedal), repeats and pedals their side can't take are skipped. Nothing when `v` is not
+/// a list.
 std::optional<Board> boardFromVar (const juce::var& v);
 
-/// As sessions spell it: "gate,tide,pearl". An empty board is an empty string.
+/// As sessions spell it: "gate,tide,pearl", "gate,kelp,kelp#2,amp,gyre". An empty board is an
+/// empty string.
 juce::String boardToText (const Board& board);
 Board boardFromText (const juce::String& text);
 

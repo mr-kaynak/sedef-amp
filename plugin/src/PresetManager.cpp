@@ -4,6 +4,7 @@
 #include "BoardText.h"
 #include "ParameterLayout.h"
 #include "SedefPresetData.h"
+#include "sedef/board/BoardText.h"
 
 #include <cmath>
 
@@ -244,11 +245,19 @@ void PresetManager::describe (Entry& e, const juce::var& preset)
         if (on (id))
             e.blocks.add (name);
     };
-    // The pedals on its board that it switches on, in the board's order.
+    // The pedals on its board that it switches on, in the board's order, each pedal once a side
+    // (two Kelps are one Kelp block); "amp" before the ones after the amp, when one is on there.
     const auto board = boardFromVar (preset["board"]).value_or (legacyBoardFor (parameters));
-    for (const auto id : board)
-        if (on (pedalInfo (id).enable))
-            e.blocks.add (toJuce (pedalInfo (id).id));
+    for (const auto* side : { &board.pre, &board.post })
+    {
+        juce::StringArray pedals;
+        for (const auto r : *side)
+            if (on (enableOf (r)))
+                pedals.addIfNotAlreadyThere (toJuce (pedalInfo (r.id).id));
+        if (side == &board.post && !pedals.isEmpty())
+            e.blocks.add (toJuce (kAmpToken));
+        e.blocks.addArray (pedals);
+    }
     if (eqShapes)
         add (eq (0), "eq");
     add (ParamId::doublerEnabled, "doubler");

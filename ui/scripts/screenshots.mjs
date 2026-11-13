@@ -48,8 +48,6 @@ const SHOTS = {
       await page.waitForTimeout(400);
     },
   },
-  // The widest the Transpose chip gets, beside the Output label (a layout check).
-  'transpose-wide': { query: 'section=amp&set=transpose:-12' },
   'board-3': { query: 'section=pedals&board=gate,pearl,ripple&set=pearlEnabled:1' },
   'board-8': { query: `section=pedals&board=${BOARD_8}&set=pearlEnabled:1,tideEnabled:1` },
   'board-16': { query: `section=pedals&board=${BOARD_16}&set=pearlEnabled:1,tideEnabled:1` },
@@ -88,15 +86,9 @@ const SHOTS = {
     },
   },
   abyss: { query: 'section=amp&preset=mariana' },
-  // Transpose two semitones down, its panel open under the input meter.
-  transpose: {
-    query: 'section=pedals&set=transpose:-2',
-    async prepare(page) {
-      await page.getByRole('button', { name: /^Transpose,/ }).click();
-      await page.getByRole('dialog', { name: 'Transpose' }).waitFor();
-      await page.waitForTimeout(300);
-    },
-  },
+  // Transpose two semitones down: the stepper at the end of the tab row, the latency it adds,
+  // and the status bar's share.
+  transpose: { query: 'section=pedals&set=transpose:-2' },
   capture: {
     query: 'section=amp',
     async prepare(page) {

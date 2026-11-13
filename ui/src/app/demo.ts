@@ -16,8 +16,11 @@
 //   ?update=available                what the update checker finds: current|available|skipped|
 //                                    error|noinstaller|mismatch|unsupported (docs/updates.md)
 //   ?input=silent|quiet|clipping     what the simulated interface delivers (docs/ui/input-level.md)
+//   ?looper=playing                  the looper in a state: empty|armed|recording|closing|
+//                                    playing|overdubbing|stopped (docs/looper.md)
 //   ?recorder=recording              the recorder or re-amp in a state: ready|recording|saved|
 //                                    dropouts|error|reamp|converting|reamp-empty (docs/recorder.md)
+import { isLooperDemo, type LooperDemo } from '../bridge/mock/looperSim';
 import { isRecorderDemo, type RecorderDemo } from '../bridge/mock/recorderSim';
 import { isInterfaceLevel, type InterfaceLevel } from '../bridge/mock/telemetrySim';
 import { isUpdateScenario, type UpdateScenario } from '../bridge/mock/updateSim';
@@ -41,6 +44,7 @@ export interface DemoFlags {
   recorder: RecorderDemo | null;
   /** Seed the live layer with example bindings and scenes (docs/live.md). */
   midi: boolean;
+  looper: LooperDemo | null;
 }
 
 function parseOverrides(text: string | null): Record<string, number> {
@@ -90,5 +94,6 @@ export function readDemoFlags(
     update: isUpdateScenario(q.get('update')) ? (q.get('update') as UpdateScenario) : null,
     input: isInterfaceLevel(q.get('input')) ? (q.get('input') as InterfaceLevel) : null,
     recorder: isRecorderDemo(q.get('recorder')) ? (q.get('recorder') as RecorderDemo) : null,
+    looper: isLooperDemo(q.get('looper')) ? (q.get('looper') as LooperDemo) : null,
   };
 }

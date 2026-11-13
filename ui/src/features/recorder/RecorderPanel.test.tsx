@@ -87,7 +87,7 @@ describe('Recorder', () => {
     // The header button says it too, and the status bar keeps the time in sight.
     expect(recorderButton()).toHaveAccessibleName('Recorder, recording, 2 seconds');
     expect(screen.getByRole('contentinfo')).toHaveTextContent('Recording 0:02');
-    expect(screen.getByRole('status', { name: '' })).toHaveTextContent('Recording');
+    expect(screen.getAllByRole('status').map((s) => s.textContent)).toContain('Recording a take');
 
     fireEvent.click(within(panel).getByRole('button', { name: 'Stop recording' }));
     await act(flush);

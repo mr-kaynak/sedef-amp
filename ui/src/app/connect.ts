@@ -34,6 +34,7 @@ export async function createBackend(flags: DemoFlags): Promise<Backend> {
     ...(flags.input ? { input: flags.input } : {}),
     ...(flags.recorder ? { recorder: flags.recorder } : {}),
     liveDemo: flags.midi,
+    ...(flags.looper ? { looper: flags.looper } : {}),
   });
 }
 

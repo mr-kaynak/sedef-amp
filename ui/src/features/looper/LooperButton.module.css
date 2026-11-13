@@ -1,0 +1,66 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+.button {
+  --tone: var(--bone-3);
+  position: relative;
+}
+
+.button[data-tone='record'] {
+  --tone: var(--coral);
+  color: var(--coral);
+}
+
+.button[data-tone='dub'] {
+  --tone: var(--amber);
+  color: var(--amber);
+}
+
+.button[data-tone='play'] {
+  --tone: var(--nacre-aqua);
+  color: var(--nacre-aqua);
+}
+
+.button[data-tone='wait'] {
+  --tone: var(--amber);
+}
+
+.ring {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  pointer-events: none;
+}
+
+.ring [data-part='track'] {
+  stroke: var(--line);
+}
+
+.ring [data-part='progress'] {
+  stroke: var(--tone);
+}
+
+/* The state's shape in the corner, so it never rests on colour alone (docs/ui.md, Design). */
+.badge {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 12px;
+  height: 12px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--ink-1);
+  box-shadow: 0 0 0 1px var(--line-strong);
+  color: var(--tone);
+  pointer-events: none;
+}
+
+@media (forced-colors: active) {
+  .ring [data-part='progress'] {
+    stroke: Highlight;
+  }
+
+  .badge {
+    border: 1px solid CanvasText;
+    color: CanvasText;
+  }
+}

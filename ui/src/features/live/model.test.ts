@@ -159,6 +159,9 @@ describe('targets and labels', () => {
     // Global (the same in every preset) and stepped parameters stay out of scenes.
     expect(canRememberInScenes(spec('outputGain'))).toBe(false);
     expect(canRememberInScenes(spec('ampModel'))).toBe(false);
+    // Transpose adds latency while it shifts: a scene must never change it (docs/live.md §6.2).
+    expect(canRememberInScenes(spec('transpose'))).toBe(false);
+    expect(SCENE_SWITCHES).not.toContain('transpose');
     expect(canRememberInScenes(spec('pearlEnabled'))).toBe(false);
   });
 

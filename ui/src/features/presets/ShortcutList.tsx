@@ -4,6 +4,7 @@ import { Fragment } from 'react';
 import { Icon } from '../../controls/Icon';
 import buttons from '../../controls/Button.module.css';
 import { shortcuts } from '../../app/shortcuts';
+import { useAppStore } from '../../state/appStore';
 import { useRecorderStore } from '../recorder/store';
 import styles from './ShortcutList.module.css';
 
@@ -14,6 +15,7 @@ export function ShortcutList({
   open: boolean;
   onToggle: (open: boolean) => void;
 }) {
+  const looper = useAppStore((s) => s.session.isStandalone);
   const recorder = useRecorderStore((s) => s.state !== null);
   return (
     <div className={styles.anchor}>
@@ -30,7 +32,7 @@ export function ShortcutList({
       </button>
       {open && (
         <div id="preset-shortcuts" className={styles.panel} role="group" aria-label="Shortcuts">
-          {shortcuts({ recorder }).map((group) => (
+          {shortcuts({ looper, recorder }).map((group) => (
             <section key={group.title}>
               <h3 className={styles.heading}>{group.title}</h3>
               <dl className={styles.list}>

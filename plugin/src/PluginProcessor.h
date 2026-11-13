@@ -92,6 +92,9 @@ public:
     std::array<std::uint8_t, 13> metronomePattern() const;
     /// Registers a tap and returns the new tempo (BPM).
     float tapTempo();
+    /// The looper, in the standalone app only (docs/looper.md): reserves its memory the first
+    /// time (message thread). False in a plug-in.
+    bool openLooper();
 
     float cpuLoad() const noexcept
     {

@@ -416,6 +416,7 @@ void Metronome::process (const AudioView& io) noexcept
         running_ = true;
         interval_ = samplesPerStep();
         anchor_ = now_;
+        startedAt_ = now_;
         stepsSinceAnchor_ = 0;
         nextStep_ = 0;
     }
@@ -440,6 +441,92 @@ void Metronome::process (const AudioView& io) noexcept
         pos = end;
     }
     now_ += n;
+}
+
+double Metronome::barSamples() const noexcept
+{
+    return samplesPerStep() * static_cast<double> (stepsFor (settings_.signature));
+}
+
+int Metronome::downbeats (int frames, int* offsets, int maxOffsets) const noexcept
+{
+    if (frames <= 0 || !isRunning())
+        return 0;
+    // process()'s scheduler, on copies: the start, nextTrigger() and trigger() step for step.
+    long long anchor = anchor_;
+    long long steps = stepsSinceAnchor_;
+    double interval = interval_;
+    int next = nextStep_;
+    if (startPending_)
+    {
+        interval = samplesPerStep();
+        anchor = now_;
+        steps = 0;
+        next = 0;
+    }
+    const int perBar = stepsFor (settings_.signature);
+    int count = 0;
+    for (int pos = 0; pos < frames;)
+    {
+        const auto due = static_cast<long long> (
+            std::ceil (static_cast<double> (anchor) + static_cast<double> (steps) * interval));
+        if (due >= now_ + frames)
+            break;
+        const int end = static_cast<int> (std::max (static_cast<long long> (pos), due - now_));
+        if (next >= perBar)
+            next = 0;
+        if (next == 0 && count < maxOffsets)
+            offsets[count++] = end;
+        const long long when = now_ + end;
+        if (when != due)
+        {
+            anchor = when;
+            steps = 1;
+        }
+        else
+        {
+            ++steps;
+        }
+        next = next + 1 < perBar ? next + 1 : 0;
+        pos = end;
+    }
+    return count;
+}
+
+void Metronome::alignDownbeat (int offset) noexcept
+{
+    if (!settings_.enabled)
+        return;
+    const long long at = now_ + std::max (0, offset);
+    bool justSounded = false;
+    if (startPending_)
+    {
+        // Started in this block: the click begins on the loop's downbeat.
+        startPending_ = false;
+        running_ = true;
+        interval_ = samplesPerStep();
+        startedAt_ = at;
+    }
+    else if (running_)
+    {
+        justSounded = lastTrigger_ >= startedAt_ && lastTrigger_ < at &&
+                      static_cast<double> (at - lastTrigger_) < 0.5 * interval_;
+    }
+    else
+    {
+        return;
+    }
+    anchor_ = at;
+    if (justSounded)
+    {
+        stepsSinceAnchor_ = 1;
+        nextStep_ = 1;
+    }
+    else
+    {
+        stepsSinceAnchor_ = 0;
+        nextStep_ = 0;
+    }
 }
 
 } // namespace sedef::dsp

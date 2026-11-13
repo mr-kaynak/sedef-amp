@@ -30,7 +30,7 @@ around them.
 | **EQ** | 9-band graphic EQ with low/high cut, one bank per amp |
 | **Sedef MIDI** | a companion that plays MIDI instruments from your guitar, one note at a time ([below](#sedef-midi)) |
 | **Post** | **Drift** multi-head tape echo with wow, flutter and tape saturation · **Fathom** plate and hall reverbs · **Doubler**, a second take that differs from note to note, switched on from the header |
-| **Tools** | **Transpose**: play up to an octave lower or higher without retuning, chords included (3 ms of latency down, 10 ms up, none at 0) · **input level guide**: the input meter shows where the presets want your level and says in words whether it is right, too quiet or too hot · precision tuner · **intonation workbench** · metronome with odd meters (standalone) · **recorder** (standalone): one button records the take as two WAV files that line up sample for sample, your guitar dry and the sound you hear · **re-amp**: play a recorded DI or any WAV through the rig as if it were your guitar, looping, and change the tone while it plays ([docs/recorder.md](docs/recorder.md)) |
+| **Tools** | **Transpose**: play up to an octave lower or higher without retuning, chords included (3 ms of latency down, 10 ms up, none at 0) · **input level guide**: the input meter shows where the presets want your level and says in words whether it is right, too quiet or too hot · precision tuner · **intonation workbench** · metronome with odd meters (standalone) · **looper** with overdub and undo, free or locked to the click's bars (standalone) · **recorder** (standalone): one button records the take as two WAV files that line up sample for sample, your guitar dry and the sound you hear · **re-amp**: play a recorded DI or any WAV through the rig as if it were your guitar, looping, and change the tone while it plays ([docs/recorder.md](docs/recorder.md)) |
 | **Presets** | browser with categories, tags and search · click to audition, Esc to go back · A/B compare · Undo when a load or delete would lose work |
 | **Live** | **MIDI learn** on any control: right-click, then move a pedal or press a footswitch · program changes load presets · **8 scenes** per preset (pedals on/off plus knobs you pick), switched by footswitch without a gap ([below](#playing-live)) |
 
@@ -76,6 +76,20 @@ same sound on another computer; presets keep a reference to the file. Sedef ship
 find thousands on [TONE3000](https://www.tone3000.com). See [docs/dsp/nam.md](docs/dsp/nam.md).
 
 <img src="docs/images/capture.png" alt="A NAM capture loaded in the amp section, with its gear, author and model, input and output trims and the cab switch" width="100%">
+
+## Looper
+
+In the standalone app, the looper button next to the metronome opens a looper for practice and
+writing. One button (or the `L` key, so a hand stays on the guitar) records, closes the loop and
+plays it, then adds parts on top. With the click running the loop snaps to whole bars, starting
+exactly on the "1", with an optional bar of count-in, and the click stays locked to it however
+long you play. Undo takes back the last part, Clear has an Undo too, and Feedback sets how much
+of the old take stays under a new one. It records the sound you hear, effects included, so you can
+change presets and solo over your rhythm part. Every start, stop and seam is crossfaded: no
+clicks. See [docs/looper.md](docs/looper.md) for the design, the timing to the sample and the
+memory it uses.
+
+<img src="docs/images/looper.png" alt="The looper panel: a four-bar loop playing, its ring two fifths round, with Stop, Undo, Redo, Clear, level, feedback and count-in" width="100%">
 
 ## The intonation workbench
 

@@ -11,7 +11,8 @@ export function takeAnnouncement(
   take: { seconds: number; ended: string; dropouts?: number } | null,
 ): string {
   if (previous === status || previous === null) return '';
-  if (status === 'recording') return 'Recording';
+  // Not just "Recording": the looper says that for its own take.
+  if (status === 'recording') return 'Recording a take';
   if (status === 'idle' && previous !== 'idle' && take) {
     if (take.ended === 'empty') return 'Nothing was recorded';
     if (take.ended === 'writeError') return 'The take stopped: the disk could not keep it';

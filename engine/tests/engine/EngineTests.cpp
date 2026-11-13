@@ -4,6 +4,7 @@
 #include "live/LiveTestUtils.h"
 #include "midi/MidiTestSignals.h"
 #include "sedef/Engine.h"
+#include "sedef/dsp/Looper.h"
 #include "sedef/dsp/PitchShifter.h"
 #include "sedef/dsp/cab/CabSim.h"
 #include "sedef/dsp/capture/CaptureStage.h"
@@ -1017,6 +1018,214 @@ TEST_CASE ("The live layer never allocates", "[engine][live]")
     }
     CHECK (gAllocations.load() == 0);
     CHECK (h.control.messageCount() > 400);
+}
+
+// -------------------------------------------------------------------------------------------------
+// The looper in the rig (docs/looper.md; the looper's own timing is in tests/looper/).
+
+namespace
+{
+/// The engine in host blocks over long buffers, with looper presses before given blocks.
+struct LoopRig
+{
+    LoopRig (double fs, int blockSize, int frames)
+        : in (1, frames),
+          out (2, frames),
+          block (blockSize)
+    {
+        engine.prepare (fs, blockSize, 1, 2);
+    }
+
+    /// Processes everything; `presses` are (sample, command), each acting at the first block
+    /// that starts at or after its sample.
+    void run (const ParamSnapshot& p,
+              const std::vector<std::pair<int, LooperCommand>>& presses = {})
+    {
+        std::size_t next = 0;
+        for (int s = 0; s < in.frames(); s += block)
+        {
+            while (next < presses.size() && presses[next].first <= s)
+                engine.looperCommand (presses[next++].second);
+            const int n = std::min (block, in.frames() - s);
+            std::array<const float*, 2> ip { in.ptrs[0] + s, nullptr };
+            std::array<float*, 2> op { out.ptrs[0] + s, out.ptrs[1] + s };
+            engine.process (ip.data(), op.data(), n, p, transport);
+        }
+    }
+
+    Engine engine;
+    test::Buffer in, out;
+    Transport transport;
+    int block;
+};
+
+ParamSnapshot quietRig()
+{
+    auto p = ParamSnapshot::defaults();
+    p[ParamId::gateEnabled] = 0.0f;
+    return p;
+}
+} // namespace
+
+TEST_CASE ("Engine: the looper plays back the rig's output, a press acting at the next block",
+           "[engine][looper]")
+{
+    const double fs = 48000.0;
+    const int frames = 160000;
+    // Transpose adds its own latency, which the looper allows for as well.
+    const int semitones = GENERATE (0, 7, -5);
+    INFO ("transpose " << semitones);
+    LoopRig plain (fs, 64, frames);
+    test::fillNoise (plain.in[0], 0.3f, 5);
+    std::fill (plain.in[0].begin() + 60000, plain.in[0].end(), 0.0f);
+    auto p = quietRig();
+    p[ParamId::transpose] = static_cast<float> (semitones);
+    plain.run (p);
+
+    LoopRig looped (fs, 64, frames);
+    looped.in = plain.in;
+    REQUIRE (looped.engine.prepareLooper());
+    // Presses land between blocks: the take starts at 6400, closes at 6400 + 40000.
+    looped.run (p, { { 6400, LooperCommand::main }, { 46400, LooperCommand::main } });
+    const auto& t = looped.engine.telemetry();
+    CHECK (t.looperState.load() == static_cast<int> (dsp::Looper::State::playing));
+    CHECK (t.looperLength.load() == 40000);
+
+    // Recorded before the click and the output gain, the rig's latency earlier than it arrived.
+    const int R = looped.engine.latencySamples();
+    if (semitones != 0)
+    {
+        LoopRig untransposed (fs, 64, 64);
+        CHECK (R > untransposed.engine.latencySamples()); // the case does test Transpose's share
+    }
+    const int X = 480;
+    for (int c = 0; c < 2; ++c)
+    {
+        double worst = 0.0;
+        for (int i = X; i < 40000 - X; ++i)
+        {
+            const auto now = static_cast<std::size_t> (46400 + i);
+            const float added = looped.out[c][now] - plain.out[c][now];
+            const float recorded = plain.out[c][static_cast<std::size_t> (6400 + R + i)];
+            worst = std::max (worst, static_cast<double> (std::abs (added - recorded)));
+        }
+        INFO ("channel " << c);
+        CHECK (worst < 1.0e-6);
+    }
+    // Before the loop closed, the rig sounded exactly as without the looper.
+    for (int c = 0; c < 2; ++c)
+        CHECK (
+            std::equal (plain.out[c].begin(), plain.out[c].begin() + 46400, looped.out[c].begin()));
+}
+
+TEST_CASE ("Engine: the click is never recorded, and a take in bars starts on its downbeat",
+           "[engine][looper]")
+{
+    const double fs = 48000.0;
+    const int frames = 300000;
+    auto p = metronomeOnly();
+    p[ParamId::tempo] = 240.0f; // 4/4: a bar is 48000 samples
+    LoopRig plain (fs, 64, frames);
+    plain.engine.setMetronomeAllowed (true);
+    plain.run (p);
+
+    LoopRig looped (fs, 64, frames);
+    looped.engine.setMetronomeAllowed (true);
+    REQUIRE (looped.engine.prepareLooper());
+    // Armed at 6400, the take starts on the downbeat at 48000; the close at 66560 rounds up to
+    // the downbeat at 96000. Then it plays: silence plus nothing of the click.
+    looped.run (p, { { 6400, LooperCommand::main }, { 66560, LooperCommand::main } });
+    const auto& t = looped.engine.telemetry();
+    CHECK (t.looperState.load() == static_cast<int> (dsp::Looper::State::playing));
+    CHECK (t.looperLength.load() == 48000);
+    CHECK (t.looperBars.load() == 1);
+    CHECK ((t.looperFlags.load() & Engine::kLooperSynced) != 0);
+    float added = 0.0f;
+    for (std::size_t i = 0; i < static_cast<std::size_t> (frames); ++i)
+        added = std::max (added, std::abs (looped.out[0][i] - plain.out[0][i]));
+    CHECK (test::peak (plain.out[0]) > 0.05f); // the click sounds
+    CHECK (added < 1.0e-6f);                   // and was not recorded
+}
+
+TEST_CASE ("Engine: preparing again at the same rate keeps the loop, a new rate clears it",
+           "[engine][looper]")
+{
+    LoopRig rig (48000.0, 128, 80000);
+    test::fillNoise (rig.in[0], 0.3f, 9);
+    REQUIRE (rig.engine.prepareLooper());
+    rig.run (quietRig(), { { 1280, LooperCommand::main }, { 31360, LooperCommand::main } });
+    const auto& t = rig.engine.telemetry();
+    REQUIRE (t.looperLength.load() == 30080);
+
+    const auto block = [&] {
+        std::array<const float*, 2> ip { rig.in.ptrs[0], nullptr };
+        std::array<float*, 2> op { rig.out.ptrs[0], rig.out.ptrs[1] };
+        rig.engine.process (ip.data(), op.data(), 128, quietRig(), rig.transport);
+    };
+    rig.engine.prepare (48000.0, 512, 1, 2); // a new buffer size, or the Latency setting
+    block();
+    CHECK (t.looperState.load() == static_cast<int> (dsp::Looper::State::stopped));
+    CHECK (t.looperLength.load() == 30080);
+    rig.engine.prepare (44100.0, 512, 1, 2);
+    block();
+    CHECK (t.looperState.load() == static_cast<int> (dsp::Looper::State::empty));
+    CHECK (t.looperLength.load() == 0);
+}
+
+TEST_CASE ("Engine::process never allocates while the looper runs", "[engine][looper]")
+{
+    const double fs = GENERATE (44100.0, 96000.0);
+    const int block = GENERATE (1, 64, 512);
+    CAPTURE (fs, block);
+    LoopRig rig (fs, block, 120000);
+    test::fillNoise (rig.in[0], 0.3f, 4);
+    rig.engine.setMetronomeAllowed (true);
+    rig.engine.setLooperDeviceLatency (300);
+    REQUIRE (rig.engine.prepareLooper()); // reserves, on this thread
+    auto p = quietRig();
+    p[ParamId::metronomeEnabled] = 1.0f;
+    p[ParamId::tempo] = 400.0f;
+    p[ParamId::metronomeSignature] = 0.0f; // 2/4: bars of 0.3 s, so takes close quickly
+    p[ParamId::looperCountIn] = 1.0f;
+    p[ParamId::looperFeedback] = 70.0f;
+
+    using C = LooperCommand;
+    const auto at = [fs] (double seconds) {
+        return static_cast<int> (seconds * fs);
+    };
+    // Count-in, take, overdub, undo, redo, stop, play, overdub, clear, undo the clear, play.
+    const std::vector<std::pair<int, C>> presses {
+        { at (0.05), C::main },  { at (1.10), C::main }, { at (1.50), C::main },
+        { at (1.70), C::main },  { at (1.80), C::undo }, { at (1.85), C::redo },
+        { at (1.90), C::stop },  { at (1.95), C::main }, { at (2.10), C::main },
+        { at (2.20), C::clear }, { at (2.30), C::undo }, { at (2.40), C::main },
+    };
+    gAllocations = 0;
+    {
+        TrackAllocations track;
+        rig.run (p, presses); // the presses are pushed on this thread too
+    }
+    CHECK (gAllocations.load() == 0);
+    CHECK (test::allFinite (rig.out[0]));
+    CHECK (rig.engine.telemetry().looperLength.load() > 0);
+}
+
+TEST_CASE ("Engine: an idle looper leaves the rig's output bit for bit", "[engine][looper]")
+{
+    const double fs = GENERATE (44100.0, 48000.0, 96000.0);
+    Random r (21);
+    auto p = randomSnapshot (r);
+    p[ParamId::metronomeEnabled] = 1.0f; // its downbeats are read, nothing else changes
+    const auto render = [&] (bool withLooper) {
+        LoopRig rig (fs, 97, 60000);
+        test::fillNoise (rig.in[0], 0.3f, 8);
+        rig.engine.setMetronomeAllowed (true);
+        if (withLooper)
+            rig.engine.prepareLooper();
+        rig.run (p);
+        return rig.out.data;
+    };
+    CHECK (render (true) == render (false));
 }
 
 // -------------------------------------------------------------------------------------------------

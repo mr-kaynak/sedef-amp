@@ -7,8 +7,10 @@ import {
   stepPreset,
   useBrowserStore,
 } from '../features/presets/session';
+import { looperPress } from '../features/looper/actions';
 import { toggleRecording } from '../features/recorder/actions';
 import { useRecorderStore } from '../features/recorder/store';
+import { useAppStore } from '../state/appStore';
 import { usePresetStore } from '../state/presetStore';
 import { runToastAction } from '../state/toastStore';
 import { SECTIONS, uiActions, useUiStore } from '../state/uiStore';
@@ -31,8 +33,9 @@ const takesCommandKeys = (target: EventTarget | null) =>
  * closes the tuner (as its button does: an auditioned preset is kept), 1–5 switch sections (not
  * while the browser covers them), and Escape closes the open popover, then the open overlay.
  * The browser handles its own Escape. A held key repeats only where that means something ([
- * and ]). In the standalone app R starts and stops a take, from anywhere, the preset browser
- * included (docs/recorder.md).
+ * and ]). In the standalone app L is the looper's main button and Shift+L its Stop, and R starts
+ * and stops a take, from anywhere, the preset browser included (docs/looper.md,
+ * docs/recorder.md).
  */
 export function useShortcuts(): void {
   useEffect(() => {
@@ -64,6 +67,11 @@ export function useShortcuts(): void {
         e.preventDefault();
         if (!e.repeat) action();
       };
+      if (key === 'l' && useAppStore.getState().session.isStandalone) {
+        e.preventDefault();
+        if (!e.repeat) looperPress(e.shiftKey ? 'stop' : 'main');
+        return;
+      }
       if (key === 'r' && !e.shiftKey && useRecorderStore.getState().state !== null)
         return preset(() => void toggleRecording());
       switch (e.key) {

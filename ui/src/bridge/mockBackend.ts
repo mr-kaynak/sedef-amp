@@ -35,6 +35,7 @@ import {
 } from './mock/factoryPresets';
 import { CaptureSim } from './mock/captureSim';
 import { LiveSim } from './mock/liveSim';
+import { LooperSim, type LooperDemo } from './mock/looperSim';
 import { PitchSimulator } from './mock/pitchSim';
 import { RecorderSim, type RecorderDemo } from './mock/recorderSim';
 import { createRandom } from './mock/random';
@@ -76,6 +77,8 @@ export interface MockOptions {
   recorder?: RecorderDemo;
   /** Start with a few MIDI bindings and program assignments (screenshots, the browser preview). */
   liveDemo?: boolean;
+  /** The looper opened in a given state (demos and screenshots). */
+  looper?: LooperDemo;
   /**
    * Delays each native call's answer and each preset broadcast by a random 0..maxMs (seeded).
    * Calls still run in the order they were made, as in the plugin, but their answers can arrive
@@ -182,6 +185,8 @@ export class MockBackend implements Backend {
   });
   /** Scenes, MIDI bindings, program changes and learn (docs/live.md). */
   readonly live: LiveSim;
+  /** The looper's states (docs/looper.md); tests read it and advance it with tickTelemetry. */
+  readonly looper = new LooperSim((id) => this.value(id));
 
   constructor(private readonly options: MockOptions = {}) {
     this.live = new LiveSim(
@@ -242,6 +247,7 @@ export class MockBackend implements Backend {
       storageKey: options.persistKey ? 'sedef-mock-updates' : null,
       emit: (state) => this.emit('sedef:update', state),
     });
+    if (options.looper && this.standalone()) this.looper.demo(options.looper);
     if (options.recorder && this.recorderAvailable()) this.recorder.demo(options.recorder);
     if (options.autoStart) this.start();
   }
@@ -286,17 +292,28 @@ export class MockBackend implements Backend {
   }
 
   tickTelemetry(dt = 1 / TELEMETRY_HZ): void {
+    this.looper.step(dt);
     this.recorder.step(dt);
     const t = this.telemetrySim.step(dt);
     this.emitter.emit('sedef:telemetry', {
       ...t,
+      looper: this.looperTelemetry(),
       ...this.recorderTelemetry(t.inputDb[0] ?? -100, t.outputDb[0] ?? -100),
     });
   }
 
+  private standalone(): boolean {
+    return this.options.isStandalone ?? true;
+  }
+
+  /** What the plug-in reports: the looper only in the standalone app. */
+  private looperTelemetry() {
+    return this.standalone() ? this.looper.telemetry() : null;
+  }
+
   /** The recorder exists in the standalone app only. */
   private recorderAvailable(): boolean {
-    return this.options.isStandalone ?? true;
+    return this.standalone();
   }
 
   private recorderTelemetry(inDb: number, outDb: number) {
@@ -328,6 +345,7 @@ export class MockBackend implements Backend {
       gateOpen: true,
       gateReductionDb: 0,
       tideReductionDb: this.value('tideEnabled') >= 0.5 ? -3.5 : 0,
+      looper: this.looperTelemetry(),
       ...this.recorderTelemetry(-9, -13),
       cpu: 0.064,
     });
@@ -606,6 +624,10 @@ export class MockBackend implements Backend {
       }
     },
 
+    sedef_looper_open: () => this.standalone() && this.looper.open(),
+    sedef_looper_command: (action) => {
+      if (this.standalone() && this.looper.open()) this.looper.command(action);
+    },
     sedef_recorder_toggle: () => (this.recorderAvailable() ? this.recorder.toggle() : null),
     sedef_recorder_reveal: () => undefined,
     sedef_reamp_files: () => (this.recorderAvailable() ? this.recorder.list() : []),

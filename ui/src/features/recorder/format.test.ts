@@ -34,7 +34,7 @@ describe('recorder words', () => {
 
   it('announces a take starting and how it ended', () => {
     expect(takeAnnouncement(null, 'idle', null)).toBe('');
-    expect(takeAnnouncement('starting', 'recording', null)).toBe('Recording');
+    expect(takeAnnouncement('starting', 'recording', null)).toBe('Recording a take');
     expect(takeAnnouncement('saving', 'idle', { seconds: 83.4, ended: 'stopped' })).toBe(
       'Take saved, 1 minute 23 seconds',
     );

@@ -8,14 +8,29 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
-- **Record your playing in the standalone app.** The Recorder button sits with the metronome in
-  the header; one press (or the R key) records the take as two WAV files: your guitar dry, the
-  way it came in, and the sound you hear, effects and click included. They start on the same
-  sample and line up sample for sample, with the rig's latency taken out. The panel shows the
-  time, the level going into each file and where they went, with a button that opens the
+- **A looper in the standalone app**, next to the metronome. One button, or the `L` key so a
+  hand stays on the guitar, records, closes the loop and plays it, then lays parts on top; press
+  it again to go back to playing. `Shift+L` stops. Up to two minutes at 48 kHz (one at 96).
+- **Loops that keep time with the click**: while the click runs, a loop starts exactly on the
+  next "1" (a press just after the "1" still catches it), the closing press is rounded to the
+  nearest bar line, and an optional one-bar count-in gives you a bar of clicks first. Once it
+  plays, the click stays locked to the loop, pass after pass. Without the click the loop is as
+  long as you played.
+- **Undo and Redo of the last overdub, and Clear with Undo.** Feedback sets how much of the old
+  take stays under a new part (100 %: all of it, 0 %: you replace it); Level sets how loud the
+  loop plays.
+- The looper records what you hear, effects included and the click left out, so you can change
+  presets and solo over your rhythm part. It allows for the interface's delay and Transpose's,
+  so what you play in time with the click plays back in time with it, layer after layer, and
+  every start, stop, punch-in and the seam where the loop wraps is a 10 ms crossfade: no clicks.
+- **Record your playing in the standalone app.** The Recorder button sits with the metronome and
+  the looper in the header; one press (or the R key) records the take as two WAV files: your
+  guitar dry, the way it came in, and the sound you hear, effects and click included. They start
+  on the same sample and line up sample for sample, with the rig's latency taken out. The panel
+  shows the time, the level going into each file and where they went, with a button that opens the
   folder (Music/Sedef Amp/Recordings). Recording never interrupts the sound: if the disk falls
-  behind for more than 4 seconds the take keeps going, the panel says how much was lost, and
-  the files say so too ([docs/recorder.md](docs/recorder.md)).
+  behind for more than 4 seconds the take keeps going, the panel says how much was lost, and the
+  files say so too ([docs/recorder.md](docs/recorder.md)).
 - **Re-amp**: play a recorded DI, or any WAV, AIFF or FLAC file you open or drop on the panel,
   through the rig as if it were your guitar. Change the tone while it plays, loop it, and mute
   your guitar or play along. A take from Sedef plays exactly as recorded; a file at another
@@ -24,7 +39,7 @@ All notable changes to this project are documented here. The format follows
 ### Changed
 
 - **Intonation is an icon button in the standalone app's header**, to make room for the
-  Metronome and Recorder side by side.
+  Metronome, Looper and Recorder side by side.
 
 ## [0.9.0] - 2026-11-13
 

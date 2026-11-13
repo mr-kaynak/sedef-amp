@@ -28,6 +28,16 @@ const MIDI = {
   canvas: { width: 760, height: 600 },
 };
 
+// The looper's panel (docs/looper.md) in one of its states, the click on, nothing moving.
+const looperShot = (state, set = 'metronomeEnabled:1') => ({
+  query: `section=amp&freeze&looper=${state}&set=${set}`,
+  async prepare(page) {
+    await page.getByRole('button', { name: /^Looper/ }).click();
+    await page.getByRole('dialog', { name: 'Looper' }).waitFor();
+    await page.waitForTimeout(400);
+  },
+});
+
 // The recorder's panel (docs/recorder.md) in one of its states, nothing moving.
 const recorderShot = (state) => ({
   query: `section=amp&freeze&recorder=${state}`,
@@ -95,6 +105,16 @@ const SHOTS = {
       await page.waitForTimeout(700);
     },
   },
+  // A four-bar loop playing (the docs image), then every state (layout checks, not docs images).
+  looper: looperShot('playing'),
+  'looper-empty': looperShot('empty'),
+  'looper-empty-free': looperShot('empty', 'metronomeEnabled:0'),
+  'looper-armed': looperShot('armed'),
+  'looper-recording': looperShot('recording'),
+  'looper-recording-free': looperShot('recording', 'metronomeEnabled:0'),
+  'looper-closing': looperShot('closing'),
+  'looper-overdubbing': looperShot('overdubbing'),
+  'looper-stopped': looperShot('stopped'),
   // A take recording and a take re-amping (the docs images), then the other states (layout
   // checks, not docs images).
   recorder: recorderShot('recording'),
@@ -237,6 +257,7 @@ const names = wanted.length
       'intonation',
       'input-level',
       'transpose',
+      'looper',
       'recorder',
       'reamp',
       'midi',

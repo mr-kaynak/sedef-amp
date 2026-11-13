@@ -20,7 +20,13 @@ const PATHS = {
     'M2 4h7M12 4h2M2 12h2M7 12h7M9 2.5v3M12 2.5v3M4 10.5v3M7 10.5v3M2 8h4M9 8h5M6 6.5v3M9 6.5v3',
   play: 'M5 3.2v9.6L12.5 8z',
   stop: 'M4.5 4.5h7v7h-7z',
+  // The looper: two arrows chasing each other round a loop.
+  loop: 'M2.5 7V6.5a3 3 0 0 1 3-3h7M10.5 1.5l2 2-2 2M13.5 9v.5a3 3 0 0 1-3 3h-7M5.5 14.5l-2-2 2-2',
   record: 'M8 12.2a4.2 4.2 0 1 0 0-8.4 4.2 4.2 0 0 0 0 8.4z',
+  // A part laid on top: a new layer over the loop's.
+  overdub: 'M8 2.5 14 5.5 8 8.5 2 5.5zM2 8.5l6 3 6-3M2 11.5l6 3 6-3',
+  undo: 'M5.5 3 2.5 6l3 3M2.5 6h7.5a3.5 3.5 0 0 1 0 7H7',
+  redo: 'M10.5 3l3 3-3 3M13.5 6H6a3.5 3.5 0 0 0 0 7h3',
   link: 'M6.8 9.2l2.4-2.4M7.5 4.6l1.1-1.1a2.6 2.6 0 0 1 3.7 3.7l-1.1 1.1M8.5 11.4l-1.1 1.1a2.6 2.6 0 0 1-3.7-3.7l1.1-1.1',
   unlink:
     'M7.5 4.6l1.1-1.1a2.6 2.6 0 0 1 3.7 3.7l-1.1 1.1M8.5 11.4l-1.1 1.1a2.6 2.6 0 0 1-3.7-3.7l1.1-1.1M2 2l12 12',

@@ -224,6 +224,8 @@ TEST_CASE ("Scenes hold every pedal's switch and the post blocks", "[live]")
     // Picked values: continuous only, at most 16, never twice, removable; switches stay.
     CHECK_FALSE (bank.addValue (ParamId::anemoneMode, 0.0f)); // a choice
     CHECK_FALSE (bank.addValue (ParamId::abyssBright, 0.0f)); // a switch outside the set
+    // Transpose: an int, and a scene must never change the latency (docs/live.md §6.2).
+    CHECK_FALSE (bank.addValue (ParamId::transpose, -2.0f));
     CHECK (bank.addValue (ParamId::driftMix, 0.3f));
     CHECK_FALSE (bank.addValue (ParamId::driftMix, 0.3f));
     CHECK (bank.numValues() == 1);

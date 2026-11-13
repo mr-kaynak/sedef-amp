@@ -105,6 +105,8 @@ const SHOTS = {
   'looper-closing': looperShot('closing'),
   'looper-overdubbing': looperShot('overdubbing'),
   'looper-stopped': looperShot('stopped'),
+  // Empty while the metronome plays drums: the copy names the drums.
+  'looper-drums': looperShot('empty', 'metronomeEnabled:1,metronomeMode:1'),
   // The metronome playing drums: the groove list for 4/4, intensity, fills, level and tone.
   drums: {
     query: 'section=amp&set=metronomeMode:1,drumsGroove:1',

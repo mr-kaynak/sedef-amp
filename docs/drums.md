@@ -180,10 +180,10 @@ record.
 | 2 | Ballad | 4/4, 16ths | Soft and open, room for a slow song |
 | 3 | Fast eighths | 4/4, 16ths | Kick and snare trade eighths, fast and loud |
 | 4 | Shuffle | 4/4, triplets | Triplet bounce on the hat, backbeat on 2 and 4 |
-| 5 | Swing | 4/4, triplets | The ride's swing pattern, hat on 2 and 4 |
+| 5 | Swing | 4/4, triplets | Swing time on the ride, hat on 2 and 4 |
 | 6 | Waltz | 3/4, 16ths | One-two-three, kick on one |
 | 7 | Two-step | 2/4, 16ths | Bass on one, snare on two: a quick march |
-| 8 | Five | 5/4, 16ths | Three plus two, kick on each group's one |
+| 8 | Five | 5/4, 16ths | Three plus two, kick on the first of each group |
 | 9 | Six-eight | 6/8, 16ths | Two rolling groups of three, snare on four |
 | 10 | Seven | 7/8, 16ths | Grouped two, two, three |
 | 11 | Nine | 9/8, 16ths | Grouped two, two, two, three |
@@ -204,8 +204,8 @@ Lanes (bar shown as slots; a space every step for reading only, not in the data)
                      R   o.g. o.g. o.g. o.g.   5        S   .... o... .... o...   1-2  +5 ms
                      S   .... x... .... x...   3-5  +5 ms
                      K   x... .... x... ....   1-3      K   x... ..g. x... ....   4-5
-3 Fast eighths       H   x.x. x.x. x.x. x.x.   1-3      R   X.x. X.x. X.x. X.x.   4
-                     C   X... x... X... x...   5        K   x... .... x... ....   1
+3 Fast eighths       H   x.x. x.x. x.x. x.x.   1-3      R   X.x. X.x. X.x. X.x.   4-5
+                     C   X... .... .... ....   5        K   x... .... x... ....   1
                      S   .... x... .... x...   1        K   x... x... x... x...   2-5
                      S   ..x. ..x. ..x. ..x.   2-5
 4 Shuffle            H   x.. x.. x.. x..       1        H   X.x x.x X.x x.x       2-4
@@ -278,15 +278,24 @@ that reason. A drum render in floats could only be pinned per platform. In integ
 renders the **same bits on every platform**, so a hash of a few bars pins the whole kit and every
 groove in CI on all three systems.
 
-- Signal: Q23 in `int32` (1.0 = 2²³); a voice's output is bounded (5.6), so sums never overflow.
-- Coefficients: Q30. Products in `int64`, shifted right (arithmetic, rounding toward −∞; C++20
-  defines it).
+- Output: Q23 in `int32` (1.0 = 2²³); every instrument's output is bounded (5.6), so sums never
+  overflow.
+- Modes are kept in Q35 and envelopes in Q38, 12 and 15 bits under the output's LSB, with
+  coefficients in Q26 and Q24, products in `int64`. The extra bits matter: with Q23 state, a mode
+  that loses less than an LSB per sample (`(1 − r)·A < 1`) stops decaying and circles in a limit
+  cycle. A closed hat built that way rang on at about −85 dBFS for seconds. At Q35 the same stall
+  would sit far under the output's LSB, and the mode update rounds **toward zero** (magnitude
+  truncation), so a decaying mode's norm strictly falls and reaches zero.
+- Filters are first-order bilinear low- and high-passes with pre-warped cut-offs (Q30), also
+  rounded toward zero, so with no input their state reaches zero too.
 - Constants (frequencies, decays, levels) are computed in `double` when the kit is prepared and
   rounded to integers once. Those are the only floating-point values the kit uses; a last-bit
   difference in `exp` there would have to fall within 10⁻¹⁶ of a rounding boundary to change an
   integer, and the CI hashes check it on every platform.
 - Noise: `sedef::Random` (xorshift32, integer), one generator per instrument, seeded with a
   constant at every transport start. A groove therefore sounds the same each time it starts.
+  White noise spreads its power from 0 to `fs/2`, so its amplitude is scaled by `√(fs / 48 kHz)`:
+  its level in the audio band is then the same at every rate.
 - After the kit, Level and Tone run in `float` (5.7); the pinned renders are taken at 0 dB and a
   centred Tone, where both are exact (gain 1.0, filter bypassed).
 
@@ -371,12 +380,13 @@ Membranes: polyester film 0.25 mm thick, `σ = 1390 kg/m³ × 0.25 mm = 0.3475 k
 **Snare wires.** The wires rattle while the head under them moves far enough to throw them off;
 below that they rest on it and fall silent. So their noise is driven by the head's fundamental
 above a threshold: `drive = max(0, e₁ − θ)`, `θ` 30 dB under a top-velocity strike. A soft stroke
-therefore buzzes less than in proportion and its buzz ends sooner, as on a real snare. The wire
-noise is band-limited by a one-pole high-pass at 1.8 kHz and a one-pole low-pass at 9 kHz.
+therefore buzzes less than in proportion and its buzz ends sooner, as on a real snare: for 3.4 τ
+after a top stroke (0.16 s) and 1.7 τ after a ghost note (0.08 s). The wire noise is band-limited
+by a first-order high-pass at 1.8 kHz and low-pass at 9 kHz.
 
 **Clicks.** The stick or beater's own impact: a burst of noise with a 1 ms decay (kick 1.5 ms),
-amplitude `∝ u`, through a one-pole low-pass at `0.5 / t_c` (brighter for harder strokes) and a
-one-pole high-pass at 1 kHz.
+amplitude `∝ u`, through a first-order low-pass at `0.5 / t_c` (brighter for harder strokes) and
+a first-order high-pass at 1 kHz.
 
 **Cymbals.** A cymbal's modes are many and inharmonic; above a few kHz they blur into a wash. Each
 cymbal has a bank of partials plus a noise wash:
@@ -397,15 +407,16 @@ cymbal has a bank of partials plus a noise wash:
 |---|---|---|---|
 | Partials' Q | open 4700 (τ 0.47 s at 3.2 kHz), closed 310 (τ 31 ms) | 2500 (τ 1.9 s at 420 Hz, 0.12 s at 6.9 kHz) | 2000 (τ 1.9 s at 330 Hz) |
 | Wash τ | open 0.28 s, closed 20 ms | 1.6 s | 1.2 s, rising over 12 ms |
-| Wash band | high-pass 6 kHz (two poles) | 3–10 kHz | 2–12 kHz |
+| Wash band | 6–14 kHz (two high-pass poles) | 3–10 kHz | 2–12 kHz |
 
 The crash's wash rises over 12 ms because a cymbal's energy moves from the struck low modes to
 high ones over the first tens of milliseconds (its "bloom").
 
 **Open and closed hats** are one instrument: the two cymbals either ring free or are clamped. A
 closed-hat stroke sets the closed damping and excites the bank; an open-hat stroke sets the open
-damping. A closed stroke after an open one therefore chokes it within about 20 ms, as closing the
-pedal does.
+damping. A closed stroke after an open one therefore chokes it, as closing the pedal does: the
+partials fall with τ 9–31 ms and the wash with 20 ms instead of ringing on for seconds (the tests
+ask for at least 25 dB under the open ring 150 ms after the closed stroke).
 
 ### 5.5 Levels and stereo
 
@@ -419,18 +430,33 @@ the noise parts are bounded separately (5.6).
 | Noise peak | 0.06 | 0.26 (wires), 0.05 (click) | 0.04 | 0.12 | 0.05 | 0.14 |
 | Pan (−1 left, +1 right) | 0 | 0 | −0.3, 0, +0.4 | −0.35 | +0.45 | −0.3 |
 
-Kick and snare carry the groove and are the loudest; cymbals sit 8–12 dB lower, as in a kit mixed
-for practice. The pan is the drummer's view (hats left, ride and floor tom right), at most 0.45 so
+Kick and snare carry the groove and are the loudest; cymbals sit lower, as in a kit mixed for
+practice. The pan is the drummer's view (hats left, ride and floor tom right), at most 0.45 so
 the kit stays around the guitar, which is in the centre. Pan gains are constant power:
 `gL = cos((p + 1)π/4)`, `gR = sin((p + 1)π/4)`.
+
+All these levels are then raised together by the **kit level**, 1.9 (+5.6 dB), set once from a
+measurement: at Level 0 dB a groove at intensity 3 reads −22.2 to −24.7 LUFS (median −23.3), about
+7 dB under the factory presets' −16 LUFS, so the guitar stays on top. Its true peak is −1.9 to
+−2.7 dBFS (16 bars with fills, 120 bpm). No groove reaches 0 dBFS at Level 0 dB even at intensity
+5, 240 bpm and fills every 2 bars (a test). At intensity 1 the grooves read −23.8 to −26.6 LUFS,
+at 5 −18.1 to −23.4 LUFS.
+
+Measured single strokes at 48 kHz (peak per channel, velocity 124):
+
+| | Kick | Snare | Closed hat | Open hat | Ride | Crash | Toms (high, mid, floor) |
+|---|---|---|---|---|---|---|---|
+| Left / right dBFS | −5.7 / −5.7 | −7.9 / −7.9 | −18.1 / −23.2 | −15.6 / −20.7 | −25.0 / −18.3 | −11.4 / −15.6 | −6.0 / −10.3, −7.6 / −7.6, −11.5 / −5.6 |
+| Falls 60 dB in | 0.36 s | 0.23 s | 0.17 s | 2.4 s | over 4 s | over 4 s | 1.05, 1.26, 1.68 s |
 
 ### 5.6 Bounds
 
 - A mode never exceeds `2·E_m` (its top-velocity strike, 5.2), so a bank's tone never exceeds
   twice its tone peak.
-- Noise is uniform in ±1 times an envelope that is capped at twice its single-strike level; a
-  one-pole low-pass never raises a peak and a one-pole high-pass at most doubles it, so a noise
-  part's output is at most `2 × level × 2^(high-pass poles)`.
+- Noise is uniform in ±1 times an envelope that is capped at twice its single-strike level. A
+  filter raises a peak by at most the sum of the magnitudes of its impulse response (computed for
+  each filter when the kit is prepared), so a noise part's output is at most twice its level times
+  the product of those sums.
 - The kit's output is bounded by the sum of those, panned. The tests check every render against it
   and that it never comes near the `int32` range.
 
@@ -449,7 +475,9 @@ After the kit, in `float`:
   `prepare()`. The velocity tables are built in `prepare()`.
 - Settings come through parameters, read once per block.
 - Cost: only sounding banks run. Every mode is four 64-bit multiplies a sample, eight with the
-  glide; the whole kit ringing at once is about 60 modes.
+  glide; the whole kit ringing at once is 40 modes. The busiest groove (Fast eighths, intensity 5,
+  fills every 2 bars, 200 bpm) takes 0.2–0.6 % of one core of an Apple M2 (measured with the
+  desktop's usual load, `sedef_engine_tests "[drums-probe]"`).
 
 ## 7. Parameters ([ADR-0004](adr/0004-single-parameter-schema.md))
 

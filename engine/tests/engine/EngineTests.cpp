@@ -1237,6 +1237,37 @@ TEST_CASE ("Engine: the click is never recorded, and a take in bars starts on it
     CHECK (added < 1.0e-6f);                   // and was not recorded
 }
 
+TEST_CASE ("Engine: the drums are never recorded, and a take in bars starts on their downbeat",
+           "[engine][looper][drums]")
+{
+    const double fs = 48000.0;
+    const int frames = 300000;
+    auto p = drumsOnly (1);     // half-time
+    p[ParamId::tempo] = 240.0f; // 4/4: a bar is 48000 samples
+    p[ParamId::looperCountIn] = 1.0f;
+    LoopRig plain (fs, 64, frames);
+    plain.engine.setMetronomeAllowed (true);
+    plain.run (p);
+
+    LoopRig looped (fs, 64, frames);
+    looped.engine.setMetronomeAllowed (true);
+    REQUIRE (looped.engine.prepareLooper());
+    // Armed at 6400: the count-in is the groove's bar from 48000, the take starts on the
+    // downbeat at 96000, and the close at 114560 rounds up to the downbeat at 144000. Then it
+    // plays: silence plus nothing of the drums.
+    looped.run (p, { { 6400, LooperCommand::main }, { 114560, LooperCommand::main } });
+    const auto& t = looped.engine.telemetry();
+    CHECK (t.looperState.load() == static_cast<int> (dsp::Looper::State::playing));
+    CHECK (t.looperLength.load() == 48000);
+    CHECK (t.looperBars.load() == 1);
+    CHECK ((t.looperFlags.load() & Engine::kLooperSynced) != 0);
+    float added = 0.0f;
+    for (std::size_t i = 0; i < static_cast<std::size_t> (frames); ++i)
+        added = std::max (added, std::abs (looped.out[0][i] - plain.out[0][i]));
+    CHECK (test::peak (plain.out[0]) > 0.05f); // the drums sound
+    CHECK (added < 1.0e-6f);                   // and were not recorded
+}
+
 TEST_CASE ("Engine: preparing again at the same rate keeps the loop, a new rate clears it",
            "[engine][looper]")
 {

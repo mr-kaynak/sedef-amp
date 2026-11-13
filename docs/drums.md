@@ -124,6 +124,8 @@ looper's downbeats and the drums' bar lines are the same samples by construction
   of a loop, the first wrap starts a new bar there. Of the looper's rule that a step sounding less
   than half a step before the wrap counts as the downbeat (so the click never doubles), the drums
   keep only the case where that step was step 0; otherwise the drums' "1" plays on the wrap.
+- **Starting on a wrap**: drums switched on in the block that holds a wrap start their run on the
+  wrap itself, as a fresh run would: bar 0 of the groove, the kit's noise reseeded.
 
 ## 4. Grooves
 
@@ -535,8 +537,16 @@ Engine (`engine/tests/drums/`):
 - **Physics**: the kick's pitch starts `g_max` sharp and falls at twice the tone's rate; a closed
   hat chokes an open one within 30 ms; a soft snare stroke's buzz ends before a hard one's.
 - **Real time**: no allocation in `process()` with the drums running, at every setting.
-- **Engine**: drums are not in a loop the looper records; the looper's Bars take starts on a drum
-  bar line; the lock holds after many passes; the plug-in (metronome not allowed) is unchanged.
+- **The looper** (`engine/tests/drums/DrumsLockTests.cpp`, `[drums][looper][lock]`, the
+  metronome and the looper wired as the engine wires them, in blocks of 512, 97 and 300): a Bars
+  take starts on a drum bar line (its first sample is the kick of the "1") with and without
+  count-in, and the count-in bar holds the same events as that bar without the looper; over ten
+  minutes of a three-bar loop at 117 bpm every wrap has the "1" on its sample, every pass is three
+  bars of the groove and its inner bar lines are steps 0 of the re-anchored grid; drums restarted
+  3.25 steps before a wrap play a new bar on the wrap and stay locked; drums switched on in the
+  block of a wrap play exactly a fresh run's first bar from it.
+- **Engine**: drums are not in a loop the looper records, with the count-in (a groove bar) before
+  a one-bar take; the plug-in (metronome not allowed) is unchanged.
 - **Factory presets** render byte-identical to main with the drums off (`sedef-render`, every
   preset at 44.1, 48 and 96 kHz).
 

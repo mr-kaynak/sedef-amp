@@ -17,6 +17,7 @@ import {
   actionFires,
   canRememberInScenes,
   continuousValue,
+  isDoubleTap,
   isLearnable,
   isSwitchTarget,
   MAX_SCENE_VALUES,
@@ -26,6 +27,7 @@ import {
   SwitchClassifier,
   switchValue,
 } from '../../features/live/model';
+import type { LooperPress } from './looperSim';
 
 /** A preset's "scenes" object, as the plug-in writes it (§6.4). */
 export interface ScenesFile {
@@ -56,6 +58,8 @@ export interface LiveHost {
   presetIdAt(position: number): string | null;
   emit(state: LiveState): void;
   emitActivity(activity: LiveActivity): void;
+  /** A footswitch press for the looper (docs/live.md §4.5). */
+  looper(press: LooperPress): void;
   /** Scenes count towards "dirty". */
   changed(): void;
 }
@@ -84,17 +88,19 @@ export class LiveSim {
   private revision = 0;
   private activity: LiveActivity = { count: 0, status: 0, data1: 0, data2: 0 };
   private inputs: { id: string; name: string; enabled: boolean }[];
+  /** Per looper:main binding: when its press waits for a second one (seconds), §4.5. */
+  private lastTap = new Map<string, number>();
   /** The audio clock, seconds. */
   clock = 0;
 
   constructor(
     private readonly host: LiveHost,
     private readonly wrapperType: WrapperType,
-    isStandalone: boolean,
+    private readonly isStandalone: boolean,
   ) {
     this.bank = this.fromFile(undefined, (id) => host.value(id));
     this.loadedBank = clone(this.bank);
-    this.inputs = isStandalone
+    this.inputs = this.isStandalone
       ? [
           { id: 'mock-floor', name: 'Floor controller', enabled: true },
           { id: 'mock-keys', name: 'USB keyboard', enabled: false },
@@ -124,6 +130,7 @@ export class LiveSim {
         ...b,
         index,
         switch: isSwitchTarget(b.target, this.host.specs),
+        ...(b.target === 'looper:main' ? { doubleTap: b.doubleTap === true } : {}),
       })),
       maxBindings: 64,
       programs: {
@@ -180,7 +187,10 @@ export class LiveSim {
   }
 
   startLearn(target: string): LiveState {
-    if (parseTarget(target)) this.learn = { target, phase: 'waiting', binding: -1 };
+    const t = parseTarget(target);
+    // The looper is the standalone app's (§4.5).
+    if (t && (t.kind !== 'looper' || this.isStandalone))
+      this.learn = { target, phase: 'waiting', binding: -1 };
     return this.state();
   }
 
@@ -195,7 +205,10 @@ export class LiveSim {
     return this.state();
   }
 
-  updateBinding(index: number, changes: Partial<Pick<LiveBinding, 'mode' | 'low' | 'high'>>) {
+  updateBinding(
+    index: number,
+    changes: Partial<Pick<LiveBinding, 'mode' | 'low' | 'high' | 'doubleTap'>>,
+  ) {
     const b = this.settings.bindings[index];
     if (b) {
       if (changes.mode === 'toggle' || changes.mode === 'latch') b.mode = changes.mode;
@@ -203,6 +216,8 @@ export class LiveSim {
         typeof v === 'number' && Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : fallback;
       b.low = unit(changes.low, b.low);
       b.high = unit(changes.high, b.high);
+      if (typeof changes.doubleTap === 'boolean' && b.target === 'looper:main')
+        b.doubleTap = changes.doubleTap;
     }
     return this.state();
   }
@@ -256,7 +271,7 @@ export class LiveSim {
     }
     if (kind === 0xb0) {
       for (const b of [...this.settings.bindings])
-        if (b.channel === channel && b.controller === data1) this.act(b, data2);
+        if (b.channel === channel && b.controller === data1) this.act(b, data2, time);
     } else if (kind === 0xc0) {
       const ch = this.settings.programChannel;
       if (ch !== 0 && ch !== channel) return;
@@ -400,7 +415,7 @@ export class LiveSim {
     this.host.emit(this.state());
   }
 
-  private act(b: Settings['bindings'][number], value: number): void {
+  private act(b: Settings['bindings'][number], value: number, time: number): void {
     const t = parseTarget(b.target);
     if (!t) return;
     switch (t.kind) {
@@ -432,6 +447,17 @@ export class LiveSim {
       case 'presetPrevious':
         if (actionFires(b.mode, value)) this.host.stepPreset(t.kind === 'presetNext' ? 1 : -1);
         return;
+      case 'looper': {
+        if (!actionFires(b.mode, value)) return;
+        if (t.action !== 'main') return this.host.looper(t.action);
+        // A second press less than the window after the first stops (§4.5).
+        if (b.doubleTap && isDoubleTap(this.lastTap.get(b.target) ?? -1, time)) {
+          this.lastTap.delete(b.target);
+          return this.host.looper('doubleTap');
+        }
+        if (b.doubleTap) this.lastTap.set(b.target, time);
+        return this.host.looper('main');
+      }
     }
   }
 
@@ -496,6 +522,15 @@ export class LiveSim {
       },
       { target: 'scene:next', channel: 1, controller: 24, mode: 'toggle', low: 0, high: 1 },
       { target: 'preset:next', channel: 1, controller: 25, mode: 'latch', low: 0, high: 1 },
+      {
+        target: 'looper:main',
+        channel: 1,
+        controller: 26,
+        mode: 'toggle',
+        low: 0,
+        high: 1,
+        doubleTap: true,
+      },
     ];
     this.settings.programs.set(1, { preset: 'factory:nacre' });
     this.settings.programs.set(8, { scene: 2 });

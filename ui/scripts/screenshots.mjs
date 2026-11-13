@@ -98,6 +98,19 @@ const SHOTS = {
   // A four-bar loop playing (the docs image), then every state (layout checks, not docs images).
   looper: looperShot('playing'),
   'looper-empty': looperShot('empty'),
+  // The big button's menu, over the looper's popover: learn a footswitch for it (docs/live.md §4.5).
+  'looper-learn': {
+    query: 'section=amp&freeze&looper=playing&set=metronomeEnabled:1',
+    keepPointer: true,
+    async prepare(page) {
+      await page.getByRole('button', { name: /^Looper/ }).click();
+      const dialog = page.getByRole('dialog', { name: 'Looper' });
+      await dialog.waitFor();
+      await dialog.getByRole('button', { name: 'Overdub', exact: true }).click({ button: 'right' });
+      await page.getByRole('menu').waitFor();
+      await page.waitForTimeout(300);
+    },
+  },
   'looper-empty-free': looperShot('empty', 'metronomeEnabled:0'),
   'looper-armed': looperShot('armed'),
   'looper-recording': looperShot('recording'),
@@ -196,6 +209,18 @@ const SHOTS = {
       await page.waitForTimeout(300);
     },
   },
+  // The looper's footswitches (standalone): the main switch with Double tap stops, and the
+  // footswitches to learn for the looper, at the end of the Controls tab.
+  'live-looper': {
+    query: 'section=amp&midi=demo',
+    async prepare(page) {
+      await page.getByRole('button', { name: 'MIDI', exact: true }).click();
+      const panel = page.getByRole('dialog', { name: 'MIDI' });
+      await panel.waitFor();
+      await panel.getByRole('tabpanel').evaluate((el) => el.scrollTo(0, el.scrollHeight));
+      await page.waitForTimeout(300);
+    },
+  },
   // Its program changes.
   'live-programs': {
     query: 'section=pedals&midi=demo&board=gate,tide,pearl,coral,ripple',
@@ -243,6 +268,8 @@ const names = wanted.length
       'live-menu',
       'live-learn',
       'live-midi',
+      'live-looper',
+      'looper-learn',
     ];
 
 for (const name of names) if (!SHOTS[name]) throw new Error(`Unknown screenshot "${name}"`);

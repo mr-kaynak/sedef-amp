@@ -84,9 +84,12 @@ export function App() {
             <PresetBrowser />
           </ErrorBoundary>
           <Toasts />
-          <ControlMenu />
         </div>
         <StatusBar />
+        {/* Over the header too: the looper's buttons open it inside the header's popover. */}
+        <div className={styles.menuLayer}>
+          <ControlMenu />
+        </div>
       </div>
     </Stage>
   );

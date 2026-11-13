@@ -64,6 +64,8 @@ export function LooperPanel() {
             // Ignored while a take closes, so it doesn't give way under a press either.
             className={`${buttons.press} ${styles.main} ${main.disabled ? buttons.static : ''}`}
             data-autofocus
+            // Right-click or Shift+F10: learn a footswitch for it (docs/live.md §4.5).
+            data-learn="looper:main"
             data-action={main.icon}
             aria-label={main.label}
             aria-describedby="looper-state"
@@ -96,6 +98,7 @@ export function LooperPanel() {
           type="button"
           className={`${buttons.ghost} ${buttons.lead}`}
           disabled={!canStop}
+          data-learn="looper:stop"
           onClick={() => looperPress('stop')}
         >
           <Icon name="stop" size={14} filled stroke={ICON_STROKE_LABEL} />
@@ -105,6 +108,7 @@ export function LooperPanel() {
           type="button"
           className={`${buttons.ghost} ${buttons.lead}`}
           disabled={!t.canUndo}
+          data-learn="looper:undo"
           aria-label={t.undoIsClear ? 'Undo clear' : 'Undo the last overdub'}
           onClick={() => looperPress('undo')}
         >
@@ -125,6 +129,7 @@ export function LooperPanel() {
           type="button"
           className={`${buttons.ghost} ${buttons.lead}`}
           disabled={!canClear}
+          data-learn="looper:clear"
           onClick={() => looperPress('clear')}
         >
           <Icon name="close" size={14} stroke={ICON_STROKE_LABEL} />

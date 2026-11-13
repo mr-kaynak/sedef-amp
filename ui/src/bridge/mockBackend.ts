@@ -197,6 +197,11 @@ export class MockBackend implements Backend {
         presetIdAt: (position) => this.snapshotPresets().items[position]?.id ?? null,
         emit: (state) => this.emit('sedef:live', state),
         emitActivity: (activity) => this.emit('sedef:liveActivity', activity),
+        // A looper binding reserves the looper's memory in the app (docs/live.md §4.5).
+        looper: (press) => {
+          this.looper.open();
+          this.looper.footswitch(press);
+        },
         changed: () => this.refreshDirty(),
       },
       options.wrapperType ?? 'Browser',

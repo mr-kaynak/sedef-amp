@@ -133,7 +133,8 @@ export type LiveSwitchMode = 'toggle' | 'latch';
 
 /**
  * What a binding drives: "param:<id>", "scene:<1-8>", "scene:next", "scene:previous",
- * "preset:next" or "preset:previous".
+ * "preset:next", "preset:previous", or the looper's (standalone app) "looper:main",
+ * "looper:stop", "looper:undo" and "looper:clear" (docs/live.md §4.5).
  */
 export type LiveTarget = string;
 
@@ -151,6 +152,8 @@ export interface LiveBinding {
   /** Continuous targets: the knob's travel (0-1, normalised) at controller 0 and at 127. */
   low: number;
   high: number;
+  /** "looper:main" only: a second press within 0.4 s stops the looper (docs/live.md §4.5). */
+  doubleTap?: boolean;
 }
 
 export interface LiveProgram {
@@ -501,7 +504,7 @@ export interface NativeFunctions {
   sedef_live_forget(target: LiveTarget): LiveState;
   sedef_live_updateBinding(
     index: number,
-    changes: Partial<Pick<LiveBinding, 'mode' | 'low' | 'high'>>,
+    changes: Partial<Pick<LiveBinding, 'mode' | 'low' | 'high' | 'doubleTap'>>,
   ): LiveState;
   sedef_live_removeBinding(index: number): LiveState;
   sedef_live_clearBindings(): LiveState;

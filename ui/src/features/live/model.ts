@@ -31,10 +31,30 @@ export function canRememberInScenes(spec: ParamSpec): boolean {
   return spec.kind === 'float' && !isGlobalParam(spec.id);
 }
 
+/** The looper's footswitch actions (§4.5), standalone app only. */
+export type LooperTarget = 'main' | 'stop' | 'undo' | 'clear';
+
 export type ParsedTarget =
   | { kind: 'param'; id: string }
   | { kind: 'scene'; scene: number }
-  | { kind: 'sceneNext' | 'scenePrevious' | 'presetNext' | 'presetPrevious' };
+  | { kind: 'sceneNext' | 'scenePrevious' | 'presetNext' | 'presetPrevious' }
+  | { kind: 'looper'; action: LooperTarget };
+
+/** The looper's targets, in the order the MIDI panel offers them, with their names there. */
+export const LOOPER_TARGETS: readonly { target: string; action: LooperTarget; short: string }[] = [
+  { target: 'looper:main', action: 'main', short: 'Record, play' },
+  { target: 'looper:stop', action: 'stop', short: 'Stop' },
+  { target: 'looper:undo', action: 'undo', short: 'Undo, redo' },
+  { target: 'looper:clear', action: 'clear', short: 'Clear' },
+];
+
+/** A second press of the looper's main switch this soon after the first stops it (§4.5), s. */
+export const DOUBLE_TAP_S = 0.4;
+
+/** The second press of a double tap: the first (-1: none waiting) less than the window before. */
+export function isDoubleTap(last: number, now: number): boolean {
+  return last >= 0 && now - last < DOUBLE_TAP_S;
+}
 
 export function paramTarget(id: string): string {
   return `param:${id}`;
@@ -51,6 +71,8 @@ export function parseTarget(target: string): ParsedTarget | null {
     if (id === 'presetPrevious') return { kind: 'presetPrevious' };
     return id ? { kind: 'param', id } : null;
   }
+  const looper = LOOPER_TARGETS.find((t) => t.target === target);
+  if (looper) return { kind: 'looper', action: looper.action };
   switch (target) {
     case 'scene:next':
       return { kind: 'sceneNext' };
@@ -65,7 +87,14 @@ export function parseTarget(target: string): ParsedTarget | null {
   return m ? { kind: 'scene', scene: Number(m[1]) - 1 } : null;
 }
 
-/** "Pearl", "Conch Position", "Scene 3", "Next scene". */
+const LOOPER_LABELS: Record<LooperTarget, string> = {
+  main: 'Looper: record, play, overdub',
+  stop: 'Looper: stop',
+  undo: 'Looper: undo, redo',
+  clear: 'Looper: clear',
+};
+
+/** "Pearl", "Conch Position", "Scene 3", "Next scene", "Looper: stop". */
 export function targetLabel(target: string, specs: Record<string, ParamSpec>): string {
   const t = parseTarget(target);
   if (!t) return target;
@@ -82,6 +111,8 @@ export function targetLabel(target: string, specs: Record<string, ParamSpec>): s
       return 'Next preset';
     case 'presetPrevious':
       return 'Previous preset';
+    case 'looper':
+      return LOOPER_LABELS[t.action];
   }
 }
 

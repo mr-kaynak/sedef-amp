@@ -12,9 +12,18 @@ import select from '../../controls/ChoiceSelect.module.css';
 import { useRadioGroup } from '../../controls/useRadioGroup';
 import type { LiveBinding, LiveState, ParamSpec } from '../../bridge/protocol';
 import { useParamStore } from '../../params/paramStore';
+import { useAppStore } from '../../state/appStore';
 import { usePresetStore } from '../../state/presetStore';
 import { bindingFor, liveActions, useLiveStore } from '../../state/liveStore';
-import { activityLabel, NUM_SCENES, rangeLabel, sourceLabel, targetLabel } from './model';
+import {
+  activityLabel,
+  DOUBLE_TAP_S,
+  LOOPER_TARGETS,
+  NUM_SCENES,
+  rangeLabel,
+  sourceLabel,
+  targetLabel,
+} from './model';
 import styles from './MidiPanel.module.css';
 
 type Tab = 'controls' | 'programs' | 'scenes';
@@ -186,11 +195,47 @@ const ACTIONS: readonly { target: string; label: string }[] = [
   { target: 'preset:next', label: 'Next preset' },
 ];
 
+/** Starts (or stops) learning a footswitch for an action; shows what it is bound to. */
+function LearnAction({
+  target,
+  label,
+  state,
+  onClose,
+}: {
+  target: string;
+  label: string;
+  state: LiveState;
+  onClose: () => void;
+}) {
+  const bound = bindingFor(state, target);
+  const waiting = state.learn?.target === target;
+  return (
+    <button
+      type="button"
+      className={`${buttons.ghost} ${buttons.small} ${styles.action}`}
+      aria-pressed={waiting}
+      data-learn={target}
+      onClick={() => {
+        if (waiting) void liveActions.cancelLearn();
+        else {
+          void liveActions.learn(target);
+          // The banner takes over; the panel would cover what the player looks at.
+          onClose();
+        }
+      }}
+    >
+      <span>{label}</span>
+      <span className={styles.quiet}>{bound ? sourceLabel(bound) : 'Learn'}</span>
+    </button>
+  );
+}
+
 function Controls({ state, onClose }: { state: LiveState; onClose: () => void }) {
   const specs = useParamStore((s) => s.specs);
+  // The looper is the standalone app's (docs/live.md §4.5).
+  const standalone = useAppStore((s) => s.session.isStandalone);
   const [confirming, setConfirming] = useState(false);
   const bindings = state.bindings;
-  const learning = state.learn?.target;
 
   return (
     <>
@@ -253,32 +298,35 @@ function Controls({ state, onClose }: { state: LiveState; onClose: () => void })
           Learn a footswitch for
         </p>
         <div className={styles.actionGrid} role="group" aria-labelledby="midi-actions-label">
-          {ACTIONS.map((a) => {
-            const bound = bindingFor(state, a.target);
-            const waiting = learning === a.target;
-            return (
-              <button
-                key={a.target}
-                type="button"
-                className={`${buttons.ghost} ${buttons.small} ${styles.action}`}
-                aria-pressed={waiting}
-                data-learn={a.target}
-                onClick={() => {
-                  if (waiting) void liveActions.cancelLearn();
-                  else {
-                    void liveActions.learn(a.target);
-                    // The banner takes over; the panel would cover what the player looks at.
-                    onClose();
-                  }
-                }}
-              >
-                <span>{a.label}</span>
-                <span className={styles.quiet}>{bound ? sourceLabel(bound) : 'Learn'}</span>
-              </button>
-            );
-          })}
+          {ACTIONS.map((a) => (
+            <LearnAction
+              key={a.target}
+              target={a.target}
+              label={a.label}
+              state={state}
+              onClose={onClose}
+            />
+          ))}
         </div>
       </div>
+      {standalone && (
+        <div className={styles.actions}>
+          <p className={styles.label} id="midi-looper-label">
+            Learn a footswitch for the looper
+          </p>
+          <div className={styles.actionGrid} role="group" aria-labelledby="midi-looper-label">
+            {LOOPER_TARGETS.map((a) => (
+              <LearnAction
+                key={a.target}
+                target={a.target}
+                label={a.short}
+                state={state}
+                onClose={onClose}
+              />
+            ))}
+          </div>
+        </div>
+      )}
     </>
   );
 }
@@ -292,8 +340,10 @@ function BindingRow({
 }) {
   const name = targetLabel(b.target, specs);
   const source = sourceLabel(b);
+  const looperMain = b.target === 'looper:main';
+  const noteId = useId();
   return (
-    <li className={styles.row}>
+    <li className={`${styles.row} ${looperMain ? styles.rowWrap : ''}`}>
       <div className={styles.what}>
         <span className={styles.target}>{name}</span>
         <span className={styles.source}>{source}</span>
@@ -311,6 +361,24 @@ function BindingRow({
       >
         <Icon name="close" size={12} />
       </button>
+      {looperMain && (
+        <div className={styles.rowExtra}>
+          <label className={styles.check}>
+            <input
+              type="checkbox"
+              checked={b.doubleTap === true}
+              aria-describedby={noteId}
+              onChange={(e) =>
+                void liveActions.updateBinding(b.index, { doubleTap: e.target.checked })
+              }
+            />
+            Double tap stops
+          </label>
+          <span className={styles.tapNote} id={noteId}>
+            Two presses within {DOUBLE_TAP_S} s stop the looper and undo the first
+          </span>
+        </div>
+      )}
     </li>
   );
 }

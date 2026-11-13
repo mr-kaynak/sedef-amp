@@ -72,8 +72,10 @@ export const liveActions = {
   learn: (target: string) => call('sedef_live_learn', target),
   cancelLearn: () => call('sedef_live_cancelLearn'),
   forget: (target: string) => call('sedef_live_forget', target),
-  updateBinding: (index: number, changes: Partial<Pick<LiveBinding, 'mode' | 'low' | 'high'>>) =>
-    call('sedef_live_updateBinding', index, changes),
+  updateBinding: (
+    index: number,
+    changes: Partial<Pick<LiveBinding, 'mode' | 'low' | 'high' | 'doubleTap'>>,
+  ) => call('sedef_live_updateBinding', index, changes),
   removeBinding: (index: number) => call('sedef_live_removeBinding', index),
   clearBindings: () => call('sedef_live_clearBindings'),
   setProgram: (program: number, target: { preset: string } | { scene: number } | null) =>

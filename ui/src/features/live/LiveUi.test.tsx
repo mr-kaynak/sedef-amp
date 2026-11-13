@@ -263,8 +263,9 @@ describe('Playing live', () => {
         'Output GainCC 7 · ch 1',
         'Next sceneCC 24 · ch 1',
         'Next presetCC 25 · ch 1',
+        'Looper: record, play, overdubCC 26 · ch 1',
       ]);
-      expect(panel).toHaveTextContent('6 of 64 learned');
+      expect(panel).toHaveTextContent('7 of 64 learned');
 
       // A switch's mode.
       await click(within(rows[0]!).getByRole('radio', { name: 'Latch' }));
@@ -291,7 +292,7 @@ describe('Playing live', () => {
 
       // Forget one: the focus moves to the next row's button, not to the page.
       await click(within(rows[1]!).getByRole('button', { name: 'Forget Drift (CC 21 · ch 1)' }));
-      expect(useLiveStore.getState().state?.bindings).toHaveLength(5);
+      expect(useLiveStore.getState().state?.bindings).toHaveLength(6);
       await settle();
       expect(
         within(panel).getByRole('button', { name: 'Forget Conch Position (CC 11 · ch 1)' }),
@@ -299,7 +300,7 @@ describe('Playing live', () => {
 
       // Then all, after a confirmation that names the count.
       await click(within(panel).getByRole('button', { name: 'Forget all' }));
-      const confirm = within(panel).getByRole('group', { name: 'Forget all 5 learned controls?' });
+      const confirm = within(panel).getByRole('group', { name: 'Forget all 6 learned controls?' });
       expect(within(confirm).getByRole('button', { name: 'Keep' })).toHaveFocus();
       await click(within(confirm).getByRole('button', { name: 'Forget all' }));
       expect(useLiveStore.getState().state?.bindings).toEqual([]);

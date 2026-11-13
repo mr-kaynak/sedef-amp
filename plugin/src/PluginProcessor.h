@@ -6,7 +6,10 @@
 #include "CaptureLibrary.h"
 #include "IrLibrary.h"
 #include "PresetManager.h"
+#include "Reamp.h"
+#include "Recorder.h"
 #include "sedef/Engine.h"
+#include "sedef/record/Deck.h"
 
 #include <array>
 #include <juce_audio_processors/juce_audio_processors.h>
@@ -26,7 +29,7 @@ public:
 
     // AudioProcessor ------------------------------------------------------------------------------
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
-    void releaseResources() override {}
+    void releaseResources() override;
     bool isBusesLayoutSupported (const BusesLayout& layouts) const override;
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
     using AudioProcessor::processBlock;
@@ -93,6 +96,12 @@ public:
     juce::String layoutDescription() const;
     bool isStandalone() const noexcept { return wrapperType == wrapperType_Standalone; }
 
+    /// The recorder and re-amp (docs/recorder.md): the standalone app only, null in a plug-in.
+    Recorder* recorder() noexcept { return recorder_.get(); }
+    Reamp* reamp() noexcept { return reamp_.get(); }
+    /// Starts or stops a take in the engine's current format (message thread).
+    void toggleRecording();
+
     /// Bumped whenever preset or IR state changes so the editor can push updates.
     std::atomic<int> presetRevision { 0 };
     std::atomic<int> irRevision { 0 };
@@ -115,6 +124,11 @@ private:
 
     Engine engine_;
     std::mutex engineLock_; // serialises prepare() against IR installation
+    // The recorder and re-amp around the engine; their threads (standalone only) are destroyed
+    // before the deck they feed.
+    record::Deck deck_;
+    std::unique_ptr<Recorder> recorder_;
+    std::unique_ptr<Reamp> reamp_;
     PresetManager presets_;
     IrLibrary irs_;
     AnalysisWorker analysis_;

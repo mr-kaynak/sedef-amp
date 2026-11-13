@@ -41,6 +41,10 @@ private:
     juce::var boardState();
     void emitBoard();
     void loadCapture (juce::WebBrowserComponent::NativeFunctionCompletion completion);
+    /// The recorder and re-amp (docs/recorder.md); void in a plug-in.
+    juce::var recorderState();
+    void emitRecorder();
+    void openReampFile (juce::WebBrowserComponent::NativeFunctionCompletion completion);
     /// The session facts of hello() that can change while the editor is open (sample rate,
     /// latency), when they do.
     void emitSessionIfChanged();
@@ -67,6 +71,7 @@ private:
     int lastIrRevision_ = -1;
     int lastCaptureRevision_ = -1;
     int lastBoardRevision_ = -1;
+    int lastRecorderRevision_ = -1, lastReampRevision_ = -1;
     juce::int64 boardStateRevision_ = 0; ///< BoardState.revision: counts every board state sent
     bool lastDirty_ = false;
     double lastSampleRate_ = 0.0;

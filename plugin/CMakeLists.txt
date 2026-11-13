@@ -266,11 +266,12 @@ if(SEDEF_BUILD_PLUGIN_TESTS)
 
     juce_add_console_app(sedef_plugin_tests PRODUCT_NAME "sedef_plugin_tests")
     target_sources(sedef_plugin_tests PRIVATE
-        tests/BoardStateTests.cpp
+        tests/BoardStateTests.cpp tests/RecorderTests.cpp
         src/PluginProcessor.cpp src/PluginProcessor.h src/PresetManager.cpp src/PresetManager.h
         src/BoardText.cpp src/BoardText.h src/ParameterLayout.cpp src/ParameterLayout.h
         src/CaptureLibrary.cpp src/CaptureLibrary.h src/IrLibrary.cpp src/IrLibrary.h
-        src/AnalysisWorker.cpp src/AnalysisWorker.h)
+        src/AnalysisWorker.cpp src/AnalysisWorker.h
+        src/Recorder.cpp src/Recorder.h src/Reamp.cpp src/Reamp.h)
     target_include_directories(sedef_plugin_tests PRIVATE src)
     target_compile_definitions(sedef_plugin_tests PRIVATE
         JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 SEDEF_PLUGIN_TESTS=1)

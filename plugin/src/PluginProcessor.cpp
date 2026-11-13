@@ -26,6 +26,11 @@ SedefProcessor::SedefProcessor()
     }
     engine_.setMetronomePattern (metronomePattern_);
     engine_.setBoard (board_);
+    if (isStandalone())
+    {
+        recorder_ = std::make_unique<Recorder> (deck_.recorder());
+        reamp_ = std::make_unique<Reamp> (deck_.reamp());
+    }
     // The saved-state snapshot must match the preset manager from the start, or the first save
     // and a save after the timer has run would differ (clap-validator checks state byte for byte).
     savedPresetId_ = presets_.currentId();
@@ -68,6 +73,9 @@ SedefProcessor::~SedefProcessor()
 {
     stopTimer();
     analysis_.setActive (false);
+    // A take still running is completed: nothing processes any more.
+    recorder_.reset();
+    reamp_.reset();
 }
 
 bool SedefProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
@@ -104,6 +112,14 @@ void SedefProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
         engine_.setMetronomePattern (metronomePattern());
     }
     captures_.rebuild(); // now, so the capture plays from the first block at the new rate
+    // A take ends when the device restarts (docs/recorder.md, section 3); re-amp is rebuilt for
+    // the new rate and input channels.
+    if (recorder_ != nullptr)
+        recorder_->audioStopped();
+    if (reamp_ != nullptr)
+        reamp_->prepare (sampleRate, ins, samplesPerBlock);
+    else
+        deck_.prepare (sampleRate, ins, samplesPerBlock);
     setLatencySamples (engine_.latencySamples());
     loadMeasurer_.reset (sampleRate, samplesPerBlock);
     prepared_ = true;
@@ -155,14 +171,28 @@ void SedefProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiB
         return;
     }
 
-    std::array<const float*, 2> inputs { buffer.getReadPointer (0),
-                                         ins > 1 ? buffer.getReadPointer (1) : nullptr };
+    // In place: re-amp writes into the input channels, the engine overwrites them with its output.
+    std::array<float*, 2> inputs { buffer.getWritePointer (0),
+                                   ins > 1 ? buffer.getWritePointer (1) : nullptr };
     std::array<float*, 2> outputs { buffer.getWritePointer (0),
                                     outs > 1 ? buffer.getWritePointer (1) : nullptr };
-    engine_.process (inputs.data(), outputs.data(), numSamples, snapshot, transport);
+    deck_.process (engine_, inputs.data(), outputs.data(), ins, outs, numSamples, snapshot,
+                   transport);
 
     for (int ch = outs; ch < buffer.getNumChannels(); ++ch)
         buffer.clear (ch, 0, numSamples);
+}
+
+void SedefProcessor::releaseResources()
+{
+    if (recorder_ != nullptr)
+        recorder_->audioStopped();
+}
+
+void SedefProcessor::toggleRecording()
+{
+    if (recorder_ != nullptr)
+        recorder_->toggle (engine_.sampleRate(), engine_.numInputs(), engine_.numOutputs());
 }
 
 double SedefProcessor::getTailLengthSeconds() const

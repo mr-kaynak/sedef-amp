@@ -14,6 +14,8 @@
 //   ?fresh                           ignore UI state saved by earlier browser sessions
 //   ?update=available                what the update checker finds: current|available|skipped|
 //                                    error|noinstaller|mismatch|unsupported (docs/updates.md)
+//   ?input=silent|quiet|clipping     what the simulated interface delivers (docs/ui/input-level.md)
+import { isInterfaceLevel, type InterfaceLevel } from '../bridge/mock/telemetrySim';
 import { isUpdateScenario, type UpdateScenario } from '../bridge/mock/updateSim';
 import { isSection, type Overlay, type Section } from '../state/uiStore';
 
@@ -31,6 +33,7 @@ export interface DemoFlags {
   grain: boolean;
   fresh: boolean;
   update: UpdateScenario | null;
+  input: InterfaceLevel | null;
 }
 
 function parseOverrides(text: string | null): Record<string, number> {
@@ -77,5 +80,6 @@ export function readDemoFlags(
     grain: q.get('grain') !== '0',
     fresh: q.has('fresh'),
     update: isUpdateScenario(q.get('update')) ? (q.get('update') as UpdateScenario) : null,
+    input: isInterfaceLevel(q.get('input')) ? (q.get('input') as InterfaceLevel) : null,
   };
 }

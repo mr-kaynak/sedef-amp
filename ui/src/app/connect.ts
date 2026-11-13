@@ -11,6 +11,7 @@ import { pitch, telemetry } from '../state/live';
 import { applyPresetState } from '../state/presetStore';
 import { applyBoardState } from '../state/boardStore';
 import { connectUpdates } from '../features/updates/updateStore';
+import { startInputLevel } from '../features/header/inputLevel';
 import { useUiStore } from '../state/uiStore';
 import type { DemoFlags } from './demo';
 import { hydrateUiState, startPersistence } from './persistence';
@@ -28,6 +29,7 @@ export async function createBackend(flags: DemoFlags): Promise<Backend> {
     overrides: flags.overrides,
     ...(flags.update ? { update: flags.update } : {}),
     ...(flags.board ? { board: flags.board } : {}),
+    ...(flags.input ? { input: flags.input } : {}),
   });
 }
 
@@ -63,10 +65,11 @@ export async function connect(backend: Backend): Promise<() => void> {
   } catch (error) {
     useAppStore.setState({
       status: 'error',
-      message: `Could not reach the audio engine: ${error instanceof Error ? error.message : String(error)}`,
+      message: `Sedef couldn't reach its audio engine (${error instanceof Error ? error.message : String(error)}). Close this window and open it again; if it stays like this, reinstall Sedef Amp.`,
     });
   }
 
+  offs.push(startInputLevel());
   offs.push(startPersistence());
   offs.push(connectUpdates(backend));
   return () => offs.forEach((off) => off());

@@ -37,6 +37,21 @@
   place-items: center;
 }
 
+/* Over the footer, out of the flow, so the gauge stays put when the notice comes and goes. */
+.noSignal {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 84px;
+  text-align: center;
+  color: var(--bone-2);
+  font-size: var(--t-12);
+}
+
+.noSignal p {
+  margin: 0;
+}
+
 .foot {
   display: flex;
   align-items: center;

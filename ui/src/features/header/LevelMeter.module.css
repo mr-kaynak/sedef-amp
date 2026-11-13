@@ -5,7 +5,17 @@
   grid-template-columns: 1fr;
   gap: 2px;
   width: 92px;
-  padding-right: 10px;
+}
+
+/* Room for the clip lamp at the end of the bars. */
+.meter[data-clip] {
+  --pad: 10px;
+  padding-right: var(--pad);
+}
+
+.meter[data-size='lg'] {
+  width: 100%;
+  gap: 3px;
 }
 
 .bar {
@@ -21,6 +31,24 @@
     var(--nacre-lilac) 80%,
     var(--amber) 90%,
     var(--coral) 95.2%
+  );
+}
+
+.meter[data-size='lg'] .bar {
+  height: 8px;
+  border-radius: 2px;
+}
+
+/* The input: slate to aqua under the zone, nacre through it (the level the presets want), coral
+   over 0 dBFS where the clip lamp latches. Amber, "needs attention", stays out of the zone. */
+.meter[data-zones] .bar {
+  background: linear-gradient(
+    90deg,
+    #4f6f78 0%,
+    var(--nacre-aqua) calc(var(--zone-lo) * 100%),
+    var(--nacre-lilac) calc(var(--zone-mid) * 100%),
+    var(--nacre-rose) calc(var(--zone-hi) * 100%),
+    var(--coral) calc(var(--zone-hi) * 100%)
   );
 }
 
@@ -54,6 +82,29 @@
   bottom: 0;
   width: 2px;
   background: var(--bone);
+}
+
+/* The target zone, a line under the bars that takes no height, so the meter keeps its place.
+   Measured along the bars, which stop short of the clip lamp's padding. */
+.zone {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: calc((100% - var(--pad, 0px)) * var(--zone-lo));
+  width: calc((100% - var(--pad, 0px)) * (var(--zone-hi) - var(--zone-lo)));
+  height: 2px;
+  border-radius: 1px;
+  background: var(--bone-4);
+}
+
+/* The panel's large meter labels its zone above the bars instead. */
+.meter[data-size='lg'] .zone {
+  display: none;
+}
+
+@media (forced-colors: active) {
+  .zone {
+    background: CanvasText;
+  }
 }
 
 .clip {

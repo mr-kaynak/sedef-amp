@@ -55,7 +55,9 @@
   position: relative;
 }
 
+/* Under the header's bottom edge (the 36 px button sits 16 px above it), so a popover never
+   covers the Doubler switch or the meters' labels. */
 .rightPopover {
-  top: calc(100% + 12px);
+  top: calc(100% + 24px);
   right: 0;
 }

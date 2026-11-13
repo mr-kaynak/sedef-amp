@@ -85,3 +85,22 @@ describe('Settings panel', () => {
     await waitFor(() => expect(useAppStore.getState().session.latencySamples).toBe(41));
   });
 });
+
+describe('Settings, audio', () => {
+  let h: Harness;
+  afterEach(() => h.dispose());
+
+  it('opens the audio device window from the standalone app only', async () => {
+    h = await setupMock({ isStandalone: true, wrapperType: 'Standalone' });
+    const call = vi.spyOn(h.mock, 'call');
+    const { unmount } = render(<SettingsPanel />);
+    fireEvent.click(screen.getByRole('button', { name: 'Audio settings…' }));
+    expect(call).toHaveBeenCalledWith('sedef_audioSettings');
+    unmount();
+    h.dispose();
+
+    h = await setupMock({ isStandalone: false, wrapperType: 'VST3' });
+    render(<SettingsPanel />);
+    expect(screen.queryByRole('button', { name: 'Audio settings…' })).toBeNull();
+  });
+});

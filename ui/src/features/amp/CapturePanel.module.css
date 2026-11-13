@@ -47,9 +47,7 @@
 .eyebrow {
   margin: 0;
   color: var(--bone-3);
-  font-size: var(--t-11);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: var(--t-12);
 }
 
 .name {

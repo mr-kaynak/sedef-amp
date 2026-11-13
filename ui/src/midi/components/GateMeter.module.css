@@ -123,9 +123,11 @@
   transition: border-color var(--dur-1) var(--ease-out);
 }
 
+/* Left of the groove, so the word never sits on the moving fill: its end 3 px short of the
+   groove (handle at 4 px, groove at 22 px in the track). */
 .handleLabel {
   position: absolute;
-  left: -2px;
+  right: calc(100% - 15px);
   top: -16px;
   color: var(--bone-2);
   font-size: var(--t-10);

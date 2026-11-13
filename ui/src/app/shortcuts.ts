@@ -35,7 +35,11 @@ export function shortcuts(): { title: string; items: Shortcut[] }[] {
     },
     {
       title: 'Rig',
-      items: [{ keys: ['1–5'], label: 'Pedals, Amp, EQ, Cab, FX' }],
+      items: [
+        { keys: ['1–5'], label: 'Pedals, Amp, EQ, Cab, FX' },
+        { keys: ['T'], label: 'Open or close the tuner' },
+        { keys: ['Esc'], label: 'Close the tuner, the workbench or a panel' },
+      ],
     },
   ];
 }

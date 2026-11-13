@@ -6,6 +6,7 @@ import buttons from '../../controls/Button.module.css';
 import { setParam, useParamValue } from '../../params/useParam';
 import { acquirePitchAnalysis } from '../../state/pitchLease';
 import { uiActions } from '../../state/uiStore';
+import { useInputLevel } from '../header/inputLevel';
 import { TunerGauge } from './TunerGauge';
 import styles from './TunerOverlay.module.css';
 
@@ -47,6 +48,27 @@ function ReferenceControl() {
   );
 }
 
+/** "Play a string" alone would leave a player with a muted input waiting. */
+function NoSignal() {
+  const none = useInputLevel((s) => s.state === 'none');
+  return (
+    <div className={styles.noSignal} role="status">
+      {none && (
+        <p>
+          Nothing is coming in.{' '}
+          <button
+            type="button"
+            className={buttons.link}
+            onClick={() => uiActions.setPopover('input')}
+          >
+            Check input
+          </button>
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function TunerOverlay() {
   useEffect(() => acquirePitchAnalysis(), []);
   return (
@@ -65,6 +87,7 @@ export function TunerOverlay() {
       <div className={styles.body}>
         <TunerGauge />
       </div>
+      <NoSignal />
       <footer className={styles.foot}>
         <ReferenceControl />
         <Toggle param="tunerMute" label="Mute output while tuning" />

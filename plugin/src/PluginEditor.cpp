@@ -4,6 +4,13 @@
 #include "ParameterLayout.h"
 #include "UiResources.h"
 
+#if JucePlugin_Build_Standalone
+// The standalone holder needs juce_audio_utils first; the comment keeps include sorting off.
+#include <juce_audio_utils/juce_audio_utils.h>
+//
+#include <juce_audio_plugin_client/Standalone/juce_StandaloneFilterWindow.h>
+#endif
+
 namespace sedef::plugin
 {
 namespace
@@ -361,6 +368,15 @@ juce::WebBrowserComponent::Options SedefEditor::makeOptions()
             if (url.getScheme() == "https")
                 url.launchInDefaultBrowser();
         }
+        done ({});
+    });
+    // The standalone app's audio device window, the one behind its Options button (Sedef MIDI
+    // has the same call). In a plug-in the host owns the audio device: nothing to open.
+    fn ("sedef_audioSettings", [] (const juce::Array<juce::var>&, Completion done) {
+#if JucePlugin_Build_Standalone
+        if (auto* holder = juce::StandalonePluginHolder::getInstance())
+            holder->showAudioSettingsDialog();
+#endif
         done ({});
     });
     options = updates_->withNativeFunctions (std::move (options)); // sedef_update_*

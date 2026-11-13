@@ -25,10 +25,11 @@ const takesCommandKeys = (target: EventTarget | null) =>
  * ⌘/Ctrl+Shift+S is Save as, / and ⌘/Ctrl+F search presets, ⌘/Ctrl+Z runs a toast's Undo; none
  * of them while a text field has focus (they keep their editing meaning there), except ⌘S and
  * ⌘F in the preset search. Without modifiers and never while a text field has focus: P opens or
- * closes the preset browser, [ and ] step presets, A and B pick the compare slot, 1–5 switch
- * sections (not while the browser covers them), and Escape closes the open popover, then the
- * open overlay. The browser handles its own Escape. A held key repeats only where that means
- * something ([ and ]).
+ * closes the preset browser, [ and ] step presets, A and B pick the compare slot, T opens or
+ * closes the tuner (as its button does: an auditioned preset is kept), 1–5 switch sections (not
+ * while the browser covers them), and Escape closes the open popover, then the open overlay.
+ * The browser handles its own Escape. A held key repeats only where that means something ([
+ * and ]).
  */
 export function useShortcuts(): void {
   useEffect(() => {
@@ -71,6 +72,12 @@ export function useShortcuts(): void {
           e.preventDefault();
           void stepPreset(e.key === ']' ? 1 : -1);
           return;
+        case 't':
+        case 'T':
+          return preset(() => {
+            presetBrowser.keep();
+            uiActions.toggleOverlay('tuner');
+          });
         case 'a':
         case 'A':
         case 'b':

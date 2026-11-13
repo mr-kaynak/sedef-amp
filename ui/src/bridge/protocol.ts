@@ -401,6 +401,8 @@ export interface NativeFunctions {
   /** Requests a new editor size in CSS pixels at scale 1 multiplied by scale. */
   sedef_ui_setScale(scale: number): void;
   sedef_openUrl(url: string): void;
+  /** Standalone app only: opens its audio device window (interface, input, rate, buffer). */
+  sedef_audioSettings(): void;
 
   /** The update state; also runs the automatic check when it is on and due (once a day). */
   sedef_update_getState(): UpdateState;

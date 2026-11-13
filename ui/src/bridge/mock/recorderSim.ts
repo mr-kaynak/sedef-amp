@@ -133,7 +133,7 @@ export class RecorderSim {
         };
         break;
       case 'error':
-        this.error = `Could not write to ${FOLDER}. The disk may be full or gone; the take is kept up to where it stopped.`;
+        this.error = `Could not write to ${FOLDER}. The take is kept up to where it stopped. Free some space or reconnect the disk, then record again.`;
         this.take = { ...this.newTake(), seconds: 12.6, ended: 'writeError' };
         break;
       case 'reamp':
@@ -212,6 +212,11 @@ export class RecorderSim {
     }
   }
 
+  /** A slow disk dropping a block of the take being recorded (tests). */
+  dropout(): void {
+    if (this.status === 'recording') this.dropouts += 1;
+  }
+
   // Native calls ----------------------------------------------------------------------------
 
   toggle(): RecorderBridgeState {
@@ -277,7 +282,7 @@ export class RecorderSim {
     if (size <= 0 || size > 2 * 1024 ** 3) {
       this.reampError(
         size <= 0
-          ? 'That file is empty.'
+          ? 'That file is empty. Choose another file.'
           : 'That file is over 2 GB. Use Open file… for files this large.',
       );
       return 0;
@@ -334,7 +339,13 @@ export class RecorderSim {
   private finishTake(): void {
     this.status = 'idle';
     if (this.take) {
-      this.take = { ...this.take, seconds: this.seconds, ended: 'stopped' };
+      this.take = {
+        ...this.take,
+        seconds: this.seconds,
+        dropouts: this.dropouts,
+        droppedSeconds: (this.dropouts * 2048) / RATE,
+        ended: 'stopped',
+      };
       this.files = [
         {
           name: this.take.name,

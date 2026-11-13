@@ -84,7 +84,7 @@ export async function importFile(file: File): Promise<void> {
   const fail = (message: string) =>
     useRecorderStore.setState({ dropError: message, importing: null });
   if (!AUDIO_FILE.test(file.name)) return fail('Drop a WAV, AIFF or FLAC file to re-amp it.');
-  if (file.size === 0) return fail('That file is empty.');
+  if (file.size === 0) return fail('That file is empty. Choose another file.');
   if (file.size > IMPORT_MAX)
     return fail('That file is over 2 GB. Use Open file… for files this large.');
 

@@ -87,7 +87,18 @@ void Reamp::prepare (double sampleRate, int channels, int maxBlock)
         const std::scoped_lock lock (stateLock_);
         player_.setMix (mix_);
         deviceRate_ = sampleRate;
-        if (source_ != nullptr && std::llround (source_->sampleRate()) != std::llround (sampleRate))
+        if (status_ == Status::loading || status_ == Status::converting)
+        {
+            // A load on its way, for the old rate: start it again for the new one.
+            reload = true;
+            if (file_ != juce::File())
+            {
+                wantLoad_ = file_;
+                loadWanted_ = true;
+            }
+        }
+        else if (source_ != nullptr &&
+                 std::llround (source_->sampleRate()) != std::llround (sampleRate))
         {
             // Converted for another rate: convert again.
             reload = true;
@@ -221,7 +232,9 @@ void Reamp::runOnce()
         active = feeder_.state() != record::ReampFeeder::State::idle;
     }
     if (!ok)
-        setError ("Could not read the file any more. Was it moved or deleted?");
+        setError (
+            "Could not read the file any more: it may have been moved or deleted. Choose it again "
+            "from the list or with Open file….");
     if (playing_.exchange (active) != active)
         bump();
 }
@@ -253,7 +266,7 @@ void Reamp::openFile (const juce::File& file)
     std::unique_ptr<juce::AudioFormatReader> reader (formats_.createReaderFor (file));
     if (reader == nullptr)
     {
-        setError ("Sedef can’t read " + file.getFileName() + ". Choose a WAV, AIFF or FLAC file.");
+        setError ("Could not read " + file.getFileName() + ". Choose a WAV, AIFF or FLAC file.");
         return;
     }
     const int channels = static_cast<int> (reader->numChannels);
@@ -262,12 +275,13 @@ void Reamp::openFile (const juce::File& file)
     if (channels < 1 || channels > 2)
     {
         setError ("Re-amp plays mono and stereo files; " + file.getFileName() + " has " +
-                  juce::String (channels) + " channels.");
+                  juce::String (channels) +
+                  " channels. Export it as mono or stereo, then open it again.");
         return;
     }
     if (frames <= 0 || fileRate <= 0.0)
     {
-        setError (file.getFileName() + " has no audio in it.");
+        setError (file.getFileName() + " has no audio in it. Choose another file.");
         return;
     }
 
@@ -332,7 +346,8 @@ void Reamp::openFile (const juce::File& file)
                                formats_.createReaderFor (converted_))) == nullptr)
         {
             setError ("Could not convert " + file.getFileName() + " to " +
-                      juce::String (deviceRate / 1000.0, 1) + " kHz. Is the disk full?");
+                      juce::String (deviceRate / 1000.0, 1) +
+                      " kHz. Check that the disk has space, then choose the file again.");
             return;
         }
     }
@@ -342,6 +357,14 @@ void Reamp::openFile (const juce::File& file)
     {
         const std::scoped_lock lock (stateLock_);
         loop = loop_;
+        if (std::llround (reader->sampleRate) != std::llround (deviceRate_))
+        {
+            // The device changed its rate while this loaded: load it again for the new one.
+            file_ = file;
+            wantLoad_ = file;
+            loadWanted_ = true;
+            return;
+        }
     }
     {
         const std::scoped_lock feed (feedLock_);
@@ -377,14 +400,15 @@ int Reamp::importBegin (const juce::String& fileName, juce::int64 size)
     }
     if (size <= 0 || size > kMaxImportBytes)
     {
-        setError (size <= 0 ? "That file is empty."
+        setError (size <= 0 ? "That file is empty. Choose another file."
                             : "That file is over 2 GB. Use Open file… for files this large.");
         return 0;
     }
     const auto dir = importFolder();
     if (!dir.createDirectory())
     {
-        setError ("Could not create the folder " + dir.getFullPathName() + ".");
+        setError ("Could not create the folder " + dir.getFullPathName() +
+                  ". Check that the disk is connected and has space, then drop the file again.");
         return 0;
     }
     const auto dot = name.lastIndexOfChar ('.');
@@ -394,7 +418,8 @@ int Reamp::importBegin (const juce::String& fileName, juce::int64 size)
     if (!import_->openedOk())
     {
         import_.reset();
-        setError ("Could not write to " + dir.getFullPathName() + ".");
+        setError ("Could not write to " + dir.getFullPathName() +
+                  ". Check that the disk has space, then drop the file again.");
         return 0;
     }
     importExpected_ = size;

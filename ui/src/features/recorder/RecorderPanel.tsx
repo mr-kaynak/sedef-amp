@@ -26,7 +26,7 @@ import {
   setReampMix,
   toggleRecording,
 } from './actions';
-import { channels, clock, rate } from './format';
+import { channels, clock, percent, rate } from './format';
 import { onRecorderChange, recorderUi, useRecorderStore, type RecorderTab } from './store';
 import styles from './RecorderPanel.module.css';
 
@@ -137,8 +137,9 @@ function RecordTab({ r }: { r: RecorderState }) {
         </div>
       </div>
 
+      {/* Not a live region: the header button says a dropout aloud once, while recording. */}
       {lost > 0 && (
-        <p className={styles.warn} role="status">
+        <p className={styles.warn}>
           {lost === 1 ? '1 dropout' : `${lost} dropouts`}
           {last ? `: ${last.droppedSeconds.toFixed(2)} s of this take is silence.` : '.'} The disk
           could not keep up; the files keep their length and stay aligned.
@@ -254,7 +255,7 @@ function MixChoice({ mix }: { mix: boolean }) {
       <div
         role="radiogroup"
         aria-labelledby="reamp-mix-label"
-        className={`${segmented.segmented} ${segmented.sm}`}
+        className={segmented.segmented}
         onKeyDown={onKeyDown}
       >
         {options.map((label, i) => (
@@ -282,6 +283,13 @@ function ReampTab({ a }: { a: ReampState }) {
   // A new pick cancels a conversion still running; only a drop on its way in holds the list.
   const busy = importing !== null;
   const error = dropError ?? (a.status === 'error' ? a.error : null);
+  const said = importing
+    ? `Copying ${importing.name}`
+    : a.status === 'converting'
+      ? 'Converting the file for this device'
+      : ready
+        ? `${a.file?.name ?? 'The file'} is ready to play`
+        : '';
 
   // The list, now and whenever a take finishes saving (recording while re-amping, say).
   useEffect(() => {
@@ -363,7 +371,7 @@ function ReampTab({ a }: { a: ReampState }) {
                   style={{ transform: `scaleX(${a.progress})` }}
                 />
               </div>
-              <span className={styles.positionText}>{Math.round(a.progress * 100)} %</span>
+              <span className={styles.positionText}>{percent(a.progress)}</span>
             </div>
           ) : (
             ready && <PlayPosition />
@@ -387,10 +395,14 @@ function ReampTab({ a }: { a: ReampState }) {
       </div>
 
       {importing && (
-        <p className={styles.note} role="status">
-          Copying {importing.name}… {Math.round(importing.progress * 100)} %
+        <p className={styles.note}>
+          Copying {importing.name}… {percent(importing.progress)}
         </p>
       )}
+      {/* Rendered before its text changes, so the change is said; the percentages are not. */}
+      <span className="visually-hidden" role="status">
+        {said}
+      </span>
       {error && (
         <p className={styles.error} role="alert">
           {error}
@@ -489,7 +501,7 @@ export function RecorderPanel() {
             role="tab"
             id={`recorder-tab-${t.id}`}
             aria-selected={tab === t.id}
-            aria-controls={`recorder-panel-${t.id}`}
+            aria-controls={tab === t.id ? `recorder-panel-${t.id}` : undefined}
             tabIndex={tab === t.id ? 0 : -1}
             className={`${nacre.fill} ${segmented.option} ${styles.tabButton}`}
             onClick={() => recorderUi.setTab(t.id)}

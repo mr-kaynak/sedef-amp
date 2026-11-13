@@ -150,8 +150,23 @@ describe('Recorder', () => {
     await start({ recorder: 'error' });
     const again = await openPanel();
     expect(within(again).getByRole('alert')).toHaveTextContent(
-      /Could not write to .*disk may be full/,
+      /Could not write to .*Free some space/,
     );
+  });
+
+  it('says a dropout aloud once while recording, and again with the saved take', async () => {
+    const { mock } = await start();
+    const said = () => screen.getAllByRole('status').map((s) => s.textContent);
+    fireEvent.keyDown(window, { key: 'r' });
+    await act(flush);
+    await play(1);
+    act(() => mock.recorder.dropout());
+    await play(0.2);
+    expect(said()).toContain('Dropout: the disk could not keep up');
+    fireEvent.keyDown(window, { key: 'r' });
+    await act(flush);
+    await play(0.2);
+    expect(said()).toContain('Take saved, 1 second, 1 dropout');
   });
 
   it('moves between Record and Re-amp with the arrow keys', async () => {
@@ -166,6 +181,9 @@ describe('Recorder', () => {
     expect(reamp).toHaveAttribute('aria-selected', 'true');
     expect(reamp).toHaveFocus();
     expect(within(panel).getByRole('tabpanel')).toHaveAccessibleName('Re-amp');
+    // Only the shown panel exists, so only its tab points at it.
+    expect(reamp).toHaveAttribute('aria-controls', within(panel).getByRole('tabpanel').id);
+    expect(record).not.toHaveAttribute('aria-controls');
   });
 });
 
@@ -197,6 +215,9 @@ describe('Re-amp', () => {
     expect(within(panel).getByText('Ready')).toBeInTheDocument();
     expect(within(panel).getByText('2026-11-13 14-05-33 DI.wav')).toBeInTheDocument();
     expect(within(panel).getByText('0:41, mono, 48 kHz')).toBeInTheDocument();
+    expect(within(panel).getByRole('status')).toHaveTextContent(
+      '2026-11-13 14-05-33 DI.wav is ready to play',
+    );
     expect(within(list).getAllByRole('button')[1]).toHaveAttribute('aria-current', 'true');
 
     fireEvent.click(play);
@@ -246,6 +267,10 @@ describe('Re-amp', () => {
       '40',
     );
     expect(within(panel).getByText(/converted for this device/)).toBeInTheDocument();
+    // One status region, there before its text changes; the percentages are not read out.
+    expect(within(panel).getByRole('status')).toHaveTextContent(
+      'Converting the file for this device',
+    );
   });
 
   it('takes a dropped WAV in pieces and plays it; refuses what it cannot play', async () => {

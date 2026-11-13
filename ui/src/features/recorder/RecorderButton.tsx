@@ -9,7 +9,7 @@ import buttons from '../../controls/Button.module.css';
 import { Icon, ICON_STROKE_LABEL } from '../../controls/Icon';
 import { telemetry, useLiveSelector } from '../../state/live';
 import { spoken } from './format';
-import { takeAnnouncement, type TakeStatus } from './model';
+import { DROPOUT_ANNOUNCEMENT, takeAnnouncement, type TakeStatus } from './model';
 import { useRecorderStore } from './store';
 import styles from './RecorderButton.module.css';
 
@@ -28,12 +28,21 @@ export function RecorderButton({
   const recording = status !== 'idle';
   const seconds = useLiveSelector(telemetry, (t) => Math.floor(t?.recorder?.seconds ?? 0));
   const reamping = useLiveSelector(telemetry, (t) => t?.reamp?.playing ?? false);
+  const dropped = useLiveSelector(
+    telemetry,
+    (t) => t?.recorder?.status === 'recording' && t.recorder.dropouts > 0,
+  );
   const [previous, setPrevious] = useState<TakeStatus | null>(null);
+  const [wasDropped, setWasDropped] = useState(false);
   const [said, setSaid] = useState('');
   if (previous !== status) {
     const text = takeAnnouncement(previous, status, take);
     setPrevious(status);
     if (text) setSaid(text);
+  }
+  if (wasDropped !== dropped) {
+    setWasDropped(dropped);
+    if (dropped) setSaid(DROPOUT_ANNOUNCEMENT);
   }
 
   const label = recording

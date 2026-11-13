@@ -172,7 +172,8 @@ void Recorder::begin (const TakeRecorder::Config& wanted)
     const auto dir = folder();
     if (!dir.createDirectory())
     {
-        fail ("Could not create the folder " + dir.getFullPathName() + ".");
+        fail ("Could not create the folder " + dir.getFullPathName() +
+              ". Check that the disk is connected and has space, then record again.");
         return;
     }
     const auto stamp = juce::Time::getCurrentTime().formatted ("%Y-%m-%d %H-%M-%S");
@@ -194,14 +195,15 @@ void Recorder::begin (const TakeRecorder::Config& wanted)
     files_ = std::make_unique<record::TakeFiles> (*diSink_, *outSink_, config);
     if (!diSink_->openedOk() || !outSink_->openedOk() || !files_->begin())
     {
-        fail ("Could not write to " + dir.getFullPathName() + ".");
+        fail ("Could not write to " + dir.getFullPathName() +
+              ". Check that the disk has space and is not read-only, then record again.");
         di.deleteFile();
         output.deleteFile();
         return;
     }
     if (!core_.start (config))
     {
-        fail ("The previous take is still being saved.");
+        fail ("The last take is still being saved. Record again in a moment.");
         di.deleteFile();
         output.deleteFile();
         return;
@@ -325,8 +327,10 @@ void Recorder::complete()
     status_.store (Status::idle);
     ++revision;
     if (writeFailed_)
-        setError ("Could not write to " + folder().getFullPathName() +
-                  ". The disk may be full or gone; the take is kept up to where it stopped.");
+        setError (
+            "Could not write to " + folder().getFullPathName() +
+            ". The take is kept up to where it stopped. Free some space or reconnect the disk, "
+            "then record again.");
 }
 
 juce::var Recorder::stateAsVar() const

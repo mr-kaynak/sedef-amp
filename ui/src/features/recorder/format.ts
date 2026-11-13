@@ -35,3 +35,8 @@ export function rate(hz: number): string {
 export function channels(n: number): string {
   return n === 1 ? 'mono' : n === 2 ? 'stereo' : `${n} channels`;
 }
+
+/** A fraction as a whole percentage, written like the rest of the app ("40%"). */
+export function percent(fraction: number): string {
+  return `${Math.round(fraction * 100)}%`;
+}

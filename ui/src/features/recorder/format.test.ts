@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { describe, expect, it } from 'vitest';
-import { channels, clock, rate, spoken } from './format';
+import { channels, clock, percent, rate, spoken } from './format';
 import { takeAnnouncement } from './model';
 
 describe('recorder words', () => {
@@ -29,6 +29,7 @@ describe('recorder words', () => {
     expect(rate(88200)).toBe('88.2 kHz');
     expect(channels(1)).toBe('mono');
     expect(channels(2)).toBe('stereo');
+    expect(percent(0.404)).toBe('40%');
   });
 
   it('announces a take starting and how it ended', () => {
@@ -37,6 +38,9 @@ describe('recorder words', () => {
     expect(takeAnnouncement('saving', 'idle', { seconds: 83.4, ended: 'stopped' })).toBe(
       'Take saved, 1 minute 23 seconds',
     );
+    expect(
+      takeAnnouncement('saving', 'idle', { seconds: 83.4, ended: 'stopped', dropouts: 2 }),
+    ).toBe('Take saved, 1 minute 23 seconds, 2 dropouts');
     expect(takeAnnouncement('saving', 'idle', { seconds: 0, ended: 'empty' })).toBe(
       'Nothing was recorded',
     );

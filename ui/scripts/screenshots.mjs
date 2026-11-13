@@ -28,6 +28,16 @@ const MIDI = {
   canvas: { width: 760, height: 600 },
 };
 
+// The looper's panel (docs/looper.md) in one of its states, the click on, nothing moving.
+const looperShot = (state, set = 'metronomeEnabled:1') => ({
+  query: `section=amp&freeze&looper=${state}&set=${set}`,
+  async prepare(page) {
+    await page.getByRole('button', { name: /^Looper/ }).click();
+    await page.getByRole('dialog', { name: 'Looper' }).waitFor();
+    await page.waitForTimeout(400);
+  },
+});
+
 const SHOTS = {
   // The standalone app, the demo bass line held on a sounding note.
   midi: { app: MIDI, query: 'host=standalone&frame=1450' },
@@ -85,6 +95,16 @@ const SHOTS = {
       await page.waitForTimeout(700);
     },
   },
+  // A four-bar loop playing (the docs image), then every state (layout checks, not docs images).
+  looper: looperShot('playing'),
+  'looper-empty': looperShot('empty'),
+  'looper-empty-free': looperShot('empty', 'metronomeEnabled:0'),
+  'looper-armed': looperShot('armed'),
+  'looper-recording': looperShot('recording'),
+  'looper-recording-free': looperShot('recording', 'metronomeEnabled:0'),
+  'looper-closing': looperShot('closing'),
+  'looper-overdubbing': looperShot('overdubbing'),
+  'looper-stopped': looperShot('stopped'),
   abyss: { query: 'section=amp&preset=mariana' },
   // Transpose two semitones down: the stepper at the end of the tab row, the latency it adds,
   // and the status bar's share.
@@ -217,6 +237,7 @@ const names = wanted.length
       'intonation',
       'input-level',
       'transpose',
+      'looper',
       'midi',
       'live-scenes',
       'live-menu',

@@ -12,6 +12,7 @@
 #include "sedef/dsp/Drift.h"
 #include "sedef/dsp/Fathom.h"
 #include "sedef/dsp/GraphicEq.h"
+#include "sedef/dsp/Looper.h"
 #include "sedef/dsp/Metronome.h"
 #include "sedef/dsp/PitchShifter.h"
 #include "sedef/dsp/amp/AmpSection.h"
@@ -332,6 +333,7 @@ struct Engine::Impl
     StereoSlot<dsp::Doubler> doubler;
     dsp::Drift drift;
     dsp::Fathom fathom;
+    dsp::Looper looper;
     dsp::Metronome metronome;
 
     LinearSmoothed outputGain;
@@ -372,6 +374,7 @@ void Engine::prepare (double sampleRate, int maxBlockSize, int numInputs, int nu
     d.doubler.prepare (stereo);
     d.drift.prepare (stereo);
     d.fathom.prepare (stereo);
+    d.looper.prepare (stereo);
     d.metronome.prepare (stereo);
 
     d.outputGain.reset (sampleRate, 0.02);
@@ -420,6 +423,7 @@ void Engine::reset()
     d.fold.reset();
     d.analysisFold.reset();
     d.fathom.reset();
+    d.looper.reset();
     d.metronome.reset();
     d.snapGains = true;
     // Audio is stopped: the newest board applies at once.
@@ -439,6 +443,24 @@ void Engine::setMetronomePattern (const std::array<std::uint8_t, 13>& steps) noe
     for (size_t i = 0; i < steps.size(); ++i)
         packed |= static_cast<std::uint32_t> (steps[i] & 3u) << (2 * i);
     metronomePattern_.store (packed, std::memory_order_relaxed);
+}
+
+bool Engine::prepareLooper()
+{
+    if (looperMemoryOwner_ == nullptr)
+    {
+        looperMemoryOwner_ = std::make_unique<dsp::LoopMemory>();
+        looperMemory_.store (looperMemoryOwner_.get(), std::memory_order_release);
+    }
+    return true;
+}
+
+void Engine::looperCommand (LooperCommand command) noexcept
+{
+    if (!looperReady())
+        return;
+    const auto c = static_cast<std::uint8_t> (command);
+    looperCommands_.push (&c, 1);
 }
 
 int Engine::numCabs() const noexcept
@@ -514,6 +536,23 @@ void Engine::process (const float* const* inputs, float* const* outputs, int num
     const auto pattern = metronomePattern_.load (std::memory_order_relaxed);
     for (size_t i = 0; i < metro.steps.size(); ++i)
         metro.steps[i] = static_cast<std::uint8_t> ((pattern >> (2 * i)) & 3u);
+
+    // The looper: its memory arrives once (prepareLooper), its presses at a block start.
+    auto* loopMemory = looperMemory_.load (std::memory_order_acquire);
+    d.looper.attach (loopMemory);
+    std::array<std::uint8_t, 16> presses {};
+    int numPresses = 0;
+    if (loopMemory != nullptr)
+        numPresses = static_cast<int> (looperCommands_.pop (presses.data(), presses.size()));
+    dsp::Looper::Settings loop;
+    loop.levelDb = p[P::looperLevel];
+    loop.feedback = p[P::looperFeedback] / 100.0f;
+    loop.countIn = p.flag (P::looperCountIn);
+    loop.clickBpm = metro.bpm;
+    loop.clickSignature = metro.signature;
+    // The device's and the rig's latency; Transpose's share follows its setting (below).
+    const int looperLatency = looperDeviceLatency_.load (std::memory_order_relaxed) +
+                              latency_.load (std::memory_order_relaxed);
 
     const int numInputs = numInputs_.load (std::memory_order_relaxed);
     const int numOutputs = numOutputs_.load (std::memory_order_relaxed);
@@ -641,6 +680,33 @@ void Engine::process (const float* const* inputs, float* const* outputs, int num
         d.fathom.setSettings (fathomSettings);
         d.fathom.process (post);
         d.metronome.setSettings (metro);
+        if (loopMemory != nullptr)
+        {
+            // The looper records the rig without the click and adds the loop (docs/looper.md).
+            // Downbeats come from the click's own scheduler, so both agree on every sample.
+            std::array<dsp::Looper::Event, 24> events {};
+            int numEvents = 0;
+            std::array<int, 8> downbeats {};
+            const int numDownbeats =
+                d.metronome.downbeats (n, downbeats.data(), static_cast<int> (downbeats.size()));
+            for (int k = 0; k < numDownbeats; ++k)
+                events[static_cast<size_t> (numEvents++)] = { downbeats[static_cast<size_t> (k)],
+                                                              dsp::Looper::Event::Kind::downbeat };
+            if (start == 0)
+                for (int k = 0; k < numPresses; ++k)
+                    events[static_cast<size_t> (numEvents++)] = {
+                        0, dsp::Looper::Event::Kind::command,
+                        static_cast<dsp::Looper::Command> (presses[static_cast<size_t> (k)])
+                    };
+            loop.clickRunning = d.metronome.isRunning();
+            loop.barSamples = d.metronome.barSamples();
+            loop.latencySamples = looperLatency + d.chains[0].transpose.latencySamples();
+            d.looper.setSettings (loop);
+            d.looper.process (post, events.data(), numEvents);
+            // A loop recorded in bars keeps the click locked to its passes.
+            for (int k = 0; k < d.looper.numWraps(); ++k)
+                d.metronome.alignDownbeat (d.looper.wrap (k));
+        }
         // Always: a click that is still sounding when the metronome is switched off rings out.
         // (Returns at once when nothing is sounding.)
         d.metronome.process (post);
@@ -698,6 +764,21 @@ void Engine::process (const float* const* inputs, float* const* outputs, int num
                                       std::memory_order_relaxed);
     telemetry_.boardChanging.store (d.board.changing (rack0), std::memory_order_relaxed);
     telemetry_.metronomeStep.store (d.metronome.currentStep(), std::memory_order_relaxed);
+    {
+        const auto& lp = d.looper;
+        int flags = 0;
+        flags |= lp.canUndo() ? kLooperCanUndo : 0;
+        flags |= lp.canRedo() ? kLooperCanRedo : 0;
+        flags |= lp.undoIsClear() ? kLooperUndoIsClear : 0;
+        flags |= lp.synced() ? kLooperSynced : 0;
+        flags |= lp.armedForPlay() ? kLooperArmedForPlay : 0;
+        telemetry_.looperState.store (static_cast<int> (lp.state()), std::memory_order_relaxed);
+        telemetry_.looperFlags.store (flags, std::memory_order_relaxed);
+        telemetry_.looperLength.store (lp.length(), std::memory_order_relaxed);
+        telemetry_.looperPosition.store (lp.position(), std::memory_order_relaxed);
+        telemetry_.looperBars.store (lp.bars(), std::memory_order_relaxed);
+        telemetry_.looperWait.store (lp.waitBars(), std::memory_order_relaxed);
+    }
     telemetry_.driftTimeMs.store (d.drift.effectiveTimeMs(), std::memory_order_relaxed);
     transposeLatency_.store (d.chains[0].transpose.latencySamples(), std::memory_order_release);
 }

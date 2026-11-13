@@ -211,3 +211,6 @@ SEDEF_PARAM(beaconDepth, "Beacon Depth", "Beacon", Float, 0.0f, 1.0f, 0.7f, 1.0f
 SEDEF_PARAM(beaconMode, "Beacon Mode", "Beacon", Choice, 0.0f, 1.0f, 0.0f, 1.0f, "", "Chorus|Vibrato", true)
 SEDEF_PARAM(trenchMode, "Trench Mode", "Trench", Choice, 0.0f, 1.0f, 0.0f, 1.0f, "", "Mono|Poly", true)
 SEDEF_PARAM(scene, "Scene", "Global", Choice, 0.0f, 7.0f, 0.0f, 1.0f, "", "1|2|3|4|5|6|7|8", true)
+SEDEF_PARAM(looperLevel, "Looper Level", "Looper", Float, -30.0f, 6.0f, 0.0f, 1.0f, "dB", "", false)
+SEDEF_PARAM(looperFeedback, "Looper Feedback", "Looper", Float, 0.0f, 100.0f, 100.0f, 1.0f, "%", "", false)
+SEDEF_PARAM(looperCountIn, "Looper Count-in", "Looper", Bool, 0.0f, 1.0f, 0.0f, 1.0f, "", "", false)

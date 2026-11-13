@@ -9,8 +9,22 @@ export interface Shortcut {
   label: string;
 }
 
-export function shortcuts(): { title: string; items: Shortcut[] }[] {
+export function shortcuts(
+  options: { looper?: boolean } = {},
+): { title: string; items: Shortcut[] }[] {
   const mod = modKey().symbol;
+  const looper = options.looper
+    ? [
+        {
+          title: 'Looper',
+          items: [
+            { keys: ['L'], label: 'Record, play or overdub' },
+            { keys: ['⇧L'], label: 'Stop the loop' },
+            { keys: ['Space'], label: 'Record, play or overdub (in the looper)' },
+          ],
+        },
+      ]
+    : [];
   return [
     {
       title: 'Presets',
@@ -41,5 +55,6 @@ export function shortcuts(): { title: string; items: Shortcut[] }[] {
         { keys: ['Esc'], label: 'Close the tuner, the workbench or a panel' },
       ],
     },
+    ...looper,
   ];
 }

@@ -35,6 +35,7 @@ import {
 } from './mock/factoryPresets';
 import { CaptureSim } from './mock/captureSim';
 import { LiveSim } from './mock/liveSim';
+import { LooperSim, type LooperDemo } from './mock/looperSim';
 import { PitchSimulator } from './mock/pitchSim';
 import { createRandom } from './mock/random';
 import { TelemetrySimulator, type InterfaceLevel } from './mock/telemetrySim';
@@ -73,6 +74,8 @@ export interface MockOptions {
   input?: InterfaceLevel;
   /** Start with a few MIDI bindings and program assignments (screenshots, the browser preview). */
   liveDemo?: boolean;
+  /** The looper opened in a given state (demos and screenshots). */
+  looper?: LooperDemo;
   /**
    * Delays each native call's answer and each preset broadcast by a random 0..maxMs (seeded).
    * Calls still run in the order they were made, as in the plugin, but their answers can arrive
@@ -175,6 +178,8 @@ export class MockBackend implements Backend {
   readonly updates: UpdateSimulator;
   /** Scenes, MIDI bindings, program changes and learn (docs/live.md). */
   readonly live: LiveSim;
+  /** The looper's states (docs/looper.md); tests read it and advance it with tickTelemetry. */
+  readonly looper = new LooperSim((id) => this.value(id));
 
   constructor(private readonly options: MockOptions = {}) {
     this.live = new LiveSim(
@@ -235,6 +240,7 @@ export class MockBackend implements Backend {
       storageKey: options.persistKey ? 'sedef-mock-updates' : null,
       emit: (state) => this.emit('sedef:update', state),
     });
+    if (options.looper && this.standalone()) this.looper.demo(options.looper);
     if (options.autoStart) this.start();
   }
 
@@ -278,7 +284,20 @@ export class MockBackend implements Backend {
   }
 
   tickTelemetry(dt = 1 / TELEMETRY_HZ): void {
-    this.emitter.emit('sedef:telemetry', this.telemetrySim.step(dt));
+    this.looper.step(dt);
+    this.emitter.emit('sedef:telemetry', {
+      ...this.telemetrySim.step(dt),
+      looper: this.looperTelemetry(),
+    });
+  }
+
+  private standalone(): boolean {
+    return this.options.isStandalone ?? true;
+  }
+
+  /** What the plug-in reports: the looper only in the standalone app. */
+  private looperTelemetry() {
+    return this.standalone() ? this.looper.telemetry() : null;
   }
 
   tickPitch(dt = 1 / PITCH_HZ): void {
@@ -304,6 +323,7 @@ export class MockBackend implements Backend {
       gateOpen: true,
       gateReductionDb: 0,
       tideReductionDb: this.value('tideEnabled') >= 0.5 ? -3.5 : 0,
+      looper: this.looperTelemetry(),
       cpu: 0.064,
     });
   }
@@ -578,6 +598,11 @@ export class MockBackend implements Backend {
         clearInterval(this.pitchTimer);
         this.pitchTimer = null;
       }
+    },
+
+    sedef_looper_open: () => this.standalone() && this.looper.open(),
+    sedef_looper_command: (action) => {
+      if (this.standalone() && this.looper.open()) this.looper.command(action);
     },
 
     sedef_metronome_setPattern: () => undefined,

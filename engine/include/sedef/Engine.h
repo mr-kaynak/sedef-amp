@@ -20,7 +20,18 @@ namespace dsp
 {
 class CabSim;
 class CaptureStage;
+struct LoopMemory;
 } // namespace dsp
+
+/// What the looper's main button and its other actions ask for (dsp::Looper::Command).
+enum class LooperCommand : std::uint8_t
+{
+    main,
+    stop,
+    undo,
+    redo,
+    clear
+};
 
 /// The whole rig: routing, bypass crossfades, latency alignment, metering.
 ///
@@ -46,7 +57,21 @@ public:
         std::array<std::atomic<bool>, kNumPedals> pedalRan {};
         /// A board change is still on its way in (bypass fades or the duck).
         std::atomic<bool> boardChanging { false };
+        /// The looper (docs/looper.md): dsp::Looper::State, its flags (kLooper*), the loop's length
+        /// (or the take's so far) and position in samples, its bars and the downbeats still to
+        /// wait for before an armed start.
+        std::atomic<int> looperState { 0 };
+        std::atomic<int> looperFlags { 0 };
+        std::atomic<int> looperLength { 0 };
+        std::atomic<int> looperPosition { 0 };
+        std::atomic<int> looperBars { 0 };
+        std::atomic<int> looperWait { 0 };
     };
+    static constexpr int kLooperCanUndo = 1;
+    static constexpr int kLooperCanRedo = 2;
+    static constexpr int kLooperUndoIsClear = 4;
+    static constexpr int kLooperSynced = 8;
+    static constexpr int kLooperArmedForPlay = 16;
 
     Engine();
     ~Engine();
@@ -103,6 +128,21 @@ public:
     void setMetronomeAllowed (bool allowed) noexcept { metronomeAllowed_.store (allowed); }
     void setMetronomePattern (const std::array<std::uint8_t, 13>& steps) noexcept;
 
+    /// The looper (docs/looper.md). Its memory (about 92 MB) is reserved the first time this is
+    /// called, on the calling (non-real-time) thread, and the audio thread picks it up at its
+    /// next block; until then the looper does nothing. Returns true once it is reserved.
+    bool prepareLooper();
+    bool looperReady() const noexcept
+    {
+        return looperMemory_.load (std::memory_order_acquire) != nullptr;
+    }
+    /// Any one non-real-time thread: queued for the start of the next block. Dropped while the
+    /// looper has no memory.
+    void looperCommand (LooperCommand command) noexcept;
+    /// The audio device's input + output latency in samples (the standalone app knows it); the
+    /// looper adds the rig's own latency and writes what it records that much earlier.
+    void setLooperDeviceLatency (int samples) noexcept { looperDeviceLatency_.store (samples); }
+
     /// Custom IRs must be installed on every chain's cab (dual mode has two).
     int numCabs() const noexcept;
     dsp::CabSim& cab (int index) noexcept;
@@ -128,6 +168,11 @@ private:
         return packed;
     }
     std::atomic<std::uint32_t> metronomePattern_ { defaultMetronomePattern() };
+
+    std::unique_ptr<dsp::LoopMemory> looperMemoryOwner_; // freed with the engine, never before
+    std::atomic<dsp::LoopMemory*> looperMemory_ { nullptr };
+    SpscRing<std::uint8_t> looperCommands_ { 64 };
+    std::atomic<int> looperDeviceLatency_ { 0 };
 
     std::atomic<double> sampleRate_ { 48000.0 };
     std::atomic<int> maxBlockSize_ { 512 };

@@ -145,8 +145,20 @@ Metronome::Settings sanitise (const Metronome::Settings& s) noexcept
     o.signature = std::clamp (s.signature, 0, static_cast<int> (kStepsPerBar.size()) - 1);
     o.sound = std::clamp (s.sound, 0, static_cast<int> (kRecipes.size()) - 1);
     o.bpm = std::isfinite (s.bpm) ? std::clamp (s.bpm, kMinBpm, kMaxBpm) : 120.0f;
+    o.mode = s.mode == 1 ? 1 : 0;
+    o.drums.groove = std::max (0, s.drums.groove);
+    o.drums.intensity = std::clamp (s.drums.intensity, 1, 5);
+    o.drums.fillEvery = std::clamp (s.drums.fillEvery, 0, 16);
+    o.drumsLevelDb =
+        std::isfinite (s.drumsLevelDb) ? std::clamp (s.drumsLevelDb, -60.0f, 12.0f) : 0.0f;
+    o.drumsTone = std::isfinite (s.drumsTone) ? std::clamp (s.drumsTone, 0.0f, 1.0f) : 0.5f;
     return o;
 }
+
+// Tone (docs/drums.md, section 5.7): a high shelf at 1 kHz of 24 · (tone − 0.5) dB with half of it
+// taken off as broadband gain. 0.5 is flat and bypassed.
+constexpr double kToneHz = 1000.0;
+constexpr float kToneRangeDb = 24.0f;
 
 float decayCoeff (double ms, double fs) noexcept
 {
@@ -164,6 +176,9 @@ void Metronome::prepare (const ProcessSpec& spec)
 {
     sampleRate_ = spec.sampleRate;
     volume_.reset (sampleRate_, 0.02);
+    drumsLevel_.reset (sampleRate_, 0.02);
+    kit_.prepare (sampleRate_);
+    drumsTone_ = -1.0f; // the next setSettings() designs the tone filter for this rate
     reset();
 }
 
@@ -172,26 +187,61 @@ void Metronome::reset() noexcept
     for (auto& v : voices_)
         v.active = false;
     volume_.setCurrentAndTarget (dbToGain (settings_.volumeDb));
+    drumsLevel_.setCurrentAndTarget (dbToGain (settings_.drumsLevelDb));
     running_ = false;
     startPending_ = settings_.enabled;
     now_ = 0;
     snapNext_ = true;
     currentStep_.store (-1, std::memory_order_relaxed);
+    kit_.reset();
+    player_.start();
+    toneFilter_.reset();
+    numPending_ = firstPending_ = 0;
+    numFired_ = 0;
 }
 
 void Metronome::setSettings (const Settings& s) noexcept
 {
+    const bool wasDrums = drumsOn();
     settings_ = sanitise (s);
     if (snapNext_)
+    {
         volume_.setCurrentAndTarget (dbToGain (settings_.volumeDb));
+        drumsLevel_.setCurrentAndTarget (dbToGain (settings_.drumsLevelDb));
+    }
     else
+    {
         volume_.setTarget (dbToGain (settings_.volumeDb));
+        drumsLevel_.setTarget (dbToGain (settings_.drumsLevelDb));
+    }
     snapNext_ = false;
+
+    if (settings_.drumsTone != drumsTone_)
+    {
+        const bool wasFlat = drumsTone_ == 0.5f || drumsTone_ < 0.0f;
+        drumsTone_ = settings_.drumsTone;
+        const float shelfDb = kToneRangeDb * (drumsTone_ - 0.5f);
+        toneFilter_.setCoeffs (design::highShelf1 (sampleRate_, kToneHz, shelfDb));
+        toneGain_ = drumsTone_ == 0.5f ? 1.0f : dbToGain (-0.5f * shelfDb);
+        if (wasFlat)
+            toneFilter_.reset();
+    }
+
+    player_.setSettings (settings_.drums);
+    if (drumsOn() != wasDrums)
+    {
+        // Click to drums: the drums come in on the next step, bars counted from there. Drums to
+        // click: nothing more is queued, and the kit rings out.
+        numPending_ = firstPending_ = 0;
+        if (drumsOn())
+            player_.start();
+    }
 
     if (!settings_.enabled)
     {
         running_ = false;
         startPending_ = false;
+        numPending_ = firstPending_ = 0;
         currentStep_.store (-1, std::memory_order_relaxed);
         return;
     }
@@ -234,7 +284,7 @@ void Metronome::trigger (long long when, long long scheduled) noexcept
         nextStep_ = 0; // the meter got shorter: start a new bar
     const int step = nextStep_;
     const auto state = settings_.steps[static_cast<size_t> (step)];
-    if (state == Normal || state == Accent || state == Soft)
+    if (!drumsOn() && (state == Normal || state == Accent || state == Soft))
         startVoice (static_cast<StepState> (state));
     // The playhead moves through silent (Off) steps too, so the UI never appears to stall.
     currentStep_.store (step, std::memory_order_relaxed);
@@ -250,6 +300,52 @@ void Metronome::trigger (long long when, long long scheduled) noexcept
         ++stepsSinceAnchor_;
     }
     nextStep_ = step + 1 < steps ? step + 1 : 0;
+    if (drumsOn())
+        queueDrums (step, when);
+}
+
+void Metronome::queueDrums (int step, long long when) noexcept
+{
+    // Whatever the last step left unplayed is dropped: that only happens when the grid jumped
+    // (docs/drums.md, section 3.4).
+    numPending_ = firstPending_ = 0;
+
+    std::array<drums::GroovePlayer::StepEvent, drums::GroovePlayer::kMaxStepEvents> events;
+    const int count =
+        player_.onStep (step, settings_.signature, events.data(), static_cast<int> (events.size()));
+    // The step's own length in samples, from the grid that will place the next step.
+    const long long next = nextTrigger();
+    const long long length = std::max (1LL, next - when);
+    for (int i = 0; i < count && numPending_ < kMaxPending; ++i)
+    {
+        const auto& e = events[static_cast<size_t> (i)];
+        const long long k = std::max (1, e.slotsPerStep);
+        // Slot j of k: when + floor((2·j·L + k) / (2·k)), rounding half up (section 3.2).
+        long long t = when + (2LL * e.slot * length + k) / (2LL * k);
+        t += std::llround (static_cast<double> (e.offsetMs) * 1.0e-3 * sampleRate_);
+        t = std::clamp (t, when, std::max (when, next - 1));
+        // Keep time order; events on one sample keep the groove's order.
+        int at = numPending_;
+        while (at > 0 && pending_[static_cast<size_t> (at - 1)].when > t)
+        {
+            pending_[static_cast<size_t> (at)] = pending_[static_cast<size_t> (at - 1)];
+            --at;
+        }
+        pending_[static_cast<size_t> (at)] = { t, e.instrument, e.velocity };
+        ++numPending_;
+    }
+}
+
+void Metronome::fireDrums (long long upTo, int offset) noexcept
+{
+    while (firstPending_ < numPending_ &&
+           pending_[static_cast<size_t> (firstPending_)].when <= upTo)
+    {
+        const auto& e = pending_[static_cast<size_t> (firstPending_++)];
+        kit_.strike (e.instrument, e.velocity);
+        if (numFired_ < kMaxFired)
+            fired_[static_cast<size_t> (numFired_++)] = { offset, e.instrument, e.velocity };
+    }
 }
 
 void Metronome::startVoice (StepState state) noexcept
@@ -407,6 +503,7 @@ void Metronome::render (const AudioView& io, int start, int end) noexcept
 void Metronome::process (const AudioView& io) noexcept
 {
     const int n = io.numFrames();
+    numFired_ = 0;
     if (n <= 0 || io.numChannels() <= 0)
         return;
     if (startPending_)
@@ -418,11 +515,16 @@ void Metronome::process (const AudioView& io) noexcept
         anchor_ = now_;
         stepsSinceAnchor_ = 0;
         nextStep_ = 0;
+        // The drums start their bars here, and their noise as it started last time.
+        player_.start();
+        kit_.reseed();
+        numPending_ = firstPending_ = 0;
     }
 
     for (int pos = 0; pos < n;)
     {
-        int end = n;
+        // The next thing that happens: a step, or a drum event of the step that sounded last.
+        int stepAt = n;
         long long due = 0;
         bool fires = false;
         if (running_)
@@ -431,15 +533,67 @@ void Metronome::process (const AudioView& io) noexcept
             if (due < now_ + n)
             {
                 fires = true;
-                end = static_cast<int> (std::max (static_cast<long long> (pos), due - now_));
+                stepAt = static_cast<int> (std::max (static_cast<long long> (pos), due - now_));
             }
         }
+        int eventAt = n;
+        if (firstPending_ < numPending_)
+        {
+            const long long when = pending_[static_cast<size_t> (firstPending_)].when;
+            if (when < now_ + n)
+                eventAt = static_cast<int> (std::max (static_cast<long long> (pos), when - now_));
+        }
+        const int end = std::min (stepAt, eventAt);
         render (io, pos, end);
-        if (fires)
+        renderDrums (io, pos, end);
+        if (fires && stepAt == end)
             trigger (now_ + end, due);
+        if (end < n)
+            fireDrums (now_ + end, end);
         pos = end;
     }
     now_ += n;
+}
+
+void Metronome::renderDrums (const AudioView& io, int start, int end) noexcept
+{
+    if (end <= start)
+        return;
+    if (!kit_.sounding())
+    {
+        drumsLevel_.skip (end - start);
+        return;
+    }
+    constexpr float kFromQ23 = 1.0f / 8388608.0f;
+    const bool tone = drumsTone_ != 0.5f;
+    float* left = io.channel (0);
+    float* right = io.numChannels() > 1 ? io.channel (1) : nullptr;
+    for (int i = start; i < end;)
+    {
+        const int m = std::min (kChunk, end - i);
+        kit_.render (kitLeft_.data(), kitRight_.data(), m);
+        for (int j = 0; j < m; ++j)
+        {
+            float l = static_cast<float> (kitLeft_[static_cast<size_t> (j)]) * kFromQ23;
+            float r = static_cast<float> (kitRight_[static_cast<size_t> (j)]) * kFromQ23;
+            if (tone)
+            {
+                l = toneFilter_.processSample (0, l);
+                r = toneFilter_.processSample (1, r);
+            }
+            const float g = drumsLevel_.next() * toneGain_;
+            if (right != nullptr)
+            {
+                left[i + j] += l * g;
+                right[i + j] += r * g;
+            }
+            else
+            {
+                left[i + j] += 0.5f * (l + r) * g;
+            }
+        }
+        i += m;
+    }
 }
 
 } // namespace sedef::dsp

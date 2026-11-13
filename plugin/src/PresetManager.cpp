@@ -87,7 +87,10 @@ bool PresetManager::isGlobal (ParamId id) noexcept
         ParamId::metronomeVolume, ParamId::metronomeSignature,
         ParamId::metronomeSound,  ParamId::presetPrevious,
         ParamId::presetNext,      ParamId::captureInterfaceLevel,
-        ParamId::oversampling,
+        ParamId::oversampling,    ParamId::metronomeMode,
+        ParamId::drumsGroove,     ParamId::drumsIntensity,
+        ParamId::drumsFills,      ParamId::drumsLevel,
+        ParamId::drumsTone,
     };
     return std::find (std::begin (kGlobal), std::end (kGlobal), id) != std::end (kGlobal);
 }

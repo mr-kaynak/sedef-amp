@@ -6,6 +6,7 @@
 #include "sedef/dsp/PitchShifter.h"
 #include "sedef/dsp/cab/CabSim.h"
 #include "sedef/dsp/capture/CaptureStage.h"
+#include "sedef/dsp/drums/Grooves.h"
 
 #include <algorithm>
 #include <atomic>
@@ -402,6 +403,97 @@ TEST_CASE ("A re-enabled metronome starts clean, with no stale click", "[engine]
     const std::vector<float> first (fresh.out[0].begin(), fresh.out[0].begin() + 24000);
     CHECK (test::peak (first) > 0.05f);
     CHECK (again == first);
+}
+
+namespace
+{
+/// The metronome in Drums mode (docs/drums.md), everything else as the defaults leave it.
+ParamSnapshot drumsOnly (int groove = 0)
+{
+    auto p = metronomeOnly();
+    p[ParamId::tempo] = 120.0f;
+    p[ParamId::metronomeMode] = 1.0f;
+    p[ParamId::drumsGroove] = static_cast<float> (groove);
+    p[ParamId::metronomeSignature] = 2.0f;
+    return p;
+}
+} // namespace
+
+TEST_CASE ("Drums play only in the standalone app; the plug-in is unchanged", "[engine][drums]")
+{
+    const auto render = [] (bool allowed, bool drums) {
+        Rig rig (48000.0, 128, 1, 2);
+        test::fillSine (rig.in[0], 110.0, 48000.0, 0.2f);
+        rig.engine.setMetronomeAllowed (allowed);
+        auto p = drums ? drumsOnly() : ParamSnapshot::defaults();
+        if (!drums)
+            p[ParamId::gateEnabled] = 0.0f;
+        rig.run (p, 48000);
+        return std::pair { rig.out[0], rig.out[1] };
+    };
+    const auto plain = render (false, false);
+    // Not allowed (a plug-in): Drums mode and a running metronome change nothing, bit for bit.
+    CHECK (render (false, true) == plain);
+    // Allowed: the drums are there.
+    const auto withDrums = render (true, true);
+    float diff = 0.0f;
+    for (size_t i = 0; i < withDrums.first.size(); ++i)
+        diff = std::max (diff, std::abs (withDrums.first[i] - plain.first[i]));
+    CHECK (diff > 0.1f);
+}
+
+TEST_CASE ("Drums are added after the amp and the cab, never into them", "[engine][drums]")
+{
+    // Silent input: whatever the amp, the cab and the EQ are set to, the drums come out the same.
+    const auto render = [] (int amp, float bass) {
+        Rig rig (48000.0, 128, 1, 2);
+        rig.engine.setMetronomeAllowed (true);
+        auto p = drumsOnly();
+        p[ParamId::ampModel] = static_cast<float> (amp);
+        p[amp == 0 ? ParamId::lagoonBass : ParamId::abyssBass] = bass;
+        rig.run (p, 60000); // the rig's buffers hold 65536 frames
+        return std::pair { rig.out[0], rig.out[1] };
+    };
+    const auto a = render (0, 0.2f);
+    const auto b = render (2, 0.9f);
+    CHECK (test::peak (a.first) > 0.1f);
+    float worst = 0.0f;
+    for (size_t i = 0; i < a.first.size(); ++i)
+        worst = std::max (
+            { worst, std::abs (a.first[i] - b.first[i]), std::abs (a.second[i] - b.second[i]) });
+    CHECK (worst < 1.0e-6f);
+}
+
+TEST_CASE ("Engine::process never allocates with the drums running", "[engine][drums]")
+{
+    Rig rig (48000.0, 256, 2, 2);
+    test::fillNoise (rig.in[0], 0.3f, 1);
+    test::fillNoise (rig.in[1], 0.3f, 2);
+    rig.engine.setMetronomeAllowed (true);
+    auto p = drumsOnly();
+    rig.run (p, 4096); // warm-up
+
+    gAllocations = 0;
+    int offset = 4096;
+    {
+        TrackAllocations track;
+        for (int g = 0; g < 13; ++g)
+        {
+            p[ParamId::drumsGroove] = static_cast<float> (g);
+            p[ParamId::metronomeSignature] = static_cast<float> (
+                sedef::dsp::drums::grooves()[static_cast<size_t> (g)].signature);
+            p[ParamId::drumsIntensity] = static_cast<float> (g % 5);
+            p[ParamId::drumsFills] = static_cast<float> (g % 4);
+            p[ParamId::drumsTone] = 0.1f * static_cast<float> (g % 10);
+            p[ParamId::drumsLevel] = -6.0f + static_cast<float> (g);
+            p[ParamId::tempo] = 60.0f + 13.0f * static_cast<float> (g);
+            p[ParamId::metronomeMode] = g == 5 ? 0.0f : 1.0f;
+            p[ParamId::metronomeEnabled] = g == 9 ? 0.0f : 1.0f;
+            rig.run (p, 4096, offset);
+            offset += 4096;
+        }
+    }
+    CHECK (gAllocations.load() == 0);
 }
 
 TEST_CASE ("Starting in Dual mode plays from the first block without a gap", "[engine]")

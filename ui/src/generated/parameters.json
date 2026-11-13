@@ -203,6 +203,12 @@
     {"id": "beaconSpeed", "name": "Beacon Speed", "group": "Beacon", "kind": "float", "min": 0.3, "max": 8, "default": 2, "skew": 0.381, "unit": "Hz", "automatable": true, "choices": []},
     {"id": "beaconDepth", "name": "Beacon Depth", "group": "Beacon", "kind": "float", "min": 0, "max": 1, "default": 0.7, "skew": 1, "unit": "knob", "automatable": true, "choices": []},
     {"id": "beaconMode", "name": "Beacon Mode", "group": "Beacon", "kind": "choice", "min": 0, "max": 1, "default": 0, "skew": 1, "unit": "", "automatable": true, "choices": ["Chorus", "Vibrato"]},
-    {"id": "trenchMode", "name": "Trench Mode", "group": "Trench", "kind": "choice", "min": 0, "max": 1, "default": 0, "skew": 1, "unit": "", "automatable": true, "choices": ["Mono", "Poly"]}
+    {"id": "trenchMode", "name": "Trench Mode", "group": "Trench", "kind": "choice", "min": 0, "max": 1, "default": 0, "skew": 1, "unit": "", "automatable": true, "choices": ["Mono", "Poly"]},
+    {"id": "metronomeMode", "name": "Metronome Mode", "group": "Metronome", "kind": "choice", "min": 0, "max": 1, "default": 0, "skew": 1, "unit": "", "automatable": false, "choices": ["Click", "Drums"]},
+    {"id": "drumsGroove", "name": "Drums Groove", "group": "Drums", "kind": "choice", "min": 0, "max": 12, "default": 0, "skew": 1, "unit": "", "automatable": false, "choices": ["Straight rock", "Half-time", "Ballad", "Fast eighths", "Shuffle", "Swing", "Waltz", "Two-step", "Five", "Six-eight", "Seven", "Nine", "Slow twelve-eight"]},
+    {"id": "drumsIntensity", "name": "Drums Intensity", "group": "Drums", "kind": "choice", "min": 0, "max": 4, "default": 2, "skew": 1, "unit": "", "automatable": false, "choices": ["1", "2", "3", "4", "5"]},
+    {"id": "drumsFills", "name": "Drums Fills", "group": "Drums", "kind": "choice", "min": 0, "max": 3, "default": 2, "skew": 1, "unit": "", "automatable": false, "choices": ["Off", "Every 2 bars", "Every 4 bars", "Every 8 bars"]},
+    {"id": "drumsLevel", "name": "Drums Level", "group": "Drums", "kind": "float", "min": -30, "max": 6, "default": 0, "skew": 1, "unit": "dB", "automatable": false, "choices": []},
+    {"id": "drumsTone", "name": "Drums Tone", "group": "Drums", "kind": "float", "min": 0, "max": 1, "default": 0.5, "skew": 1, "unit": "knob", "automatable": false, "choices": []}
   ]
 }

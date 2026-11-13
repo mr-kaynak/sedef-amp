@@ -85,6 +85,26 @@ const SHOTS = {
       await page.waitForTimeout(700);
     },
   },
+  // The metronome playing drums: the groove list for 4/4, intensity, fills, level and tone.
+  drums: {
+    query: 'section=amp&set=metronomeMode:1,drumsGroove:1',
+    async prepare(page) {
+      await page.getByRole('button', { name: 'Metronome' }).click();
+      await page.getByRole('button', { name: 'Start drums' }).click();
+      await page.waitForTimeout(700);
+    },
+  },
+  // The groove list reached by keyboard: the groove that plays wears the focus ring (not a docs
+  // image: a focus check).
+  'drums-focus': {
+    query: 'section=amp&set=metronomeMode:1,drumsGroove:1',
+    async prepare(page) {
+      await page.getByRole('button', { name: 'Metronome' }).click();
+      await page.getByRole('combobox', { name: 'Metronome Signature' }).focus();
+      await page.keyboard.press('Tab');
+      await page.waitForTimeout(300);
+    },
+  },
   abyss: { query: 'section=amp&preset=mariana' },
   // Transpose two semitones down: the stepper at the end of the tab row, the latency it adds,
   // and the status bar's share.
@@ -161,6 +181,7 @@ const names = wanted.length
       'intonation',
       'input-level',
       'transpose',
+      'drums',
       'midi',
     ];
 

@@ -178,7 +178,14 @@ moved to the status bar for the same row.
   parameters only (kind Float), which every module smooths. Choices, ints and the other switches
   are left out: they jump (an amp model, a voicing lever), and a scene must not click.
 - Global parameters (input and output gain, tuner, metronome, latency…) are never in a scene,
-  as they are never in a preset.
+  as they are never in a preset. **Transpose in particular stays out:** while it shifts it adds
+  latency (3 ms down, 10 ms up, docs/dsp/transpose.md), and the host hears of a change on the
+  next timer tick, so a scene that recalled it would move the latency the host compensates for
+  under the player's foot. A scene switch never changes the reported latency. Neither *Remember
+  in scenes* nor a preset file can put it in a scene (it is global, and an int, which scenes
+  refuse twice over); a test switches scenes while Transpose shifts and checks the setting and
+  the reported latency stay put. The same holds for every global added later (the metronome's and
+  drums' settings).
 
 Everything else is the preset's and the same in every scene. A preset's scenes therefore share
 one amp, cab and board, which is what makes switching instant: a scene changes nothing that needs

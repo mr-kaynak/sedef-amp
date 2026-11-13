@@ -7,6 +7,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
+#include <cstdio>
 #include <set>
 #include <string>
 
@@ -780,12 +781,16 @@ TEST_CASE ("A change ducks only the side it reorders", "[board]")
     CHECK (postDucked);
 }
 
-TEST_CASE ("Through the whole rig, crossing the amp and swapping after it stay click-free",
-           "[board]")
+namespace
 {
-    const double fs = GENERATE (48000.0, 96000.0);
-    const bool guitar = GENERATE (false, true);
-    CAPTURE (fs, guitar);
+/// Through the whole rig: Gyre crossing the amp, and Gyre and Jetty swapping after it.
+struct RigTransients
+{
+    Transient cross, swap;
+};
+
+RigTransients rigTransients (double fs, bool guitar)
+{
     // The phaser and flanger hold still (depth 0), so the renders that play either board from
     // the start are a fair reference: a sweep restarted by the change would differ from theirs
     // by where it is, not by a click.
@@ -799,15 +804,27 @@ TEST_CASE ("Through the whole rig, crossing the amp and swapping after it stay c
                                  renderEngine (fs, 64, x, p, a, nullptr, 0),
                                  renderEngine (fs, 64, x, p, b, nullptr, 0), fs, at);
     };
+    return {
+        transient (sides ({ PedalId::tide, PedalId::gyre }, { PedalId::jetty }),
+                   sides ({ PedalId::tide }, { PedalId::gyre, PedalId::jetty })),
+        transient (sides ({ PedalId::tide }, { PedalId::gyre, PedalId::jetty }),
+                   sides ({ PedalId::tide }, { PedalId::jetty, PedalId::gyre })),
+    };
+}
+} // namespace
+
+TEST_CASE ("Through the whole rig, crossing the amp and swapping after it stay click-free",
+           "[board]")
+{
+    const double fs = GENERATE (48000.0, 96000.0);
+    const bool guitar = GENERATE (false, true);
+    CAPTURE (fs, guitar);
+    const auto [cross, swap] = rigTransients (fs, guitar);
     // Gyre crosses the amp: two bypass fades, no step.
-    const auto cross = transient (sides ({ PedalId::tide, PedalId::gyre }, { PedalId::jetty }),
-                                  sides ({ PedalId::tide }, { PedalId::gyre, PedalId::jetty }));
     CHECK (cross.excessDb < -50.0f);
     CHECK (cross.dipDb > -12.0f);
     // The two after the amp swap: that side's duck. Nothing behind it fills the gap, so the rig
     // dips to silence for about two fades, without a click.
-    const auto swap = transient (sides ({ PedalId::tide }, { PedalId::gyre, PedalId::jetty }),
-                                 sides ({ PedalId::tide }, { PedalId::jetty, PedalId::gyre }));
     CHECK (swap.dipDb < -40.0f);
     CHECK (swap.dipMs <= 2.0 * 1000.0 * BoardSwitch::kDuckSeconds + 2.0);
     CHECK (swap.excessDb < -50.0f);
@@ -815,21 +832,50 @@ TEST_CASE ("Through the whole rig, crossing the amp and swapping after it stay c
     CHECK (swap.slopeRatio <= (guitar ? 1.2f : 1.6f));
 }
 
+TEST_CASE ("Crossing the amp and swapping after it (measurement)", "[.board-measure]")
+{
+    for (const double fs : { 48000.0, 96000.0 })
+        for (const bool guitar : { false, true })
+        {
+            const auto [cross, swap] = rigTransients (fs, guitar);
+            for (const auto& [what, t] :
+                 { std::pair { "cross the amp", cross }, std::pair { "swap after", swap } })
+                std::printf ("%-13s %-6s %6.0f Hz: dip %6.1f dB, %4.1f ms below -1 dB, swell "
+                             "%+.1f dB, slope x%.2f (excess %.0f dB)\n",
+                             what, guitar ? "guitar" : "sine", fs, static_cast<double> (t.dipDb),
+                             static_cast<double> (t.dipMs), static_cast<double> (t.swellDb),
+                             static_cast<double> (t.slopeRatio), static_cast<double> (t.excessDb));
+        }
+}
+
 // -------------------------------------------------------------------------------------------------
 // Stereo after the amp (docs/board.md §6)
 
-TEST_CASE ("The stereo modulation's mono sum stays within bounds", "[board]")
+namespace
+{
+/// The mono sum of a stereo modulation on white noise (docs/board.md §6.5), in 4096-frame
+/// windows (85 ms: a few per cent of the sweeps below, and a power estimate within about 0.1 dB
+/// on noise).
+struct MonoSum
+{
+    std::string name;
+    bool firstSideUnchanged = false; ///< the first side is the pedal as it was, in mono
+    double worstLoss = 1.0;          ///< the sum's power against the two sides' mean, lowest
+    double below = 0.0;              ///< the pedal's quietest mono window against the sum's
+    double above = 0.0;              ///< the sum against the pedal's loudest mono window
+};
+
+std::vector<MonoSum> measureMonoSums()
 {
     const double fs = 48000.0;
-    constexpr int window = 4096; // 85 ms: a few per cent of the sweeps below, and a power
-                                 // estimate within about 0.1 dB on noise
+    constexpr int window = 4096;
     const int frames = static_cast<int> (8.0 * fs); // two cycles of the slowest sweep below
     std::vector<float> noise (static_cast<std::size_t> (frames));
     fillNoise (noise, 0.25f, 7);
 
     struct Case
     {
-        const char* name;
+        std::string name;
         std::function<void (const AudioView&, int channels)> run;
     };
     // Each pedal at full depth, slow enough to sweep through every window size of interest,
@@ -863,19 +909,23 @@ TEST_CASE ("The stereo modulation's mono sum stays within bounds", "[board]")
     };
     for (const float fb : { 0.0f, 1.0f })
     {
+        const std::string feedback = fb > 0.0f ? ", feedback" : "";
         cases.push_back (
-            { "gyre", make (dsp::Gyre::Settings { 0.5f, 1.0f, fb, dsp::Gyre::Six }, GyreTag {}) });
-        cases.push_back (
-            { "jetty", make (dsp::Jetty::Settings { 0.25f, 1.0f, 10.0f, fb }, JettyTag {}) });
-        cases.push_back (
-            { "jetty short", make (dsp::Jetty::Settings { 0.25f, 1.0f, 0.5f, -fb }, JettyTag {}) });
+            { "gyre" + feedback,
+              make (dsp::Gyre::Settings { 0.5f, 1.0f, fb, dsp::Gyre::Six }, GyreTag {}) });
+        cases.push_back ({ "jetty 10 ms" + feedback,
+                           make (dsp::Jetty::Settings { 0.25f, 1.0f, 10.0f, fb }, JettyTag {}) });
+        cases.push_back ({ "jetty 0.5 ms" + feedback,
+                           make (dsp::Jetty::Settings { 0.25f, 1.0f, 0.5f, -fb }, JettyTag {}) });
     }
     cases.push_back (
         { "ripple chorus", make (dsp::Ripple::Settings { 1, 0.69f, 1.0f }, RippleTag {}) });
 
+    std::vector<MonoSum> results;
     for (const auto& c : cases)
     {
-        CAPTURE (c.name);
+        MonoSum m;
+        m.name = c.name;
         // Stereo, the same noise on both sides.
         auto l = noise, r = noise;
         std::array<float*, 2> ptrs { l.data(), r.data() };
@@ -883,37 +933,62 @@ TEST_CASE ("The stereo modulation's mono sum stays within bounds", "[board]")
         // The same pedal without the spread: one channel.
         auto mono = noise;
         c.run (AudioView (mono.data(), frames), 1);
-        CHECK (l == mono); // the first side is the pedal as it was
+        m.firstSideUnchanged = l == mono;
 
-        double lowest = 1e9, highest = 0.0, worstLoss = 1.0;
+        double lowest = 1e9, highest = 0.0;
         for (int s = 0; s + window <= frames; s += window)
         {
             const double pm = power (mono.data() + s, window);
             lowest = std::min (lowest, pm);
             highest = std::max (highest, pm);
         }
-        double below = 0.0, above = 0.0;
+        std::vector<float> sum (window);
         for (int s = static_cast<int> (0.1 * fs); s + window <= frames; s += window)
         {
-            std::vector<float> sum (window);
             for (int i = 0; i < window; ++i)
                 sum[static_cast<size_t> (i)] =
                     0.5f * (l[static_cast<size_t> (s + i)] + r[static_cast<size_t> (s + i)]);
             const double pm = power (sum.data(), window);
             const double sidesMean =
                 0.5 * (power (l.data() + s, window) + power (r.data() + s, window));
-            worstLoss = std::min (worstLoss, pm / sidesMean);
-            below = std::max (below, lowest / pm);
-            above = std::max (above, pm / highest);
+            m.worstLoss = std::min (m.worstLoss, pm / sidesMean);
+            m.below = std::max (m.below, lowest / pm);
+            m.above = std::max (m.above, pm / highest);
         }
+        results.push_back (m);
+    }
+    return results;
+}
+
+double toDb (double powerRatio)
+{
+    return 10.0 * std::log10 (powerRatio);
+}
+} // namespace
+
+TEST_CASE ("The stereo modulation's mono sum stays within bounds", "[board]")
+{
+    for (const auto& m : measureMonoSums())
+    {
+        CAPTURE (m.name);
+        CHECK (m.firstSideUnchanged);
         // No cancellation: never more than 3 dB under the two sides' mean (measured: at most
         // 2.9 dB, the phaser at full feedback; docs/board.md §6.6).
-        CHECK (worstLoss >= 0.5);
+        CHECK (m.worstLoss >= 0.5);
         // Never louder than the pedal itself gets (measured: 0.2 dB under at the closest)...
-        CHECK (above <= 1.0);
+        CHECK (m.above <= 1.0);
         // ...and at most 2.5 dB under its quietest moment (measured: 2.0 dB).
-        CHECK (below <= std::pow (10.0, 0.25));
+        CHECK (m.below <= std::pow (10.0, 0.25));
     }
+}
+
+TEST_CASE ("The stereo modulation's mono sum (measurement)", "[.board-measure]")
+{
+    std::printf ("mono sum on noise, 4096-frame windows: worst loss against the sides' mean; "
+                 "loudest against the pedal's loudest; quietest against the pedal's quietest\n");
+    for (const auto& m : measureMonoSums())
+        std::printf ("  %-24s loss %5.2f dB, above %+5.2f dB, below %5.2f dB\n", m.name.c_str(),
+                     -toDb (m.worstLoss), toDb (m.above), toDb (m.below));
 }
 
 TEST_CASE ("Tremolo, vibrato and the photocell vibe stay mono-identical after the amp", "[board]")

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { describe, expect, it } from 'vitest';
 import { BOARD_HEIGHT, BOARD_WIDTH, gapAt, layoutBoard, type BoardLayout } from './layout';
-import { AMP, LEGACY_BOARD, PEDALS } from './registry';
+import { AMP, LEGACY_BOARD, PEDALS, switchedOnBoardFor } from './registry';
 import { PEDAL_BOX, ROW_UNITS } from './sizes';
 
 const EIGHT = ['gate', 'trench', 'conch', 'tide', 'pearl', 'kelp', 'gyre', 'ripple'];
@@ -98,6 +98,30 @@ describe('the board layout', () => {
       expect(layout.pedals.map((p) => p.id)).toEqual(board.filter((id) => id !== AMP));
       expectTidy(layout);
     }
+  });
+
+  it('fits the largest board (25 pedals) in four rows at most, which scroll', () => {
+    const largest = switchedOnBoardFor(() => true);
+    expect(largest).toHaveLength(25);
+    const modulation = new Set(PEDALS.filter((p) => p.afterAmp).map((p) => p.id));
+    const isMod = (t: string) => modulation.has(t.split('#')[0]!);
+    const rows = new Set<number>();
+    for (let seed = 1; seed <= 200; seed += 1) {
+      const order = shuffled(largest, seed * 7919);
+      for (const board of [
+        order,
+        [...order.filter((t) => !isMod(t)), AMP, ...order.filter(isMod)],
+      ]) {
+        const layout = layoutBoard(board);
+        rows.add(layout.rows.length);
+        expect(layout.scale).toBe(1);
+        expect(layout.pedals.map((p) => p.id)).toEqual(board.filter((t) => t !== AMP));
+        expectTidy(layout);
+      }
+    }
+    // Three rows in most orders, four where wide pedals end the rows early.
+    expect([...rows].sort()).toEqual([3, 4]);
+    expect(layoutBoard(largest).height).toBeGreaterThan(BOARD_HEIGHT);
   });
 
   it('puts the amp in the chain, and a named band behind the pedals after it', () => {

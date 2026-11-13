@@ -129,3 +129,63 @@ TEST_CASE ("Board CPU (measurement)", "[.board-measure]")
                  time (PedalOrder::everyPedal(), on), time (boardOf ({ PedalId::tide }), on),
                  time (PedalOrder {}, on), time (PedalOrder::everyPedal(), cleanRig()));
 }
+
+TEST_CASE ("Full board CPU through the rig (measurement)", "[.board-measure]")
+{
+    // The whole engine, 10 s at 48 kHz in 64-frame blocks, Low latency: the rig with nothing on
+    // the board, 0.10's largest board (every pedal once, in front of the amp), and the largest
+    // board there is (25: both copies of the nine pedals without latency, the seven drives and
+    // fuzzes once), all in front of the amp and with the eight modulation copies after it. Every
+    // copy on. In Summed mode (one input) and in Dual mode (two inputs, two chains in front).
+    ScopedNoDenormals noDenormals; // as Engine::process
+    const double fs = 48000.0;
+    const int block = 64;
+    const int frames = static_cast<int> (10.0 * fs);
+    const auto x = testSignal (true, fs, frames);
+
+    Board largest = Board::switchedOn ([] (ParamId) { return true; });
+    REQUIRE (largest.size() == 25);
+    Board split;
+    for (const auto r : largest.pre)
+        split.side (fitsAfterAmp (r.id) ? Side::post : Side::pre)
+            .insert (r, split.side (fitsAfterAmp (r.id) ? Side::post : Side::pre).size());
+    REQUIRE (split.post.size() == 8);
+
+    auto every = cleanRig();
+    for (std::size_t slot = 0; slot < kNumSlots; ++slot)
+        every[enableOf (slotRef (slot))] = 1.0f;
+
+    const auto time = [&] (const Board& board, bool dual) {
+        BoardRig rig (fs, block, frames, dual ? 2 : 1, 2);
+        rig.in[0] = x;
+        if (dual)
+            rig.in[1] = x;
+        auto p = every;
+        p[ParamId::stereoMode] = dual ? 1.0f : 0.0f;
+        rig.engine.setBoard (board);
+        rig.engine.reset();
+        rig.run (p, 0, block); // the first block applies the board and the mode
+        const auto start = std::chrono::steady_clock::now();
+        rig.run (p, block, frames - block);
+        const auto elapsed = std::chrono::steady_clock::now() - start;
+        return std::chrono::duration<double, std::nano> (elapsed).count() / (frames - block);
+    };
+    const struct
+    {
+        const char* name;
+        Board board;
+    } rows[] = {
+        { "nothing on the board", Board {} },
+        { "every pedal once, in front (0.10's largest)", Board::everyPedal() },
+        { "25, all in front of the amp", largest },
+        { "25, the 8 modulation copies after the amp", split },
+    };
+    std::printf ("rig CPU at 48 kHz, ns per sample (%% of one core in real time):\n");
+    for (const auto& row : rows)
+    {
+        const double summed = time (row.board, false);
+        const double dual = time (row.board, true);
+        std::printf ("  %-46s Summed %7.1f (%4.1f%%)  Dual %7.1f (%4.1f%%)\n", row.name, summed,
+                     100.0 * summed / (1e9 / fs), dual, 100.0 * dual / (1e9 / fs));
+    }
+}

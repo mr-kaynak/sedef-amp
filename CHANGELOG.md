@@ -17,6 +17,24 @@ All notable changes to this project are documented here. The format follows
   own, and only the rest is spliced ([docs/dsp/transpose.md](docs/dsp/transpose.md)). Chords
   are cleaner than 0.2.0's, though not yet as clean as the quality bar asks; the page lists
   what it measures and what it misses.
+- **MIDI learn: play Sedef Amp from a foot controller.** Right-click any knob, switch, scene or
+  preset arrow (or press Shift+F10 on it), choose Learn MIDI, then press a footswitch or move a
+  pedal. Sedef tells a momentary footswitch from a latching one by itself, and an expression
+  pedal can sweep a knob's whole travel or a part of it, either way round. The MIDI panel, at the
+  right of the section tabs, lists what is learned and forgets one or all. What you learn belongs
+  to your controller, so it is the same in every session and host.
+- **Program changes load presets**: program 1 the first preset in the library, 2 the second, and
+  so on, or the preset or scene you assign in the MIDI panel, on any channel or the one you pick.
+  The VST3 version receives controllers but no program changes (VST3 has none): step presets and
+  scenes with footswitches there.
+- **Scenes: 8 per preset.** A scene keeps which pedals, EQ banks, Doubler, Drift and Fathom are on,
+  plus up to 16 knobs you choose (Remember in scenes). Switching is instant and gapless, through
+  the same fades as turning the controls by hand, from the scene bar, a footswitch, a program
+  change or host automation (the new Scene parameter; in Logic Pro, which sends no MIDI to
+  effects, assign a controller to it). A scene remembers what you change while it plays, and one
+  you have not used starts as a copy of the scene you left. Scenes are saved with the preset and
+  the session; older presets and sessions open as before, and a preset with scenes opens in
+  earlier versions without them.
 
 ### Changed
 
@@ -25,6 +43,7 @@ All notable changes to this project are documented here. The format follows
   don't. The status bar shows Transpose's share.
 - **The transpose parameter is called "Transpose" again and can be automated.** Sessions that
   saved a setting (0.2.0) play it again; sessions and automation saved since load unchanged.
+- The update pill sits between the section tabs and the new scene bar.
 
 ## [0.8.1] - 2026-11-13
 

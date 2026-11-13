@@ -20,8 +20,13 @@ core maintainers. Related: [architecture.md](architecture.md) (threads, the peda
   change, the scene bar or host automation (the *Scene* parameter) switch them.
 
 The MIDI panel (the *MIDI* button at the right of the section tabs) lists every binding with its
-controller, lets the player change how a switch behaves or limit a knob's range, remove one or
-clear them all, assign programs, and shows the last MIDI message that arrived.
+controller, lets the player change how a switch behaves or limit a knob's range, forget one or
+all of them, learn footswitches for the scene and preset steps, assign programs, and shows the
+last MIDI message that arrived.
+
+<img src="images/live-menu.png" alt="A knob's menu: Learn MIDI and Remember in scenes" width="49%"> <img src="images/live-learn.png" alt="Learn mode: a banner asks for a pedal or footswitch and the knob is outlined" width="49%">
+
+<img src="images/live-scenes.png" alt="The scene bar at the right of the section tabs, scene 3 selected, scenes 1 to 3 made" width="49%"> <img src="images/live-midi.png" alt="The MIDI panel listing learned controls" width="49%">
 
 ## 2. How MIDI reaches the plug-in, per format
 
@@ -37,7 +42,7 @@ changes in each format, read from JUCE 9.0.4 and clap-juce-extensions at the pin
 |---|---|---|---|
 | VST3 | An event input bus (`getBusCount (kEvent, kInput) == 1`). VST3 has no controller events: hosts send controllers as parameter changes through `IMidiMapping`, which JUCE answers with 16 × 130 extra parameters (`JUCE_VST3_EMULATE_MIDI_CC_WITH_PARAMETERS`, on by default with MIDI input) that it turns back into controller messages. They are not automatable and their ids start at JUCE's fixed `paramMidiControllerOffset`, so the ids of Sedef's own parameters stay the same (a test checks that none of them falls in that range). | Class id, category `Fx\|Distortion` and audio buses unchanged. | Controllers. **Not program changes**: VST3 has no program-change event, and JUCE maps only controllers 0–129. VST3 players switch presets and scenes with controller bindings (Next preset, Previous preset, a scene, Next scene). |
 | CLAP | A note input port with the MIDI dialect (`notePortsCount (true) == 1`, from `acceptsMidi()`). | Id, features and audio ports unchanged. | Controllers and program changes, in hosts that send MIDI to effects. |
-| AU | `AU_MAIN_TYPE` stays `kAudioUnitType_Effect` (set explicitly, so JUCE does not switch it to `aumf`). JUCE builds the component with its music-device factory, which adds the MIDI selectors; Sedef MIDI's `aufx` has shipped that way since 0.6.0 and passes `auval -strict`. | Type, subtype, manufacturer unchanged. | Whatever the host sends with `MusicDeviceMIDIEvent`. **Logic Pro and GarageBand send no MIDI to `aufx` effects**, and making Sedef Amp an `aumf` would make it a different plug-in for every saved session. In Logic, players assign their controller to Sedef Amp's parameters with Logic's own controller assignments; the *Scene* parameter (§6.6) and the existing *Previous preset* / *Next preset* switches make scenes and presets reachable that way. |
+| AU | `AU_MAIN_TYPE` stays `kAudioUnitType_Effect` (set explicitly, so JUCE does not switch it to `aumf`). JUCE builds the component with its music-device factory, which adds the MIDI selectors; Sedef MIDI's `aufx` has shipped that way since 0.6.0 and passes `auval -strict`. | Type, subtype, manufacturer unchanged. | Whatever the host sends with `MusicDeviceMIDIEvent`. **Logic Pro and GarageBand send no MIDI to `aufx` effects**, and making Sedef Amp an `aumf` would make it a different plug-in for every saved session. In Logic, players map their controller to Sedef Amp's parameters in the host; the *Scene* parameter (§6.6) and the existing *Previous preset* / *Next preset* switches make scenes and presets reachable that way. |
 | Standalone | Nothing in the package. JUCE's standalone holder already reads every MIDI input that is switched on in its audio device window (Settings > Audio settings…). | — | Controllers and program changes. The MIDI panel lists the inputs and switches them on and off. |
 
 A host that sends no MIDI loses nothing: bindings simply never fire, and every parameter stays
@@ -152,10 +157,11 @@ assignments; the panel shows what each program loads.
 **8 scenes per preset.** Foot controllers come with 4, 5, 6, 8, 10 or 12 switches; a page of 8
 (one row of 8, or two rows of 4) is the largest common block a controller gives to one function,
 while 4- and 5-switch units reach the first scenes directly and the rest with Next/Previous. On
-screen, 8 buttons of 28 px with 4 px gaps take 252 px, which fits next to the section tabs on the
-1200 px canvas (the tabs end at about 640 px), so the scene bar is on every page and, since the
-canvas scales as a whole, at every window size including the smallest (75 %). More than 8 would
-need a second row or a menu, which is no longer one press.
+screen, 8 buttons of 26 × 24 px (the 24 px target of WCAG 2.5.8) with 2 px gaps take 226 px with
+their track; with the *Scenes* label and the MIDI button the bar spans 843–1188 px on the 1200 px
+canvas, right of the section tabs, which end at 622 px. So the scene bar is on every page and,
+since the canvas scales as a whole, at every window size including the smallest (75 %). More than
+8 would need a second row or a menu, which is no longer one press.
 
 ### 6.2 What a scene holds
 
@@ -184,8 +190,9 @@ first switch to it changes nothing audible and the player builds it from there (
 as what I was playing"). Until then it holds nothing. A preset without scenes (every factory
 preset, every preset saved before 0.10.0) has only scene 1 made. A player who never switches
 scenes therefore never has scenes to keep: tweaking scene 1 leaves the other seven empty, not as
-stale copies of the sound at load. *Copy here* puts the sound of the scene in use into another
-scene (and makes it). The scene bar shows which scenes are made.
+stale copies of the sound at load. *Copy scene N here* (a scene button's menu, or the Scenes tab
+of the MIDI panel) puts the sound of the scene in use into another scene and makes it. The scene
+bar shows which scenes are made: a brighter number with a dot under it.
 
 Selecting the scene that is already in use does nothing.
 
@@ -378,9 +385,11 @@ and the dirty rules; snapshots and A/B; sessions with and without scenes; progra
 in library order and by assignment; MIDI through `processBlock` switches a scene in one block; no
 Sedef parameter id falls in JUCE's emulated-controller range.
 
-UI (vitest): the context menu and the learn flow against the mock, the bindings list (mode,
-range, remove, clear), program assignments, the scene bar (select, keyboard, copy) and the mock's
-scene bookkeeping, which mirrors the plug-in's rules.
+UI (vitest): the context menu (pointer and Shift+F10) and the learn flow against the mock, the
+bindings list (mode, range, invert, forget one and all, where the focus goes after), program
+assignments, the scene bar (select, keyboard, copy, made scenes), the format notes and the mock's
+scene bookkeeping, which mirrors the plug-in's rules; the arithmetic of `features/live/model.ts`
+against the same cases as the engine's.
 
 ## 9. Rejected
 

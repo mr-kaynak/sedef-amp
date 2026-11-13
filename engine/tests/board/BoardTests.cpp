@@ -26,7 +26,7 @@ template <typename Module, typename Settings>
 void playSlot (PedalSlot<Module>& slot, float* io, int n, bool onBoard, const Settings& settings,
                const float* key)
 {
-    slot.process (io, n, onBoard, settings,
+    slot.process (AudioView (io, n), onBoard, settings,
                   [key] (Module& m, const AudioView& v) { m.process (v, key); });
 }
 
@@ -34,7 +34,8 @@ template <typename Module, typename Settings>
 void playSlot (PedalSlot<Module>& slot, float* io, int n, bool onBoard, const Settings& settings,
                const float*)
 {
-    slot.process (io, n, onBoard, settings, [] (Module& m, const AudioView& v) { m.process (v); });
+    slot.process (AudioView (io, n), onBoard, settings,
+                  [] (Module& m, const AudioView& v) { m.process (v); });
 }
 } // namespace
 
@@ -62,7 +63,7 @@ TEST_CASE ("Every pedal is declared once, with an on/off switch", "[board]")
 
 TEST_CASE ("The legacy board is the fixed chain the board replaced", "[board]")
 {
-    const auto legacy = Board::legacy();
+    const auto legacy = PedalOrder::legacy();
     CHECK (legacy ==
            boardOf ({ PedalId::gate, PedalId::trench, PedalId::anemone, PedalId::conch,
                       PedalId::remora, PedalId::tide, PedalId::urchin, PedalId::sargasso,
@@ -74,7 +75,7 @@ TEST_CASE ("The legacy board is the fixed chain the board replaced", "[board]")
     for (std::size_t i = 0; i + 1 < old.size(); ++i)
         CHECK (*legacy.indexOf (old[i]) < *legacy.indexOf (old[i + 1]));
     // Default positions agree with it: Add pedal puts a pedal where the fixed chain had it.
-    CHECK (Board::everyPedal() == legacy);
+    CHECK (PedalOrder::everyPedal() == legacy);
 
     // A session saved before the board gets exactly the legacy board, whichever of its pedals it
     // switches on or off.
@@ -85,7 +86,7 @@ TEST_CASE ("The legacy board is the fixed chain the board replaced", "[board]")
     const auto all = Board::legacyFor ([] (ParamId) { return true; });
     CHECK (all.size() == kNumPedals);
     for (std::size_t i = 0; i + 1 < legacy.size(); ++i)
-        CHECK (*all.indexOf (legacy[i]) < *all.indexOf (legacy[i + 1]));
+        CHECK (*all.pre.indexOf (legacy[i]) < *all.pre.indexOf (legacy[i + 1]));
 }
 
 TEST_CASE ("A focused board holds only the pedals switched on, in default order", "[board]")
@@ -95,7 +96,13 @@ TEST_CASE ("A focused board holds only the pedals switched on, in default order"
     CHECK (Board::switchedOn ([&] (ParamId id) { return defaults.flag (id); }) ==
            boardOf ({ PedalId::gate }));
     CHECK (Board::switchedOn ([] (ParamId) { return false; }).empty());
-    CHECK (Board::switchedOn ([] (ParamId) { return true; }) == Board::everyPedal());
+    // Every switch on: every pedal's first copy in default order (and the second copies that
+    // fit, BoardSidesTests).
+    CHECK (Board::switchedOn ([] (ParamId) { return true; }).pre.size() == 25);
+    CHECK (Board::switchedOn ([] (ParamId id) {
+               return std::any_of (kPedals.begin(), kPedals.end(),
+                                   [id] (const PedalInfo& p) { return p.enable == id; });
+           }) == Board (PedalOrder::everyPedal()));
 
     // Any subset keeps default order, so it plays what the legacy board plays with the same
     // pedals on ("A board in default order plays the fixed chain with the others switched off").
@@ -115,13 +122,13 @@ TEST_CASE ("A focused board holds only the pedals switched on, in default order"
         for (std::size_t i = 0; i < kNumPedals; ++i)
             CHECK (board.contains (static_cast<PedalId> (i)) == isOn (kPedals[i].enable));
         for (std::size_t i = 0; i + 1 < board.size(); ++i)
-            CHECK (pedalInfo (board[i]).rank < pedalInfo (board[i + 1]).rank);
+            CHECK (pedalInfo (board.pre[i]).rank < pedalInfo (board.pre[i + 1]).rank);
     }
 }
 
 TEST_CASE ("Board edits keep every pedal once and in place", "[board]")
 {
-    Board b;
+    PedalOrder b;
     CHECK (b.empty());
     CHECK (b.add (PedalId::ripple));
     CHECK (b.add (PedalId::gate)); // lower rank: in front
@@ -147,7 +154,7 @@ TEST_CASE ("Board edits keep every pedal once and in place", "[board]")
     CHECK_FALSE (b.move (PedalId::gate, 0));
     CHECK (b.size() == 4);
 
-    const auto every = Board::everyPedal();
+    const auto every = PedalOrder::everyPedal();
     CHECK (every.size() == kNumPedals);
     for (std::size_t i = 0; i + 1 < every.size(); ++i)
         CHECK (pedalInfo (every[i]).rank <= pedalInfo (every[i + 1]).rank);
@@ -172,9 +179,9 @@ TEST_CASE ("RtMailbox hands over the newest value", "[board]")
     REQUIRE (box.read (got));
     CHECK (got == boardOf ({ PedalId::coral }));
     CHECK_FALSE (box.read (got));
-    box.write (Board::legacy());
+    box.write (PedalOrder::legacy());
     REQUIRE (box.read (got));
-    CHECK (got == Board::legacy());
+    CHECK (got == PedalOrder::legacy());
 }
 
 TEST_CASE ("RtMailbox never tears a value across threads", "[board][concurrency]")
@@ -267,15 +274,15 @@ TEST_CASE ("Off-board pedals leave their delay where the fixed chain had it", "[
     REQUIRE (rack.latencyOf (PedalId::ripple) == 0);
     REQUIRE (rack.latencyOf (PedalId::trench) == 0);
     using S = PedalRack::Step;
-    const auto stepsOf = [&] (const Board& board) {
+    const auto stepsOf = [&] (const PedalOrder& board) {
         const auto layout = rack.layoutOf (board);
         return std::vector<S> (layout.begin(), layout.end());
     };
     // Every pedal: the board itself.
     std::vector<S> all;
-    for (const auto id : Board::legacy())
+    for (const auto id : PedalOrder::legacy())
         all.push_back ({ id, true });
-    CHECK (stepsOf (Board::legacy()) == all);
+    CHECK (stepsOf (PedalOrder::legacy()) == all);
     // Off the board, the pedals with latency stay as delays in their default places; the ones
     // without (Trench, Tide, Ripple...) are gone.
     const S gate { PedalId::gate, true }, ripple { PedalId::ripple, true };
@@ -296,10 +303,10 @@ TEST_CASE ("Off-board pedals leave their delay where the fixed chain had it", "[
     CHECK (stepsOf (boardOf ({ PedalId::ripple, PedalId::gate })) == expected);
     // An empty board is every delay, in default order.
     std::vector<S> delays;
-    for (const auto id : Board::legacy())
+    for (const auto id : PedalOrder::legacy())
         if (rack.latencyOf (id) > 0)
             delays.push_back ({ id, false });
-    CHECK (stepsOf (Board {}) == delays);
+    CHECK (stepsOf (PedalOrder {}) == delays);
 }
 
 TEST_CASE ("The rack plays its pedals in the board's order", "[board]")
@@ -321,20 +328,20 @@ TEST_CASE ("The rack plays its pedals in the board's order", "[board]")
         boardOf ({ PedalId::ripple, PedalId::pearl, PedalId::coral }),
         boardOf ({ PedalId::gate, PedalId::tide, PedalId::pearl, PedalId::coral, PedalId::ripple }),
         boardOf ({ PedalId::breaker, PedalId::urchin, PedalId::trench, PedalId::gate }),
-        boardOf ({ PedalId::pearl }), Board {}, Board::legacy());
+        boardOf ({ PedalId::pearl }), PedalOrder {}, PedalOrder::legacy());
 
     PedalRack rack;
     rack.prepare ({ fs, block, 1 });
     rack.rewire (order);
     rack.reset();
     auto y = x;
-    const std::array<bool, kNumPedals> none {};
+    const std::array<bool, kNumSlots> none {};
     for (int s = 0; s < frames; s += block)
         rack.process (y.data() + s, x.data() + s, block, settings, none);
 
     PedalRack::Slots hand;
     const ProcessSpec mono { fs, block, 1 };
-#define SEDEF_PEDAL(id, name, category, rank, enable, Module, unused) hand.id.prepare (mono);
+#define SEDEF_PEDAL(id, name, category, rank, enable, Module, unused) hand.id[0].prepare (mono);
 #include "sedef/board/PedalList.inc"
 #undef SEDEF_PEDAL
     DelayLine keyLine;
@@ -343,9 +350,9 @@ TEST_CASE ("The rack plays its pedals in the board's order", "[board]")
     int keyDelay = 0;
     for (const auto step : rack.layout())
     {
-        if (step.id == PedalId::gate)
+        if (step.ref.id == PedalId::gate)
             break;
-        keyDelay += rack.latencyOf (step.id);
+        keyDelay += rack.latencyOf (step.ref);
     }
     auto z = x;
     std::vector<float> key (block);
@@ -359,11 +366,11 @@ TEST_CASE ("The rack plays its pedals in the board's order", "[board]")
         }
         for (const auto step : rack.layout())
         {
-            switch (step.id)
+            switch (step.ref.id)
             {
 #define SEDEF_PEDAL(pid, name, category, rank, enable, Module, unused)                             \
     case PedalId::pid:                                                                             \
-        playSlot (hand.pid, io, block, step.onBoard, settings.pid, key.data());                    \
+        playSlot (hand.pid[0], io, block, step.onBoard, settings.pid[0], key.data());              \
         break;
 #include "sedef/board/PedalList.inc"
 #undef SEDEF_PEDAL
@@ -388,9 +395,9 @@ TEST_CASE ("A board in default order plays the fixed chain with the others switc
     Random r (5);
     for (int round = 0; round < 6; ++round)
     {
-        Board board;
+        PedalOrder board;
         auto p = cleanRig ({});
-        for (const auto id : Board::legacy())
+        for (const auto id : PedalOrder::legacy())
             if (r.unipolar() < 0.45f)
             {
                 board.insert (id, board.size());
@@ -398,19 +405,19 @@ TEST_CASE ("A board in default order plays the fixed chain with the others switc
             }
         p[ParamId::rippleMode] = 1.0f;
         CAPTURE (round, board.size());
-        const auto play = [&] (const Board& b) {
+        const auto play = [&] (const PedalOrder& b) {
             PedalRack rack;
             rack.prepare ({ fs, block, 1, mode });
             rack.rewire (b);
             rack.reset();
             auto y = x;
             const auto settings = PedalSettings::from (p);
-            const std::array<bool, kNumPedals> none {};
+            const std::array<bool, kNumSlots> none {};
             for (int s = 0; s + block <= frames; s += block)
                 rack.process (y.data() + s, x.data() + s, block, settings, none);
             return y;
         };
-        CHECK (play (board) == play (Board::legacy()));
+        CHECK (play (board) == play (PedalOrder::legacy()));
     }
 }
 
@@ -430,13 +437,13 @@ TEST_CASE ("A keyed pedal hears the instrument lined up with its place on the bo
         x[static_cast<size_t> (i)] = ((i / 4800) % 2 == 0 ? 0.2f : 0.0005f) *
                                      std::sin (6.283f * 220.0f * static_cast<float> (i) / 48000.0f);
 
-    const auto play = [&] (const Board& order) {
+    const auto play = [&] (const PedalOrder& order) {
         PedalRack rack;
         rack.prepare ({ fs, block, 1 });
         rack.rewire (order);
         rack.reset();
         auto y = x;
-        const std::array<bool, kNumPedals> none {};
+        const std::array<bool, kNumSlots> none {};
         for (int s = 0; s < frames; s += block)
             rack.process (y.data() + s, x.data() + s, block, settings, none);
         return y;
@@ -454,21 +461,21 @@ TEST_CASE ("Only a new order or a pedal with latency needs the duck", "[board]")
     rack.prepare ({ 48000.0, 64, 1 });
     REQUIRE (rack.latencyOf (PedalId::pearl) > 0);
     REQUIRE (rack.latencyOf (PedalId::ripple) == 0);
-    rack.rewire (Board::legacy());
+    rack.rewire (PedalOrder::legacy());
 
-    auto b = Board::legacy();
+    auto b = PedalOrder::legacy();
     CHECK_FALSE (rack.needsDuck (b));
     b.remove (PedalId::ripple); // no latency: a bypass fade
     CHECK_FALSE (rack.needsDuck (b));
     b.remove (PedalId::gate);
     CHECK_FALSE (rack.needsDuck (b));
-    b = Board::legacy();
+    b = PedalOrder::legacy();
     b.remove (PedalId::pearl); // latency: its delay moves to where the fixed chain had it
     CHECK (rack.needsDuck (b));
-    b = Board::legacy();
+    b = PedalOrder::legacy();
     b.move (PedalId::ripple, 0); // a new order
     CHECK (rack.needsDuck (b));
-    b = Board::legacy();
+    b = PedalOrder::legacy();
     b.move (PedalId::tide, 0); // swapping the first two is a new order too
     CHECK (rack.needsDuck (b));
 
@@ -484,7 +491,7 @@ TEST_CASE ("Only a new order or a pedal with latency needs the duck", "[board]")
 
 namespace
 {
-const Board kSwapped =
+const PedalOrder kSwapped =
     boardOf ({ PedalId::gate, PedalId::pearl, PedalId::tide, PedalId::coral, PedalId::ripple });
 
 ParamSnapshot tideAndPearl()
@@ -509,15 +516,15 @@ TEST_CASE ("A new order ducks briefly and without a click", "[board]")
     const int at = (static_cast<int> (0.8 * fs) / block) * block;
     int rewiredAt = -1;
     const auto y = renderBoard (
-        fs, block, x, p, Board::legacy(), &kSwapped, at,
+        fs, block, x, p, PedalOrder::legacy(), &kSwapped, at,
         [&] (BoardHarness& h, int s) {
             if (rewiredAt < 0 && h.rack.order() == kSwapped)
                 rewiredAt = s;
         },
         mode);
-    const auto t =
-        compareTransient (y, renderBoard (fs, block, x, p, Board::legacy(), nullptr, 0, {}, mode),
-                          renderBoard (fs, block, x, p, kSwapped, nullptr, 0, {}, mode), fs, at);
+    const auto t = compareTransient (
+        y, renderBoard (fs, block, x, p, PedalOrder::legacy(), nullptr, 0, {}, mode),
+        renderBoard (fs, block, x, p, kSwapped, nullptr, 0, {}, mode), fs, at);
 
     PedalRack rack;
     rack.prepare ({ fs, 64, 1, mode });
@@ -552,8 +559,8 @@ TEST_CASE ("Through the whole rig a new order stays click-free", "[board]")
     const auto x = testSignal (guitar, fs, static_cast<int> (1.4 * fs));
     const int at = (static_cast<int> (0.8 * fs) / 64) * 64;
     const auto t =
-        compareTransient (renderEngine (fs, 64, x, p, Board::legacy(), &kSwapped, at, mode),
-                          renderEngine (fs, 64, x, p, Board::legacy(), nullptr, 0, mode),
+        compareTransient (renderEngine (fs, 64, x, p, PedalOrder::legacy(), &kSwapped, at, mode),
+                          renderEngine (fs, 64, x, p, PedalOrder::legacy(), nullptr, 0, mode),
                           renderEngine (fs, 64, x, p, kSwapped, nullptr, 0, mode), fs, at);
     // The repo's click bound for automation sweeps (PedalTestUtils.h).
     CHECK (t.slopeRatio <= (guitar ? 1.2f : 1.6f));
@@ -569,11 +576,11 @@ TEST_CASE ("Pedals without latency join and leave through their bypass fade", "[
     auto p = cleanRig ({ ParamId::tideEnabled, ParamId::rippleEnabled });
     p[ParamId::rippleMode] = 1.0f;
     const auto x = testSignal (false, fs, 72000);
-    auto without = Board::legacy();
+    auto without = PedalOrder::legacy();
     without.remove (PedalId::ripple);
     const int leaveAt = (24000 / block) * block, joinAt = (48000 / block) * block;
 
-    BoardHarness h (fs, std::min (block, 512), Board::legacy());
+    BoardHarness h (fs, std::min (block, 512), PedalOrder::legacy());
     auto y = x;
     bool ducked = false;
     int leftAt = -1, joinedAt = -1;
@@ -581,7 +588,7 @@ TEST_CASE ("Pedals without latency join and leave through their bypass fade", "[
         if (s == leaveAt)
             h.board.setTarget (without);
         if (s == joinAt)
-            h.board.setTarget (Board::legacy());
+            h.board.setTarget (PedalOrder::legacy());
         ducked = ducked || !h.board.duck().idle();
         if (leftAt < 0 && s > leaveAt && !h.rack.order().contains (PedalId::ripple))
             leftAt = s;
@@ -594,7 +601,7 @@ TEST_CASE ("Pedals without latency join and leave through their bypass fade", "[
     CHECK (leftAt - leaveAt <= 480 + 2 * block);
     CHECK (joinedAt - joinAt <= block);
 
-    const auto with = renderBoard (fs, block, x, p, Board::legacy());
+    const auto with = renderBoard (fs, block, x, p, PedalOrder::legacy());
     const auto withoutRipple = renderBoard (fs, block, x, p, without);
     // Leaving: no dip below the quieter of the two sounds, no step.
     const auto out = compareTransient (y, with, withoutRipple, fs, leaveAt);
@@ -604,7 +611,7 @@ TEST_CASE ("Pedals without latency join and leave through their bypass fade", "[
     // as when it is switched on where it stands.
     auto off = p;
     off[ParamId::rippleEnabled] = 0.0f;
-    BoardHarness toggled (fs, std::min (block, 512), Board::legacy());
+    BoardHarness toggled (fs, std::min (block, 512), PedalOrder::legacy());
     auto z = x;
     toggled.run (z.data(), x.data(), 72000, block, off, [&] (int s) {
         if (s == joinAt)
@@ -627,12 +634,12 @@ TEST_CASE ("A pedal with latency leaves under the duck, and the timing stays", "
     const int block = 64;
     const auto x = testSignal (true, fs, static_cast<int> (fs));
     const auto on = cleanRig ({ ParamId::pearlEnabled });
-    auto without = Board::legacy();
+    auto without = PedalOrder::legacy();
     without.remove (PedalId::pearl);
     const int at = (static_cast<int> (0.5 * fs) / block) * block;
     bool ducked = false;
     const auto y =
-        renderBoard (fs, block, x, on, Board::legacy(), &without, at,
+        renderBoard (fs, block, x, on, PedalOrder::legacy(), &without, at,
                      [&] (BoardHarness& h, int) { ducked = ducked || !h.board.duck().idle(); });
     CHECK (ducked);
     PedalRack rack;
@@ -652,17 +659,17 @@ TEST_CASE ("A change of mind on the way down comes back up without a rewire", "[
     const int at = 24000;
     bool rewired = false;
     float lowest = 1.0f;
-    const auto y =
-        renderBoard (fs, 1, x, p, Board::legacy(), &kSwapped, at, [&] (BoardHarness& h, int s) {
-            if (s == at + 100) // well before the silence
-                h.board.setTarget (Board::legacy());
-            rewired = rewired || h.rack.order() == kSwapped;
-            lowest = std::min (lowest, h.board.duck().inputGain());
-        });
+    const auto y = renderBoard (fs, 1, x, p, PedalOrder::legacy(), &kSwapped, at,
+                                [&] (BoardHarness& h, int s) {
+                                    if (s == at + 100) // well before the silence
+                                        h.board.setTarget (PedalOrder::legacy());
+                                    rewired = rewired || h.rack.order() == kSwapped;
+                                    lowest = std::min (lowest, h.board.duck().inputGain());
+                                });
     CHECK_FALSE (rewired);
     CHECK (lowest < 0.95f);
     CHECK (lowest > 0.5f);
-    const auto ref = renderBoard (fs, 1, x, p, Board::legacy());
+    const auto ref = renderBoard (fs, 1, x, p, PedalOrder::legacy());
     const auto t = compareTransient (y, ref, ref, fs, at);
     CHECK (t.excessDb < -50.0f);
 }
@@ -674,7 +681,7 @@ TEST_CASE ("The latency never changes with the board", "[board]")
     const double fs = GENERATE (44100.0, 48000.0, 96000.0, 192000.0);
     const auto mode = GENERATE (OversamplingMode::lowLatency, OversamplingMode::linearPhase);
     CAPTURE (fs, static_cast<int> (mode));
-    const auto boards = { Board::legacy(), Board {}, Board::everyPedal(),
+    const auto boards = { PedalOrder::legacy(), PedalOrder {}, PedalOrder::everyPedal(),
                           boardOf ({ PedalId::ripple, PedalId::coral }),
                           boardOf ({ PedalId::pearl, PedalId::tide, PedalId::gate }) };
     std::vector<float> first;
@@ -711,7 +718,7 @@ TEST_CASE ("Reordering while playing keeps the latency in either oversampling mo
         for (std::size_t i = 0; i < kNumPedals; ++i)
             sum += rack.latencyOf (static_cast<PedalId> (i));
         CHECK (rack.latencySamples() == sum);
-        CHECK (rack.latencyOf (Board::legacy()) == sum);
+        CHECK (rack.latencyOf (PedalOrder::legacy()) == sum);
         rackLatency[mode == OversamplingMode::linearPhase] = sum;
 
         BoardRig rig (fs, 128, static_cast<int> (fs), 1, 2, mode);
@@ -722,13 +729,13 @@ TEST_CASE ("Reordering while playing keeps the latency in either oversampling mo
         const int latency = rig.engine.latencySamples();
         // Boards with and without the pedals that have latency, in new orders, each landing
         // while the last change may still be under way.
-        const Board boards[] = {
+        const PedalOrder boards[] = {
             boardOf ({ PedalId::ripple, PedalId::coral, PedalId::gate }),
-            Board::everyPedal(),
+            PedalOrder::everyPedal(),
             boardOf ({ PedalId::kelp, PedalId::trench, PedalId::tide }),
-            Board {},
+            PedalOrder {},
             boardOf ({ PedalId::breaker, PedalId::urchin, PedalId::pearl, PedalId::remora }),
-            Board::legacy(),
+            PedalOrder::legacy(),
         };
         int next = 0;
         rig.run (p, 0, static_cast<int> (fs), [&] (int s) {
@@ -768,8 +775,8 @@ TEST_CASE ("Pedals off the board are not processed", "[board]")
     };
     check (boardOf ({ PedalId::tide }));
     check (boardOf ({ PedalId::ripple, PedalId::gate, PedalId::coral }));
-    check (Board {});
-    check (Board::everyPedal());
+    check (PedalOrder {});
+    check (PedalOrder::everyPedal());
 }
 
 TEST_CASE ("A board set before prepare plays from the first block", "[board]")

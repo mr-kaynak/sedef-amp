@@ -13,7 +13,7 @@ void BoardSwitch::prepare (double sampleRate, int maxBlockSize, int latency)
     outputGains_.assign (inputGains_.size(), 1.0f);
 }
 
-void BoardSwitch::reset (const Board& target, std::span<PedalRack* const> racks) noexcept
+void BoardSwitch::reset (const PedalOrder& target, std::span<PedalRack* const> racks) noexcept
 {
     target_ = target;
     for (auto* rack : racks)
@@ -26,15 +26,15 @@ int BoardSwitch::step (int n, std::span<PedalRack* const> racks) noexcept
 {
     // The racks play the same order; the first one speaks for all.
     const PedalRack& rack = *racks.front();
-    const Board& applied = rack.order();
+    const PedalOrder& applied = rack.order();
     leaving_.fill (false);
     if (applied == target_)
     {
         duck_.fadeIn(); // after a rewire, or a change of mind on the way down
         return n;
     }
-    for (const auto id : applied)
-        leaving_[index (id)] = !target_.contains (id);
+    for (const auto r : applied)
+        leaving_[slotIndex (r)] = !target_.contains (r);
 
     if (rack.needsDuck (target_))
     {
@@ -54,8 +54,8 @@ int BoardSwitch::step (int n, std::span<PedalRack* const> racks) noexcept
     // back up; the leaving pedals switch off, and once none of them sounds any more, they leave
     // and the new ones join.
     duck_.fadeIn();
-    for (const auto id : applied)
-        if (leaving_[index (id)] && !rack.fullyBypassed (id))
+    for (const auto r : applied)
+        if (leaving_[slotIndex (r)] && !rack.fullyBypassed (r))
             return n;
     for (auto* r : racks)
         r->adopt (target_);

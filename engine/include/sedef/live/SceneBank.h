@@ -17,12 +17,13 @@ namespace sedef::live
 /// Values the player may pick for scenes, per preset (§7.3).
 inline constexpr int kMaxSceneValues = 16;
 /// Parameters a scene holds: the switches plus the picked values, with room for new pedals.
-inline constexpr int kMaxSceneParams = 48;
+inline constexpr int kMaxSceneParams = 64;
 
 /// The switches every scene holds: each pedal's on/off in registry order, then the EQ banks,
-/// the Doubler, Drift and Fathom. Each fades in and out on its own, so switching never clicks.
-inline constexpr std::array<ParamId, kNumPedals + 6> kSceneSwitches = [] {
-    std::array<ParamId, kNumPedals + 6> list {};
+/// the Doubler, Drift and Fathom, then each pedal's second copy's on/off (docs/board.md §8).
+/// Each fades in and out on its own, so switching never clicks.
+inline constexpr std::array<ParamId, kNumSlots + 6> kSceneSwitches = [] {
+    std::array<ParamId, kNumSlots + 6> list {};
     std::size_t i = 0;
     for (const auto& pedal : kPedals)
         list[i++] = pedal.enable;
@@ -30,6 +31,8 @@ inline constexpr std::array<ParamId, kNumPedals + 6> kSceneSwitches = [] {
          { ParamId::eqLagoonEnabled, ParamId::eqReefEnabled, ParamId::eqAbyssEnabled,
            ParamId::doublerEnabled, ParamId::driftEnabled, ParamId::fathomEnabled })
         list[i++] = id;
+    for (std::size_t p = 0; p < kNumPedals; ++p)
+        list[i++] = enableOf ({ static_cast<PedalId> (p), 1 });
     return list;
 }();
 

@@ -199,13 +199,14 @@ TEST_CASE ("The learn classifier tells momentary from latching switches", "[live
 
 TEST_CASE ("Scenes hold every pedal's switch and the post blocks", "[live]")
 {
-    CHECK (kSceneSwitches.size() == kNumPedals + 6);
-    for (const auto& pedal : kPedals)
+    // Both copies of every pedal (docs/board.md §7), the EQ banks, Doubler, Drift and Fathom.
+    CHECK (kSceneSwitches.size() == kNumSlots + 6);
+    for (std::size_t slot = 0; slot < kNumSlots; ++slot)
     {
         bool found = false;
         for (const auto id : kSceneSwitches)
-            found = found || id == pedal.enable;
-        CAPTURE (pedal.id);
+            found = found || id == enableOf (slotRef (slot));
+        CAPTURE (slot);
         CHECK (found);
     }
     for (const auto id : kSceneSwitches)

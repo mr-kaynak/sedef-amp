@@ -19,6 +19,7 @@
 #include "WavIo.h"
 #include "sedef/Engine.h"
 #include "sedef/board/Board.h"
+#include "sedef/board/BoardText.h"
 #include "sedef/core/Math.h"
 #include "sedef/core/Random.h"
 #include "sedef/dsp/capture/CaptureFile.h"
@@ -84,7 +85,8 @@ std::optional<std::map<std::string, float>> readPresetParameters (const std::str
     return values;
 }
 
-/// A preset's "board": a flat list of pedal ids. Nothing when the preset has none.
+/// A preset's "board": pedal ids in signal order (docs/board.md §3.3). Nothing when the preset
+/// has none.
 std::optional<Board> readPresetBoard (const std::string& path)
 {
     std::ifstream f (path);
@@ -96,29 +98,24 @@ std::optional<Board> readPresetBoard (const std::string& path)
     const auto close = open == std::string::npos ? std::string::npos : text.find (']', open);
     if (close == std::string::npos)
         return std::nullopt;
-    Board board;
+    BoardReader reader;
     for (auto q1 = text.find ('"', open); q1 < close; q1 = text.find ('"', q1 + 1))
     {
         const auto q2 = text.find ('"', q1 + 1);
-        if (const auto id = findPedal (text.substr (q1 + 1, q2 - q1 - 1)))
-            board.insert (*id, board.size());
+        reader.read (std::string_view (text).substr (q1 + 1, q2 - q1 - 1));
         q1 = q2;
     }
-    return board;
+    return reader.board();
 }
 
+/// --board and --switch: "gate,kelp,kelp#2,amp,gyre" (docs/board.md §3.3).
 Board boardFromList (const std::string& list)
 {
-    Board board;
     std::stringstream ss (list);
     for (std::string id; std::getline (ss, id, ',');)
-    {
-        if (const auto pedal = findPedal (id))
-            board.insert (*pedal, board.size());
-        else
+        if (id != kAmpToken && !refOf (id))
             std::fprintf (stderr, "--board: unknown pedal '%s'\n", id.c_str());
-    }
-    return board;
+    return boardFromText (list);
 }
 
 Board legacyBoard (const ParamSnapshot& snap)
@@ -410,12 +407,11 @@ int main (int argc, char** argv)
             else if (!board)
                 why = "no board";
             else
-                for (std::size_t k = 0; k < kNumPedals && why.empty(); ++k)
-                    if (snap.flag (kPedals[k].enable) != board->contains (static_cast<PedalId> (k)))
-                        why = std::string (kPedals[k].id) +
-                              (board->contains (static_cast<PedalId> (k))
-                                   ? " is off but on the board"
-                                   : " is on but off the board");
+                for (std::size_t k = 0; k < kNumSlots && why.empty(); ++k)
+                    if (snap.flag (enableOf (slotRef (k))) != board->contains (slotRef (k)))
+                        why = tokenOf (slotRef (k)) + (board->contains (slotRef (k))
+                                                           ? " is off but on the board"
+                                                           : " is on but off the board");
             for (const float mode : { 0.0f, 1.0f })
             {
                 if (!why.empty())

@@ -12,8 +12,8 @@
 namespace sedef
 {
 
-/// Takes the racks of every chain from the order they play to the newest board, at block
-/// boundaries, without clicks:
+/// Takes the racks of one side of the amp (every chain's, in front of it; the one after it) from
+/// the order they play to the newest order for that side, at block boundaries, without clicks:
 ///
 /// - Pedals without latency join and leave through their own bypass fades. A leaving pedal is
 ///   switched off and leaves the order once its fade has ended; a joining one comes in bypassed
@@ -22,20 +22,29 @@ namespace sedef
 ///   happens at the bottom of a duck: the board's input fades to silence, its output follows
 ///   once the signal has left the pedals, the racks rewire, and both fade back in (Duck).
 ///
-/// Audio thread, except prepare() and reset().
+/// Each side has its own switch and duck, so a change on one side never ducks the other, and a
+/// pedal crossing the amp leaves one side and joins the other through its bypass fades
+/// (docs/board.md, section 4.3). Audio thread, except prepare() and reset().
 class BoardSwitch
 {
 public:
     /// Each fade of the duck.
     static constexpr double kDuckSeconds = 0.006;
 
+    /// `initial`: the order the racks play until a board comes. In front of the amp the legacy
+    /// board (the fixed chain), after it nothing.
+    explicit BoardSwitch (const PedalOrder& initial = PedalOrder::legacy()) noexcept
+        : target_ (initial)
+    {
+    }
+
     /// `latency`: the racks' (PedalRack::latencySamples()), how long the signal takes to leave.
     void prepare (double sampleRate, int maxBlockSize, int latency);
     /// Rewires the racks to `target` at once (audio stopped, or after a reset).
-    void reset (const Board& target, std::span<PedalRack* const> racks) noexcept;
+    void reset (const PedalOrder& target, std::span<PedalRack* const> racks) noexcept;
 
-    void setTarget (const Board& target) noexcept { target_ = target; }
-    const Board& target() const noexcept { return target_; }
+    void setTarget (const PedalOrder& target) noexcept { target_ = target; }
+    const PedalOrder& target() const noexcept { return target_; }
 
     /// At a block boundary: moves the racks on, and returns how many of the next `n` frames to
     /// process before calling again (a fade to silence ends exactly on a boundary).
@@ -49,7 +58,7 @@ public:
     Gains duckGains (int n) noexcept;
 
     /// Pedals on their way off the board: process them switched off.
-    const std::array<bool, kNumPedals>& leaving() const noexcept { return leaving_; }
+    const std::array<bool, kNumSlots>& leaving() const noexcept { return leaving_; }
     /// A change is still on its way in.
     bool changing (const PedalRack& rack) const noexcept
     {
@@ -66,8 +75,8 @@ public:
     }
 
 private:
-    Board target_ = Board::legacy();
-    std::array<bool, kNumPedals> leaving_ {};
+    PedalOrder target_;
+    std::array<bool, kNumSlots> leaving_ {};
     Duck duck_;
     std::vector<float> inputGains_, outputGains_;
 };

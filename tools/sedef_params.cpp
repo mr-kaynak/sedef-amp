@@ -56,20 +56,31 @@ std::string number (float v)
 
 std::string pedals()
 {
-    std::string json = "{\n  \"version\": 1,\n  \"pedals\": [\n";
+    // The board's limits (docs/board.md §2) and each pedal's second copy's switch, so the UI
+    // follows the engine's rules.
+    std::string json = "{\n  \"version\": 2,\n  \"copies\": " + std::to_string (sedef::kCopies) +
+                       ",\n  \"latencySlots\": " + std::to_string (sedef::kLatencySlots) +
+                       ",\n  \"pedals\": [\n";
     for (std::size_t i = 0; i < sedef::kNumPedals; ++i)
     {
         const auto& p = sedef::kPedals[i];
+        const auto id = static_cast<sedef::PedalId> (i);
+        const auto flag = [] (bool b) {
+            return std::string (b ? "true" : "false");
+        };
         json += "    {\"id\": " + quote (p.id) + ", \"name\": " + quote (p.name) +
                 ", \"category\": " + quote (sedef::categoryName (p.category)) +
                 ", \"rank\": " + std::to_string (p.rank) +
-                ", \"enable\": " + quote (sedef::spec (p.enable).id) + "}";
+                ", \"enable\": " + quote (sedef::spec (p.enable).id) +
+                ", \"enable2\": " + quote (sedef::spec (sedef::enableOf ({ id, 1 })).id) +
+                ", \"afterAmp\": " + flag (sedef::fitsAfterAmp (id)) +
+                ", \"latency\": " + flag (sedef::hasLatency (id)) + "}";
         json += i + 1 < sedef::kNumPedals ? ",\n" : "\n";
     }
     json += "  ],\n  \"legacy\": [";
-    const auto legacy = sedef::Board::legacy();
+    const auto legacy = sedef::PedalOrder::legacy();
     for (std::size_t i = 0; i < legacy.size(); ++i)
-        json += (i > 0 ? ", " : "") + quote (sedef::pedalInfo (legacy[i]).id);
+        json += (i > 0 ? ", " : "") + quote (sedef::pedalInfo (legacy[i].id).id);
     return json + "]\n}\n";
 }
 

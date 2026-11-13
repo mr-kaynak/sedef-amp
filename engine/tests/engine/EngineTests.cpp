@@ -728,14 +728,22 @@ TEST_CASE ("Engine::process never allocates while the pedalboard changes", "[eng
 
     Random r (11);
     auto p = randomSnapshot (r);
-    for (std::size_t i = 0; i < kNumPedals; ++i)
-        p[kPedals[i].enable] = 1.0f;
+    // Both copies of every pedal on; boards with pedals on both sides of the amp and second
+    // copies (docs/board.md), so changes cross the amp, add copies and reorder both sides.
+    for (std::size_t slot = 0; slot < kNumSlots; ++slot)
+        p[enableOf (slotRef (slot))] = 1.0f;
     const auto randomBoard = [&r] {
         Board b;
-        for (std::size_t i = 0; i < kNumPedals; ++i)
+        for (std::size_t slot = 0; slot < kNumSlots; ++slot)
             if (r.unipolar() < 0.6f)
-                b.insert (static_cast<PedalId> (i),
-                          static_cast<std::size_t> (r.unipolar() * static_cast<float> (b.size())));
+            {
+                const auto ref = slotRef (slot);
+                const auto side =
+                    fitsAfterAmp (ref.id) && r.unipolar() < 0.5f ? Side::post : Side::pre;
+                b.place (ref, side,
+                         static_cast<std::size_t> (r.unipolar() *
+                                                   static_cast<float> (b.side (side).size())));
+            }
         return b;
     };
     rig.run (p, 4096); // warm-up (first-use paths)

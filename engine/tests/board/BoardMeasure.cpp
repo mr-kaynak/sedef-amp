@@ -14,8 +14,8 @@ using namespace sedef::test;
 
 namespace
 {
-const Board kBoardA = Board::legacy();
-const Board kBoardB =
+const PedalOrder kBoardA = PedalOrder::legacy();
+const PedalOrder kBoardB =
     boardOf ({ PedalId::gate, PedalId::pearl, PedalId::tide, PedalId::coral, PedalId::ripple });
 
 ParamSnapshot tideAndPearl()
@@ -47,10 +47,10 @@ TEST_CASE ("Board reorder transient (measurement)", "[.board-measure]")
                 {
                     const auto x = testSignal (guitar, fs, static_cast<int> (1.6 * fs));
                     const int at = (static_cast<int> (fs) / block) * block;
-                    const auto board = [&] (const Board& from, const Board* to) {
+                    const auto board = [&] (const PedalOrder& from, const PedalOrder* to) {
                         return renderBoard (fs, block, x, p, from, to, at, {}, mode);
                     };
-                    const auto rig = [&] (const Board& from, const Board* to) {
+                    const auto rig = [&] (const PedalOrder& from, const PedalOrder* to) {
                         return renderEngine (fs, block, x, p, from, to, at, mode);
                     };
                     print ("board reorder", mode, guitar, fs, block,
@@ -82,14 +82,14 @@ TEST_CASE ("Board reorder transient (measurement)", "[.board-measure]")
     // catch.
     const double fs = 48000.0;
     const auto x = testSignal (false, fs, static_cast<int> (1.6 * fs));
-    const auto rackRender = [&] (const Board& from, const Board* to, int at) {
+    const auto rackRender = [&] (const PedalOrder& from, const PedalOrder* to, int at) {
         PedalRack rack;
         rack.prepare ({ fs, 64, 1 });
         rack.rewire (from);
         rack.reset();
         auto y = x;
         const auto settings = PedalSettings::from (p);
-        const std::array<bool, kNumPedals> none {};
+        const std::array<bool, kNumSlots> none {};
         const int frames = static_cast<int> (y.size());
         for (int s = 0; s < frames; s += 64)
         {
@@ -111,7 +111,7 @@ TEST_CASE ("Board CPU (measurement)", "[.board-measure]")
     const double fs = 48000.0;
     const int frames = static_cast<int> (10.0 * fs);
     const auto x = testSignal (true, fs, frames);
-    const auto time = [&] (const Board& board, const ParamSnapshot& p) {
+    const auto time = [&] (const PedalOrder& board, const ParamSnapshot& p) {
         BoardHarness h (fs, 64, board);
         auto y = x;
         const auto start = std::chrono::steady_clock::now();
@@ -126,6 +126,6 @@ TEST_CASE ("Board CPU (measurement)", "[.board-measure]")
     std::printf ("board CPU at 48 kHz, ns per sample: every pedal on the board and on %.1f; "
                  "Tide alone on the board %.1f; nothing on the board %.1f; every pedal on the "
                  "board, switched off %.1f\n",
-                 time (Board::everyPedal(), on), time (boardOf ({ PedalId::tide }), on),
-                 time (Board {}, on), time (Board::everyPedal(), cleanRig()));
+                 time (PedalOrder::everyPedal(), on), time (boardOf ({ PedalId::tide }), on),
+                 time (PedalOrder {}, on), time (PedalOrder::everyPedal(), cleanRig()));
 }

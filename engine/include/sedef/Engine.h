@@ -39,11 +39,14 @@ public:
         std::atomic<bool> gateOpen { false };
         std::atomic<float> gateReductionDb { 0.0f };
         std::atomic<float> tideReductionDb { 0.0f };
+        /// The same for the second Gate and the second Tide (docs/board.md).
+        std::atomic<bool> gate2Open { false };
+        std::atomic<float> tide2ReductionDb { 0.0f };
         std::atomic<int> metronomeStep { -1 };
         std::atomic<float> driftTimeMs { 0.0f };
-        /// Per pedal: its module processed audio in the last block (on the board and not
-        /// bypassed).
-        std::array<std::atomic<bool>, kNumPedals> pedalRan {};
+        /// Per copy of a pedal (slotIndex: the first copies first): its module processed audio in
+        /// the last block (on the board, on either side of the amp, and not bypassed).
+        std::array<std::atomic<bool>, kNumSlots> pedalRan {};
         /// A board change is still on its way in (bypass fades or the duck).
         std::atomic<bool> boardChanging { false };
     };
@@ -92,11 +95,12 @@ public:
     void setAnalysisEnabled (bool enabled) noexcept { analysisEnabled_.store (enabled); }
     /// While analysis is enabled and the tunerMute parameter is on, the output is muted.
 
-    /// The pedalboard: which pedals play, in what order (board/Board.h). Any non-real-time thread;
-    /// callers serialise their calls. The newest board applies at the next block boundary: pedals
-    /// without latency join and leave through their bypass fades, anything else (a new order, a
-    /// pedal with latency) under a short duck. The latency never changes. Before the first
-    /// prepare() or reset() the board is Board::legacy().
+    /// The pedalboard: which pedals play, in what order, on which side of the amp (board/Board.h).
+    /// Any non-real-time thread; callers serialise their calls. The newest board applies at the
+    /// next block boundary: pedals without latency join and leave (or cross the amp) through
+    /// their bypass fades, anything else (a new order on a side, a pedal with latency) under a
+    /// short duck of that side. The latency never changes. Before the first prepare() or reset()
+    /// the board is Board::legacy().
     void setBoard (const Board& board) noexcept;
 
     /// The metronome only sounds when allowed (standalone builds).

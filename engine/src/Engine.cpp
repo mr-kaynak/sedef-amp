@@ -249,7 +249,7 @@ struct Chain
     /// `duck` fades the board in and out while it is rewired.
     void process (const float* in, const AudioView& stereoOut, const ChainSettings& s,
                   const BoardSwitch::Gains& duck,
-                  const std::array<bool, kNumPedals>& leaving) noexcept
+                  const std::array<bool, kNumSlots>& leaving) noexcept
     {
         const int n = stereoOut.numFrames();
         float* x = buffer.data();
@@ -347,9 +347,16 @@ struct Engine::Impl
     InputFold fold;         // stereo input -> the single chain (Summed mode)
     InputFold analysisFold; // stereo input -> the tuner in Dual mode
 
-    BoardSwitch board; // takes both chains' racks to the newest pedal order
+    // The pedals after the amp and cab: one stereo rack, after the EQ (docs/board.md §4.1).
+    PedalRack postRack;
 
-    std::array<PedalRack*, 2> racks() noexcept { return { &chains[0].rack, &chains[1].rack }; }
+    // Take the racks to the newest order of their side: both chains' racks in front of the amp,
+    // the one after it (nothing there until a board comes).
+    BoardSwitch preSwitch;
+    BoardSwitch postSwitch { PedalOrder {} };
+
+    std::array<PedalRack*, 2> preRacks() noexcept { return { &chains[0].rack, &chains[1].rack }; }
+    std::array<PedalRack*, 1> postRacks() noexcept { return { &postRack }; }
 };
 
 Engine::Engine() : impl_ (std::make_unique<Impl>()) {}
@@ -373,6 +380,7 @@ void Engine::prepare (double sampleRate, int maxBlockSize, int numInputs, int nu
     d.drift.prepare (stereo);
     d.fathom.prepare (stereo);
     d.metronome.prepare (stereo);
+    d.postRack.prepare (stereo, Side::post);
 
     d.outputGain.reset (sampleRate, 0.02);
     d.mute.reset (sampleRate, 0.01);
@@ -389,7 +397,8 @@ void Engine::prepare (double sampleRate, int maxBlockSize, int numInputs, int nu
     d.monoIn.assign (static_cast<size_t> (block), 0.0f);
     d.fold.prepare (sampleRate);
     d.analysisFold.prepare (sampleRate);
-    d.board.prepare (sampleRate, block, d.chains[0].rack.latencySamples());
+    d.preSwitch.prepare (sampleRate, block, d.chains[0].rack.latencySamples());
+    d.postSwitch.prepare (sampleRate, block, d.postRack.latencySamples());
 
     sampleRate_.store (sampleRate, std::memory_order_release);
     maxBlockSize_.store (block, std::memory_order_release);
@@ -421,11 +430,15 @@ void Engine::reset()
     d.analysisFold.reset();
     d.fathom.reset();
     d.metronome.reset();
+    d.postRack.reset();
     d.snapGains = true;
     // Audio is stopped: the newest board applies at once.
-    Board target = d.board.target();
+    Board target;
+    target.pre = d.preSwitch.target();
+    target.post = d.postSwitch.target();
     board_.read (target);
-    d.board.reset (target, d.racks());
+    d.preSwitch.reset (target.pre, d.preRacks());
+    d.postSwitch.reset (target.post, d.postRacks());
 }
 
 void Engine::setBoard (const Board& board) noexcept
@@ -539,8 +552,11 @@ void Engine::process (const float* const* inputs, float* const* outputs, int num
 
     float inPeaks[2] = { 0.0f, 0.0f };
     float outPeaks[2] = { 0.0f, 0.0f };
-    if (Board next; board_.read (next)) // a block boundary: the newest order, if one came
-        d.board.setTarget (next);
+    if (Board next; board_.read (next)) // a block boundary: the newest board, if one came
+    {
+        d.preSwitch.setTarget (next.pre);
+        d.postSwitch.setTarget (next.post);
+    }
 
     for (int start = 0; start < numFrames;)
     {
@@ -574,8 +590,12 @@ void Engine::process (const float* const* inputs, float* const* outputs, int num
             d.modeFade.setTarget (1.0f); // switched back before the fade-out finished
             d.modeFadeLeft = 0;
         }
-        n = d.board.step (n, d.racks());
-        const auto duck = d.board.duckGains (n);
+        // Each side of the amp moves to its new order on its own; the chunk ends where either
+        // side's fade to silence does.
+        n = d.preSwitch.step (n, d.preRacks());
+        n = d.postSwitch.step (n, d.postRacks());
+        const auto duck = d.preSwitch.duckGains (n);
+        const auto postDuck = d.postSwitch.duckGains (n);
 
         const float* in0 = inputs[0] + start;
         const float* in1 = numInputs == 2 ? inputs[1] + start : nullptr;
@@ -607,13 +627,13 @@ void Engine::process (const float* const* inputs, float* const* outputs, int num
         std::array<float*, 2> postPtrs { d.post[0].data(), d.post[1].data() };
         const AudioView post (postPtrs.data(), 2, n);
 
-        d.chains[0].process (chainIn, post, chain, duck, d.board.leaving());
+        d.chains[0].process (chainIn, post, chain, duck, d.preSwitch.leaving());
         inPeaks[0] = std::max (inPeaks[0], d.chains[0].inputPeak);
         if (d.dual && in1 != nullptr)
         {
             std::array<float*, 2> rPtrs { d.chainR[0].data(), d.chainR[1].data() };
             const AudioView right (rPtrs.data(), 2, n);
-            d.chains[1].process (in1, right, chain, duck, d.board.leaving());
+            d.chains[1].process (in1, right, chain, duck, d.preSwitch.leaving());
             inPeaks[1] = std::max (inPeaks[1], d.chains[1].inputPeak);
             // Each chain feeds its own side.
             for (int i = 0; i < n; ++i)
@@ -630,6 +650,13 @@ void Engine::process (const float* const* inputs, float* const* outputs, int num
         }
 
         d.eq.process (post, p.flag (bank.enabled), eqSettings);
+        // The pedals after the amp, ducked on their own while that side rewires. (Nothing to do,
+        // and no audio touched, while none stand there.)
+        for (int c = 0; c < 2; ++c)
+            BoardSwitch::apply (post.channel (c), postDuck.input, n);
+        d.postRack.process (post, chain.pedals, d.postSwitch.leaving());
+        for (int c = 0; c < 2; ++c)
+            BoardSwitch::apply (post.channel (c), postDuck.output, n);
         // The Doubler times its double from the pick attacks in the gate's sidechain, which
         // reach it the chain's latency later. With one output it stays off: in
         // the mono fold the double would only comb-filter the part.
@@ -688,15 +715,25 @@ void Engine::process (const float* const* inputs, float* const* outputs, int num
     const auto& pedals = rack0.slots();
     const bool gateRan = rack0.ran (PedalId::gate);
     const bool tideRan = rack0.ran (PedalId::tide);
-    telemetry_.gateOpen.store (!gateRan || pedals.gate.module.isOpen(), std::memory_order_relaxed);
-    telemetry_.gateReductionDb.store (gateRan ? pedals.gate.module.gainReductionDb() : 0.0f,
+    telemetry_.gateOpen.store (!gateRan || pedals.gate[0].module.isOpen(),
+                               std::memory_order_relaxed);
+    telemetry_.gateReductionDb.store (gateRan ? pedals.gate[0].module.gainReductionDb() : 0.0f,
                                       std::memory_order_relaxed);
-    telemetry_.tideReductionDb.store (tideRan ? pedals.tide.module.gainReductionDb() : 0.0f,
+    telemetry_.tideReductionDb.store (tideRan ? pedals.tide[0].module.gainReductionDb() : 0.0f,
                                       std::memory_order_relaxed);
-    for (std::size_t i = 0; i < kNumPedals; ++i)
-        telemetry_.pedalRan[i].store (rack0.ran (static_cast<PedalId> (i)),
-                                      std::memory_order_relaxed);
-    telemetry_.boardChanging.store (d.board.changing (rack0), std::memory_order_relaxed);
+    const bool gate2Ran = rack0.ran ({ PedalId::gate, 1 });
+    const bool tide2Ran = rack0.ran ({ PedalId::tide, 1 });
+    telemetry_.gate2Open.store (!gate2Ran || pedals.gate[1].module.isOpen(),
+                                std::memory_order_relaxed);
+    telemetry_.tide2ReductionDb.store (tide2Ran ? pedals.tide[1].module.gainReductionDb() : 0.0f,
+                                       std::memory_order_relaxed);
+    for (std::size_t slot = 0; slot < kNumSlots; ++slot)
+        telemetry_.pedalRan[slot].store (rack0.ran (slotRef (slot)) ||
+                                             d.postRack.ran (slotRef (slot)),
+                                         std::memory_order_relaxed);
+    telemetry_.boardChanging.store (d.preSwitch.changing (rack0) ||
+                                        d.postSwitch.changing (d.postRack),
+                                    std::memory_order_relaxed);
     telemetry_.metronomeStep.store (d.metronome.currentStep(), std::memory_order_relaxed);
     telemetry_.driftTimeMs.store (d.drift.effectiveTimeMs(), std::memory_order_relaxed);
     transposeLatency_.store (d.chains[0].transpose.latencySamples(), std::memory_order_release);

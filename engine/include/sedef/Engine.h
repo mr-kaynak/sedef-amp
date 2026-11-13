@@ -6,6 +6,7 @@
 #include "sedef/core/RtMailbox.h"
 #include "sedef/core/SpscRing.h"
 #include "sedef/core/Transport.h"
+#include "sedef/live/LiveMap.h"
 #include "sedef/params/Parameters.h"
 
 #include <array>
@@ -142,6 +143,11 @@ public:
     /// The audio device's input + output latency in samples (the standalone app knows it); the
     /// looper adds the rig's own latency and writes what it records that much earlier.
     void setLooperDeviceLatency (int samples) noexcept { looperDeviceLatency_.store (samples); }
+    /// Audio thread, just before process(): a footswitch press from the live layer
+    /// (docs/live.md §4.5). It acts at the start of that block, after the presses
+    /// looperCommand() queued. At most live::kMaxLooperPresses per block; dropped while the
+    /// looper has no memory.
+    void looperFootswitch (live::LooperPress press) noexcept;
 
     /// Custom IRs must be installed on every chain's cab (dual mode has two).
     int numCabs() const noexcept;
@@ -173,6 +179,13 @@ private:
     std::atomic<dsp::LoopMemory*> looperMemory_ { nullptr };
     SpscRing<std::uint8_t> looperCommands_ { 64 };
     std::atomic<int> looperDeviceLatency_ { 0 };
+    // Audio thread: the next block's footswitch presses, and what a double tap takes back (the
+    // looper's state and layer count when the last main press acted).
+    int footswitchCommands (std::uint8_t* out, int count, int capacity) noexcept;
+    std::array<live::LooperPress, live::kMaxLooperPresses> footPresses_ {};
+    int numFootPresses_ = 0;
+    int footTapState_ = 0;
+    std::uint32_t footTapLayer_ = 0;
 
     std::atomic<double> sampleRate_ { 48000.0 };
     std::atomic<int> maxBlockSize_ { 512 };

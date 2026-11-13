@@ -54,8 +54,41 @@ enum class Action : std::uint8_t
     sceneNext,     ///< one scene up, 8 wraps to 1
     scenePrevious, ///< one scene down, 1 wraps to 8
     presetNext,    ///< the message thread steps the preset list
-    presetPrevious
+    presetPrevious,
+    // The looper's footswitches (§4.5), standalone app only.
+    looperMain, ///< what the looper's big button does next
+    looperStop,
+    looperUndo, ///< undo, or redo when it was just undone
+    looperClear
 };
+
+/// What a footswitch asks of the looper (§4.5), in the order presses arrived in a block.
+enum class LooperPress : std::uint8_t
+{
+    main,
+    stop,
+    undo, ///< undo, or redo when the last layer (or clear) was just undone
+    clear,
+    doubleTap ///< the second press of a double tap on `main` (Binding::doubleTap)
+};
+
+/// A second press of the looper's main action this soon after the first stops the looper (§4.5).
+inline constexpr double kDoubleTapSeconds = 0.4;
+/// Looper presses kept per block (§7.3).
+inline constexpr int kMaxLooperPresses = 8;
+
+/// The double-tap window in samples: round (kDoubleTapSeconds * rate).
+inline std::int64_t doubleTapSamples (double sampleRate) noexcept
+{
+    return static_cast<std::int64_t> (kDoubleTapSeconds * sampleRate + 0.5);
+}
+
+/// Whether a press at `now` is the second of a double tap after one at `last` (-1: none waiting):
+/// the blocks start less than `window` samples apart (§4.5).
+constexpr bool isDoubleTap (std::int64_t last, std::int64_t now, std::int64_t window) noexcept
+{
+    return last >= 0 && now - last < window;
+}
 
 /// How a switch target reads a footswitch (§4.4).
 enum class SwitchMode : std::uint8_t
@@ -73,8 +106,9 @@ struct Binding
     std::uint8_t scene = 0;  ///< Action::scene: 0-7
     std::uint16_t param = 0; ///< Action::parameter: the ParamId's index
     SwitchMode mode = SwitchMode::toggle;
-    float low = 0.0f;  ///< continuous targets: normalised value at controller 0
-    float high = 1.0f; ///< ... and at 127 (low > high inverts)
+    float low = 0.0f;       ///< continuous targets: normalised value at controller 0
+    float high = 1.0f;      ///< ... and at 127 (low > high inverts)
+    bool doubleTap = false; ///< Action::looperMain: a double tap stops (§4.5)
 
     friend bool operator== (const Binding&, const Binding&) = default;
 };

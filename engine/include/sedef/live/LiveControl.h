@@ -108,6 +108,10 @@ public:
     // Audio thread
     // ---------------------------------------------------------------------------------
 
+    /// Before the first block at a sample rate (prepareToPlay, audio stopped): the double-tap
+    /// window (§4.5) in samples.
+    void prepare (double sampleRate) noexcept;
+
     /// Step 1 of a block, before the parameters are read: ends the overrides the message thread
     /// has acknowledged.
     void acknowledge() noexcept;
@@ -116,6 +120,15 @@ public:
     /// overrides written over `snapshot`. Advances the audio clock by `numFrames`.
     void process (ParamSnapshot& snapshot, const MidiMessage* messages, int count,
                   int numFrames) noexcept;
+
+    /// The looper's footswitch presses of the last process() call, in order (§4.5); the
+    /// processor hands them to Engine::looperFootswitch.
+    int numLooperPresses() const noexcept { return numLooperPresses_; }
+    LooperPress looperPress (int i) const noexcept
+    {
+        return looperPresses_[static_cast<std::size_t> (i)];
+    }
+    std::int64_t doubleTapWindow() const noexcept { return doubleTapSamples_; }
 
     /// The scene the audio thread is playing (tests).
     int activeScene() const noexcept { return bank_.active; }
@@ -129,7 +142,8 @@ private:
     }
     void setOverride (std::size_t i, float value) noexcept;
     void handle (const ParamSnapshot& s, const MidiMessage& m) noexcept;
-    void applyBinding (const ParamSnapshot& s, const Binding& b, int value) noexcept;
+    void applyBinding (const ParamSnapshot& s, int index, int value) noexcept;
+    void pressLooper (LooperPress press) noexcept;
     /// Switches to `to`; false (nothing done) when it can't be reported.
     bool switchScene (const ParamSnapshot& s, int to) noexcept;
     void applyScene (int scene) noexcept;
@@ -160,6 +174,14 @@ private:
     std::array<std::uint32_t, kNumParams> overrideSeq_ {};
     std::bitset<kNumParams> overridden_;
     std::uint32_t seq_ = 0;
+
+    // The looper's footswitches (§4.5).
+    std::int64_t now_ = 0; ///< the audio clock at the block being processed
+    std::int64_t doubleTapSamples_ = doubleTapSamples (48000.0);
+    /// Per binding: the block a looper:main press waits for its second press in, or -1.
+    std::array<std::int64_t, kMaxBindings> lastTap_ {};
+    std::array<LooperPress, kMaxLooperPresses> looperPresses_ {};
+    int numLooperPresses_ = 0;
 };
 
 } // namespace sedef::live

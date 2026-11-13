@@ -463,6 +463,73 @@ void Engine::looperCommand (LooperCommand command) noexcept
     looperCommands_.push (&c, 1);
 }
 
+void Engine::looperFootswitch (live::LooperPress press) noexcept
+{
+    if (numFootPresses_ < live::kMaxLooperPresses)
+        footPresses_[static_cast<std::size_t> (numFootPresses_++)] = press;
+}
+
+int Engine::footswitchCommands (std::uint8_t* out, int count, int capacity) noexcept
+{
+    using Command = dsp::Looper::Command;
+    using State = dsp::Looper::State;
+    auto& lp = impl_->looper;
+    const auto push = [&] (Command c) {
+        if (count < capacity)
+            out[count++] = static_cast<std::uint8_t> (c);
+    };
+    int pendingMain = -1; // a main press of this block, where it sits in `out`
+    for (int k = 0; k < numFootPresses_; ++k)
+    {
+        switch (footPresses_[static_cast<std::size_t> (k)])
+        {
+        case live::LooperPress::main:
+            footTapState_ = static_cast<int> (lp.state());
+            footTapLayer_ = lp.layerSerial();
+            pendingMain = count;
+            push (Command::main);
+            break;
+        case live::LooperPress::stop:
+            push (Command::stop);
+            break;
+        case live::LooperPress::undo:
+            // One switch for both: redo when the last layer (or clear) was just undone.
+            push (!lp.canUndo() && lp.canRedo() ? Command::redo : Command::undo);
+            break;
+        case live::LooperPress::clear:
+            push (Command::clear);
+            break;
+        case live::LooperPress::doubleTap:
+            // docs/live.md §4.5: stop, and take back what the first press started.
+            if (pendingMain >= 0 && pendingMain < count)
+            {
+                // Both presses in this block: the first is never applied.
+                for (int i = pendingMain; i + 1 < count; ++i)
+                    out[i] = out[i + 1];
+                --count;
+                pendingMain = -1;
+                push (Command::stop);
+                break;
+            }
+            {
+                const auto before = static_cast<State> (footTapState_);
+                const auto now = lp.state();
+                if (before == State::empty &&
+                    (now == State::armed || now == State::recording || now == State::closing))
+                {
+                    push (Command::clear); // the take it started, discarded
+                    break;
+                }
+                push (Command::stop);
+                if (lp.layerSerial() != footTapLayer_)
+                    push (Command::undo); // the overdub layer it began
+            }
+            break;
+        }
+    }
+    return count;
+}
+
 int Engine::numCabs() const noexcept
 {
     // Every chain the engine owns, prepared or not: an IR installed while running with one input
@@ -540,10 +607,17 @@ void Engine::process (const float* const* inputs, float* const* outputs, int num
     // The looper: its memory arrives once (prepareLooper), its presses at a block start.
     auto* loopMemory = looperMemory_.load (std::memory_order_acquire);
     d.looper.attach (loopMemory);
-    std::array<std::uint8_t, 16> presses {};
+    // The message thread's presses (16 at most), then the footswitches' (each one or two).
+    constexpr std::size_t kMaxPresses = 16 + 2 * live::kMaxLooperPresses;
+    std::array<std::uint8_t, kMaxPresses> presses {};
     int numPresses = 0;
     if (loopMemory != nullptr)
-        numPresses = static_cast<int> (looperCommands_.pop (presses.data(), presses.size()));
+    {
+        numPresses = static_cast<int> (looperCommands_.pop (presses.data(), 16));
+        numPresses =
+            footswitchCommands (presses.data(), numPresses, static_cast<int> (presses.size()));
+    }
+    numFootPresses_ = 0;
     dsp::Looper::Settings loop;
     loop.levelDb = p[P::looperLevel];
     loop.feedback = p[P::looperFeedback] / 100.0f;
@@ -684,7 +758,7 @@ void Engine::process (const float* const* inputs, float* const* outputs, int num
         {
             // The looper records the rig without the click and adds the loop (docs/looper.md).
             // Downbeats come from the click's own scheduler, so both agree on every sample.
-            std::array<dsp::Looper::Event, 24> events {};
+            std::array<dsp::Looper::Event, 8 + kMaxPresses> events {};
             int numEvents = 0;
             std::array<int, 8> downbeats {};
             const int numDownbeats =

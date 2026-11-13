@@ -88,6 +88,7 @@ step into a ramp, so the extra resolution would not be heard.
 | Scene *n* | selects scene *n* (§4.4 decides which messages count as a press) |
 | Next scene, Previous scene | moves one scene, wrapping round 8 → 1 and 1 → 8 |
 | Next preset, Previous preset | the existing `presetNext` / `presetPrevious` switches |
+| The looper's actions (standalone app) | record, play, overdub; stop; undo; clear (§4.5) |
 
 ### 4.3 Continuous mapping
 
@@ -134,6 +135,96 @@ counted in samples of the audio clock, not wall time, so the decision is determi
 that sends 127 on every press and nothing on release reads as Latch; the player picks Toggle in
 the MIDI panel. Until the window ends, the learnt controller acts on nothing, so the release of
 the learning press never switches anything.
+
+### 4.5 The looper's footswitches
+
+In the standalone app a footswitch can work the looper ([looper.md](looper.md)), so both hands stay
+on the guitar. Four targets, each learnt like the scene and preset actions: from the looper's own
+buttons (right-click, or Shift+F10) or from the MIDI panel's *Learn a footswitch for the looper*
+group.
+
+<img src="images/looper-learn.png" alt="The looper's big button opens its menu: Looper: record, play, overdub, Learn MIDI" width="49%"> <img src="images/live-looper.png" alt="The MIDI panel: the looper's four footswitch targets, and a learnt main switch with Double tap stops" width="49%">
+
+| Target (midi.json) | A press does |
+|---|---|
+| *Looper: record, play, overdub* (`looper:main`) | what the looper's big button does next: record, close the loop and play, overdub, stop overdubbing, play |
+| *Looper: stop* (`looper:stop`) | Stop |
+| *Looper: undo, redo* (`looper:undo`) | takes back the last overdub (or a clear); pressed again, puts it back |
+| *Looper: clear* (`looper:clear`) | Clear; *Looper: undo, redo* brings the loop back |
+
+**What counts as a press** is what counts for the scene and preset actions (§4.4): with Toggle,
+each message of 64 or more (a momentary switch's press; its release is ignored); with Latch,
+every message (each press of a latching switch sends the other value).
+
+**When it acts.** A press acts at the start of the block it arrives in, as an `L` key press does
+at the start of the next one ([looper.md](looper.md) §5). With the click running, a press up to
+50 ms after a "1" still catches it (the looper's grace), which covers a block and the
+controller's own delay.
+
+**Undo and redo on one switch.** A pedalboard has few switches, and one level of undo has
+exactly two states: with the last layer and without it. So the undo switch undoes and, pressed
+again, redoes: the player compares the two by foot. (On screen Undo and Redo stay two buttons.)
+
+**Double tap stops** (an option on *Looper: record, play, overdub*, off by default, in the MIDI
+panel). With it on, a second press less than `W = 400 ms` after the first stops the looper and
+takes back what the first press started, so the double tap ends in the state a Stop switch would
+have given, with nothing left over:
+
+| Before the first press | The first press | The second press, within `W` |
+|---|---|---|
+| empty | started a take, or armed one for the "1" | **Clear**: the take is discarded (nothing to undo) |
+| playing | began an overdub layer | **Stop**, then **Undo**: the loop is as it was before the first press |
+| overdubbing | ended the layer | **Stop** |
+| recording | closed the loop (or asked it to close at the bar line) | **Stop**: the loop is kept, stopped |
+| stopped | started playing (or armed for the "1") | **Stop** |
+| armed | cancelled the wait | **Stop** (nothing more to do) |
+
+The engine decides this from the looper's state when the first press acted and whether a new
+overdub layer began since (the looper counts layers): an overdub that continued the layer still
+fading out (a re-punch within 10 ms) is not undone, because Undo would take back that whole
+earlier layer. Both presses in one block: the first is never applied, and the second acts as Stop.
+A third press starts over: it is a first press again.
+
+**Why the classifier makes it clean.** Taps are counted in presses, not messages. Learn sets a
+momentary switch to Toggle (§4.4), whose releases never count, and a latching one to Latch,
+which sends one message per press; so one press and release is never two taps. (A momentary switch
+the player sets to Latch by hand fires on its release as well, for every action; that is the
+setting's documented meaning.)
+
+**Why `W = 400 ms`.** The window must hold a deliberate double tap with the foot, and must not
+hold two presses the player means separately.
+
+- *Lower bound.* The foot taps more slowly than the hand: tapping as fast as it can, a foot
+  manages roughly 4 to 6 taps a second (170–250 ms apart), and a relaxed double tap is slower
+  than that. We estimate a comfortable foot double tap at 200–350 ms press to press (an estimate,
+  not a measurement); a window of 300 ms would miss the slower ones and read them as two presses
+  (an overdub starting and stopping).
+- *Upper bound.* The shortest gap a player means as two presses is a one-beat overdub (punch in,
+  punch out) or closing a loop and overdubbing at once: a beat is 400 ms at 150 bpm, 500 ms at
+  120 bpm. At 500 ms (a common double-click default for the mouse) a one-beat punch below 120 bpm
+  would read as a stop.
+- 400 ms keeps a one-beat punch up to 150 bpm and every take of a beat or more apart as two
+  presses, and catches double taps up to 400 ms apart.
+
+The window is measured between the starts of the blocks the presses arrive in (all live events
+act at a block's start, §7.1): the gap is `W` within one block, 10.7 ms at 512 samples and 48 kHz
+(85 ms at the largest block, 4096). In samples, `W = round (0.4 · fs)`: 17 640 at 44.1 kHz,
+19 200 at 48, 35 280 at 88.2, 38 400 at 96. A press counts as the second when its block starts
+less than `W` samples after the first press's block.
+
+Rejected: holding the first press back until the window has passed (every record, overdub and
+play would start 400 ms late, past the 50 ms grace); a long press for stop (a held latching
+switch sends nothing more, so it can't be timed); double tap from the keyboard (`Shift+L` is
+Stop already).
+
+**Memory.** The looper reserves its memory (88 MiB, looper.md §7) the first time it is opened.
+A looper binding reserves it too, when it is learnt or when the app starts with one in
+midi.json, so the first press records at once instead of finding no memory.
+
+**Plug-ins.** The looper is the standalone app's, so its targets are offered only there. midi.json
+is shared, so a looper binding learnt in the app is listed in a plug-in's MIDI panel and does
+nothing there. A midi.json with looper bindings read by 0.9 loses them only if 0.9 saves it
+(unknown targets are dropped, §3).
 
 ## 5. Program changes
 
@@ -358,6 +449,8 @@ disagreeing.
 | Learn ring | 256 | An expression pedal swept while learning sends ~100 messages a second; learn only needs the first ones. |
 | Message-thread tick | 50 Hz | Host and screen see a MIDI change within 20 ms; the sound already changed in its block. |
 | Learn window | 1.5 s | §4.4 |
+| Looper presses per block | 8 | Two footswitches pressed together send two; more in one block are dropped. |
+| Double-tap window | 400 ms | §4.5 |
 
 Nothing allocates after construction: the mailboxes and rings are fixed-size, and the event
 records are plain structs. The engine test that counts allocations runs the live layer too.
@@ -397,6 +490,11 @@ Engine (`engine/tests/live/`):
 - Through the engine: a scene switch renders sample for sample like the same parameter change
   made as host automation at that block, at 44.1–96 kHz; the largest step it adds is reported.
 - No allocation while learning, switching scenes and following controllers.
+- The looper's footswitches: every target in Toggle and Latch, releases ignored; double taps at
+  `W − 1` and `W` samples apart at 44.1–96 kHz, with the option off, triple taps, two presses in
+  one block, a new map; through the engine, each row of §4.5's table from its looper state, the
+  undo switch's undo and redo, a foot press rendering like the same `L` press, and nothing
+  without the looper's memory.
 
 Plug-in (`plugin/tests/LiveStateTests.cpp`): bindings round-trip through `midi.json` and
 across instances; presets with and without scenes round-trip; a 0.9 file loads; the active scene

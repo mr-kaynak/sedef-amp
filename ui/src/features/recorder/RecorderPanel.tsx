@@ -278,6 +278,7 @@ function ReampTab({ a }: { a: ReampState }) {
   const importing = useRecorderStore((s) => s.importing);
   const dropError = useRecorderStore((s) => s.dropError);
   const playing = useLiveSelector(telemetry, (t) => t?.reamp?.playing ?? a.playing) || a.playing;
+  const gaps = useLiveSelector(telemetry, (t) => (t?.reamp?.playing ? t.reamp.gaps : 0));
   const [dragging, setDragging] = useState(false);
   const ready = a.status === 'ready' && a.file !== null;
   // A new pick cancels a conversion still running; only a drop on its way in holds the list.
@@ -394,6 +395,12 @@ function ReampTab({ a }: { a: ReampState }) {
         <MixChoice mix={a.mix} />
       </div>
 
+      {gaps > 0 && (
+        <p className={styles.warn}>
+          The disk could not keep up: the file paused {gaps === 1 ? 'once' : `${gaps} times`} and
+          went on where it stopped.
+        </p>
+      )}
       {importing && (
         <p className={styles.note}>
           Copying {importing.name}… {percent(importing.progress)}

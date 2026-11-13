@@ -65,7 +65,7 @@ public:
     bool playing() const noexcept { return playingOut_.load (std::memory_order_acquire); }
     /// Frames played since the last flush.
     std::int64_t consumed() const noexcept { return consumedOut_.load (std::memory_order_acquire); }
-    /// Blocks in which the FIFO ran dry before the file's end.
+    /// Blocks in which the FIFO ran dry before the file's end, since the last flush.
     std::int64_t underruns() const noexcept { return underruns_.load (std::memory_order_relaxed); }
     /// Plays ended by reaching setEndAt() (not by Stop or a flush).
     std::uint32_t endings() const noexcept { return endings_.load (std::memory_order_acquire); }

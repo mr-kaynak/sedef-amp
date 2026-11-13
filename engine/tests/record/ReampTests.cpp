@@ -367,6 +367,13 @@ TEST_CASE ("Re-amp: a reader that falls behind pauses the file, it never skips",
         if (rig.in[0][static_cast<std::size_t> (t)] != expected)
             FAIL ("frame " << t);
     }
+
+    // The panel shows the gaps of the play in progress: the next play starts from none.
+    std::vector<float> block (64, 0.0f);
+    float* const channels[] { block.data() };
+    rig.player.requestFlush();
+    rig.player.process (channels, 1, 64);
+    CHECK (rig.player.underruns() == 0);
 }
 
 // -------------------------------------------------------------------------------------------------

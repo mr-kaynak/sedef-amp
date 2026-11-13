@@ -1,7 +1,8 @@
 # Recorder and re-amp
 
 Status: design for 0.10.0, implemented in `engine/include/sedef/record/` (the real-time parts,
-pure C++) and `plugin/src/Recorder.*` (the threads and files). Owners: core maintainers.
+pure C++), `plugin/src/Recorder.*` and `plugin/src/Reamp.*` (the threads and files) and
+`ui/src/features/recorder/` (the panel). Owners: core maintainers.
 
 The standalone app records what you play and plays it back through the rig:
 
@@ -24,10 +25,19 @@ plug-in builds carry the code, but only the standalone app offers it (`isStandal
 while nothing records or plays the per-block cost is three atomic loads (section 8).
 
 In the header, the standalone app groups the things that keep time or hold your playing in one
-**transport** cluster: Metronome, Looper and Recorder. Each opens its own panel; the
-Recorder's panel has two parts, Record and Re-amp, because re-amping starts from a recorded
-take. `R` starts and stops a take from anywhere (outside text fields), like `L` for the
-looper, so a player never has to take a hand off the guitar for long.
+**transport** well: Metronome, Looper and Recorder, icon buttons side by side. Each opens its
+own panel; the Recorder's panel has two tabs, Record and Re-amp, because re-amping starts from
+a recorded take. `R` starts and stops a take from anywhere (outside text fields), like `L` for
+the looper, so a player never has to take a hand off the guitar for long.
+
+With the panel closed a take still shows: the Recorder button's dot fills red and breathes
+(it holds still under reduced motion), and the status bar keeps the time in sight
+("Recording 0:42", or "Re-amping 0:12 / 0:41"). The header has no room for a running clock
+beside the level meters, and the status bar is where the app already says what the audio is
+doing. To make room for the well, Intonation is an icon button in the standalone app, as it
+already is in a narrow plug-in window. A screen reader hears a take start, its first dropout
+and how it ended ("Take saved, 1 minute 23 seconds, 2 dropouts") from a polite status region,
+with or without the panel open.
 
 ## 2. Signal points
 
@@ -92,8 +102,9 @@ When the audio thread needs a fresh chunk and none is free, it **drops** that st
 until one comes back. It never waits. It counts **dropped blocks** (audio blocks that lost any
 samples, from either file) and **dropped samples** per file, and keeps counting time, so the
 next chunk carries its true position. The writer fills the hole with silence: the take keeps
-its length, the two files stay aligned, and the place of a dropout is exact. The panel shows
-"2 dropouts (0.09 s of silence)" in amber, and both files say so in their metadata (section 4).
+its length, the two files stay aligned, and the place of a dropout is exact. The panel says
+"2 dropouts: 0.09 s of this take is silence" in amber, and both files say so in their metadata
+(section 4).
 
 ### Stop
 
@@ -141,7 +152,7 @@ that open, missing at most the last second.
 
 **Where**: `Music/Sedef Amp/Recordings` in the user's home folder (the OS's Music folder), the
 first place a player looks and one the file browser shows. The panel shows the path and a
-**Show in folder** button.
+**Show folder** button, and the last take has its own **Show** and **Re-amp** buttons.
 
 **Names**: the local time at the press, then the part, so a folder sorts by time and the pair
 sits together: `2026-11-13 14-05-33 DI.wav` and `2026-11-13 14-05-33 Output.wav`. Two takes in
@@ -184,8 +195,8 @@ A file whose rate differs from the device's is **converted once, on loading**, i
 temporary file at the device's rate, with a Kaiser-windowed sinc (32 zero crossings,
 β = 10, the cut-off at 0.9 of the lower Nyquist frequency, linear phase so nothing moves in
 time). Tones up to 17 kHz come through within −100 dB of the exact result (−101 to −130 dB
-measured), and what lies above the new Nyquist frequency stays 110 dB down. The panel says
-"Converted from 44.1 kHz". Why not refuse:
+measured), and what lies above the new Nyquist frequency stays 110 dB down. The panel shows
+the file's own rate and "converted for this device". Why not refuse:
 
 - "Drop any WAV" means files from elsewhere: a DI exported from a DAW session or an online
   pack is 44.1 or 48 kHz, and the device runs at whichever it runs at. Refusing would turn the
@@ -207,8 +218,10 @@ rig's input as a device would deliver them: the same count passes through, a mon
 both inputs of a stereo device, and a stereo file on a mono input is folded the way the rig
 folds a stereo input (`InputFold`), so a guitar on one side keeps its level.
 
-- **Replace** (default): the file is the input; the live input is muted.
-- **Mix**: the file is added to the live input, to play along with a take.
+- **Replace** (default; the panel's "Your guitar: Muted"): the file is the input; the live
+  input is muted.
+- **Mix** ("Your guitar: Mixed in"): the file is added to the live input, to play along with a
+  take.
 
 The live input fades in and out over 10 ms when Replace starts or stops and when the mode
 changes. The file itself is never faded when it starts, so it reaches the rig exactly. Stop
@@ -222,7 +235,8 @@ while it plays lets the current pass finish; turning it on before the end contin
 next pass.
 
 If the disk stalls longer than the FIFO, the input is silent for the missing samples and the
-file resumes where it was (it pauses rather than skipping); the panel counts these gaps.
+file resumes where it was (it pauses rather than skipping); while it plays, the panel says how
+many times it paused, counted from the start of that play.
 
 ## 7. Tests (`engine/tests/record/`)
 

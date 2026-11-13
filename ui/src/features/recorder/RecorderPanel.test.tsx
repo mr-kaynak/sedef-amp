@@ -228,6 +228,12 @@ describe('Re-amp', () => {
     expect(within(panel).getByText('0:01 / 0:41')).toBeInTheDocument();
     expect(recorderButton()).toHaveAccessibleName('Recorder, re-amping');
     expect(screen.getByRole('contentinfo')).toHaveTextContent('Re-amping 0:01 / 0:41');
+    // A slow disk pauses the file; the panel says how often, for this play.
+    act(() => mock.recorder.stall());
+    await play_(0.1);
+    expect(
+      within(panel).getByText(/^The disk could not keep up: the file paused once/),
+    ).toBeInTheDocument();
     fireEvent.click(within(panel).getByRole('button', { name: 'Stop re-amping' }));
     await act(flush);
     await play_(0.1);

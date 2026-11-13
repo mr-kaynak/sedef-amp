@@ -103,6 +103,7 @@ export class RecorderSim {
     error: null,
   };
   private reampAt = 0;
+  private gaps = 0;
   private pendingFile: MockFile | null = null;
   private importing: { token: number; name: string; size: number; received: number } | null = null;
   private nextToken = 1;
@@ -176,7 +177,7 @@ export class RecorderSim {
         outputDb: active ? outDb : -120,
         dropouts: active ? this.dropouts : 0,
       },
-      reamp: { playing: this.reamp.playing, seconds: this.reampAt, length, gaps: 0 },
+      reamp: { playing: this.reamp.playing, seconds: this.reampAt, length, gaps: this.gaps },
     };
   }
 
@@ -215,6 +216,11 @@ export class RecorderSim {
   /** A slow disk dropping a block of the take being recorded (tests). */
   dropout(): void {
     if (this.status === 'recording') this.dropouts += 1;
+  }
+
+  /** A slow disk pausing the file being re-amped (tests). */
+  stall(): void {
+    if (this.reamp.playing) this.gaps += 1;
   }
 
   // Native calls ----------------------------------------------------------------------------
@@ -256,6 +262,7 @@ export class RecorderSim {
     if (this.reamp.status === 'ready') {
       this.reamp.playing = play;
       this.reampAt = 0;
+      this.gaps = 0;
       this.frozen = false;
     }
     this.changed();

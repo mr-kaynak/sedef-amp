@@ -50,6 +50,7 @@ void ReampPlayer::process (float* const* inputs, int numInputs, int n) noexcept
         playing_ = false;
         fading_ = false;
         consumed_ = 0;
+        underruns_.store (0, std::memory_order_relaxed); // counted per play, shown while it plays
         flushAck_.store (flush, std::memory_order_release);
     }
 

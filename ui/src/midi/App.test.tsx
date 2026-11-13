@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MidiApp } from './App';
 import { MockMidiBackend, type MockOptions } from './backend';
 import { noteName, spokenNote } from './notes';
@@ -48,6 +48,22 @@ describe('Sedef MIDI app', () => {
     const b = await setup();
     await userEvent.click(screen.getByRole('button', { name: 'Panic' }));
     expect(b.calls.some((c) => c.name === 'sedef_midi_panic')).toBe(true);
+  });
+
+  it('leaves no timer behind when the window closes right after Panic', async () => {
+    await setup();
+    const { unmount } = render(<MidiApp />);
+    vi.useFakeTimers();
+    try {
+      const panic = screen.getAllByRole('button', { name: 'Panic' }).at(-1);
+      expect(panic).toBeDefined();
+      act(() => panic?.click());
+      unmount();
+      // Before, the flash's 600 ms timer outlived the window and set state on a torn-down page.
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('enables the bend range only with Notes + Bend', async () => {

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import buttons from '../controls/Button.module.css';
 import { Knob } from '../controls/Knob';
@@ -86,6 +86,9 @@ function AudioFigures({ audio, standalone }: { audio: AudioState; standalone: bo
 
 function PanicButton() {
   const [flash, setFlash] = useState(false);
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // A press just before the window closes must not set state on an unmounted button.
+  useEffect(() => () => clearTimeout(flashTimer.current), []);
   return (
     <button
       type="button"
@@ -95,7 +98,8 @@ function PanicButton() {
       onClick={() => {
         void midiInvoke('sedef_midi_panic');
         setFlash(true);
-        setTimeout(() => setFlash(false), 600);
+        clearTimeout(flashTimer.current);
+        flashTimer.current = setTimeout(() => setFlash(false), 600);
       }}
     >
       Panic

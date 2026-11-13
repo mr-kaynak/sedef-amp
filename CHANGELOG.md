@@ -17,6 +17,8 @@ NAM captures trained at several sizes load, and the status bar's arrow is an arr
   sound it was trained for.
 - **The status bar says "Mono → Stereo" again**, not "Mono â Stereo": the arrow, and the "…" in
   three Re-amp messages, now reach the window as the UTF-8 they are.
+- Sedef MIDI's Panic button no longer leaves its flash timer running when the window closes
+  right after a press.
 
 ## [0.10.0] - 2026-11-13
 

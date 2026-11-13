@@ -232,9 +232,9 @@ void Reamp::runOnce()
         active = feeder_.state() != record::ReampFeeder::State::idle;
     }
     if (!ok)
-        setError (
+        setError (juce::String::fromUTF8 (
             "Could not read the file any more: it may have been moved or deleted. Choose it again "
-            "from the list or with Open file….");
+            "from the list or with Open file…."));
     if (playing_.exchange (active) != active)
         bump();
 }
@@ -400,8 +400,9 @@ int Reamp::importBegin (const juce::String& fileName, juce::int64 size)
     }
     if (size <= 0 || size > kMaxImportBytes)
     {
-        setError (size <= 0 ? "That file is empty. Choose another file."
-                            : "That file is over 2 GB. Use Open file… for files this large.");
+        setError (juce::String::fromUTF8 (
+            size <= 0 ? "That file is empty. Choose another file."
+                      : "That file is over 2 GB. Use Open file… for files this large."));
         return 0;
     }
     const auto dir = importFolder();
@@ -443,7 +444,8 @@ bool Reamp::importChunk (int token, const juce::String& base64)
         !import_->write (bytes.getData(), bytes.getDataSize()))
     {
         importCancel (token);
-        setError ("The dropped file did not arrive whole. Try again, or use Open file….");
+        setError (juce::String::fromUTF8 (
+            "The dropped file did not arrive whole. Try again, or use Open file…."));
         return false;
     }
     return true;
@@ -460,7 +462,8 @@ bool Reamp::importEnd (int token)
     if (!whole)
     {
         importFile_.deleteFile();
-        setError ("The dropped file did not arrive whole. Try again, or use Open file….");
+        setError (juce::String::fromUTF8 (
+            "The dropped file did not arrive whole. Try again, or use Open file…."));
         return false;
     }
     load (importFile_);

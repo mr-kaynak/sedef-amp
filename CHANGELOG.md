@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **Captures trained at several sizes load.** A NAM capture saved as a SlimmableContainer, or as
+  a slimmable WaveNet, was refused with "Sedef can't load yet"; it now plays at its full size, the
+  sound it was trained for.
+- **The status bar says "Mono → Stereo" again**, not "Mono â Stereo": the arrow, and the "…" in
+  three Re-amp messages, now reach the window as the UTF-8 they are.
+
 ## [0.10.0] - 2026-11-13
 
 Practise and write in the standalone app: a looper locked to the click, drums to play along with,

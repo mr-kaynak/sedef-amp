@@ -23,8 +23,13 @@ The networks are run by [NeuralAmpModelerCore](https://github.com/sdatkinson/Neu
 standard, lite, feather and nano sizes, and the 0.6/0.7 additions: bottlenecks, grouped
 convolutions, gating and blending modes, per-layer activations, FiLM, head 1x1, a post-stack head
 and a conditioning model), **LSTM**, **ConvNet** and **Linear**. Format versions 0.5.0 to 0.7.x
-load. Slimmable WaveNets and the `SlimmableContainer` and `Sequential` containers are refused
-with "Sedef can't load yet".
+load. A capture trained to run at several sizes plays at its full size, the sound it was trained
+for: a `SlimmableContainer` plays its last model (the one whose `max_value` reaches 1, which the
+core also picks unless a host asks for less), checked like any capture, with the container's
+metadata; a slimmable WaveNet plays at its full width (its config and weights are the full model,
+and its `slimmable` fields, method `slice_channels_uniform` only, are dropped after checking that
+the widest allowed width is the layer array's own). A container inside a container and the
+`Sequential` container are refused.
 
 ## 2. Signal flow
 
@@ -308,7 +313,8 @@ amp mode builds one instance per chain and costs twice as much.
 
 ## 11. Limitations
 
-- Slimmable WaveNets and the container architectures don't load yet.
+- A capture trained at several sizes always plays at its full size: there is no smaller setting
+  to save CPU. `Sequential` containers don't load yet.
 - The stage latency rises by 2 samples at 48 kHz and by 0.46–0.81 ms at 88.2 kHz and above for
   everyone, not only while a capture plays (table above), because the host can't be told about a
   latency change cleanly mid-session.

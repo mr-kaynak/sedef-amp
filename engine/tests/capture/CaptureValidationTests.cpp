@@ -3,6 +3,7 @@
 // message, quickly, without crashing (the ASan/UBSan CI job runs these too).
 
 #include "CaptureTestUtils.h"
+#include "amp/AmpTestUtils.h"
 
 #include <Eigen/Core>
 #include <catch2/catch_test_macros.hpp>
@@ -91,8 +92,9 @@ TEST_CASE ("Unknown and unsupported architectures are named", "[capture][untrust
     expectRejected (j, "architecture Sedef doesn't know");
     j["architecture"] = "Sequential";
     expectRejected (j, "Sequential architecture, which Sedef can't load yet");
+    // A container is unwrapped first: a WaveNet config is no list of models.
     j["architecture"] = "SlimmableContainer";
-    expectRejected (j, "can't load yet");
+    expectRejected (j, "the container holds no models");
     j["architecture"] = 12;
     expectRejected (j, "has no \"architecture\"");
 }
@@ -537,4 +539,119 @@ TEST_CASE ("A conditioning model must be one Sedef runs in real time", "[capture
     j["config"]["condition_dsp"] = inner;
     j["version"] = "0.6.0";
     expectRejected (j, "conditioning model is a ConvNet");
+}
+
+namespace
+{
+/// One capture at two sizes, as the trainer writes a SlimmableContainer: the smaller first.
+json container (const std::string& small, const std::string& full, double smallMax = 0.5,
+                double fullMax = 1.0)
+{
+    json c;
+    c["version"] = "0.7.0";
+    c["architecture"] = "SlimmableContainer";
+    c["config"]["submodels"] =
+        json::array ({ json { { "max_value", smallMax }, { "model", json::parse (small) } },
+                       json { { "max_value", fullMax }, { "model", json::parse (full) } } });
+    c["sample_rate"] = 48000.0;
+    c["metadata"] = json { { "gear_make", "Container Make" }, { "gear_type", "amp" } };
+    return c;
+}
+
+/// A short strum through a capture at 48 kHz, as Sedef plays it.
+std::vector<float> render (const std::shared_ptr<const dsp::CaptureFile>& f)
+{
+    nt::StageRig rig (48000.0, 256);
+    rig.load (f);
+    rig.settings.useCapture = true;
+    auto v = test::guitarStrum (48000.0, 0.5);
+    rig.run (v);
+    return v;
+}
+
+/// The standard WaveNet with each layer array marked slimmable down to a quarter of its width.
+json slimmableWaveNet (const std::string& plain)
+{
+    json j = json::parse (plain);
+    for (auto& layer : j["config"]["layers"])
+    {
+        const int ch = layer["channels"].get<int>();
+        layer["slimmable"] =
+            json { { "method", "slice_channels_uniform" },
+                   { "kwargs", { { "allowed_channels", { ch / 4, ch / 2, ch } } } } };
+    }
+    return j;
+}
+} // namespace
+
+TEST_CASE ("A SlimmableContainer plays its full-size model", "[capture][untrusted]")
+{
+    const std::string full = nt::smallWaveNet (3);
+    const auto plain = nt::parseOrFail (full);
+    const auto boxed = nt::parseOrFail (container (nt::waveNet (2, 2, 5, 0.6f), full).dump());
+    // The full-size model, sample for sample: the sound the capture was trained for.
+    CHECK (render (boxed) == render (plain));
+    // The container's own description is the capture's.
+    CHECK (boxed->info().gearMake == "Container Make");
+    CHECK (boxed->info().architecture == "WaveNet");
+
+    // Without a container sample rate, the model's own is used.
+    auto c = container (nt::waveNet (2, 2, 5, 0.6f), full);
+    c.erase ("sample_rate");
+    CHECK (nt::parseOrFail (c.dump())->info().sampleRate == 48000.0);
+}
+
+TEST_CASE ("Broken SlimmableContainers are rejected", "[capture][untrusted]")
+{
+    const std::string small = nt::waveNet (2, 2, 5, 0.6f), full = nt::smallWaveNet (3);
+    auto c = container (small, full, 1.0, 0.5);
+    expectRejected (c, "not in order of size");
+    c = container (small, full, 0.25, 0.75);
+    expectRejected (c, "no full-size model");
+    c = container (small, full);
+    c["config"]["submodels"] = json::array();
+    expectRejected (c, "holds no models");
+    c = container (small, full);
+    c["config"]["submodels"][1].erase ("model");
+    expectRejected (c, "has no \"model\"");
+    c = container (small, full);
+    c["config"]["submodels"][1]["max_value"] = "big";
+    expectRejected (c, "has no \"max_value\"");
+    c = container (small, full);
+    c["config"]["submodels"][1]["model"] = container (small, full);
+    expectRejected (c, "nests one container in another");
+    c = container (small, full);
+    c["config"]["submodels"][1]["model"].erase ("weights");
+    expectRejected (c, "full-size model has no \"weights\"");
+    c = container (small, full);
+    auto& subs = c["config"]["submodels"];
+    for (int i = 0; i < 16; ++i)
+        subs.insert (subs.begin(), json { { "max_value", -1.0 - i }, { "model", json::object() } });
+    expectRejected (c, "Sedef's limit is 16");
+    // The full-size model is checked like any capture.
+    c = container (small, full);
+    c["config"]["submodels"][1]["model"]["weights"].erase (0);
+    expectRejected (c, "weights, but its WaveNet needs");
+}
+
+TEST_CASE ("A slimmable WaveNet plays at full width", "[capture][untrusted]")
+{
+    const std::string plainText = nt::smallWaveNet (7);
+    const auto plain = nt::parseOrFail (plainText);
+    const auto slim = nt::parseOrFail (slimmableWaveNet (plainText).dump());
+    CHECK (render (slim) == render (plain));
+
+    auto j = slimmableWaveNet (plainText);
+    j["config"]["layers"][0]["slimmable"]["method"] = "prune_magnitude";
+    expectRejected (j, "slims in a way Sedef doesn't know");
+    j = slimmableWaveNet (plainText);
+    j["config"]["layers"][1]["slimmable"]["kwargs"]["allowed_channels"] = { 1, 64 };
+    expectRejected (j, "slimmable up to a width it doesn't have");
+    j = slimmableWaveNet (plainText);
+    j["config"]["layers"][0]["slimmable"]["kwargs"]["allowed_channels"] = "all";
+    expectRejected (j, "broken \"slimmable\" setting");
+    // Without allowed widths, every width up to the full one: still the full model.
+    j = slimmableWaveNet (plainText);
+    j["config"]["layers"][0]["slimmable"].erase ("kwargs");
+    CHECK (render (nt::parseOrFail (j.dump())) == render (plain));
 }

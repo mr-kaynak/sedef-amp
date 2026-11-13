@@ -47,6 +47,16 @@ const looperShot = (state, set = 'metronomeEnabled:1') => ({
   },
 });
 
+// The recorder's panel (docs/recorder.md) in one of its states, nothing moving.
+const recorderShot = (state) => ({
+  query: `section=amp&freeze&recorder=${state}`,
+  async prepare(page) {
+    await page.getByRole('button', { name: /^Recorder/ }).click();
+    await page.getByRole('dialog', { name: 'Recorder' }).waitFor();
+    await page.waitForTimeout(400);
+  },
+});
+
 const SHOTS = {
   // The standalone app, the demo bass line held on a sounding note.
   midi: { app: MIDI, query: 'host=standalone&frame=1450' },
@@ -152,6 +162,38 @@ const SHOTS = {
   'looper-closing': looperShot('closing'),
   'looper-overdubbing': looperShot('overdubbing'),
   'looper-stopped': looperShot('stopped'),
+  // Empty while the metronome plays drums: the copy names the drums.
+  'looper-drums': looperShot('empty', 'metronomeEnabled:1,metronomeMode:1'),
+  // The metronome playing drums: the groove list for 4/4, intensity, fills, level and tone.
+  drums: {
+    query: 'section=amp&set=metronomeMode:1,drumsGroove:1',
+    async prepare(page) {
+      await page.getByRole('button', { name: 'Metronome' }).click();
+      await page.getByRole('button', { name: 'Start drums' }).click();
+      await page.waitForTimeout(700);
+    },
+  },
+  // The groove list reached by keyboard: the groove that plays wears the focus ring (not a docs
+  // image: a focus check).
+  'drums-focus': {
+    query: 'section=amp&set=metronomeMode:1,drumsGroove:1',
+    async prepare(page) {
+      await page.getByRole('button', { name: 'Metronome' }).click();
+      await page.getByRole('combobox', { name: 'Metronome Signature' }).focus();
+      await page.keyboard.press('Tab');
+      await page.waitForTimeout(300);
+    },
+  },
+  // A take recording and a take re-amping (the docs images), then the other states (layout
+  // checks, not docs images).
+  recorder: recorderShot('recording'),
+  reamp: recorderShot('reamp'),
+  'recorder-ready': recorderShot('ready'),
+  'recorder-saved': recorderShot('saved'),
+  'recorder-dropouts': recorderShot('dropouts'),
+  'recorder-error': recorderShot('error'),
+  'reamp-converting': recorderShot('converting'),
+  'reamp-empty': recorderShot('reamp-empty'),
   abyss: { query: 'section=amp&preset=mariana' },
   // Transpose two semitones down: the stepper at the end of the tab row, the latency it adds,
   // and the status bar's share.
@@ -285,6 +327,9 @@ const names = wanted.length
       'input-level',
       'transpose',
       'looper',
+      'drums',
+      'recorder',
+      'reamp',
       'midi',
       'live-scenes',
       'live-menu',

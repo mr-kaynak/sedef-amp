@@ -417,6 +417,81 @@ juce::WebBrowserComponent::Options SedefEditor::makeOptions()
                 proc.engine().looperCommand (command);
         done ({});
     });
+    // Recorder and re-amp (docs/recorder.md): the standalone app only. The page may name files
+    // by path only inside the Recordings folder; anything else comes through the file chooser.
+    fn ("sedef_recorder_toggle", [this, &proc] (const juce::Array<juce::var>&, Completion done) {
+        proc.toggleRecording();
+        done (recorderState());
+    });
+    fn ("sedef_recorder_reveal", [&proc] (const juce::Array<juce::var>& a, Completion done) {
+        if (proc.recorder() != nullptr)
+        {
+            const auto path = a.isEmpty() ? juce::String() : a[0].toString();
+            const auto file = juce::File::isAbsolutePath (path) ? juce::File (path) : juce::File();
+            if (file.existsAsFile() && file.isAChildOf (Recorder::folder()))
+                file.revealToUser();
+            else if (const auto dir = Recorder::folder(); dir.createDirectory())
+                dir.revealToUser();
+        }
+        done ({});
+    });
+    fn ("sedef_reamp_files", [&proc] (const juce::Array<juce::var>&, Completion done) {
+        done (proc.reamp() != nullptr ? proc.reamp()->files()
+                                      : juce::var (juce::Array<juce::var>()));
+    });
+    fn ("sedef_reamp_load", [this, &proc] (const juce::Array<juce::var>& a, Completion done) {
+        const auto path = a.isEmpty() ? juce::String() : a[0].toString();
+        if (auto* reamp = proc.reamp(); reamp != nullptr && juce::File::isAbsolutePath (path))
+            if (const juce::File file (path); reamp->mayLoad (file))
+                reamp->load (file);
+        done (recorderState());
+    });
+    fn ("sedef_reamp_open", [this] (const juce::Array<juce::var>&, Completion done) {
+        openReampFile (std::move (done));
+    });
+    fn ("sedef_reamp_play", [this, &proc] (const juce::Array<juce::var>& a, Completion done) {
+        if (auto* reamp = proc.reamp())
+        {
+            if (!a.isEmpty() && static_cast<bool> (a[0]))
+                reamp->play();
+            else
+                reamp->stop();
+        }
+        done (recorderState());
+    });
+    fn ("sedef_reamp_setLoop", [this, &proc] (const juce::Array<juce::var>& a, Completion done) {
+        if (auto* reamp = proc.reamp(); reamp != nullptr && !a.isEmpty())
+            reamp->setLoop (static_cast<bool> (a[0]));
+        done (recorderState());
+    });
+    fn ("sedef_reamp_setMix", [this, &proc] (const juce::Array<juce::var>& a, Completion done) {
+        if (auto* reamp = proc.reamp(); reamp != nullptr && !a.isEmpty())
+            reamp->setMix (static_cast<bool> (a[0]));
+        done (recorderState());
+    });
+    fn ("sedef_reamp_importBegin", [&proc] (const juce::Array<juce::var>& a, Completion done) {
+        auto* reamp = proc.reamp();
+        if (reamp == nullptr || a.size() < 2)
+        {
+            done (0);
+            return;
+        }
+        done (reamp->importBegin (a[0].toString(), static_cast<juce::int64> (a[1])));
+    });
+    fn ("sedef_reamp_importChunk", [&proc] (const juce::Array<juce::var>& a, Completion done) {
+        auto* reamp = proc.reamp();
+        done (reamp != nullptr && a.size() >= 2 &&
+              reamp->importChunk (static_cast<int> (a[0]), a[1].toString()));
+    });
+    fn ("sedef_reamp_importEnd", [&proc] (const juce::Array<juce::var>& a, Completion done) {
+        auto* reamp = proc.reamp();
+        done (reamp != nullptr && !a.isEmpty() && reamp->importEnd (static_cast<int> (a[0])));
+    });
+    fn ("sedef_reamp_importCancel", [&proc] (const juce::Array<juce::var>& a, Completion done) {
+        if (auto* reamp = proc.reamp(); reamp != nullptr && !a.isEmpty())
+            reamp->importCancel (static_cast<int> (a[0]));
+        done ({});
+    });
     fn ("sedef_ui_setState", [&proc] (const juce::Array<juce::var>& a, Completion done) {
         if (!a.isEmpty())
             proc.setUiState (a[0]);
@@ -522,6 +597,46 @@ void SedefEditor::loadCapture (Completion completion)
                 done (safe->processor_.captures().stateAsVar());
             });
         });
+}
+
+void SedefEditor::openReampFile (Completion completion)
+{
+    auto* reamp = processor_.reamp();
+    if (reamp == nullptr || chooser_ != nullptr)
+    {
+        completion (recorderState());
+        return;
+    }
+    chooser_ = std::make_unique<juce::FileChooser> ("Re-amp a file", Recorder::folder(),
+                                                    "*.wav;*.wave;*.aif;*.aiff;*.flac");
+    chooser_->launchAsync (
+        juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
+        [safe = juce::Component::SafePointer<SedefEditor> (this),
+         done = std::move (completion)] (const juce::FileChooser& fc) {
+            if (safe == nullptr)
+                return;
+            const auto file = fc.getResult();
+            safe->chooser_.reset();
+            if (auto* r = safe->processor_.reamp(); r != nullptr && file.existsAsFile())
+                r->load (file);
+            done (safe->recorderState());
+        });
+}
+
+juce::var SedefEditor::recorderState()
+{
+    auto* recorder = processor_.recorder();
+    auto* reamp = processor_.reamp();
+    if (recorder == nullptr || reamp == nullptr)
+        return {};
+    lastRecorderRevision_ = recorder->revision.load();
+    lastReampRevision_ = reamp->revision.load();
+    return object ({ { "recorder", recorder->stateAsVar() }, { "reamp", reamp->stateAsVar() } });
+}
+
+void SedefEditor::emitRecorder()
+{
+    browser_->emitEventIfBrowserIsVisible ("sedef:recorder", recorderState());
 }
 
 juce::var SedefEditor::boardState()
@@ -637,6 +752,7 @@ juce::var SedefEditor::hello()
                      { "ir", processor_.irs().stateAsVar() },
                      { "capture", processor_.captures().stateAsVar() },
                      { "board", boardState() },
+                     { "recorder", recorderState() },
                      { "live", processor_.live().stateAsVar() },
                      { "liveActivity", liveActivity() } });
 }
@@ -679,6 +795,10 @@ void SedefEditor::timerCallback()
     // Preset loads, A/B, snapshot restores and host restores change the board too.
     if (processor_.boardRevision.load() != lastBoardRevision_)
         emitBoard();
+    if (auto* recorder = processor_.recorder())
+        if (recorder->revision.load() != lastRecorderRevision_ ||
+            processor_.reamp()->revision.load() != lastReampRevision_)
+            emitRecorder();
     if (processor_.live().revision.load() != lastLiveRevision_)
         emitLive();
     if (tick_ % 4 == 0) // 15 Hz is plenty for a light
@@ -749,6 +869,13 @@ void SedefEditor::emitTelemetry()
                            { "canRedo", (flags & Engine::kLooperCanRedo) != 0 },
                            { "undoIsClear", (flags & Engine::kLooperUndoIsClear) != 0 } });
     }
+    // The recorder and re-amp's moving parts (docs/recorder.md), in the standalone app.
+    juce::var recording, reamping;
+    if (auto* recorder = processor_.recorder())
+    {
+        recording = recorder->live();
+        reamping = processor_.reamp()->live();
+    }
 
     browser_->emitEventIfBrowserIsVisible (
         "sedef:telemetry", object ({ { "inputDb", in },
@@ -763,6 +890,8 @@ void SedefEditor::emitTelemetry()
                                      { "metronomeStep", t.metronomeStep.load() },
                                      { "driftTimeMs", t.driftTimeMs.load() },
                                      { "looper", looper },
+                                     { "recorder", recording },
+                                     { "reamp", reamping },
                                      { "cpu", processor_.cpuLoad() } }));
 }
 

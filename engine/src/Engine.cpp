@@ -546,6 +546,17 @@ void Engine::process (const float* const* inputs, float* const* outputs, int num
     metro.signature = p.choice (P::metronomeSignature);
     metro.sound = p.choice (P::metronomeSound);
     metro.bpm = p[P::tempo];
+    // Drums (docs/drums.md): the metronome's second sound, on its grid.
+    metro.mode = p.choice (P::metronomeMode);
+    metro.drums.groove = p.choice (P::drumsGroove);
+    metro.drums.intensity = p.choice (P::drumsIntensity) + 1;
+    {
+        constexpr std::array<int, 4> kFillEvery { 0, 2, 4, 8 };
+        metro.drums.fillEvery =
+            kFillEvery[static_cast<size_t> (std::clamp (p.choice (P::drumsFills), 0, 3))];
+    }
+    metro.drumsLevelDb = p[P::drumsLevel];
+    metro.drumsTone = p[P::drumsTone];
     const auto pattern = metronomePattern_.load (std::memory_order_relaxed);
     for (size_t i = 0; i < metro.steps.size(); ++i)
         metro.steps[i] = static_cast<std::uint8_t> ((pattern >> (2 * i)) & 3u);

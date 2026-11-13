@@ -4,10 +4,13 @@
 //   sedef-params > ui/src/generated/parameters.json
 // with --pedals, the pedal registry (board/PedalList.inc) for the UI's pedalboard:
 //   sedef-params --pedals > ui/src/generated/pedals.json
-// and with --midi, Sedef MIDI's parameters:
+// with --midi, Sedef MIDI's parameters:
 //   sedef-params --midi > ui/src/generated/midi-parameters.json
+// and with --grooves, the drum grooves (docs/drums.md) for the metronome panel's groove picker:
+//   sedef-params --grooves > ui/src/generated/grooves.json
 
 #include "sedef/board/Board.h"
+#include "sedef/dsp/drums/Grooves.h"
 #include "sedef/midi/MidiParameters.h"
 #include "sedef/params/Parameters.h"
 
@@ -84,6 +87,20 @@ std::string pedals()
     return json + "]\n}\n";
 }
 
+std::string grooves()
+{
+    std::string json = "{\n  \"version\": 1,\n  \"grooves\": [\n";
+    const auto list = sedef::dsp::drums::grooves();
+    for (std::size_t i = 0; i < list.size(); ++i)
+    {
+        const auto& g = list[i];
+        json += "    {\"name\": " + quote (g.name) + ", \"feel\": " + quote (g.feel) +
+                ", \"signature\": " + std::to_string (g.signature) + "}";
+        json += i + 1 < list.size() ? ",\n" : "\n";
+    }
+    return json + "  ]\n}\n";
+}
+
 std::string schema (std::span<const sedef::ParamSpec> specs)
 {
     std::string json = "{\n  \"version\": 1,\n  \"parameters\": [\n";
@@ -107,9 +124,10 @@ std::string schema (std::span<const sedef::ParamSpec> specs)
 int main (int argc, char** argv)
 {
     const std::string_view mode = argc > 1 ? argv[1] : "";
-    const auto json = mode == "--pedals" ? pedals()
-                      : mode == "--midi" ? schema (sedef::midi::kParamSpecs)
-                                         : schema (sedef::kParamSpecs);
+    const auto json = mode == "--pedals"    ? pedals()
+                      : mode == "--midi"    ? schema (sedef::midi::kParamSpecs)
+                      : mode == "--grooves" ? grooves()
+                                            : schema (sedef::kParamSpecs);
     std::fputs (json.c_str(), stdout);
     return 0;
 }

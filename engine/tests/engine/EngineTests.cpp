@@ -8,6 +8,9 @@
 #include "sedef/dsp/PitchShifter.h"
 #include "sedef/dsp/cab/CabSim.h"
 #include "sedef/dsp/capture/CaptureStage.h"
+#include "sedef/dsp/drums/Grooves.h"
+#include "sedef/record/Deck.h"
+#include "sedef/record/ReampFeeder.h"
 
 #include <algorithm>
 #include <atomic>
@@ -404,6 +407,97 @@ TEST_CASE ("A re-enabled metronome starts clean, with no stale click", "[engine]
     const std::vector<float> first (fresh.out[0].begin(), fresh.out[0].begin() + 24000);
     CHECK (test::peak (first) > 0.05f);
     CHECK (again == first);
+}
+
+namespace
+{
+/// The metronome in Drums mode (docs/drums.md), everything else as the defaults leave it.
+ParamSnapshot drumsOnly (int groove = 0)
+{
+    auto p = metronomeOnly();
+    p[ParamId::tempo] = 120.0f;
+    p[ParamId::metronomeMode] = 1.0f;
+    p[ParamId::drumsGroove] = static_cast<float> (groove);
+    p[ParamId::metronomeSignature] = 2.0f;
+    return p;
+}
+} // namespace
+
+TEST_CASE ("Drums play only in the standalone app; the plug-in is unchanged", "[engine][drums]")
+{
+    const auto render = [] (bool allowed, bool drums) {
+        Rig rig (48000.0, 128, 1, 2);
+        test::fillSine (rig.in[0], 110.0, 48000.0, 0.2f);
+        rig.engine.setMetronomeAllowed (allowed);
+        auto p = drums ? drumsOnly() : ParamSnapshot::defaults();
+        if (!drums)
+            p[ParamId::gateEnabled] = 0.0f;
+        rig.run (p, 48000);
+        return std::pair { rig.out[0], rig.out[1] };
+    };
+    const auto plain = render (false, false);
+    // Not allowed (a plug-in): Drums mode and a running metronome change nothing, bit for bit.
+    CHECK (render (false, true) == plain);
+    // Allowed: the drums are there.
+    const auto withDrums = render (true, true);
+    float diff = 0.0f;
+    for (size_t i = 0; i < withDrums.first.size(); ++i)
+        diff = std::max (diff, std::abs (withDrums.first[i] - plain.first[i]));
+    CHECK (diff > 0.1f);
+}
+
+TEST_CASE ("Drums are added after the amp and the cab, never into them", "[engine][drums]")
+{
+    // Silent input: whatever the amp, the cab and the EQ are set to, the drums come out the same.
+    const auto render = [] (int amp, float bass) {
+        Rig rig (48000.0, 128, 1, 2);
+        rig.engine.setMetronomeAllowed (true);
+        auto p = drumsOnly();
+        p[ParamId::ampModel] = static_cast<float> (amp);
+        p[amp == 0 ? ParamId::lagoonBass : ParamId::abyssBass] = bass;
+        rig.run (p, 60000); // the rig's buffers hold 65536 frames
+        return std::pair { rig.out[0], rig.out[1] };
+    };
+    const auto a = render (0, 0.2f);
+    const auto b = render (2, 0.9f);
+    CHECK (test::peak (a.first) > 0.1f);
+    float worst = 0.0f;
+    for (size_t i = 0; i < a.first.size(); ++i)
+        worst = std::max (
+            { worst, std::abs (a.first[i] - b.first[i]), std::abs (a.second[i] - b.second[i]) });
+    CHECK (worst < 1.0e-6f);
+}
+
+TEST_CASE ("Engine::process never allocates with the drums running", "[engine][drums]")
+{
+    Rig rig (48000.0, 256, 2, 2);
+    test::fillNoise (rig.in[0], 0.3f, 1);
+    test::fillNoise (rig.in[1], 0.3f, 2);
+    rig.engine.setMetronomeAllowed (true);
+    auto p = drumsOnly();
+    rig.run (p, 4096); // warm-up
+
+    gAllocations = 0;
+    int offset = 4096;
+    {
+        TrackAllocations track;
+        for (int g = 0; g < 13; ++g)
+        {
+            p[ParamId::drumsGroove] = static_cast<float> (g);
+            p[ParamId::metronomeSignature] = static_cast<float> (
+                sedef::dsp::drums::grooves()[static_cast<size_t> (g)].signature);
+            p[ParamId::drumsIntensity] = static_cast<float> (g % 5);
+            p[ParamId::drumsFills] = static_cast<float> (g % 4);
+            p[ParamId::drumsTone] = 0.1f * static_cast<float> (g % 10);
+            p[ParamId::drumsLevel] = -6.0f + static_cast<float> (g);
+            p[ParamId::tempo] = 60.0f + 13.0f * static_cast<float> (g);
+            p[ParamId::metronomeMode] = g == 5 ? 0.0f : 1.0f;
+            p[ParamId::metronomeEnabled] = g == 9 ? 0.0f : 1.0f;
+            rig.run (p, 4096, offset);
+            offset += 4096;
+        }
+    }
+    CHECK (gAllocations.load() == 0);
 }
 
 TEST_CASE ("Starting in Dual mode plays from the first block without a gap", "[engine]")
@@ -1153,6 +1247,37 @@ TEST_CASE ("Engine: the click is never recorded, and a take in bars starts on it
     CHECK (added < 1.0e-6f);                   // and was not recorded
 }
 
+TEST_CASE ("Engine: the drums are never recorded, and a take in bars starts on their downbeat",
+           "[engine][looper][drums]")
+{
+    const double fs = 48000.0;
+    const int frames = 300000;
+    auto p = drumsOnly (1);     // half-time
+    p[ParamId::tempo] = 240.0f; // 4/4: a bar is 48000 samples
+    p[ParamId::looperCountIn] = 1.0f;
+    LoopRig plain (fs, 64, frames);
+    plain.engine.setMetronomeAllowed (true);
+    plain.run (p);
+
+    LoopRig looped (fs, 64, frames);
+    looped.engine.setMetronomeAllowed (true);
+    REQUIRE (looped.engine.prepareLooper());
+    // Armed at 6400: the count-in is the groove's bar from 48000, the take starts on the
+    // downbeat at 96000, and the close at 114560 rounds up to the downbeat at 144000. Then it
+    // plays: silence plus nothing of the drums.
+    looped.run (p, { { 6400, LooperCommand::main }, { 114560, LooperCommand::main } });
+    const auto& t = looped.engine.telemetry();
+    CHECK (t.looperState.load() == static_cast<int> (dsp::Looper::State::playing));
+    CHECK (t.looperLength.load() == 48000);
+    CHECK (t.looperBars.load() == 1);
+    CHECK ((t.looperFlags.load() & Engine::kLooperSynced) != 0);
+    float added = 0.0f;
+    for (std::size_t i = 0; i < static_cast<std::size_t> (frames); ++i)
+        added = std::max (added, std::abs (looped.out[0][i] - plain.out[0][i]));
+    CHECK (test::peak (plain.out[0]) > 0.05f); // the drums sound
+    CHECK (added < 1.0e-6f);                   // and were not recorded
+}
+
 TEST_CASE ("Engine: preparing again at the same rate keeps the loop, a new rate clears it",
            "[engine][looper]")
 {
@@ -1232,4 +1357,76 @@ TEST_CASE ("Engine: an idle looper leaves the rig's output bit for bit", "[engin
         return rig.out.data;
     };
     CHECK (render (true) == render (false));
+}
+
+// -------------------------------------------------------------------------------------------------
+// The recorder and re-amp around the engine (docs/recorder.md).
+
+TEST_CASE ("Deck: recording, dropping, re-amping and looping never allocate", "[engine][record]")
+{
+    const double fs = 48000.0;
+    const int block = 256;
+    const int frames = 48000 * 2;
+    test::Buffer in (1, frames), out (2, frames);
+    test::fillNoise (in[0], 0.3f, 3);
+    Engine engine;
+    engine.prepare (fs, block, 1, 2);
+    record::Deck deck;
+    deck.prepare (fs, 1, block);
+    Transport transport;
+    auto p = ParamSnapshot::defaults();
+
+    const auto run = [&] (int at, bool track) {
+        std::array<float*, 2> ip { in.ptrs[0] + at, nullptr };
+        std::array<float*, 2> op { out.ptrs[0] + at, out.ptrs[1] + at };
+        if (track)
+        {
+            TrackAllocations tracking;
+            deck.process (engine, ip.data(), op.data(), 1, 2, block, p, transport);
+        }
+        else
+        {
+            deck.process (engine, ip.data(), op.data(), 1, 2, block, p, transport);
+        }
+    };
+    p[ParamId::transpose] = 4.0f;
+    for (int at = 0; at < 16 * block; at += block)
+        run (at, false); // first-use paths
+    p[ParamId::transpose] = 0.0f;
+
+    // A 1000-frame file, looping: several seams per FIFO refill.
+    record::MemorySource file ({ std::vector<float> (1000, 0.1f) }, fs);
+    record::ReampFeeder feeder;
+    feeder.setSource (deck.reamp(), &file);
+    feeder.play (deck.reamp());
+    // A FIFO for 0.1 s and a writer that only comes after a third of the run: the drop path.
+    record::TakeRecorder::Config config;
+    config.sampleRate = fs;
+    config.diChannels = 1;
+    config.outChannels = 2;
+    config.stallSeconds = 0.1;
+    REQUIRE (deck.recorder().start (config));
+
+    gAllocations = 0;
+    int drained = 0;
+    for (int at = 16 * block; at < frames; at += block)
+    {
+        if (at >= frames / 2)
+            p[ParamId::transpose] = 4.0f; // a latency change mid-take
+        deck.reamp().setMix (at >= frames / 4);
+        if (at == 64 * block)
+            feeder.setLoop (deck.reamp(), false);
+        if (at == 300 * block)
+            deck.recorder().requestStop();
+        run (at, true);
+        REQUIRE (feeder.pump (deck.reamp()));
+        if (at > frames / 3)
+            drained += deck.recorder().drain ([] (const record::TakeChunk&) {});
+    }
+    CHECK (gAllocations.load() == 0);
+    CHECK (deck.recorder().droppedBlocks() > 0);
+    CHECK (drained > 0);
+    CHECK (deck.recorder().latencyChanged());
+    CHECK (deck.recorder().phase() == record::TakeRecorder::Phase::finished);
+    CHECK (deck.reamp().endings() == 1);
 }

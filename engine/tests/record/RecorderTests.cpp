@@ -225,9 +225,9 @@ TEST_CASE ("Recorder: a stalled writer drops whole stretches, counted, as silenc
     // so the free chunks run out at frame 5 * 2048 of each file and everything up to the resume
     // is dropped, never waited for.
     const double fs = 48000.0;
-    const int frames = 40000;
     const int block = 256;
-    const int resume = 20480; // a block boundary
+    const int frames = 160 * block; // whole blocks: the last one ends at the buffer's end
+    const int resume = 20480;       // a block boundary
     DeckRig rig (fs, 1, 2, frames, OversamplingMode::lowLatency, block);
     rig.in[0] = plucks (frames, fs, 5);
     const auto input = rig.in;

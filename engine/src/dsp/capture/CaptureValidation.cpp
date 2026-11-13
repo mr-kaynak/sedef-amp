@@ -454,9 +454,47 @@ void waveNet (const json& config, int expectIn, int expectOut, int depth, Model&
         unsupported ("This capture has " + std::to_string (inChannels) +
                      " inputs; Sedef plays captures with one input and one output.");
 
-    for (const auto& layer : *layers)
-        if (layer.is_object() && member (layer, "slimmable") != nullptr)
-            unsupported ("This capture is a slimmable WaveNet, which Sedef can't load yet.");
+    // A slimmable WaveNet can run narrower layer arrays to save CPU. Its config and weights are the
+    // full-width model, and the core builds exactly that model when a layer array has no
+    // "slimmable" field, so Sedef plays it at full width: the sound the capture was trained for.
+    for (std::size_t a = 0; a < layers->size(); ++a)
+    {
+        const json& layer = (*layers)[a];
+        if (!layer.is_object())
+            continue;
+        const json* slim = member (layer, "slimmable");
+        if (slim == nullptr)
+            continue;
+        const json* method = slim->is_object() ? member (*slim, "method") : nullptr;
+        if (method == nullptr || !method->is_string() ||
+            method->get<std::string>() != "slice_channels_uniform")
+            unsupported ("This capture is a slimmable WaveNet that slims in a way Sedef doesn't "
+                         "know.");
+        // The widest allowed width must be the layer array's own: that is the model the weights
+        // describe.
+        const json* kwargs = member (*slim, "kwargs");
+        const json* allowed = kwargs != nullptr && kwargs->is_object()
+                                  ? member (*kwargs, "allowed_channels")
+                                  : nullptr;
+        if (allowed != nullptr)
+        {
+            const std::string where = "layer array " + std::to_string (a + 1);
+            const json* channels = member (layer, "channels");
+            if (!allowed->is_array() || allowed->empty() || channels == nullptr ||
+                !channels->is_number_integer())
+                damaged (where + " has a broken \"slimmable\" setting");
+            long widest = 0;
+            for (const auto& c : *allowed)
+            {
+                if (!c.is_number_integer())
+                    damaged (where + " has a broken \"slimmable\" setting");
+                widest = std::max (widest, c.get<long>());
+            }
+            if (widest != channels->get<long>())
+                damaged (where + " is slimmable up to a width it doesn't have");
+        }
+        m.config["layers"][a].erase ("slimmable");
+    }
 
     Cost& cost = m.cost;
     int conditionDim = inChannels;
@@ -1021,6 +1059,60 @@ void readMetadata (const json* m, CaptureInfo& info, json& clean)
         info.kind = CaptureKind::AmpOnly;
 }
 
+/// A SlimmableContainer holds one capture trained at several sizes, smallest first, each a whole
+/// .nam model ({"max_value", "model"}); a host may pick a smaller one to save CPU. The core plays
+/// the last one (max_value >= 1, the full size) unless told otherwise, and so does Sedef: this
+/// returns that submodel, checked as the core checks the container, with the container's
+/// version and sample rate where the submodel leaves them out.
+json fullSizeSubmodel (const json& root)
+{
+    std::string version;
+    checkVersion (member (root, "version"), version);
+    const json* config = member (root, "config");
+    if (config == nullptr || !config->is_object())
+        damaged ("the container has no \"config\"");
+    const json* subs = member (*config, "submodels");
+    if (subs == nullptr || !subs->is_array() || subs->empty())
+        damaged ("the container holds no models");
+    if (subs->size() > static_cast<std::size_t> (Limits::kMaxSubmodels))
+        tooLarge ("the container holds " + std::to_string (subs->size()) +
+                  " models (Sedef's limit is " + std::to_string (Limits::kMaxSubmodels) + ")");
+
+    double previous = -std::numeric_limits<double>::infinity();
+    for (std::size_t i = 0; i < subs->size(); ++i)
+    {
+        const json& entry = (*subs)[i];
+        const std::string where = "the container's model " + std::to_string (i + 1);
+        if (!entry.is_object())
+            damaged (where + " is not a JSON object");
+        const json* maxValue = member (entry, "max_value");
+        if (maxValue == nullptr || !maxValue->is_number())
+            damaged (where + " has no \"max_value\"");
+        const double v = maxValue->get<double>();
+        if (!std::isfinite (v) || v <= previous)
+            damaged ("the container's models are not in order of size");
+        previous = v;
+        const json* model = member (entry, "model");
+        if (model == nullptr || !model->is_object())
+            damaged (where + " has no \"model\"");
+    }
+    if (previous < 1.0)
+        damaged ("the container has no full-size model");
+
+    json model = subs->back().at ("model");
+    if (const json* arch = member (model, "architecture");
+        arch != nullptr && arch->is_string() &&
+        (arch->get<std::string>() == "SlimmableContainer" ||
+         arch->get<std::string>() == "Sequential"))
+        unsupported ("This capture nests one container in another, which Sedef can't load.");
+    if (member (model, "version") == nullptr)
+        model["version"] = version;
+    if (const json* rate = member (root, "sample_rate");
+        rate != nullptr && member (model, "sample_rate") == nullptr)
+        model["sample_rate"] = *rate;
+    return model;
+}
+
 } // namespace
 
 bool validate (std::string_view text, Validated& out, std::string& error)
@@ -1037,15 +1129,29 @@ bool validate (std::string_view text, Validated& out, std::string& error)
             unsupported ("This isn't a NAM capture: the file is not valid JSON.");
         if (!root.is_object())
             unsupported ("This isn't a NAM capture: the file is not a JSON object.");
+        // A container has no weights of its own: its models carry them.
+        const json* arch = member (root, "architecture");
+        const bool container = arch != nullptr && arch->is_string() &&
+                               arch->get<std::string>() == "SlimmableContainer";
         for (const char* key : { "version", "architecture", "config", "weights" })
-            if (member (root, key) == nullptr)
+            if (member (root, key) == nullptr &&
+                !(container && std::string_view (key) == "weights"))
                 unsupported (std::string ("This isn't a NAM capture: it has no \"") + key + "\".");
 
+        const json full = container ? fullSizeSubmodel (root) : json();
+        const json& model = container ? full : root;
+        if (container && member (model, "weights") == nullptr)
+            damaged ("the container's full-size model has no \"weights\"");
+
         Model m;
-        validateModel (root, 1, 1, 0, "the model", m);
+        validateModel (model, 1, 1, 0, "the model", m);
 
         Validated v;
-        readMetadata (member (root, "metadata"), v.info, v.data.metadata);
+        // The gear, the author and the levels describe the capture, whichever size plays.
+        const json* metadata = member (root, "metadata");
+        if (metadata == nullptr && container)
+            metadata = member (model, "metadata");
+        readMetadata (metadata, v.info, v.data.metadata);
         v.info.architecture = m.architecture;
         v.info.version = m.version;
         v.info.sampleRate = m.sampleRate;

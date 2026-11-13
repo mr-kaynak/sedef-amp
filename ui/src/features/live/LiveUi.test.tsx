@@ -38,6 +38,13 @@ describe('Playing live', () => {
       await flush();
     });
   };
+  /** Lets a timer queued by the component (refocusing after a removal) run. */
+  const settle = async () => {
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await flush();
+    });
+  };
   const click = async (el: HTMLElement) => {
     await act(async () => {
       fireEvent.click(el);
@@ -260,15 +267,23 @@ describe('Playing live', () => {
       await midi(CC, 11, 127);
       expect(h.mock.value('conchPosition')).toBeCloseTo(0.2, 6);
 
-      // Remove one, then all, after a confirmation.
-      await click(within(rows[1]!).getByRole('button', { name: 'Remove Drift (CC 21 · ch 1)' }));
+      // Forget one: the focus moves to the next row's button, not to the page.
+      await click(within(rows[1]!).getByRole('button', { name: 'Forget Drift (CC 21 · ch 1)' }));
       expect(useLiveStore.getState().state?.bindings).toHaveLength(5);
-      await click(within(panel).getByRole('button', { name: 'Clear all' }));
-      const confirm = within(panel).getByRole('group', { name: 'Remove every binding?' });
+      await settle();
+      expect(
+        within(panel).getByRole('button', { name: 'Forget Conch Position (CC 11 · ch 1)' }),
+      ).toHaveFocus();
+
+      // Then all, after a confirmation that names the count.
+      await click(within(panel).getByRole('button', { name: 'Forget all' }));
+      const confirm = within(panel).getByRole('group', { name: 'Forget all 5 learned controls?' });
       expect(within(confirm).getByRole('button', { name: 'Keep' })).toHaveFocus();
-      await click(within(confirm).getByRole('button', { name: 'Remove all' }));
+      await click(within(confirm).getByRole('button', { name: 'Forget all' }));
       expect(useLiveStore.getState().state?.bindings).toEqual([]);
-      expect(panel).toHaveTextContent('Right-click a knob, switch or scene and choose Learn MIDI');
+      expect(panel).toHaveTextContent('Right-click a knob, switch or scene (or focus it and press');
+      await settle();
+      expect(within(panel).getByRole('button', { name: /^Previous scene/ })).toHaveFocus();
     });
 
     it('learns a footswitch for scene and preset steps', async () => {

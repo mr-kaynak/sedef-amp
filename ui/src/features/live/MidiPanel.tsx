@@ -24,6 +24,23 @@ const TABS: readonly { id: Tab; label: string }[] = [
   { id: 'scenes', label: 'Scenes' },
 ];
 
+/**
+ * After a row goes, focus what took its place: the same button on the next row, else on the one
+ * before, else `fallback` (a selector in the same tab panel). Without it focus would fall to the
+ * page and Tab would start over.
+ */
+function refocusAfter(from: HTMLElement, done: Promise<void>, index: number, fallback: string) {
+  const scope = from.closest<HTMLElement>('[role="tabpanel"]');
+  const selector = `[data-row-action="${from.dataset.rowAction ?? ''}"]`;
+  void done.then(() =>
+    setTimeout(() => {
+      const rows = scope?.querySelectorAll<HTMLElement>(selector) ?? [];
+      const next = rows[index] ?? rows[index - 1] ?? scope?.querySelector<HTMLElement>(fallback);
+      next?.focus();
+    }),
+  );
+}
+
 /** The last tab the player looked at, for this window. */
 let lastTab: Tab = 'controls';
 function rememberTab(tab: Tab): void {
@@ -43,10 +60,18 @@ export function MidiPanel({ onClose }: { onClose: () => void }) {
   };
   const onKeyDown = (e: KeyboardEvent) => {
     const index = TABS.findIndex((t) => t.id === tab);
-    const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
-    if (!step) return;
+    const next =
+      e.key === 'ArrowRight'
+        ? (index + 1) % TABS.length
+        : e.key === 'ArrowLeft'
+          ? (index - 1 + TABS.length) % TABS.length
+          : e.key === 'Home'
+            ? 0
+            : e.key === 'End'
+              ? TABS.length - 1
+              : null;
+    if (next === null) return;
     e.preventDefault();
-    const next = (index + step + TABS.length) % TABS.length;
     const t = TABS[next];
     if (!t) return;
     choose(t.id);
@@ -175,17 +200,22 @@ function Controls({ state, onClose }: { state: LiveState; onClose: () => void })
         </p>
         {bindings.length > 0 &&
           (confirming ? (
-            <span className={styles.confirm} role="group" aria-label="Remove every binding?">
-              <span>Remove all?</span>
+            <span
+              className={styles.confirm}
+              role="group"
+              aria-label={`Forget all ${bindings.length} learned controls?`}
+            >
+              <span aria-hidden="true">Forget all {bindings.length}?</span>
               <button
                 type="button"
                 className={`${buttons.solid} ${buttons.small}`}
-                onClick={() => {
+                data-row-action="clear"
+                onClick={(e) => {
+                  refocusAfter(e.currentTarget, liveActions.clearBindings(), -1, '[data-learn]');
                   setConfirming(false);
-                  void liveActions.clearBindings();
                 }}
               >
-                Remove all
+                Forget all
               </button>
               <button
                 type="button"
@@ -202,14 +232,14 @@ function Controls({ state, onClose }: { state: LiveState; onClose: () => void })
               className={`${buttons.ghost} ${buttons.small}`}
               onClick={() => setConfirming(true)}
             >
-              Clear all
+              Forget all
             </button>
           ))}
       </div>
       {bindings.length === 0 ? (
         <p className={styles.empty}>
-          Right-click a knob, switch or scene and choose <b>Learn MIDI</b>, then move a pedal or
-          press a footswitch.
+          Right-click a knob, switch or scene (or focus it and press Shift+F10), choose{' '}
+          <b>Learn MIDI</b>, then move a pedal or press a footswitch.
         </p>
       ) : (
         <ul className={styles.list} aria-label="Learned controls">
@@ -272,9 +302,12 @@ function BindingRow({
       <button
         type="button"
         className={`${buttons.ghost} ${buttons.small} ${buttons.icon}`}
-        aria-label={`Remove ${name} (${source})`}
-        title="Remove"
-        onClick={() => void liveActions.removeBinding(b.index)}
+        aria-label={`Forget ${name} (${source})`}
+        title="Forget"
+        data-row-action="forget"
+        onClick={(e) =>
+          refocusAfter(e.currentTarget, liveActions.removeBinding(b.index), b.index, '[data-learn]')
+        }
       >
         <Icon name="close" size={12} />
       </button>
@@ -450,7 +483,15 @@ function Programs({ state }: { state: LiveState }) {
                   className={`${buttons.ghost} ${buttons.small} ${buttons.icon}`}
                   aria-label={`Unassign program ${a.program} (${what})`}
                   title="Back to library order"
-                  onClick={() => void liveActions.setProgram(a.program, null)}
+                  data-row-action="unassign"
+                  onClick={(e) =>
+                    refocusAfter(
+                      e.currentTarget,
+                      liveActions.setProgram(a.program, null),
+                      assigned.indexOf(a),
+                      'input',
+                    )
+                  }
                 >
                   <Icon name="close" size={12} />
                 </button>
@@ -548,11 +589,19 @@ function Scenes({ state }: { state: LiveState }) {
                 <button
                   type="button"
                   className={`${buttons.ghost} ${buttons.small}`}
-                  aria-label={`${name}: the same in every scene`}
+                  aria-label={`${name}: same in every scene`}
                   title="Keep one value for every scene"
-                  onClick={() => void liveActions.remember(id, false)}
+                  data-row-action="same"
+                  onClick={(e) =>
+                    refocusAfter(
+                      e.currentTarget,
+                      liveActions.remember(id, false),
+                      values.indexOf(id),
+                      'select',
+                    )
+                  }
                 >
-                  Same in all
+                  Same in every scene
                 </button>
               </li>
             );

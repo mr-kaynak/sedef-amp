@@ -41,16 +41,31 @@
   border: none;
   border-radius: 4px;
   background: transparent;
-  color: var(--bone-4);
+  /* bone-3: 6.4:1 on the track; bone-4 (3.3:1) is too faint for a label that can be clicked. */
+  color: var(--bone-3);
   font-size: var(--t-11);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   transition: color var(--dur-1) var(--ease-out);
 }
 
-/* A scene the player has made reads brighter than one that would start as a copy. */
+/* A scene the player has made reads brighter than one that would start as a copy, and carries a
+   dot under its number: the difference is not left to the colour alone. */
 .scene[data-made] {
-  color: var(--bone-2);
+  color: var(--bone);
+}
+
+.scene[data-made]::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 3px;
+  width: 3px;
+  height: 3px;
+  margin-left: -1.5px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.7;
 }
 
 @media (hover: hover) {

@@ -80,7 +80,6 @@ function ActivityLed() {
 
 export function LiveBar() {
   const supported = useLiveStore((s) => s.state !== null);
-  const learning = useLiveStore((s) => s.state?.learn !== null && s.state?.learn !== undefined);
   const [open, setOpen] = useState(false);
   const anchor = useRef<HTMLButtonElement>(null);
   const close = useCallback(() => setOpen(false), []);
@@ -96,7 +95,6 @@ export function LiveBar() {
           className={`${buttons.ghost} ${buttons.small} ${styles.midi}`}
           aria-haspopup="dialog"
           aria-expanded={open}
-          data-learning-active={learning || undefined}
           onClick={() => setOpen((o) => !o)}
         >
           <ActivityLed />

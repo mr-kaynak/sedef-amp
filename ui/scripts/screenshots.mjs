@@ -28,6 +28,16 @@ const MIDI = {
   canvas: { width: 760, height: 600 },
 };
 
+// The recorder's panel (docs/recorder.md) in one of its states, nothing moving.
+const recorderShot = (state) => ({
+  query: `section=amp&freeze&recorder=${state}`,
+  async prepare(page) {
+    await page.getByRole('button', { name: /^Recorder/ }).click();
+    await page.getByRole('dialog', { name: 'Recorder' }).waitFor();
+    await page.waitForTimeout(400);
+  },
+});
+
 const SHOTS = {
   // The standalone app, the demo bass line held on a sounding note.
   midi: { app: MIDI, query: 'host=standalone&frame=1450' },
@@ -85,6 +95,16 @@ const SHOTS = {
       await page.waitForTimeout(700);
     },
   },
+  // A take recording and a take re-amping (the docs images), then the other states (layout
+  // checks, not docs images).
+  recorder: recorderShot('recording'),
+  reamp: recorderShot('reamp'),
+  'recorder-ready': recorderShot('ready'),
+  'recorder-saved': recorderShot('saved'),
+  'recorder-dropouts': recorderShot('dropouts'),
+  'recorder-error': recorderShot('error'),
+  'reamp-converting': recorderShot('converting'),
+  'reamp-empty': recorderShot('reamp-empty'),
   abyss: { query: 'section=amp&preset=mariana' },
   // Transpose two semitones down: the stepper at the end of the tab row, the latency it adds,
   // and the status bar's share.
@@ -161,6 +181,8 @@ const names = wanted.length
       'intonation',
       'input-level',
       'transpose',
+      'recorder',
+      'reamp',
       'midi',
     ];
 

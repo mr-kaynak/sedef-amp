@@ -35,6 +35,7 @@ import {
 } from './mock/factoryPresets';
 import { CaptureSim } from './mock/captureSim';
 import { PitchSimulator } from './mock/pitchSim';
+import { RecorderSim, type RecorderDemo } from './mock/recorderSim';
 import { createRandom } from './mock/random';
 import { TelemetrySimulator, type InterfaceLevel } from './mock/telemetrySim';
 import { UpdateSimulator, type UpdateScenario } from './mock/updateSim';
@@ -70,6 +71,8 @@ export interface MockOptions {
   board?: string[];
   /** What the simulated audio interface delivers (docs/ui/input-level.md). Defaults to normal. */
   input?: InterfaceLevel;
+  /** The recorder and re-amp shown in a given state (demos and screenshots). */
+  recorder?: RecorderDemo;
   /**
    * Delays each native call's answer and each preset broadcast by a random 0..maxMs (seeded).
    * Calls still run in the order they were made, as in the plugin, but their answers can arrive
@@ -169,6 +172,10 @@ export class MockBackend implements Backend {
   private readonly telemetrySim: TelemetrySimulator;
   /** The update checker; tests advance its checks and downloads with step(). */
   readonly updates: UpdateSimulator;
+  /** The recorder and re-amp (docs/recorder.md); time moves with tickTelemetry. */
+  readonly recorder = new RecorderSim((state) => {
+    if (this.recorderAvailable()) this.emit('sedef:recorder', state);
+  });
 
   constructor(private readonly options: MockOptions = {}) {
     this.jitterRandom = options.jitter ? createRandom(options.jitter.seed) : null;
@@ -206,6 +213,7 @@ export class MockBackend implements Backend {
       storageKey: options.persistKey ? 'sedef-mock-updates' : null,
       emit: (state) => this.emit('sedef:update', state),
     });
+    if (options.recorder && this.recorderAvailable()) this.recorder.demo(options.recorder);
     if (options.autoStart) this.start();
   }
 
@@ -249,7 +257,23 @@ export class MockBackend implements Backend {
   }
 
   tickTelemetry(dt = 1 / TELEMETRY_HZ): void {
-    this.emitter.emit('sedef:telemetry', this.telemetrySim.step(dt));
+    this.recorder.step(dt);
+    const t = this.telemetrySim.step(dt);
+    this.emitter.emit('sedef:telemetry', {
+      ...t,
+      ...this.recorderTelemetry(t.inputDb[0] ?? -100, t.outputDb[0] ?? -100),
+    });
+  }
+
+  /** The recorder exists in the standalone app only. */
+  private recorderAvailable(): boolean {
+    return this.options.isStandalone ?? true;
+  }
+
+  private recorderTelemetry(inDb: number, outDb: number) {
+    return this.recorderAvailable()
+      ? this.recorder.telemetry(inDb - this.value('inputGain'), outDb)
+      : { recorder: null, reamp: null };
   }
 
   tickPitch(dt = 1 / PITCH_HZ): void {
@@ -275,6 +299,7 @@ export class MockBackend implements Backend {
       gateOpen: true,
       gateReductionDb: 0,
       tideReductionDb: this.value('tideEnabled') >= 0.5 ? -3.5 : 0,
+      ...this.recorderTelemetry(-9, -13),
       cpu: 0.064,
     });
   }
@@ -316,6 +341,7 @@ export class MockBackend implements Backend {
         ir: this.snapshotIr(),
         capture: this.captures.snapshot(),
         board: this.boardState(),
+        recorder: this.recorderAvailable() ? this.recorder.state() : null,
       };
     },
 
@@ -530,6 +556,20 @@ export class MockBackend implements Backend {
         this.pitchTimer = null;
       }
     },
+
+    sedef_recorder_toggle: () => (this.recorderAvailable() ? this.recorder.toggle() : null),
+    sedef_recorder_reveal: () => undefined,
+    sedef_reamp_files: () => (this.recorderAvailable() ? this.recorder.list() : []),
+    sedef_reamp_load: (path) => (this.recorderAvailable() ? this.recorder.loadPath(path) : null),
+    sedef_reamp_open: () => (this.recorderAvailable() ? this.recorder.open() : null),
+    sedef_reamp_play: (play) => (this.recorderAvailable() ? this.recorder.play(play) : null),
+    sedef_reamp_setLoop: (loop) => (this.recorderAvailable() ? this.recorder.setLoop(loop) : null),
+    sedef_reamp_setMix: (mix) => (this.recorderAvailable() ? this.recorder.setMix(mix) : null),
+    sedef_reamp_importBegin: (name, size) =>
+      this.recorderAvailable() ? this.recorder.importBegin(name, size) : 0,
+    sedef_reamp_importChunk: (token, data) => this.recorder.importChunk(token, data),
+    sedef_reamp_importEnd: (token) => this.recorder.importEnd(token),
+    sedef_reamp_importCancel: (token) => this.recorder.importCancel(token),
 
     sedef_metronome_setPattern: () => undefined,
     sedef_metronome_tap: () => {

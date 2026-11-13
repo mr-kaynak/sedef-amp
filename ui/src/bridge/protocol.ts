@@ -312,6 +312,8 @@ export interface HelloResponse {
   capture?: CaptureState;
   /** Absent from plug-ins built before the pedalboard (their pedals play in a fixed order). */
   board?: BoardState;
+  /** The recorder and re-amp: the standalone app only (null in a plug-in; absent before 0.10.0). */
+  recorder?: RecorderBridgeState | null;
 }
 
 /** UI-owned state persisted inside the plugin state. The plugin treats it as opaque JSON. */
@@ -397,6 +399,33 @@ export interface NativeFunctions {
   sedef_metronome_setPattern(steps: number[]): void;
   sedef_metronome_tap(): number; // returns new BPM
 
+  /**
+   * The recorder (docs/recorder.md), standalone app only: starts a take in the engine's format, or
+   * stops the one running. Null in a plug-in.
+   */
+  sedef_recorder_toggle(): RecorderBridgeState | null;
+  /** Shows a take's file in the file manager (only inside the Recordings folder), else the folder. */
+  sedef_recorder_reveal(path?: string): void;
+  /** Recorded DIs and imported files, newest first. */
+  sedef_reamp_files(): ReampListItem[];
+  /** One of sedef_reamp_files, by path (the plug-in reads no other path the page names). */
+  sedef_reamp_load(path: string): RecorderBridgeState | null;
+  /** A native file chooser; any WAV, AIFF or FLAC file. */
+  sedef_reamp_open(): RecorderBridgeState | null;
+  /** Plays the loaded file from its start (true) or fades it out and stops (false). */
+  sedef_reamp_play(play: boolean): RecorderBridgeState | null;
+  sedef_reamp_setLoop(loop: boolean): RecorderBridgeState | null;
+  /** Mix: the file is added to the live input; otherwise it replaces it. */
+  sedef_reamp_setMix(mix: boolean): RecorderBridgeState | null;
+  /**
+   * A dropped file arrives in pieces (the page has no path): begin with its name and size (a
+   * token, or 0 when refused), base64 pieces in order, then end (it loads) or cancel.
+   */
+  sedef_reamp_importBegin(fileName: string, size: number): number;
+  sedef_reamp_importChunk(token: number, base64: string): boolean;
+  sedef_reamp_importEnd(token: number): boolean;
+  sedef_reamp_importCancel(token: number): void;
+
   sedef_ui_setState(state: UiState): void;
   /** Requests a new editor size in CSS pixels at scale 1 multiplied by scale. */
   sedef_ui_setScale(scale: number): void;
@@ -428,6 +457,87 @@ export interface NativeFunctions {
 }
 
 // ---------------------------------------------------------------------------------------------
+// The recorder and re-amp (docs/recorder.md)
+
+export type TakeEnd = 'stopped' | 'sizeLimit' | 'audioStopped' | 'writeError' | 'empty' | '';
+
+export interface RecorderTake {
+  /** The take's name: the local time it started, "2026-11-13 14-05-33". */
+  name: string;
+  diPath: string;
+  outputPath: string;
+  seconds: number;
+  /** Audio blocks that lost samples to a slow disk, and how long the silence written for them is. */
+  dropouts: number;
+  droppedSeconds: number;
+  /** Why it ended ('' while it records). */
+  ended: TakeEnd;
+}
+
+export interface RecorderState {
+  /** starting: the files are open, waiting for the first block; saving: stopped, completing. */
+  status: 'idle' | 'starting' | 'recording' | 'saving';
+  /** Where takes go. */
+  folder: string;
+  /** The take recording, or the last one. */
+  take: RecorderTake | null;
+  error: string | null;
+}
+
+export interface ReampFileInfo {
+  name: string;
+  path: string;
+  seconds: number;
+  sampleRate: number;
+  channels: number;
+  /** Its rate is not the device's: it plays converted. */
+  converted: boolean;
+}
+
+export interface ReampState {
+  status: 'empty' | 'loading' | 'converting' | 'ready' | 'error';
+  file: ReampFileInfo | null;
+  /** Conversion progress 0..1. */
+  progress: number;
+  loop: boolean;
+  mix: boolean;
+  playing: boolean;
+  error: string | null;
+}
+
+export interface RecorderBridgeState {
+  recorder: RecorderState;
+  reamp: ReampState;
+}
+
+export interface ReampListItem {
+  /** A take's name, or an imported file's name without its extension. */
+  name: string;
+  path: string;
+  seconds: number;
+  kind: 'take' | 'imported';
+}
+
+export interface RecorderTelemetry {
+  status: RecorderState['status'];
+  /** Elapsed, while a take runs. */
+  seconds: number;
+  /** Peaks since the previous frame of what goes into each file, dBFS. */
+  diDb: number;
+  outputDb: number;
+  dropouts: number;
+}
+
+export interface ReampTelemetry {
+  playing: boolean;
+  /** Where it plays in the file, and the file's length, in seconds. */
+  seconds: number;
+  length: number;
+  /** Blocks the reader could not fill in time. */
+  gaps: number;
+}
+
+// ---------------------------------------------------------------------------------------------
 // Events (C++ -> UI). Event ids are the keys of this interface.
 
 export interface TelemetryEvent {
@@ -443,6 +553,9 @@ export interface TelemetryEvent {
   metronomeStep: number;
   /** Effective Drift delay time in ms (after sync). */
   driftTimeMs: number;
+  /** The recorder and re-amp, in the standalone app (null in a plug-in; absent before 0.10.0). */
+  recorder?: RecorderTelemetry | null;
+  reamp?: ReampTelemetry | null;
   /** Audio thread load estimate 0..1. */
   cpu: number;
 }
@@ -506,6 +619,8 @@ export interface Events {
   'sedef:board': BoardState;
   /** Update checks and downloads (state changes and download progress, at most ~10 Hz). */
   'sedef:update': UpdateState;
+  /** The recorder or re-amp changed state (standalone app). */
+  'sedef:recorder': RecorderBridgeState;
 }
 
 export type EventName = keyof Events;

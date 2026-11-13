@@ -9,8 +9,13 @@ export interface Shortcut {
   label: string;
 }
 
-export function shortcuts(): { title: string; items: Shortcut[] }[] {
+export function shortcuts(
+  options: { recorder?: boolean } = {},
+): { title: string; items: Shortcut[] }[] {
   const mod = modKey().symbol;
+  const recorder = options.recorder
+    ? [{ title: 'Recorder', items: [{ keys: ['R'], label: 'Start or stop a take' }] }]
+    : [];
   return [
     {
       title: 'Presets',
@@ -41,5 +46,6 @@ export function shortcuts(): { title: string; items: Shortcut[] }[] {
         { keys: ['Esc'], label: 'Close the tuner, the workbench or a panel' },
       ],
     },
+    ...recorder,
   ];
 }

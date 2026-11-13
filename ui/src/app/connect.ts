@@ -10,6 +10,7 @@ import { invoke, setBackend } from '../state/backendRef';
 import { pitch, telemetry } from '../state/live';
 import { applyPresetState } from '../state/presetStore';
 import { applyBoardState } from '../state/boardStore';
+import { applyRecorderState } from '../features/recorder/store';
 import { connectUpdates } from '../features/updates/updateStore';
 import { startInputLevel } from '../features/header/inputLevel';
 import { useUiStore } from '../state/uiStore';
@@ -30,6 +31,7 @@ export async function createBackend(flags: DemoFlags): Promise<Backend> {
     ...(flags.update ? { update: flags.update } : {}),
     ...(flags.board ? { board: flags.board } : {}),
     ...(flags.input ? { input: flags.input } : {}),
+    ...(flags.recorder ? { recorder: flags.recorder } : {}),
   });
 }
 
@@ -45,6 +47,7 @@ export async function connect(backend: Backend): Promise<() => void> {
     backend.on('sedef:capture', (capture) => useAppStore.setState({ capture })),
     backend.on('sedef:board', (board) => applyBoardState(board)),
     backend.on('sedef:session', (e) => applySession(e)),
+    backend.on('sedef:recorder', (state) => applyRecorderState(state)),
   ];
 
   try {
@@ -53,6 +56,7 @@ export async function connect(backend: Backend): Promise<() => void> {
     applyPresetState(hello.presets);
     applyBoardState(hello.board);
     applyHello(hello, backend.kind);
+    applyRecorderState(hello.recorder ?? null);
     hydrateUiState(hello.uiState);
     // The engine keeps no copy of the beat pattern outside the UI state; restore it.
     if (hello.isStandalone)

@@ -16,7 +16,8 @@ namespace sedef::plugin
 {
 
 /// What a binding drives, as the UI and midi.json name it: "param:<id>", "scene:<1-8>",
-/// "scene:next", "scene:previous", "preset:next" or "preset:previous".
+/// "scene:next", "scene:previous", "preset:next", "preset:previous", or the looper's
+/// "looper:main", "looper:stop", "looper:undo" and "looper:clear" (docs/live.md §4.5).
 struct LiveTarget
 {
     live::Action action = live::Action::parameter;
@@ -27,6 +28,8 @@ struct LiveTarget
     juce::String toString() const;
     /// Switch-like: a footswitch's mode matters (an on/off parameter, a scene or a preset step).
     bool isSwitch() const noexcept;
+    /// One of the looper's actions (the standalone app's).
+    bool isLooper() const noexcept;
 
     friend bool operator== (const LiveTarget& a, const LiveTarget& b) noexcept
     {
@@ -41,12 +44,13 @@ struct LiveBinding
     LiveTarget target;
     live::SwitchMode mode = live::SwitchMode::toggle;
     float low = 0.0f, high = 1.0f; ///< normalised range, continuous targets
+    bool doubleTap = false;        ///< "looper:main": a double tap stops (docs/live.md §4.5)
 
     friend bool operator== (const LiveBinding& a, const LiveBinding& b) noexcept
     {
         return a.channel == b.channel && a.controller == b.controller && a.target == b.target &&
                a.mode == b.mode && juce::exactlyEqual (a.low, b.low) &&
-               juce::exactlyEqual (a.high, b.high);
+               juce::exactlyEqual (a.high, b.high) && a.doubleTap == b.doubleTap;
     }
 };
 

@@ -136,6 +136,7 @@ LiveState::LiveState (SedefProcessor& processor) : processor_ (processor)
     settings_.load();
     settingsText_ = LiveSettings::file().loadFileAsString();
     control_.setMap (settings_.toMap());
+    reserveLooper();
     {
         const std::scoped_lock lock (bankLock_);
         ParamSnapshot values;
@@ -212,6 +213,7 @@ void LiveState::tick()
             {
                 settings_ = fresh;
                 control_.setMap (settings_.toMap());
+                reserveLooper();
                 ++revision;
             }
         }
@@ -343,7 +345,20 @@ void LiveState::settingsChanged()
     settings_.save();
     settingsText_ = LiveSettings::file().loadFileAsString();
     control_.setMap (settings_.toMap());
+    reserveLooper();
     ++revision;
+}
+
+void LiveState::reserveLooper()
+{
+    if (processor_.engine().looperReady())
+        return;
+    for (const auto& b : settings_.bindings)
+        if (b.target.isLooper())
+        {
+            processor_.openLooper(); // the standalone app's only; a plug-in does nothing
+            return;
+        }
 }
 
 // Scenes ------------------------------------------------------------------------------------------
@@ -566,7 +581,7 @@ int LiveState::restoreSession (const juce::String& text,
 bool LiveState::learn (const juce::String& target)
 {
     const auto t = LiveTarget::parse (target);
-    if (!t)
+    if (!t || (t->isLooper() && !processor_.isStandalone())) // the looper is the app's (§4.5)
         return false;
     live::LearnMessage stale;
     while (control_.popLearn (stale))
@@ -619,6 +634,9 @@ void LiveState::updateBinding (int index, const juce::var& changes)
         b.low = unit (changes["low"], b.low);
     if (changes.hasProperty ("high"))
         b.high = unit (changes["high"], b.high);
+    if (changes.hasProperty ("doubleTap"))
+        b.doubleTap =
+            b.target.action == live::Action::looperMain && static_cast<bool> (changes["doubleTap"]);
     settingsChanged();
 }
 
@@ -716,6 +734,8 @@ juce::var LiveState::stateAsVar()
         o->setProperty ("mode", b.mode == live::SwitchMode::latch ? "latch" : "toggle");
         o->setProperty ("low", static_cast<double> (b.low));
         o->setProperty ("high", static_cast<double> (b.high));
+        if (b.target.action == live::Action::looperMain)
+            o->setProperty ("doubleTap", b.doubleTap);
         bindings.add (juce::var (o));
     }
 

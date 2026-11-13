@@ -34,6 +34,7 @@ import {
   type MockPreset,
 } from './mock/factoryPresets';
 import { CaptureSim } from './mock/captureSim';
+import { LiveSim } from './mock/liveSim';
 import { PitchSimulator } from './mock/pitchSim';
 import { createRandom } from './mock/random';
 import { TelemetrySimulator, type InterfaceLevel } from './mock/telemetrySim';
@@ -70,6 +71,8 @@ export interface MockOptions {
   board?: string[];
   /** What the simulated audio interface delivers (docs/ui/input-level.md). Defaults to normal. */
   input?: InterfaceLevel;
+  /** Start with a few MIDI bindings and program assignments (screenshots, the browser preview). */
+  liveDemo?: boolean;
   /**
    * Delays each native call's answer and each preset broadcast by a random 0..maxMs (seeded).
    * Calls still run in the order they were made, as in the plugin, but their answers can arrive
@@ -104,6 +107,7 @@ interface Snapshot {
   loaded: ParamValues;
   board: string[];
   loadedBoard: string[];
+  live: ReturnType<LiveSim['capture']>;
   currentId: string | null;
   currentName: string;
   dirty: boolean;
@@ -169,8 +173,30 @@ export class MockBackend implements Backend {
   private readonly telemetrySim: TelemetrySimulator;
   /** The update checker; tests advance its checks and downloads with step(). */
   readonly updates: UpdateSimulator;
+  /** Scenes, MIDI bindings, program changes and learn (docs/live.md). */
+  readonly live: LiveSim;
 
   constructor(private readonly options: MockOptions = {}) {
+    this.live = new LiveSim(
+      {
+        specs: this.specs,
+        value: (id) => this.value(id),
+        write: (values) => this.writeLive(values),
+        loadPreset: (id) => {
+          const found = this.presets.some((p) => p.info.id === id);
+          this.loadPreset(id, true);
+          this.publishPresets();
+          return found;
+        },
+        stepPreset: (delta) => void this.handlers.sedef_presets_step(delta),
+        presetIdAt: (position) => this.snapshotPresets().items[position]?.id ?? null,
+        emit: (state) => this.emit('sedef:live', state),
+        emitActivity: (activity) => this.emit('sedef:liveActivity', activity),
+        changed: () => this.refreshDirty(),
+      },
+      options.wrapperType ?? 'Browser',
+      options.isStandalone ?? true,
+    );
     this.jitterRandom = options.jitter ? createRandom(options.jitter.seed) : null;
     this.uiState = options.uiState ?? this.loadPersistedUiState();
     this.pitchSim = new PitchSimulator({
@@ -198,6 +224,9 @@ export class MockBackend implements Backend {
       this.board = sanitiseBoard(options.board);
       this.loadedBoard = [...this.board];
     }
+    this.live.adoptLive();
+    // After the preset: the demo stands for that preset saved with scenes.
+    if (options.liveDemo) this.live.seedDemo();
     this.refreshPresetItems();
     this.updates = new UpdateSimulator({
       scenario: options.update,
@@ -316,6 +345,8 @@ export class MockBackend implements Backend {
         ir: this.snapshotIr(),
         capture: this.captures.snapshot(),
         board: this.boardState(),
+        live: this.live.state(),
+        liveActivity: this.live.lastActivity(),
       };
     },
 
@@ -360,10 +391,12 @@ export class MockBackend implements Backend {
         favorite: existing?.info.favorite ?? false,
         description: clean ? clean.description : (existing?.info.description ?? ''),
       };
+      const scenes = this.live.toFile();
       const saved: MockPreset = {
         info: presetInfo(base, values, this.board),
         values,
         board: [...this.board],
+        ...(scenes ? { scenes } : {}),
       };
       this.presets = existing
         ? this.presets.map((p) => (p === existing ? saved : p))
@@ -371,6 +404,7 @@ export class MockBackend implements Backend {
       // The saved state is the new reference for "dirty".
       this.loaded = { ...this.values };
       this.loadedBoard = [...this.board];
+      this.live.saved();
       this.presetState = { ...this.presetState, currentId: saved.info.id, currentName: trimmed };
       this.markRecent(saved.info.id);
       return this.publishPresets();
@@ -453,6 +487,7 @@ export class MockBackend implements Backend {
       this.presetState = { ...this.presetState, currentId: null, currentName: 'Init' };
       this.emit('sedef:params', { values: { ...this.values } });
       this.setBoardFromPreset(this.initBoard());
+      this.live.select(undefined);
       return this.publishPresets();
     },
     sedef_presets_snapshot: (slot) => {
@@ -520,6 +555,20 @@ export class MockBackend implements Backend {
       }
       return this.boardState();
     },
+
+    sedef_live_get: () => this.live.state(),
+    sedef_live_selectScene: (scene) => this.live.selectScene(scene),
+    sedef_live_copyScene: (scene) => this.live.copyScene(scene),
+    sedef_live_remember: (id, remember) => this.live.remember(id, remember),
+    sedef_live_learn: (target) => this.live.startLearn(target),
+    sedef_live_cancelLearn: () => this.live.cancelLearn(),
+    sedef_live_forget: (target) => this.live.forget(target),
+    sedef_live_updateBinding: (index, changes) => this.live.updateBinding(index, changes),
+    sedef_live_removeBinding: (index) => this.live.removeBinding(index),
+    sedef_live_clearBindings: () => this.live.clearBindings(),
+    sedef_live_setProgram: (program, target) => this.live.setProgram(program, target),
+    sedef_live_setProgramChannel: (channel) => this.live.setProgramChannel(channel),
+    sedef_live_setInput: (id, enabled) => this.live.setInput(id, enabled),
 
     sedef_tuner_setActive: (active) => {
       this.tunerActive = active;
@@ -597,16 +646,48 @@ export class MockBackend implements Backend {
     }
   }
 
-  /** Mirrors PresetManager::isDirty: any preset parameter or the board away from the loaded ones. */
+  /**
+   * Mirrors PresetManager::isDirty: any preset parameter, the board or the scenes away from the
+   * loaded ones. Parameters held by scenes are compared scene by scene (docs/live.md §6.4).
+   */
   private isDirty(): boolean {
     return (
       !sameBoard(this.board, this.loadedBoard) ||
+      this.live.differs() ||
       this.schema.some(
         (spec) =>
           !isGlobalParam(spec.id) &&
+          !this.live.owns(spec.id) &&
           !sameValue(this.value(spec.id), this.loaded[spec.id] ?? spec.default, spec.min, spec.max),
       )
     );
+  }
+
+  private refreshDirty(): void {
+    const dirty = this.isDirty();
+    if (dirty !== this.presetState.dirty) {
+      this.presetState = { ...this.presetState, dirty };
+      this.publishPresets();
+    }
+  }
+
+  /** The live layer writes parameters (a controller, a scene) and the editor hears of them. */
+  private writeLive(values: ParamValues): void {
+    const changed: ParamValues = {};
+    for (const [id, value] of Object.entries(values)) {
+      const spec = this.specs[id];
+      if (!spec) continue;
+      const v = snapValue(spec, value);
+      if (this.values[id] !== v) changed[id] = v;
+      this.values[id] = v;
+    }
+    if (Object.keys(changed).length) this.emit('sedef:params', { values: changed });
+    this.refreshDirty();
+  }
+
+  /** A control or program change from the simulated controller (tests, demos). */
+  midi(status: number, data1: number, data2 = 0, time?: number): void {
+    this.live.midi(status, data1, data2, time);
   }
 
   /** The board state the plugin hands out (each one with a higher revision). */
@@ -652,6 +733,7 @@ export class MockBackend implements Backend {
       this.board = [...board];
       this.loadedBoard = [...board];
     }
+    this.live.select(preset.scenes);
   }
 
   private markRecent(id: string): void {
@@ -667,6 +749,7 @@ export class MockBackend implements Backend {
       loaded: { ...this.loaded },
       board: [...this.board],
       loadedBoard: [...this.loadedBoard],
+      live: this.live.capture(),
       currentId: this.presetState.currentId,
       currentName: this.presetState.currentName,
       dirty: this.isDirty(),
@@ -682,6 +765,7 @@ export class MockBackend implements Backend {
     }
     this.loaded = { ...snapshot.loaded };
     this.setBoardFromPreset(snapshot.board, snapshot.loadedBoard);
+    this.live.restore(snapshot.live);
     // A preset deleted since the snapshot leaves its sound behind, no longer a preset.
     const exists = this.presets.some((p) => p.info.id === snapshot.currentId);
     this.presetState = {

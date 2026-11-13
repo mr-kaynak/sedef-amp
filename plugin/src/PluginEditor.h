@@ -47,6 +47,8 @@ private:
     /// Scenes, bindings and learn (docs/live.md), and the MIDI activity light.
     void emitLive();
     void emitLiveActivity();
+    /// The last control or program change and how many have arrived.
+    juce::var liveActivity() const;
 
     // UI smoke test (SEDEF_UI_SMOKE_TEST=<result file>): see smokeTestTick().
     void smokeTestTick();

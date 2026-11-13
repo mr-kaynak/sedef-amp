@@ -527,19 +527,23 @@ void SedefEditor::emitLive()
     browser_->emitEventIfBrowserIsVisible ("sedef:live", processor_.live().stateAsVar());
 }
 
-void SedefEditor::emitLiveActivity()
+juce::var SedefEditor::liveActivity() const
 {
     auto& control = processor_.live().control();
-    const auto count = control.messageCount();
+    const auto last = control.lastMessage();
+    return object ({ { "count", static_cast<int> (control.messageCount()) },
+                     { "status", static_cast<int> (last >> 16 & 0xff) },
+                     { "data1", static_cast<int> (last >> 8 & 0xff) },
+                     { "data2", static_cast<int> (last & 0xff) } });
+}
+
+void SedefEditor::emitLiveActivity()
+{
+    const auto count = processor_.live().control().messageCount();
     if (count == lastLiveCount_)
         return;
     lastLiveCount_ = count;
-    const auto last = control.lastMessage();
-    browser_->emitEventIfBrowserIsVisible (
-        "sedef:liveActivity", object ({ { "count", static_cast<int> (count) },
-                                        { "status", static_cast<int> (last >> 16 & 0xff) },
-                                        { "data1", static_cast<int> (last >> 8 & 0xff) },
-                                        { "data2", static_cast<int> (last & 0xff) } }));
+    browser_->emitEventIfBrowserIsVisible ("sedef:liveActivity", liveActivity());
 }
 
 void SedefEditor::emitCapture()
@@ -618,7 +622,8 @@ juce::var SedefEditor::hello()
                      { "ir", processor_.irs().stateAsVar() },
                      { "capture", processor_.captures().stateAsVar() },
                      { "board", boardState() },
-                     { "live", processor_.live().stateAsVar() } });
+                     { "live", processor_.live().stateAsVar() },
+                     { "liveActivity", liveActivity() } });
 }
 
 void SedefEditor::timerCallback()

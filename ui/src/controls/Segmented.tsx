@@ -27,6 +27,7 @@ export function Segmented({ param, labels, ariaLabel, size = 'md', className }: 
     <div
       role="radiogroup"
       aria-label={ariaLabel ?? p.spec.name}
+      data-param={p.spec.id}
       className={[styles.segmented, styles[size], className].filter(Boolean).join(' ')}
       onKeyDown={onKeyDown}
     >

@@ -57,6 +57,14 @@
   background: var(--ink-1);
 }
 
+/* The section tabs, then the scene bar and the MIDI button at the right end. */
+.tabRow {
+  display: flex;
+  align-items: stretch;
+  background: var(--ink-1);
+  border-bottom: 1px solid var(--line);
+}
+
 .main {
   position: relative;
   flex: 1;

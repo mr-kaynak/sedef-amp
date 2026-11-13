@@ -94,6 +94,8 @@ public:
     juce::var stateAsVar();
 
     juce::String currentId() const { return currentId_; }
+    /// The preset at a position in the library order (the browser's list), or empty.
+    juce::String idAt (int position) const;
     juce::String currentName() const { return currentName_; }
 
     static bool isGlobal (ParamId id) noexcept;
@@ -115,6 +117,9 @@ public:
         std::function<bool (const juce::var& ref)> differs;
         std::function<juce::var (const juce::var& stored, const juce::var& parameters)> resolve;
         bool selectOnInit = false;
+        /// Parameters whose changes this attachment counts for "dirty" itself (the scenes compare
+        /// their parameters scene by scene, docs/live.md §6.4); the parameter check skips them.
+        std::function<bool (ParamId)> owns;
     };
     void addAttachment (Attachment a);
     static juce::File userFolder();

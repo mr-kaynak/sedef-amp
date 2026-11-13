@@ -10,6 +10,7 @@ import { invoke, setBackend } from '../state/backendRef';
 import { pitch, telemetry } from '../state/live';
 import { applyPresetState } from '../state/presetStore';
 import { applyBoardState } from '../state/boardStore';
+import { applyLiveActivity, applyLiveState } from '../state/liveStore';
 import { connectUpdates } from '../features/updates/updateStore';
 import { startInputLevel } from '../features/header/inputLevel';
 import { useUiStore } from '../state/uiStore';
@@ -30,6 +31,7 @@ export async function createBackend(flags: DemoFlags): Promise<Backend> {
     ...(flags.update ? { update: flags.update } : {}),
     ...(flags.board ? { board: flags.board } : {}),
     ...(flags.input ? { input: flags.input } : {}),
+    liveDemo: flags.midi,
   });
 }
 
@@ -45,6 +47,8 @@ export async function connect(backend: Backend): Promise<() => void> {
     backend.on('sedef:capture', (capture) => useAppStore.setState({ capture })),
     backend.on('sedef:board', (board) => applyBoardState(board)),
     backend.on('sedef:session', (e) => applySession(e)),
+    backend.on('sedef:live', (s) => applyLiveState(s)),
+    backend.on('sedef:liveActivity', (a) => applyLiveActivity(a)),
   ];
 
   try {
@@ -52,6 +56,8 @@ export async function connect(backend: Backend): Promise<() => void> {
     initParams(hello.schema, hello.values);
     applyPresetState(hello.presets);
     applyBoardState(hello.board);
+    applyLiveState(hello.live);
+    if (hello.liveActivity) applyLiveActivity(hello.liveActivity);
     applyHello(hello, backend.kind);
     hydrateUiState(hello.uiState);
     // The engine keeps no copy of the beat pattern outside the UI state; restore it.

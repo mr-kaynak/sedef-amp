@@ -44,6 +44,11 @@ private:
     /// The session facts of hello() that can change while the editor is open (sample rate,
     /// latency), when they do.
     void emitSessionIfChanged();
+    /// Scenes, bindings and learn (docs/live.md), and the MIDI activity light.
+    void emitLive();
+    void emitLiveActivity();
+    /// The last control or program change and how many have arrived.
+    juce::var liveActivity() const;
 
     // UI smoke test (SEDEF_UI_SMOKE_TEST=<result file>): see smokeTestTick().
     void smokeTestTick();
@@ -67,6 +72,8 @@ private:
     int lastIrRevision_ = -1;
     int lastCaptureRevision_ = -1;
     int lastBoardRevision_ = -1;
+    int lastLiveRevision_ = -1;
+    std::uint32_t lastLiveCount_ = 0;
     juce::int64 boardStateRevision_ = 0; ///< BoardState.revision: counts every board state sent
     bool lastDirty_ = false;
     double lastSampleRate_ = 0.0;

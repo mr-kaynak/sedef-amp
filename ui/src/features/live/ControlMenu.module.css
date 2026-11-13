@@ -1,0 +1,73 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* A small raised menu: the popover's surface and shadow (controls/Popover.module.css), rows of
+   the toolbar buttons' height. Fixed inside the scaled canvas, whose transform makes it the
+   containing block: left and top are canvas coordinates. */
+.menu {
+  position: fixed;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+  max-width: 280px;
+  padding: 4px;
+  border: 1px solid transparent;
+  /* Concentric with the rows: their 5 + 4 padding + 1 border. */
+  border-radius: var(--r-panel);
+  background: var(--surface-pop);
+  box-shadow: var(--shadow-pop);
+  animation: fade var(--dur-1) var(--ease-out);
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+.title {
+  margin: 0;
+  padding: 6px 10px 5px;
+  color: var(--bone-3);
+  font-size: var(--t-11);
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--bone);
+  font-size: var(--t-12);
+  text-align: start;
+  white-space: nowrap;
+}
+
+/* One highlight for the pointer and the keyboard: the menu moves focus as the pointer moves. */
+.item:focus-visible,
+.item:focus {
+  outline: none;
+  background: rgb(237 230 214 / 0.08);
+}
+
+@media (hover: hover) {
+  .item:hover {
+    background: rgb(237 230 214 / 0.08);
+  }
+}
+
+.item[aria-disabled='true'] {
+  color: var(--bone-4);
+  cursor: default;
+}
+
+@media (forced-colors: active) {
+  .item:focus {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+}

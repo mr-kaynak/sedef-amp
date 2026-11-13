@@ -20,6 +20,15 @@ mkdirSync(outDir, { recursive: true });
 const BOARD_8 = 'gate,trench,conch,tide,pearl,kelp,gyre,ripple';
 const BOARD_16 =
   'gate,trench,anemone,conch,remora,tide,urchin,sargasso,pearl,kelp,coral,beacon,gyre,jetty,ripple,breaker';
+// Both sides of the amp ("#" is %23 in a query), and the largest board: both copies of every
+// pedal without latency, the drives and fuzzes once.
+const BOARD_SIDES = 'gate,pearl,kelp,kelp%232,tide,amp,gyre,ripple';
+const BOARD_SIDES_ON = 'pearlEnabled:1,kelpEnabled:1,kelp2Enabled:1,gyreEnabled:1,rippleEnabled:1';
+const BOARD_25 = [
+  'gate,gate%232,trench,trench%232,anemone,anemone%232,conch,conch%232,remora,tide,tide%232',
+  'urchin,sargasso,pearl,kelp,coral,beacon,beacon%232,gyre,gyre%232,jetty,jetty%232,ripple',
+  'ripple%232,breaker',
+].join(',');
 
 // Sedef MIDI's own build and page, at its window's size.
 const MIDI = {
@@ -58,6 +67,44 @@ const SHOTS = {
       await page.waitForTimeout(400);
     },
   },
+  // Both sides of the amp: two Kelps stacked in front, Gyre and Ripple after it, on their band.
+  'board-after-amp': {
+    query: `section=pedals&board=${BOARD_SIDES}&set=${BOARD_SIDES_ON}`,
+  },
+  // The shelf over that board, pointing at Gyre's After the amp: the bar lands past the amp,
+  // Kelp's card offers another, and Pearl, Jetty and the others say where they'd go.
+  'pedal-picker-after-amp': {
+    query: `section=pedals&board=${BOARD_SIDES}&set=${BOARD_SIDES_ON}`,
+    keepPointer: true,
+    async prepare(page) {
+      await page.getByRole('button', { name: 'Add pedal' }).click();
+      await page.getByRole('dialog', { name: 'Add a pedal' }).waitFor();
+      await page.getByRole('button', { name: 'Add another Gyre after the amp' }).hover();
+      await page.waitForTimeout(400);
+    },
+  },
+  // Dragging Pearl past the amp: a drive's bar stops in front of it, and the board says why.
+  'board-drag-amp': {
+    query: `section=pedals&board=${BOARD_SIDES}&set=${BOARD_SIDES_ON}`,
+    keepPointer: true,
+    async prepare(page) {
+      const pearl = page.getByRole('region', { name: 'Pearl Overdrive' });
+      const ripple = page.getByRole('region', { name: 'Ripple Modulation' });
+      const from = await pearl.boundingBox();
+      const to = await ripple.boundingBox();
+      await page.mouse.move(from.x + from.width / 2, from.y + from.height * 0.62);
+      await page.mouse.down();
+      await page.mouse.move(from.x + from.width / 2 + 10, from.y + from.height * 0.62, {
+        steps: 2,
+      });
+      await page.mouse.move(to.x + to.width * 0.3, to.y + to.height * 0.55, { steps: 12 });
+      await page.getByText('Only modulation goes after the amp').waitFor();
+      await page.waitForTimeout(300);
+    },
+  },
+  // The largest board there is: 25 pedals, the second copies with them; the rows past the second
+  // scroll.
+  'board-25': { query: `section=pedals&board=${BOARD_25}&set=pearlEnabled:1,tideEnabled:1` },
   'board-3': { query: 'section=pedals&board=gate,pearl,ripple&set=pearlEnabled:1' },
   'board-8': { query: `section=pedals&board=${BOARD_8}&set=pearlEnabled:1,tideEnabled:1` },
   'board-16': { query: `section=pedals&board=${BOARD_16}&set=pearlEnabled:1,tideEnabled:1` },

@@ -144,10 +144,18 @@ struct PedalSlot
         run (module, view);
         if (!fader.isFullyActive())
         {
-            std::array<float*, kMaxChannels> dryPtrs {};
-            for (int c = 0; c < numChannels; ++c)
-                dryPtrs[static_cast<size_t> (c)] = dry[static_cast<size_t> (c)].data();
-            fader.mix (AudioView (dryPtrs.data(), numChannels, n), view);
+            // One channel or both, spelt out: a view built with a channel count only known at run
+            // time makes GCC 13 warn of reading past the pointers (-Wmaybe-uninitialized).
+            static_assert (kMaxChannels == 2);
+            if (numChannels > 1)
+            {
+                std::array<float*, kMaxChannels> dryPtrs { dry[0].data(), dry[1].data() };
+                fader.mix (AudioView (dryPtrs.data(), kMaxChannels, n), view);
+            }
+            else
+            {
+                fader.mix (AudioView (dry[0].data(), n), view);
+            }
         }
         return true;
     }

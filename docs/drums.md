@@ -18,7 +18,7 @@ no samples.
 - **Intensity** (1 to 5) plays fewer or more notes: 1 is the bare pattern, 5 is the busiest, with
   ghost notes, more kick and a ride or crash where the groove calls for it. Higher levels are also
   played a little harder (section 4.3).
-- **Fills**: Off, or a fill on the last bar of every 2, 4 or 8 bars, with a crash on the "1"
+- **Fill every**: Off, or a fill on the last bar of every 2, 4 or 8 bars, with a crash on the "1"
   after it.
 - **Level** sets how loud the drums are against the guitar; **Tone** makes the kit darker or
   brighter.
@@ -501,15 +501,19 @@ and checked by the build like the parameter schema.
 
 The metronome panel (`ui/src/features/metronome/`):
 
+![The metronome panel playing drums: the 4/4 grooves with Half-time chosen, Intensity, Fill every, Level and Tone](images/drums.png)
+
 - Under the tempo row, a **Click / Drums** switch (a radio group).
-- **Click** shows what it shows today: the beat grid, Sound and Volume.
-- **Drums** shows the groove list for the current meter (each row: name and feel; a radio group
-  with one tab stop, arrows, Home and End), **Intensity** 1–5 ("Fewer notes" to "More notes"),
-  **Fills** (Off, 2, 4, 8 bars), and Level and Tone knobs. The live beat stays visible as a row of
-  lamps.
-- Signature, tempo, tap and the play button are shared. Rows and segments are at least 32 px high
-  and as wide as the panel allows; every control has a name and a visible focus ring; under
-  reduced motion nothing moves.
+- **Click** shows what it shows today: the beat grid, Signature, Sound and Volume.
+- **Drums** shows the Signature with the bar's beats as lamps beside it (the live beat lit), the
+  groove list for the current meter (each row: name and feel; a radio group with one tab stop,
+  arrows, Home and End), **Intensity** 1–5 with the line "1 plays the bare groove, 5 the
+  busiest.", **Fill every** (Off, 2 bars, 4 bars, 8 bars), and Level and Tone knobs.
+- Signature, tempo, tap and the play button are shared; the play button is named "Start drums"
+  in Drums mode.
+- Groove rows are 40 px high and the segments 28 px (the app's other segments are 24 px), both as
+  wide as the panel allows. Every control has a name and a visible focus ring, the groove that
+  plays included; under reduced motion nothing moves (the lamps switch, they do not animate).
 
 ## 9. Tests
 

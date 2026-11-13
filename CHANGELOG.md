@@ -17,6 +17,18 @@ All notable changes to this project are documented here. The format follows
   own, and only the rest is spliced ([docs/dsp/transpose.md](docs/dsp/transpose.md)). Chords
   are cleaner than 0.2.0's, though not yet as clean as the quality bar asks; the page lists
   what it measures and what it misses.
+- **Drums to play along with**, in the standalone app's metronome: switch Click to Drums and
+  press play. Thirteen original grooves, each with a line on how it feels: straight rock,
+  half-time, a ballad, fast eighths, a shuffle and a swing in 4/4, then a two-step, a waltz, a
+  five, a six-eight, a seven, a nine and a slow twelve-eight. Intensity 1–5 goes from the bare
+  groove to the busiest, a fill ends every 2, 4 or 8 bars with a crash after it, and Level and
+  Tone set how the drums sit under the guitar. They keep the metronome's tempo and meter to the
+  sample and play after the amp and cab, never into them. The kit is synthesised from drum
+  physics, with no samples: drum heads with their real overtones, a kick that drops in pitch as
+  it settles, snare wires that buzz only while the head is loud enough, cymbals with clashing
+  partials and hats that choke. Every groove renders bit for bit the same on every platform and
+  at any buffer size. Presets and the plug-in are unchanged: the drum settings belong to the app
+  and are never saved in a preset ([docs/drums.md](docs/drums.md)).
 
 ### Changed
 

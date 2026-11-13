@@ -18,7 +18,7 @@ Input ─► Tuner tap ─► Input Gain ─► Transpose ─► Pedalboard: the
       ─► Breaker (treble booster)
       ─► Amp (Lagoon | Reef | Abyss) ─► Cab (2 mics + room)
       ─► 9-band EQ (one bank per amp) ─► Doubler ─► Drift (tape echo)
-      ─► Fathom (plate | hall reverb) ─► Metronome ─► Output Gain ─► Output
+      ─► Fathom (plate | hall reverb) ─► Metronome (click | drums) ─► Output Gain ─► Output
 ```
 
 On top of the rig it ships musician tools: a precision chromatic tuner and a
@@ -174,7 +174,8 @@ own instead, so their tails ring out ("spillover") after being switched off.
 - `Channel`: Input Gain → Transpose → pedalboard (`PedalRack`) → Amp → Cab. Mono in, mono or
   stereo out. The gate's sidechain is delayed by Transpose's latency, which the engine adds to
   the latency it reports while Transpose shifts ([transpose.md](dsp/transpose.md)).
-- `PostChain`: EQ → Doubler → Drift → Fathom → Metronome → Output Gain. Stereo.
+- `PostChain`: EQ → Doubler → Drift → Fathom → Metronome (a click or the drums,
+  [drums.md](drums.md)) → Output Gain. Stereo.
 
 | Host layout | Mode | Graph |
 |---|---|---|

@@ -43,16 +43,22 @@ struct LiveHarness
             if (e.type != live::LiveEvent::Type::sceneSwitched)
                 continue;
             const auto& r = e.scene;
-            for (int i = 0; i < r.numParams; ++i)
-            {
-                const int at =
-                    master.find (static_cast<ParamId> (r.params[static_cast<size_t> (i)]));
-                if (at >= 0)
-                    master.values[r.from][static_cast<size_t> (at)] =
-                        r.values[static_cast<size_t> (i)];
-            }
+            // A report made on a bank switched on screen since is passed over (§7.2).
             if (r.basedOn == master.switchCount)
+            {
+                for (int i = 0; i < r.numParams; ++i)
+                {
+                    const int at =
+                        master.find (static_cast<ParamId> (r.params[static_cast<size_t> (i)]));
+                    if (at >= 0)
+                        master.values[r.from][static_cast<size_t> (at)] =
+                            r.values[static_cast<size_t> (i)];
+                }
+                if (!master.isMade (r.to))
+                    master.values[r.to] = master.values[r.from];
+                master.made = static_cast<std::uint8_t> (master.made | 1u << r.from | 1u << r.to);
                 master.active = r.to;
+            }
             ++master.reportsSeen;
             tookReports = true;
         }
@@ -71,6 +77,9 @@ struct LiveHarness
         for (int i = 0; i < master.numParams; ++i)
             master.values[master.active][static_cast<size_t> (i)] =
                 store.values[master.params[static_cast<size_t> (i)]];
+        if (!master.isMade (to))
+            master.values[static_cast<size_t> (to)] = master.values[master.active];
+        master.made = static_cast<std::uint8_t> (master.made | 1u << to);
         master.active = static_cast<std::uint8_t> (to);
         ++master.switchCount;
         master.applySwitch = true;

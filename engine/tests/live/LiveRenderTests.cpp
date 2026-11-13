@@ -46,6 +46,7 @@ Scenes makeScenes()
     for (int i = 0; i < s.bank.numParams; ++i)
         s.bank.values[1][static_cast<size_t> (i)] =
             s.second.values[s.bank.params[static_cast<size_t> (i)]];
+    s.bank.made = 0b11;
     return s;
 }
 

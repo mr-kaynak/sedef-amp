@@ -213,6 +213,10 @@ bool LiveControl::switchScene (const ParamSnapshot& s, int to) noexcept
     auto& left = bank_.values[bank_.active];
     for (std::size_t i = 0; i < bank_.numParams; ++i)
         left[i] = r.values[i];
+    // A scene not made yet starts as a copy of the one being left.
+    if (!bank_.isMade (to))
+        bank_.values[static_cast<std::size_t> (to)] = left;
+    bank_.made = static_cast<std::uint8_t> (bank_.made | 1u << bank_.active | 1u << to);
     bank_.active = r.to;
     applyScene (to);
     return true;

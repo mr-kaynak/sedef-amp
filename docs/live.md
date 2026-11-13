@@ -177,10 +177,15 @@ a reload.
 
 The values of the scene in use are the live controls. Switching from scene *a* to scene *b*
 stores the live values of the scene's parameters in *a* and sets the parameters to *b*'s. So a
-change made while a scene plays belongs to that scene, without a Store button to forget. A preset
-without scenes (every factory preset, every preset saved before 0.10.0) has 8 scenes that start as
-copies of the preset: switching changes nothing until the player changes something in a scene.
-*Copy scene* puts the sound of the scene in use into another one.
+change made while a scene plays belongs to that scene, without a Store button to forget.
+
+A scene is **made** the first time it is selected, as a copy of the scene being left, so the
+first switch to it changes nothing audible and the player builds it from there ("scene 2 starts
+as what I was playing"). Until then it holds nothing. A preset without scenes (every factory
+preset, every preset saved before 0.10.0) has only scene 1 made. A player who never switches
+scenes therefore never has scenes to keep: tweaking scene 1 leaves the other seven empty, not as
+stale copies of the sound at load. *Copy here* puts the sound of the scene in use into another
+scene (and makes it). The scene bar shows which scenes are made.
 
 Selecting the scene that is already in use does nothing.
 
@@ -208,8 +213,9 @@ from the file's `"parameters"`, and `"parameters"` is always the sound of the ac
 
 - `active`: the scene the preset was saved in (0–7), whose values are `"parameters"`.
 - `values`: the picked values (parameter ids), at most 16, in the order they were picked.
-- `list`: up to 8 objects, one per scene from scene 1; a missing scene, or a parameter a scene
-  does not name, has the value in `"parameters"`. The active scene's entry is `{}`.
+- `list`: up to 8 entries, one per scene from scene 1. An object is a made scene; a parameter it
+  does not name has the value in `"parameters"`. `null`, or no entry, is a scene not made yet
+  (above, scenes 4–8). The active scene's entry is `{}`.
 
 **Backward compatible:** a file without `"scenes"` loads exactly as before (8 copies of the
 preset), and its `"parameters"` play as before, so every factory preset renders byte for byte as
@@ -219,10 +225,12 @@ parameter ids in a scene are ignored and out-of-range values are clamped (`Param
 as for `"parameters"`. A save writes `"scenes"` only when a scene differs from the preset or a
 value was picked, so a preset whose scenes were never used is written as before.
 
-**Edited (the dirty dot).** Switching scenes is not an edit. A preset counts as changed when any
-scene's values differ from the loaded file's (the scene in use compared live), when the picked
-values changed, or when anything outside the scenes changed as before. A scene-held parameter is
-compared through the scenes, not against the value it had at load.
+**Edited (the dirty dot).** Switching scenes is not an edit. A preset counts as changed when a
+made scene's values differ from the loaded file's (the scene in use compared live), when the
+picked values changed, or when anything outside the scenes changed as before. A scene the file
+doesn't have, made as an untouched copy of the file's own sound, is not a change; one made from a
+scene that differs from it is. A scene-held parameter is compared through the scenes, not against
+the value it had at load.
 
 Snapshots (the browser's Esc, preset Undo) and A/B carry the scenes and the active scene exactly,
 like the pedalboard.
@@ -300,8 +308,12 @@ values played in scene 2. A switch made on the audio thread is reported with the
 behind and the parameters they belong to; the message thread stores them in its bank. Its bank
 also counts how many of those reports it has taken in: the audio thread adopts a published bank
 only when that count matches the reports it sent (an older bank would undo a switch the message
-thread hasn't seen yet), except when the bank carries a new on-screen switch, which it always
-applies.
+thread hasn't seen yet), except when the bank carries a new switch count, which it always takes.
+
+The switch count goes up with every switch made on screen and every bank the message thread puts
+in place of the old one (a preset load, a snapshot, A/B, a host restore). Each report carries the
+count of the bank it was made on; the message thread passes over a report whose count is not its
+own, because the change that raised the count already decided where the scenes are.
 
 When the report ring is full (the message thread stalled for seconds), the audio thread does not
 switch: a switch that the message thread can never learn about would leave the two banks

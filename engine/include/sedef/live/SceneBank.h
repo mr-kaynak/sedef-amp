@@ -52,6 +52,11 @@ struct SceneBank
     /// read while it is active (the live parameters are its values).
     std::array<std::array<float, kMaxSceneParams>, kNumScenes> values {};
     std::uint8_t active = 0;
+    /// Bit s: scene s has been made (docs/live.md §6.3). A scene not made yet holds nothing; the
+    /// first switch to it makes it a copy of the scene being left. The active scene is made.
+    std::uint8_t made = 1;
+
+    bool isMade (int scene) const noexcept { return (made >> scene & 1) != 0; }
 
     // Bookkeeping between the threads (docs/live.md §7.2), not part of a scene's content.
     /// Counts the switches made on screen (message thread).

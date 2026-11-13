@@ -108,6 +108,7 @@ void twoScenes (LiveHarness& h)
     scene[static_cast<size_t> (h.master.find (ParamId::coralEnabled))] = 1.0f;
     scene[static_cast<size_t> (h.master.find (ParamId::driftEnabled))] = 1.0f;
     scene[static_cast<size_t> (h.master.find (ParamId::driftMix))] = 0.6f;
+    h.master.made = 0b11;
     h.control.setScenes (h.master);
     h.block();
 }
@@ -183,6 +184,31 @@ TEST_CASE ("Scenes remember what changed in them, also between message-thread ti
     CHECK (h.master.values[1][at (ParamId::gyreEnabled)] == 1.0f);
     CHECK (h.master.values[0][at (ParamId::driftMix)] == 0.2f);
     CHECK (h.master.values[0][at (ParamId::gyreEnabled)] == 0.0f);
+}
+
+TEST_CASE ("A scene not made yet starts as a copy of the scene being left", "[live]")
+{
+    LiveHarness h;
+    twoScenes (h);
+    h.bind (bindAction (Action::scene, 31, 1));
+    h.bind (bindAction (Action::scene, 35, 5));
+    h.bind (bindParam (ParamId::gyreEnabled, 22));
+
+    // From scene 2 (made, Pearl off, Coral on) to scene 6 (not made): nothing changes.
+    h.block ({ cc (31, 127) });
+    h.block ({ cc (22, 127) }); // Gyre on in scene 2
+    const auto before = h.block();
+    const auto s = h.block ({ cc (35, 127) });
+    CHECK (s.values == [&] {
+        auto expected = before;
+        expected[ParamId::scene] = 5.0f;
+        return expected;
+    }().values);
+    CHECK (h.control.bank().isMade (5));
+    h.tick();
+    CHECK (h.master.isMade (5));
+    CHECK (h.master.values[5] == h.master.values[1]);
+    CHECK_FALSE (h.master.isMade (3));
 }
 
 TEST_CASE ("Next and previous scene wrap round; selecting the active scene does nothing", "[live]")

@@ -1,0 +1,55 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* At the right end of the section tab row: the header's label row under the meters already
+   holds the input level chip and the Doubler switch. */
+.transpose {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-inline-start: auto;
+  padding-inline-end: 4px;
+}
+
+.label {
+  color: var(--bone-3);
+  font-size: var(--t-12);
+}
+
+.latency {
+  color: var(--bone-3);
+  font-size: var(--t-11);
+}
+
+.reset {
+  font-size: var(--t-11);
+}
+
+/* Sizes only: the well and its buttons are the shared stepper (controls/Button.module.css). */
+.stepper {
+  height: 28px;
+}
+
+.stepper button {
+  width: 28px;
+  height: 26px;
+  font-size: var(--t-14);
+}
+
+.stepper output {
+  min-width: 56px;
+  color: var(--bone);
+  font-size: var(--t-14);
+  font-weight: 560;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Shifting: the readout takes the "on" colour, so the setting reads from across the room. */
+.transpose[data-on] .stepper {
+  border-color: var(--on-line);
+  background: var(--on-fill);
+}
+
+@media (forced-colors: active) {
+  .transpose[data-on] .stepper {
+    border-color: Highlight;
+  }
+}

@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Section tabs double as a status strip: each shows what is switched on inside it, so the
-// whole rig can be read without opening every page.
+// whole rig can be read without opening every page. Transpose shares their row, on every page.
 import { useRef } from 'react';
 import type { KeyboardEvent, ReactNode } from 'react';
 import { Led } from '../controls/Led';
 import { useParamSpec, useParamValue } from '../params/useParam';
 import { AMP_NAMES, effectiveCab } from '../params/schema';
+import { TransposeControl } from '../features/transpose/TransposeControl';
 import { pedalMeta } from '../features/pedals/registry';
 import { useBoardStore } from '../state/boardStore';
 import { SECTION_LABELS, SECTIONS, uiActions, useUiStore, type Section } from '../state/uiStore';
@@ -104,34 +105,37 @@ export function SectionTabs() {
   };
 
   return (
-    <nav className={styles.tabs} role="tablist" aria-label="Rig sections" onKeyDown={onKeyDown}>
-      {SECTIONS.map((id, i) => {
-        const Status = STATUS[id];
-        const selected = section === id && !overlay;
-        return (
-          <button
-            key={id}
-            ref={(el) => {
-              refs.current[i] = el;
-            }}
-            type="button"
-            role="tab"
-            id={`tab-${id}`}
-            aria-selected={selected}
-            aria-controls="section-panel"
-            aria-keyshortcuts={String(i + 1)}
-            tabIndex={section === id ? 0 : -1}
-            className={styles.tab}
-            onClick={() => choose(id)}
-          >
-            <span className={styles.key} aria-hidden="true">
-              {i + 1}
-            </span>
-            <span className={styles.label}>{SECTION_LABELS[id]}</span>
-            <Status />
-          </button>
-        );
-      })}
-    </nav>
+    <div className={styles.bar}>
+      <nav className={styles.tabs} role="tablist" aria-label="Rig sections" onKeyDown={onKeyDown}>
+        {SECTIONS.map((id, i) => {
+          const Status = STATUS[id];
+          const selected = section === id && !overlay;
+          return (
+            <button
+              key={id}
+              ref={(el) => {
+                refs.current[i] = el;
+              }}
+              type="button"
+              role="tab"
+              id={`tab-${id}`}
+              aria-selected={selected}
+              aria-controls="section-panel"
+              aria-keyshortcuts={String(i + 1)}
+              tabIndex={section === id ? 0 : -1}
+              className={styles.tab}
+              onClick={() => choose(id)}
+            >
+              <span className={styles.key} aria-hidden="true">
+                {i + 1}
+              </span>
+              <span className={styles.label}>{SECTION_LABELS[id]}</span>
+              <Status />
+            </button>
+          );
+        })}
+      </nav>
+      <TransposeControl />
+    </div>
   );
 }

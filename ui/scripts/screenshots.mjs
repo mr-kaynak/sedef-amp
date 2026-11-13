@@ -86,6 +86,9 @@ const SHOTS = {
     },
   },
   abyss: { query: 'section=amp&preset=mariana' },
+  // Transpose two semitones down: the stepper at the end of the tab row, the latency it adds,
+  // and the status bar's share.
+  transpose: { query: 'section=pedals&set=transpose:-2' },
   capture: {
     query: 'section=amp',
     async prepare(page) {
@@ -147,7 +150,19 @@ const SHOTS = {
 const wanted = args;
 const names = wanted.length
   ? wanted
-  : ['amp', 'pedals', 'eq', 'cab', 'fx', 'presets', 'tuner', 'intonation', 'input-level', 'midi'];
+  : [
+      'amp',
+      'pedals',
+      'eq',
+      'cab',
+      'fx',
+      'presets',
+      'tuner',
+      'intonation',
+      'input-level',
+      'transpose',
+      'midi',
+    ];
 
 for (const name of names) if (!SHOTS[name]) throw new Error(`Unknown screenshot "${name}"`);
 

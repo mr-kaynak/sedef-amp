@@ -66,13 +66,13 @@ TEST_CASE ("Reverb and transpose benchmarks", "[.bench][reverb-bench]")
         p.setSettings ({ semis });
         p.prepare ({ kFs, kBlock, 2 });
         char name[64];
-        std::snprintf (name, sizeof (name), "PitchShifter %+d st", semis);
+        std::snprintf (name, sizeof (name), "PitchShifter %+d st (mono)", semis);
         report (name, nsPerFrame (p, 20.0));
     }
     {
         dsp::PitchShifter p;
         p.prepare ({ kFs, kBlock, 2 });
-        report ("PitchShifter 0 st (bypass)", nsPerFrame (p, 20.0));
+        report ("PitchShifter 0 st (off, mono)", nsPerFrame (p, 20.0));
     }
 }
 

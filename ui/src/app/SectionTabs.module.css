@@ -1,11 +1,17 @@
 /* SPDX-License-Identifier: AGPL-3.0-or-later */
-.tabs {
+.bar {
   display: flex;
   align-items: stretch;
   height: 42px;
   padding: 0 12px;
   background: var(--ink-1);
   border-bottom: 1px solid var(--line);
+}
+
+.tabs {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
 }
 
 .tab {

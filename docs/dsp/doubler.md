@@ -167,11 +167,12 @@ that does not come down with the playing.
 wall: on the synthetic palm-muted riff the detector's ratio after an onset had
 a median of 1.6 (the threshold is 2.5), and only 9 of 64 notes re-timed. In the
 engine the Doubler therefore listens to the instrument before the amp, where
-pick attacks are clean: 59 of 64 notes re-time. It takes the signal after
-transpose (what the noise gate listens to), since the pitch shifter delays it
-by a varying 3–50 ms that nothing reports. From there the signal reaches the
-Doubler one chain latency later (`lead`: the pedals' and amp's oversampling),
-which gives the crossfade extra room. Without a source (module tests, other
+pick attacks are clean: 59 of 64 notes re-time. It takes what the noise gate
+listens to: the DI before input gain, delayed by Transpose's latency while
+Transpose shifts, so its attacks line up with the shifted ones. From there the
+signal reaches the Doubler one chain latency later (`lead`: the pedals' and
+amp's oversampling, without Transpose's share), which gives the crossfade extra
+room. Without a source (module tests, other
 hosts of the module) it listens to its own input with no lead.
 
 ## Control mapping

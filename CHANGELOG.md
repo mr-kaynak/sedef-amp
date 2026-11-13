@@ -6,6 +6,26 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Transpose is back**, at the right end of the section tabs, on every page: play the whole rig
+  up to an octave lower or higher without retuning, chords included. It steps a semitone at a
+  time and goes back to 0 in one click. Shifting down adds 3 ms of latency and shifting up
+  10 ms; at 0 it is off and leaves the sound exactly as it was. Every attack comes out exactly
+  that much later, not anywhere in a 3–50 ms window as in 0.2.0, so a drop tuning plays as
+  tight as the strings. It is a new design: a model of the ringing partials is shifted on its
+  own, and only the rest is spliced ([docs/dsp/transpose.md](docs/dsp/transpose.md)). Chords
+  are cleaner than 0.2.0's, though not yet as clean as the quality bar asks; the page lists
+  what it measures and what it misses.
+
+### Changed
+
+- **The reported latency includes Transpose's while it shifts.** Turning Transpose on or off,
+  or changing its direction, changes it, and the host is told; steps in the same direction
+  don't. The status bar shows Transpose's share.
+- **The transpose parameter is called "Transpose" again and can be automated.** Sessions that
+  saved a setting (0.2.0) play it again; sessions and automation saved since load unchanged.
+
 ## [0.8.1] - 2026-11-13
 
 Sedef MIDI reads each note from the moment you pick it, so notes come sooner, with the maths and the

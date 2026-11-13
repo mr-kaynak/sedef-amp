@@ -10,7 +10,7 @@ VST3 / AU / CLAP plugin and as a standalone application. It ships a complete
 rig in one window:
 
 ```
-Input ─► Tuner tap ─► Input Gain ─► Pedalboard: the pedals the player puts on it, in the
+Input ─► Tuner tap ─► Input Gain ─► Transpose ─► Pedalboard: the pedals the player puts on it, in the
       order they choose; by default Gate ─► Trench (octave down) ─► Anemone (envelope filter)
       ─► Conch (wah) ─► Remora (fuzz) ─► Tide (comp) ─► Urchin (octave-up fuzz)
       ─► Sargasso (sustain fuzz) ─► Pearl (overdrive) ─► Kelp (mid overdrive) ─► Coral (distortion)
@@ -171,8 +171,9 @@ own instead, so their tails ring out ("spillover") after being switched off.
 
 `Engine` builds the chain from two reusable halves:
 
-- `Channel`: Input Gain → pedalboard (`PedalRack`) → Amp → Cab. Mono in, mono or stereo
-  out.
+- `Channel`: Input Gain → Transpose → pedalboard (`PedalRack`) → Amp → Cab. Mono in, mono or
+  stereo out. The gate's sidechain is delayed by Transpose's latency, which the engine adds to
+  the latency it reports while Transpose shifts ([transpose.md](dsp/transpose.md)).
 - `PostChain`: EQ → Doubler → Drift → Fathom → Metronome → Output Gain. Stereo.
 
 | Host layout | Mode | Graph |
@@ -377,6 +378,7 @@ The EQ bank always follows the amp.
 
 | Module | Character | Notes |
 |---|---|---|
+| Transpose | −12 to +12 semitones, polyphonic, before the pedals | attack-synchronous resampling grains on what a long-window partial model leaves, plus the model's partials resynthesised shifted; 3 ms down, 10 ms up, off and bit-exact at 0 ([transpose.md](dsp/transpose.md)) |
 | Gate | Sidechained downward expander with hysteresis and hold | detector on raw input |
 | Trench | Octave down, −1 and −2 octaves: Mono (analog-style divider) or Poly (chords) | Mono: NSDF note tracker, steered resonators, half-phase Schmitt trigger, flip-flops, polyBLEP; Poly: decimated complex filter bank, one voice per spectral peak, halved phase steps; no OS ([trench.md](dsp/trench.md)) |
 | Remora | Two-transistor feedback fuzz, germanium / silicon | Ebers–Moll pair, guitar-volume clean-up, bias servo, 4× OS ([remora.md](dsp/remora.md)) |

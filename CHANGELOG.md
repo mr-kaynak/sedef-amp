@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-13
+
+Play Sedef Amp live: learn any control to a foot controller, load presets with program changes and
+switch between eight scenes per preset without a gap. Transpose is back, to play the whole rig up to
+an octave lower or higher without retuning.
+
 ### Added
 
 - **Transpose is back**, in the section tabs row, on every page: play the whole rig
@@ -565,7 +571,8 @@ The first public build: a complete guitar rig with a tuner and an intonation wor
 - Every CI build is checked with pluginval (strictness 8), clap-validator and auval, and a smoke
   test opens the editor in a real host and WebView on every OS.
 
-[Unreleased]: https://github.com/mr-kaynak/sedef-amp/compare/v0.8.1...HEAD
+[Unreleased]: https://github.com/mr-kaynak/sedef-amp/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.8.1...v0.9.0
 [0.8.1]: https://github.com/mr-kaynak/sedef-amp/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.6.0...v0.7.0

@@ -59,8 +59,10 @@ private:
 
     PrecisePhase lfo_;
     std::array<DelayLine, kMaxChannels> line_;
-    Svf bandLimit_;     // the line's anti-imaging filter, which follows its clock (the delay)
-    TptOnePole loopHp_; // coupling capacitor in the feedback path (its low-pass; HP = x - LP)
+    Svf bandLimit_;       // the line's anti-imaging filter, which follows its clock (the delay)
+    Svf spreadBandLimit_; // the second channel's: its LFO runs a quarter cycle on (docs/board.md
+                          // §6)
+    TptOnePole loopHp_;   // coupling capacitor in the feedback path (its low-pass; HP = x - LP)
     ExpSmoothed speed_, depth_, delaySetting_, feedback_;
     float delayMs_ = 2.0f;
     int filled_ = 0;       // samples written since reset (capped), see process()

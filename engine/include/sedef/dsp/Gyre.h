@@ -60,6 +60,8 @@ private:
 
     PrecisePhase lfo_;
     std::array<TptOnePole, kMaxStages> stages_;
+    // The second channel's stages: its LFO runs a quarter cycle on (stereo, docs/board.md §6).
+    std::array<TptOnePole, kMaxStages> spreadStages_;
     std::array<float, kMaxChannels> feedbackState_ {};
     ExpSmoothed speed_, depth_, feedback_;
     LinearSmoothed six_; // 0: four stages .. 1: six stages

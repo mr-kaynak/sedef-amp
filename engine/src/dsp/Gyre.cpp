@@ -18,6 +18,9 @@ constexpr double kStagesSeconds = 0.03;
 // between them. Makeup and trim keep the guitar reference tone within about 2 dB of unity
 // across the Feedback travel (docs/dsp/gyre.md, "Level").
 constexpr float kMakeup = 1.5f;
+/// The second channel's LFO, in cycles ahead of the first: mid and side each carry the sweep at
+/// -3 dB (docs/board.md §6.1).
+constexpr float kStereoPhaseOffset = 0.25f;
 constexpr float kFeedbackTrim = 0.5f;
 } // namespace
 
@@ -37,6 +40,8 @@ void Gyre::prepare (const ProcessSpec& spec)
 void Gyre::reset() noexcept
 {
     for (auto& s : stages_)
+        s.reset();
+    for (auto& s : spreadStages_)
         s.reset();
     feedbackState_ = {};
     lfo_.setPhase (0.0f);
@@ -85,11 +90,20 @@ void Gyre::process (const AudioView& io) noexcept
             lfo_.setFrequency (speed_.next());
         // A triangle in octaves: the notches move at a constant musical rate, and turn round at
         // the ends of the sweep without a step in the coefficients.
-        const float sweep = kMaxSweepOctaves * depth_.next() * Lfo::triangle (lfo_.advance());
-        breakHz_ = kCentreHz * std::exp2 (sweep);
+        const float phase = lfo_.advance();
+        const float swing = kMaxSweepOctaves * depth_.next();
+        breakHz_ = kCentreHz * std::exp2 (swing * Lfo::triangle (phase));
         const float g = tptGain (breakHz_, sampleRate_);
         for (auto& s : stages_)
             s.setGain (g);
+        if (channels > 1)
+        {
+            const float spreadHz =
+                kCentreHz * std::exp2 (swing * Lfo::triangle (phase + kStereoPhaseOffset));
+            const float g1 = tptGain (spreadHz, sampleRate_);
+            for (auto& s : spreadStages_)
+                s.setGain (g1);
+        }
 
         const float fb = feedback_.next();
         const float six = crossfadeCurve (six_.next());
@@ -102,18 +116,21 @@ void Gyre::process (const AudioView& io) noexcept
             // The dry half of the mix is taken after the feedback sum, so the notches stay
             // exactly where the stages put them and feedback only adds the peaks in between.
             const float v = x + fb * state;
+            auto& stages = ch == 0 ? stages_ : spreadStages_;
             float a = v;
             for (int s = 0; s < 4; ++s)
-                a = stages_[static_cast<size_t> (s)].allpass (ch, a);
+                a = stages[static_cast<size_t> (s)].allpass (ch, a);
             const float four = a;
             for (int s = 4; s < kMaxStages; ++s)
-                a = stages_[static_cast<size_t> (s)].allpass (ch, a);
+                a = stages[static_cast<size_t> (s)].allpass (ch, a);
             const float wet = four + six * (a - four);
             state = wet;
             x = trim * 0.5f * (v + wet);
         }
     }
     for (auto& s : stages_)
+        s.snapToZero();
+    for (auto& s : spreadStages_)
         s.snapToZero();
     for (auto& s : feedbackState_)
         s = flushToZero (s);

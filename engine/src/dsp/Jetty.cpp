@@ -34,6 +34,9 @@ constexpr double kDelaySeconds = 0.06; // a delay glide; faster would bend the p
 constexpr double kSmoothingSeconds = 0.03;
 constexpr double kMaxLineMs = 20.0;
 constexpr double kWetFadeSeconds = 0.005; // after a reset, see process()
+/// The second channel's LFO, in cycles ahead of the first: mid and side each carry the sweep at
+/// -3 dB (docs/board.md §6.1).
+constexpr float kStereoPhaseOffset = 0.25f;
 
 inline float limit (float v) noexcept
 {
@@ -76,6 +79,7 @@ void Jetty::reset() noexcept
     for (auto& l : line_)
         l.reset();
     bandLimit_.reset();
+    spreadBandLimit_.reset();
     loopHp_.reset();
     lfo_.setPhase (0.0f);
     filled_ = 0;
@@ -124,21 +128,38 @@ void Jetty::process (const AudioView& io) noexcept
         if (speed_.isSmoothing())
             lfo_.setFrequency (speed_.next());
         // A triangle in octaves of delay: the notches sweep at a constant musical rate.
-        delayMs_ =
-            sweepDelayMs (delaySetting_.next(), depth_.next(), Lfo::triangle (lfo_.advance()));
-        const float clockHz = kBbdStages / (0.002f * delayMs_);
-        const float bandLimitG = tptGain (std::min (kMaxBandLimitHz, clockHz / 3.0f), sampleRate_);
-        bandLimit_.setCoeffs (bandLimitG, 1.0f / kBandLimitQ);
-        // read() before push(): a delay of d samples is read (d - 1). The band-limit filter adds
-        // its own low-frequency group delay, 1 / (Q w) = 1 / (2 Q g) samples after the bilinear
-        // map; reading that much sooner keeps the comb's notches where Delay puts them.
-        const float delay =
-            delayMs_ * samplesPerMs - 1.0f - 1.0f / (2.0f * kBandLimitQ * bandLimitG);
-
-        // A reset line is empty: the first signal reaches its output one delay later, and would
-        // arrive as a step. Fade the delayed path in over 5 ms from that moment instead.
-        const float wetGain = crossfadeCurve (
-            std::clamp ((static_cast<float> (filled_) - delay - 4.0f) * fadeInv_, 0.0f, 1.0f));
+        const float setting = delaySetting_.next();
+        const float depth = depth_.next();
+        const float phase = lfo_.advance();
+        delayMs_ = sweepDelayMs (setting, depth, Lfo::triangle (phase));
+        // The line's read position and its band limit, for a delay in ms.
+        struct Tap
+        {
+            float delay, wetGain;
+        };
+        const auto tap = [&] (float ms, Svf& bandLimit) {
+            const float clockHz = kBbdStages / (0.002f * ms);
+            const float bandLimitG =
+                tptGain (std::min (kMaxBandLimitHz, clockHz / 3.0f), sampleRate_);
+            bandLimit.setCoeffs (bandLimitG, 1.0f / kBandLimitQ);
+            // read() before push(): a delay of d samples is read (d - 1). The band-limit filter
+            // adds its own low-frequency group delay, 1 / (Q w) = 1 / (2 Q g) samples after the
+            // bilinear map; reading that much sooner keeps the comb's notches where Delay puts
+            // them.
+            const float delay = ms * samplesPerMs - 1.0f - 1.0f / (2.0f * kBandLimitQ * bandLimitG);
+            // A reset line is empty: the first signal reaches its output one delay later, and
+            // would arrive as a step. Fade the delayed path in over 5 ms from that moment instead.
+            const float wetGain = crossfadeCurve (
+                std::clamp ((static_cast<float> (filled_) - delay - 4.0f) * fadeInv_, 0.0f, 1.0f));
+            return Tap { delay, wetGain };
+        };
+        const Tap taps[2] = {
+            tap (delayMs_, bandLimit_),
+            channels > 1
+                ? tap (sweepDelayMs (setting, depth, Lfo::triangle (phase + kStereoPhaseOffset)),
+                       spreadBandLimit_)
+                : Tap {},
+        };
         if (filled_ < (1 << 30))
             ++filled_;
 
@@ -150,13 +171,16 @@ void Jetty::process (const AudioView& io) noexcept
         {
             float& x = io.channel (ch)[i];
             auto& line = line_[static_cast<size_t> (ch)];
-            const float wet = wetGain * bandLimit_.process (ch, line.readCubic (delay)).low;
+            const auto& t = taps[ch == 0 ? 0 : 1];
+            auto& bandLimit = ch == 0 ? bandLimit_ : spreadBandLimit_;
+            const float wet = t.wetGain * bandLimit.process (ch, line.readCubic (t.delay)).low;
             const float loop = wet - loopHp_.lowpass (ch, wet);
             line.push (limit (x + g * loop));
             x = trim * 0.5f * (x + wet);
         }
     }
     bandLimit_.snapToZero();
+    spreadBandLimit_.snapToZero();
     loopHp_.snapToZero();
 }
 

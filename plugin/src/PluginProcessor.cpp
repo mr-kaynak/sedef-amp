@@ -6,6 +6,13 @@
 #include "PluginEditor.h"
 #endif
 
+#if JucePlugin_Build_Standalone
+// The standalone holder needs juce_audio_utils first; the comment keeps include sorting off.
+#include <juce_audio_utils/juce_audio_utils.h>
+//
+#include <juce_audio_plugin_client/Standalone/juce_StandaloneFilterWindow.h>
+#endif
+
 namespace sedef::plugin
 {
 
@@ -316,8 +323,25 @@ float SedefProcessor::tapTempo()
     return paramValue (ParamId::tempo);
 }
 
+bool SedefProcessor::openLooper()
+{
+    if (!isStandalone())
+        return false;
+    const std::scoped_lock lock (engineLock_); // never while prepare() runs
+    return engine_.prepareLooper();
+}
+
 void SedefProcessor::timerCallback()
 {
+#if JucePlugin_Build_Standalone
+    // The looper writes what it records the device's round trip earlier (docs/looper.md).
+    if (isStandalone() && engine_.looperReady())
+        if (auto* holder = juce::StandalonePluginHolder::getInstance())
+            if (auto* device = holder->deviceManager.getCurrentAudioDevice())
+                engine_.setLooperDeviceLatency (device->getInputLatencyInSamples() +
+                                                device->getOutputLatencyInSamples());
+#endif
+
     // Preset navigation through automatable switches (MIDI footswitches via the host). Each switch
     // acts on its rising edge and then springs back to off, so it can fire again.
     const bool prev = paramValue (ParamId::presetPrevious) >= 0.5f;

@@ -21,6 +21,9 @@ export const GLOBAL_PARAM_IDS: ReadonlySet<string> = new Set([
   'oversampling',
   // The scenes carry it (docs/live.md §6.6).
   'scene',
+  'looperLevel',
+  'looperFeedback',
+  'looperCountIn',
   'metronomeMode',
   'drumsGroove',
   'drumsIntensity',

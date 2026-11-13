@@ -392,6 +392,50 @@ TEST_CASE ("A preset with scenes plays its saved scene in a build without scenes
     CHECK (is (sceneValue (bank, 7, ParamId::pearlEnabled), 1.0f)); // not made: the preset's
 }
 
+TEST_CASE ("Transpose stays out of scenes: a scene switch never changes the latency")
+{
+    // Transpose adds latency while it shifts (docs/dsp/transpose.md), and the host is told on the
+    // next timer tick: a scene that recalled it would move the latency under the player's foot.
+    // It is global, so scenes never hold it, however a preset file asks (docs/live.md §6.2).
+    Fixture f;
+    SedefProcessor p;
+    prepare (p);
+    auto& live = p.live();
+    CHECK_FALSE (live.rememberInScenes (ParamId::transpose, true));
+    CHECK (bankOf (p).find (ParamId::transpose) < 0);
+
+    const auto file = plugin::PresetManager::userFolder().getChildFile ("Shifted.sedefpreset");
+    REQUIRE (file.getParentDirectory().createDirectory());
+    REQUIRE (file.replaceWithText (R"({ "format": "sedef-preset", "version": 1, "name": "Shifted",
+        "parameters": { "pearlEnabled": 1 },
+        "scenes": { "active": 0, "values": ["transpose", "driftMix"],
+                    "list": [ {}, { "pearlEnabled": 0, "transpose": 5 } ] } })"));
+    p.presets().scan();
+    REQUIRE (p.presets().load ("user:Shifted.sedefpreset", true));
+    const auto bank = bankOf (p);
+    CHECK (bank.numValues() == 1); // driftMix: Transpose is dropped
+    CHECK (bank.find (ParamId::transpose) < 0);
+
+    // The player transposes down; footswitches and the scene bar switch scenes, and Transpose
+    // and the latency the engine reports stay where they are.
+    p.setParamValue (ParamId::transpose, -2.0f);
+    play (p);
+    const auto latency = p.engine().latencySamples();
+    learn (p, "scene:2", 30, true);
+    for (const auto to : { 1, 0, 1 })
+    {
+        if (to == 1)
+            play (p, { cc (30, 127) });
+        else
+            live.selectScene (to);
+        play (p);
+        CHECK (live.activeScene() == to);
+        CHECK (is (p.paramValue (ParamId::transpose), -2.0f));
+        CHECK (p.engine().latencySamples() == latency);
+    }
+    CHECK (is (p.paramValue (ParamId::pearlEnabled), 0.0f)); // scene 2 did play
+}
+
 TEST_CASE ("Sessions keep the scenes byte for byte; older sessions have one scene")
 {
     Fixture f;

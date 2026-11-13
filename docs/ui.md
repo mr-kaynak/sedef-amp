@@ -156,7 +156,7 @@ validates everything, because state may come from an older build.
 
 ## The mock backend
 
-`MockBackend` holds values for all 203 parameters (from `src/generated/parameters.json`), the real
+`MockBackend` holds values for all 204 parameters (from `src/generated/parameters.json`), the real
 factory presets (`presets/factory/*.sedefpreset`, bundled at build time with `import.meta.glob`)
 plus one user preset, IR slots, UI state (in `localStorage` when running in a browser), tap tempo,
 and simulators. Preset handling mirrors `plugin/src/PresetManager.cpp`: ids are

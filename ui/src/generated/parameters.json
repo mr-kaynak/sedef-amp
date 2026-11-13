@@ -203,6 +203,7 @@
     {"id": "beaconSpeed", "name": "Beacon Speed", "group": "Beacon", "kind": "float", "min": 0.3, "max": 8, "default": 2, "skew": 0.381, "unit": "Hz", "automatable": true, "choices": []},
     {"id": "beaconDepth", "name": "Beacon Depth", "group": "Beacon", "kind": "float", "min": 0, "max": 1, "default": 0.7, "skew": 1, "unit": "knob", "automatable": true, "choices": []},
     {"id": "beaconMode", "name": "Beacon Mode", "group": "Beacon", "kind": "choice", "min": 0, "max": 1, "default": 0, "skew": 1, "unit": "", "automatable": true, "choices": ["Chorus", "Vibrato"]},
-    {"id": "trenchMode", "name": "Trench Mode", "group": "Trench", "kind": "choice", "min": 0, "max": 1, "default": 0, "skew": 1, "unit": "", "automatable": true, "choices": ["Mono", "Poly"]}
+    {"id": "trenchMode", "name": "Trench Mode", "group": "Trench", "kind": "choice", "min": 0, "max": 1, "default": 0, "skew": 1, "unit": "", "automatable": true, "choices": ["Mono", "Poly"]},
+    {"id": "scene", "name": "Scene", "group": "Global", "kind": "choice", "min": 0, "max": 7, "default": 0, "skew": 1, "unit": "", "automatable": true, "choices": ["1", "2", "3", "4", "5", "6", "7", "8"]}
   ]
 }

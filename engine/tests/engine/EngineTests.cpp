@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 #include "TestUtils.h"
 #include "capture/CaptureTestUtils.h"
+#include "live/LiveTestUtils.h"
 #include "midi/MidiTestSignals.h"
 #include "sedef/Engine.h"
 #include "sedef/dsp/PitchShifter.h"
@@ -961,4 +962,57 @@ TEST_CASE ("GuitarToMidi::process never allocates after prepare", "[engine][midi
     }
     CHECK (gAllocations.load() == 0);
     CHECK (g.notesSent() > 10);
+}
+
+TEST_CASE ("The live layer never allocates", "[engine][live]")
+{
+    // Controllers, toggles, scene switches by controller, program change and the Scene
+    // parameter, on-screen switches, learning and the message thread's tick (docs/live.md §7.3).
+    test::LiveHarness h;
+    h.store[ParamId::pearlEnabled] = 1.0f;
+    h.master = live::SceneBank::withSwitches (h.store);
+    REQUIRE (h.master.addValue (ParamId::driftMix, 0.2f));
+    h.control.setScenes (h.master);
+    h.bind (test::bindParam (ParamId::conchPosition, 11));
+    h.bind (test::bindParam (ParamId::pearlEnabled, 20));
+    h.bind (test::bindAction (live::Action::sceneNext, 40));
+    h.bind (test::bindAction (live::Action::presetNext, 41));
+    h.map.programScene[3] = 2;
+    h.control.setMap (h.map);
+    h.events.reserve (4096);
+
+    const std::array<live::MidiMessage, 6> messages { test::cc (11, 0),
+                                                      test::cc (20, 127),
+                                                      test::cc (40, 127),
+                                                      test::cc (41, 127),
+                                                      live::MidiMessage::programChange (0, 3),
+                                                      live::MidiMessage::programChange (0, 7) };
+    auto snapshot = h.store;
+    live::LiveEvent event;
+    live::LearnMessage learnt;
+    h.control.acknowledge(); // warm-up
+    h.control.process (snapshot, messages.data(), 1, 64);
+
+    gAllocations = 0;
+    {
+        TrackAllocations track;
+        for (int round = 0; round < 400; ++round)
+        {
+            h.control.setLearning (round % 50 == 49);
+            h.control.acknowledge();
+            snapshot = h.store;
+            snapshot[ParamId::scene] = static_cast<float> ((round / 30) % live::kNumScenes);
+            h.control.process (snapshot, messages.data(), 1 + round % 6, 64);
+            if (round % 3 == 0)
+            {
+                h.control.syncParameters ([&h] (ParamId id, float v) { h.store[id] = v; });
+                while (h.control.popEvent (event))
+                    ;
+                while (h.control.popLearn (learnt))
+                    ;
+            }
+        }
+    }
+    CHECK (gAllocations.load() == 0);
+    CHECK (h.control.messageCount() > 400);
 }

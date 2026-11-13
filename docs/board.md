@@ -1,6 +1,7 @@
 # The pedalboard, part two: after the amp, and two of a pedal
 
-Status: design for 0.11.0, written before the code; the code and its tests follow it. Owners:
+Status: built for 0.11.0. Written before the code, which follows it; the measured numbers
+(§4.3, §4.4, §6.6) came after. Owners:
 core maintainers. Builds on the board in [architecture.md](architecture.md#the-pedalboard)
 (the registry, `Board`, `PedalRack`, `BoardSwitch` and the duck), which stays true for the pedals
 in front of the amp. Related: [ADR-0004](adr/0004-single-parameter-schema.md) (parameter ids),
@@ -34,9 +35,13 @@ factory presets render bit for bit as on main (§10).
 | After the amp | Modulation only (Ripple, Beacon, Gyre, Jetty) | They have no latency at any rate and in either mode, so the stage after the amp adds none. Drives and fuzzes after a miked cab distort the cab's response and would add latency; the gate listens to the guitar's DI, which after the amp is a different instrument; the compressor, the filters and the octave read the picking, which the amp has already compressed. A later time pedal (delay, reverb) would also fit there: the rule is by category. |
 | Pedals on the board | 25 | What the two rules above leave: two each of the nine pedals without latency (18) and seven drives and fuzzes. |
 
-On screen a full board of 25 is three rows at the smallest scale, the third reached by scrolling
-the board (`layout.test.ts` pins the worst case, §9). The two-row promise for sixteen different
-pedals stays.
+![The largest board, 25 pedals: two of every pedal without latency and the seven drives and fuzzes once. Its later rows scroll.](images/board-25.png)
+
+On screen the largest board is three rows at the smallest scale in most orders and four where
+wide pedals end rows early, the rows past the second reached by scrolling the board. Sixteen
+different pedals still fit two rows in any order, on either side of the amp, without scrolling:
+the jacks, the amp and the gaps got narrower to make room for the amp in the chain (§5.1).
+`layout.test.ts` pins both.
 
 ## 3. The model
 
@@ -66,11 +71,12 @@ share a rack.
 
 Edits (message thread):
 
-- `add (id)`: the lowest free instance, in front of the amp at its default position (after the
-  last pedal there ranked at or below it), as 0.10 did. Nothing when both copies are on the board
-  or the drive budget is full.
-- `addAfter (ref)`: a second copy right after the first, on the first one's side ("two drives
-  stacked").
+- `add (id)`: the lowest free instance. Right after the other copy, on its side, when that is on
+  the board ("two drives stacked"); otherwise in front of the amp at its default position (after
+  the last pedal there ranked at or below it), as 0.10 did. Nothing when both copies are on the
+  board or the drive budget is full.
+- `addAfterAmp (id)`: the lowest free instance at the end of the side after the amp (modulation
+  only).
 - `place (ref, side, position)`: inserts or moves a pedal to a side and a position (clamped).
   Refused when the side doesn't take it (§2).
 - `remove (ref)`.
@@ -180,17 +186,73 @@ state, as if switched on there. If the same change also reorders a side, that si
 would on its own; a change never ducks a side it doesn't touch. Each side's duck is short (two
 6 ms fades plus that side's latency), and the two can run at the same time.
 
+**After the amp the pedals that stay restart too.** In front of the amp, pedals that stay on the
+board keep their state through a rewire (architecture.md): the signal faded out through them. The
+side after the amp has no lag, so its output fades at the same moment as its input, and its
+pedals' delay lines still hold the last milliseconds of signal at the bottom of the duck;
+rerouted, a flanger put that audio out as a step. Measured on a swap of Gyre and Jetty after the
+amp before the restart: an excess of −30 dB over the references' slope (×146); with every pedal
+on that side restarting from a clean state, −74 to −94 dB and ×1.1, the bound the board's other
+tests hold.
+
 A duck on the side after the amp has nothing behind it to fill the gap: the rig's output dips to
-silence for about 12 ms unless Drift or Fathom ring through it, where a reorder in front of the
-amp dips only −9 to −28 dB because the amp and cab ring on. It only happens when pedals after the
-amp swap places, a deliberate edit; joining, leaving and crossing the amp never duck.
+silence for about two fades unless Drift or Fathom ring through it (measured below), where a reorder in
+front of the amp dips only −9 to −28 dB because the amp and cab ring on. It only happens when
+pedals after the amp swap places, a deliberate edit; joining, leaving and crossing the amp never
+duck.
+
+**Until a board comes** (a host that never restores a session, and the engine's own tests), the
+racks in front of the amp play the legacy board, as 0.10 did, and the rack after it plays nothing.
 
 The engine steps both switches at every block boundary and processes the shorter of the two
 chunks they allow, so a side's fade to silence still ends exactly on a boundary.
 
+Measured through the whole rig (`[.board-measure]`, "Crossing the amp and swapping after it"):
+Tide in front of the amp, Gyre and Jetty holding still (depth 0), Lagoon clean, 64-frame blocks,
+the change 0.6 s in. "Excess" is the largest sample-to-sample step beyond the signal's own,
+against its peak, as in architecture.md's table.
+
+| Change | Signal | Rate | Dip | Below −1 dB | Excess step | Slope |
+|---|---|---|---|---|---|---|
+| Gyre crosses the amp (two fades, no duck) | sine | 48 / 96 kHz | −11.0 / −10.0 dB | 16 / 14 ms | −61 / −67 dB | ×5.5 / ×10.0 |
+| | guitar | 48 / 96 kHz | −7.2 / −6.0 dB | 8 / 9 ms | −63 / −110 dB | ×1.20 / ×1.00 |
+| Gyre and Jetty swap after the amp (that side's duck) | sine | 48 / 96 kHz | −70.7 / −65.9 dB | 12 / 12 ms | −94 / −115 dB | ×1.10 / ×1.03 |
+| | guitar | 48 / 96 kHz | −47.3 / −47.0 dB | 8 / 7 ms | −80 / −92 dB | ×1.03 / ×1.03 |
+
+Crossing dips because, halfway through the two fades, half the signal goes through the phaser
+in front of the amp and half after it, and a phaser's output is phase-shifted against its input:
+a footswitch press on a phaser dips the same way (its bypass fade mixes dry and wet). The excess
+step stays at −61 dB or below; on a pure sine the step ratio is larger because the sine's own
+steps are tiny. The tests hold the crossing to an excess under −50 dB and a dip above −12 dB, and
+the swap to a dip of at most two fades plus 2 ms, an excess under −50 dB and a slope at most
+×1.2 (guitar) or ×1.6 (sine).
+
+### 4.4 CPU
+
+The whole engine, every copy on the board switched on, a guitar riff, 10 s at 48 kHz in 64-frame
+blocks, Low latency (`[.board-measure]`, "Full board CPU through the rig"; an Apple-silicon
+laptop with other builds running, so read the ratios more than the absolute numbers):
+
+| Board | Summed (one chain in front) | Dual (two chains in front) |
+|---|---|---|
+| Nothing on the board | 380 ns/sample (1.8 % of a core) | 752 (3.6 %) |
+| Every pedal once, in front of the amp (0.10's largest) | 2692 (12.9 %) | 5396 (25.9 %) |
+| The largest board, 25 pedals, all in front | 3135 (15.0 %) | 6266 (30.1 %) |
+| The largest board, the 8 modulation copies after the amp | 3305 (15.9 %) | 6733 (32.3 %) |
+
+The largest board costs about 16 % more than 0.10's largest in front of the amp: the nine
+pedals it can add twice are the cheap ones (no oversampling), and the seven drives and fuzzes,
+which oversample, are on it once. After the amp a modulation pedal runs once on two channels; in
+front of it, once per chain on one. So moving the modulation after the amp adds a second
+channel's worth in Summed mode and about nothing in Dual mode: measured +5 % and +7 %, within this
+machine's noise. Every board stays well inside one core, which is why the limits in §2 come from
+latency, parameters and the screen rather than CPU.
+
 ## 5. The UI
 
 ### 5.1 The board
+
+![Two Kelps stacked in front of the amp, Gyre and Ripple after it on their band](images/board-after-amp.png)
 
 The board draws the chain left to right and row by row:
 `Guitar ─► pedals in front ─► [Amp] ─► pedals after ─► Out`.
@@ -198,43 +260,65 @@ The board draws the chain left to right and row by row:
 - **The amp is a block in the chain**, a list item between the two groups, drawn as the amp
   head it already was (its colours and name, a button to the Amp page). It has no handle and
   never moves; pedals move around it.
-- **After the amp** is a tinted band behind the pedals there and the Out jack, captioned
-  *After the amp*. Out is a small jack like Guitar, labelled *Out*, where the cable ends and the
-  effects take over. An empty side after the amp is just the amp, a short cable and Out.
+- **After the amp** is a tinted band behind the pedals there and the Out jack, one band per row
+  they stand in, named *After the amp* at its start: upright, above the cable, in front of the
+  first pedal after the amp, read from the bottom like the amp's own name. Out is a small jack
+  like Guitar, labelled *Out*, where the cable ends and the effects take over. An empty side after
+  the amp is just the amp, a short cable and Out, with no band.
+- **Room for the amp.** The amp in the chain, Out and the band's name take room the board used to
+  give the pedals. The jacks (34 → 26 units wide), the amp (48 → 40) and the gaps (8 → 7) got
+  narrower, so that sixteen different pedals still fit two rows in any order: a greedy fill
+  wastes less than the widest pedal and a gap at the end of the first row, and two rows of
+  1168 px hold the pedals' 1948 units, the amp, both jacks, the band's name and 17 gaps with that
+  to spare.
 - **Second copies** are named with their number on the enclosure (*Kelp 2*); the first stays
   *Kelp*, as the host names their parameters.
 
 ### 5.2 Moving pedals
+
+![Pearl dragged past the amp: its bar stops in front of the amp, and the toolbar says why](images/board-drag-amp.png)
 
 The UI keeps the board as one list of tokens with `amp` in it, so moving a pedal is moving it in
 that list; `amp` itself never moves.
 
 - **Drag**: the drop bar can go anywhere a pedal fits. A modulation pedal can land on either
   side of the amp. Any other pedal's bar stops at the amp: past it, the bar stays in the last
-  gap in front of the amp, and the hint under the board reads *Only modulation goes after the
-  amp*.
+  gap in front of the amp, and the toolbar line (where the pedal count is) reads *Only
+  modulation goes after the amp* until the pointer comes back or lets go.
 - **Keyboard**: on the handle, the arrow keys move a pedal one place, and one more step from the
   last place in front of the amp crosses it (modulation) or stays (anything else). Home and End
   go to the ends of the pedal's own side. Move left and Move right do the same, and switch off
   at the amp for pedals that can't cross it.
-- **Announcements** name the side: "Gyre moved after the amp, 1 of 2." / "Kelp 2 moved to 5 of 9
-  in front of the amp, after Kelp."
+- **Announcements** name the side: "Gyre moved to 1 of 2 after the amp, first." / "Kelp 2 moved
+  to 5 of 9 in front of the amp, after Kelp." / "Added Gyre, 1 of 1 after the amp, first."
 
 ### 5.3 The Add pedal shelf
 
+![The shelf pointing at Gyre's After the amp: the bar lands past Ripple, and the line says Gyre 2 goes after the amp](images/pedal-picker-after-amp.png)
+
 The shelf keeps its cards, with what each pedal can do on this board:
 
-- Not on the board: **Add**, in front of the amp at its default place, as before.
-- One copy on the board: **Add another** puts the second copy right after the first, on its
-  side. The card reads *On the board*; pointing at it rings the copy on the board.
-- Both copies on: *Both on the board*; picking the card shows them.
-- The board holds seven drives and fuzzes: drive and fuzz cards read *7 drives and fuzzes at
-  most* and add nothing (they stay focusable, `aria-disabled`, so the reason can be read).
-- Modulation cards have a second button, **After the amp**, which puts the next copy at the end
-  of the side after the amp.
+- Not on the board: **+ Add**, in front of the amp at its default place, as before.
+- One copy on the board: **+ Another** (named "Add another Kelp") puts the second copy right
+  after the first, on its side. The card's line turns the colour of the ring that marks the
+  copy on the board when the card is pointed at.
+- Both copies on: *Both on board*; picking the card shows them.
+- The board holds seven drives and fuzzes: drive and fuzz cards read *7 drives max* and add
+  nothing (they stay focusable, `aria-disabled`, so the reason can be read: "The board holds 7
+  drives and fuzzes at most.").
+- Modulation cards have a second button, **After the amp** (on two lines, so the card stays as
+  narrow as the others), which puts the next copy at the end of the side after the amp. It is in
+  the shelf's arrow-key walk like the cards, and pointing at it marks where the pedal would land
+  past the amp.
 
-The shelf's line for the eye says where the pedal would go, with the side ("Goes after the amp,
-last." / "Goes in front of the amp, after Tide.").
+The card lines are short so that sixteen cards still fit the shelf's 1168 px in any state (at
+most 62 px each, as before); each button's name and description say it in full. The two-line
+button makes the shelf 33 px taller, so the board above it is drawn at most at 1.08 instead of
+1.2 while the shelf is open (317 px are left for it).
+
+The shelf's line for the eye, and each button's description for a screen reader, say where the
+pedal would go, with the side and the copy ("Goes in front of the amp, after Tide." / "Kelp 2
+goes in front of the amp, after Kelp." / "Goes after the amp, after Gyre.").
 
 ## 6. Stereo modulation after the amp
 
@@ -300,14 +384,17 @@ c = cos (ω Δτ / 2),   τ̄ = (τ_L + τ_R) / 2,   Δτ = τ_L − τ_R.
 Because `|c| ≤ 1`, `(1 − |c|)/2 ≤ |M| ≤ (1 + |c|)/2`: the mono sum lies inside the mono
 flanger's own range `[0, 1]`, with its notches filled in by `1 − |c|`. The spread adds no peak and
 no notch the effect doesn't already have. This is also why vibrato stays in phase: without the
-dry `1`, the sum is `c · e^{−jωτ̄}`, which notches to silence at `f = 1 / (2 Δτ)`, for Ripple's
-vibrato swing of a few milliseconds a comb from about 100 Hz up.
+dry `1`, the sum is `c · e^{−jωτ̄}`, which notches to silence at `f = 1 / (2 Δτ)`. Ripple's
+vibrato swings its delay by up to about 8.6 ms at its slowest speed (less as it speeds up, for the
+same pitch swing), so a quarter cycle apart its mono sum would be a comb notching to silence from
+about 58 Hz up (about 610 Hz at the fastest speed): an effect of its own, not a vibrato.
 
 How wide the comb in `c` is follows from the sweep. Jetty sweeps its delay in octaves,
-`τ = τ_0 · 2^{d · tri (θ)}` with depth `d ≤ 1` octave either side (docs/dsp/jetty.md); a quarter
-cycle apart the two triangles differ by at most half their swing, so
-`|Δτ| ≤ τ_max − τ_max / 2^{d}`, at most half the longest delay. With Delay at its 10 ms maximum,
-`c`'s first null is at `1 / (2 · 5 ms) = 100 Hz`, moving: the comb a flanger is.
+`τ = τ_0 · 2^{1.5 d · tri (θ)}`: up to 1.5 octaves either side of Delay at full depth `d = 1`,
+clamped to 0.1 … 16 ms (docs/dsp/jetty.md). A quarter cycle apart the two triangles differ by at
+most 1, half their swing, so the two delays are at most 1.5 octaves apart:
+`|Δτ| ≤ τ_max (1 − 2^{−1.5}) ≈ 0.65 τ_max`, 10.3 ms at the 16 ms clamp. `c`'s first null is then
+at `1 / (2 · 10.3 ms) ≈ 48 Hz`, moving: the comb a flanger is, inside the range §6.5 measures.
 
 ### 6.4 One output
 
@@ -322,24 +409,46 @@ On white noise from the tests' fixed generator, the same signal on both sides (t
 the cab's two mics are never more alike than that), each pedal at full depth, with feedback off
 and at its maximum, through the stage after the amp at 48 kHz:
 
-- **No cancellation**: in every 1024-sample window, the mono sum's power is at least half the
-  mean power of the two sides (−3.01 dB). Proved for the phaser without feedback, measured with.
-- **Inside the effect's own range**: in every window, the mono sum's power is within the range
-  the same pedal with no spread (φ = 0) covers over the whole run, widened by the measured
-  margin (§6.6).
+- **No cancellation**: in every 4096-sample window (85 ms: a few per cent of the sweeps, and a
+  power estimate within about 0.1 dB on noise; in 1024-sample windows the estimate's own noise
+  took the phaser at full feedback to 3.06 dB), the
+  mono sum's power is at least half the mean power of the two sides (−3.01 dB). Proved for the
+  phaser without feedback, measured with.
+- **Inside the effect's own range**: in every window the mono sum is never louder than the same
+  pedal without the spread (one channel) gets over the whole run, and at most 2.5 dB under its
+  quietest window (measured 2.0 dB, §6.6: the windows average over the notches the sum fills in
+  and the mono pedal's sweep empties).
+- **The first side is the pedal as it was**: the left channel equals the mono pedal sample for
+  sample, so a pedal after the amp heard on one side is the pedal 0.10 had.
 - **Mono-identical where it should be**: Ripple tremolo and vibrato and Beacon put out the same
   samples on both sides when both sides get the same input.
 
 ### 6.6 Measured
 
-To be filled in from `[.board-measure]` once the code exists.
+`[.board-measure]`, "The stereo modulation's mono sum": white noise (fixed seed), the same on both
+sides, 8 s at 48 kHz in 4096-frame windows, each pedal at full depth.
+
+| Pedal | Feedback | Worst loss against the sides' mean | Loudest window against the pedal's loudest | Quietest window under the pedal's quietest |
+|---|---|---|---|---|
+| Gyre, 6 stages, 0.5 Hz | off | 0.61 dB | −0.19 dB | −0.32 dB (louder) |
+| | full | 2.88 dB | −0.57 dB | 2.03 dB |
+| Jetty, Delay 10 ms, 0.25 Hz | off | 0.83 dB | −0.96 dB | 0.32 dB |
+| | full | 2.07 dB | −2.90 dB | 0.91 dB |
+| Jetty, Delay 0.5 ms, 0.25 Hz | off | 0.93 dB | −0.51 dB | 0.83 dB |
+| | full (negative) | 2.52 dB | −2.22 dB | 1.81 dB |
+| Ripple chorus, 0.69 Hz | | 0.46 dB | −0.49 dB | 0.38 dB |
+
+Every case stays under the 3.01 dB that would mean the two sides cancel, never gets louder than
+the pedal on its own does, and comes at most 2.03 dB under its quietest window, where the bound
+is 2.5 dB. The first side equals the mono pedal sample for sample in every case.
 
 ## 7. Parameters (ADR-0004)
 
 ### 7.1 The scheme
 
 Every existing parameter keeps its id and means the first copy. The second copy of each pedal
-gets its own parameters, appended once, at the end of `ParameterList.inc`:
+gets its own parameters, appended once, after the parameters main had when this landed (the
+looper's were the last):
 
 - **Ids**: the pedal's id with `2` after it: `kelpDrive` → `kelp2Drive`, `gateEnabled` →
   `gate2Enabled`. Every pedal parameter starts with its pedal's id (a test checks), so the rule
@@ -347,7 +456,9 @@ gets its own parameters, appended once, at the end of `ParameterList.inc`:
 - **Names**: the pedal's name with ` 2`: *Kelp 2 Drive*, and the switch *Kelp 2*.
 - **Group**: *Kelp 2*.
 - **Everything else** (kind, range, default, skew, unit, choices, automatable) as the first
-  copy's.
+  copy's, except the switch's default: every second copy starts off, `gate2Enabled` too (the
+  first Gate starts on). A session or preset that doesn't hold a second copy's switch has no
+  second copy playing, wherever the board would put one.
 
 73 parameters (every pedal's 2 to 6), in registry order, then each pedal's parameters in
 schema order. A test pins the whole block against the first copies, so it can't drift. The
@@ -410,8 +521,11 @@ picked as scene values like any other.
 - **Mono sum** (§6.5).
 - **UI.** Dragging a modulation pedal across the amp moves it after the amp; dragging a drive
   there stops at the amp; the keyboard crosses the amp; Add another adds the second copy after
-  the first; the drive limit; second copies' knobs drive their own parameters. The layout fits
-  sixteen different pedals in two rows and the largest board (25) in three.
+  the first; After the amp adds after it; the drive limit; second copies' knobs drive their own
+  parameters. The layout fits sixteen different pedals in two rows on either side of the amp and
+  the largest board (25) in three or four.
+- **The engine before a board comes** plays the legacy board in front of the amp and nothing
+  after it, sample for sample what an engine given the legacy board plays.
 - **Factory presets** render bit-identical to main (`sedef-render` on both builds, all 49).
 
 ## 10. Factory presets
@@ -442,3 +556,14 @@ from main and from this branch and comparing the files byte for byte.
   two fades make without one.
 - **Allowing every pedal after the amp**: the drives would add latency after the amp (or a third
   latency budget), and see §2 for how each sounds there.
+- **The band's name in a strip over the band**: 14 px more height in the row it starts in, so two
+  rows (588 px) no longer fit under the toolbar; standing upright in front of the first pedal
+  after the amp it costs 14 px of width once, which the narrower jacks, amp and gaps pay for.
+- **After the amp on one line, and the cards' longer lines** ("Add another", "Both on the
+  board", "7 drives and fuzzes at most"): measured on the shelf, cards grew to 67–89 px and the
+  row of sixteen ran about 175 px past the shelf's 1168 px, the Pitch card off the edge. Shorter
+  lines and a two-line button keep every card at 62 px; the names and descriptions keep the full
+  words.
+- **The second copy's switch on by default, like the Gate's**: a session from 0.10 holds no
+  `gate2Enabled`, so a default of on would be harmless only while the board has no second Gate;
+  off means a second copy never plays unless someone switched it on.

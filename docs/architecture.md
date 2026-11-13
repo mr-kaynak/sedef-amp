@@ -17,7 +17,8 @@ Input ─► Tuner tap ─► Input Gain ─► Transpose ─► Pedalboard: the
       ─► Beacon (vibe) ─► Gyre (phaser) ─► Jetty (flanger) ─► Ripple (modulation)
       ─► Breaker (treble booster)
       ─► Amp (Lagoon | Reef | Abyss) ─► Cab (2 mics + room)
-      ─► 9-band EQ (one bank per amp) ─► Doubler ─► Drift (tape echo)
+      ─► 9-band EQ (one bank per amp) ─► the pedals after the amp (modulation, stereo; none by
+      default) ─► Doubler ─► Drift (tape echo)
       ─► Fathom (plate | hall reverb) ─► Looper ─► Metronome ─► Output Gain ─► Output
 ```
 
@@ -94,8 +95,8 @@ Communication:
   lock-free SPSC ring (`core/SpscRing.h`). The analysis thread drains it.
 - **Audio → UI telemetry:** meters, gain reduction, gate state are atomics in
   `Engine::Telemetry`, sampled by a 30 Hz timer on the message thread.
-- **Pedalboard → audio:** the board (an ordered, fixed-capacity list of pedal ids) goes
-  through `core/RtMailbox.h`, a wait-free triple buffer in which the newest board wins. The
+- **Pedalboard → audio:** the board (two ordered, fixed-capacity lists of pedals, in front of
+  the amp and after it) goes through `core/RtMailbox.h`, a wait-free triple buffer in which the newest board wins. The
   engine picks it up at the start of a block ([The pedalboard](#the-pedalboard)).
 - **Looper → audio:** its memory (about 92 MB) is reserved once, on the message thread, the first
   time the standalone app opens the looper, and published through one atomic pointer; presses go
@@ -179,8 +180,9 @@ own instead, so their tails ring out ("spillover") after being switched off.
 - `Channel`: Input Gain → Transpose → pedalboard (`PedalRack`) → Amp → Cab. Mono in, mono or
   stereo out. The gate's sidechain is delayed by Transpose's latency, which the engine adds to
   the latency it reports while Transpose shifts ([transpose.md](dsp/transpose.md)).
-- `PostChain`: EQ → Doubler → Drift → Fathom → Looper → Metronome → Output Gain. Stereo. The
-  looper records what reaches it and adds the loop there, so the click is never recorded.
+- `PostChain`: EQ → the pedals after the amp (a stereo `PedalRack`, [board.md](board.md#4-the-engine))
+  → Doubler → Drift → Fathom → Looper → Metronome → Output Gain. Stereo. The looper records what
+  reaches it and adds the loop there, so the click is never recorded.
 
 | Host layout | Mode | Graph |
 |---|---|---|
@@ -196,9 +198,13 @@ wherever the Gate sits.
 
 ### The pedalboard
 
-The player puts pedals on the board, takes them off and drags them into any order. The board
-is state, not a parameter: it isn't automatable and has nothing in `ParameterList.inc`. Every
-pedal keeps its own parameters (on/off and knobs) whether or not it is on the board.
+The player puts pedals on the board, takes them off and drags them into any order, on either
+side of the amp for modulation, and can put any pedal on twice. The board is state, not a
+parameter: it isn't automatable and has nothing in `ParameterList.inc`. Every pedal, and each
+pedal's second copy, keeps its own parameters (on/off and knobs) whether or not it is on the
+board. This section describes the side in front of the amp, as it was built first;
+[board.md](board.md) adds the side after the amp, second copies and their limits (two copies,
+seven drives and fuzzes, 25 pedals).
 
 **The registry.** `engine/include/sedef/board/PedalList.inc` is an X-macro list and the only
 place a pedal is declared:
@@ -225,8 +231,9 @@ Consumers:
 | Plugin | board ids in the session and presets (`plugin/src/BoardText.*`) |
 | UI | `tools/sedef-params --pedals` dumps the list to `ui/src/generated/pedals.json`; a ctest (`ui-pedals-in-sync`) fails when it is stale. `ui/src/features/pedals/catalog.ts` adds each pedal's panel and its line for the picker. |
 
-**The model.** `sedef::Board` (`board/Board.h`) is the ordered list of pedal ids on the board,
-in a fixed-capacity array (`kNumPedals`). It keeps each pedal at most once. `Board::legacy()`
+**The model.** `sedef::Board` (`board/Board.h`) is two ordered lists of pedals (`PedalRef`, a
+pedal and its copy), in front of the amp and after it, each in a fixed-capacity array. It keeps
+each copy at most once. `Board::legacy()`
 is the fixed chain the board replaced: Gate, Trench, Anemone, Conch, Remora, Tide, Urchin,
 Sargasso, Pearl, Kelp, Coral, Beacon, Gyre, Jetty, Ripple, Breaker (0.3.0 had Gate, Tide, Pearl,
 Coral and Ripple; the others joined the fixed chain before the board did).
@@ -236,8 +243,9 @@ to quiet the guitar; after the drives, to cut the noise they add) or leave it of
 it on the board costs nothing: its detector listens to the raw instrument wherever it sits, so
 it closes on the guitar, not on the hiss in front of it.
 
-**Saving.** The plug-in saves the board as a comma-separated id list (`board="gate,tide,…"`)
-in its state's `Extra` element and in each preset. Snapshots (preset Undo, the browser's
+**Saving.** The plug-in saves the board as a comma-separated id list (`board="gate,tide,…"`;
+`kelp#2` for a second copy and `amp` before the pedals after the amp, board.md §3.3) in its
+state's `Extra` element and in each preset. Snapshots (preset Undo, the browser's
 audition) and A/B carry it too. A preset whose board differs from the loaded one counts as
 edited.
 
@@ -304,7 +312,8 @@ tests bound them: a dip of at most two fades plus the latency (and 2 ms), an exc
 −50 dB at the board's output, and through the rig a slope at most 1.2× (guitar) or 1.6× (sine)
 the signal's own (measured: up to 1.14× and 1.49×). CPU at 48 kHz, in ns per sample: every pedal
 on the board and on, about 1010; Tide alone, 19; nothing on the board, 6 (the delays of the
-pedals left off); every pedal on the board but switched off, 6.
+pedals left off); every pedal on the board but switched off, 6. The largest board there is, 25
+pedals, through the whole rig: [board.md](board.md#44-cpu).
 
 **Later: a live mode.** A preset load sets the parameters and the board from the message
 thread in one call; the audio thread can pick them up a block apart, which the duck and the
@@ -322,7 +331,10 @@ applies a board only at a block boundary.
    `ParameterList.inc` (append only, [ADR-0004](adr/0004-single-parameter-schema.md)).
 3. **Registry.** Append one `SEDEF_PEDAL(…)` line to `PedalList.inc` with a rank that puts it
    where it belongs by default (leave gaps). If it adds latency, the rig's reported latency
-   grows by it for every board. `Board::legacy()` stays as it is: it is the fixed chain that
+   grows by it for every board, and every drive and fuzz must keep the same latency (the
+   second-copy rule in board.md §4.2 counts on it; a test checks). Append its second copy's
+   parameters too (`<id>2…`, board.md §7): `Board.h`'s compile-time check fails until they
+   mirror the first copy's. A modulation pedal may stand after the amp if it has no latency. `Board::legacy()` stays as it is: it is the fixed chain that
    sessions saved before the board played, and a new pedal was never in it.
 4. **Generated tables.** Rebuild, then run `build/engine/tools/sedef-params` to regenerate
    `ui/src/generated/parameters.json` and `sedef-params --pedals` for
@@ -332,8 +344,8 @@ applies a board only at a block boundary.
    `sizes.ts` (compact, regular or wide by what it carries, and the height its controls need),
    a line figure for its enclosure in `art.tsx`, and one entry in
    `ui/src/features/pedals/catalog.ts`: the panel, the kind of pedal and a one-line
-   description for the picker. The board's layout test (`layout.test.ts`) fails if every pedal
-   no longer fits two rows.
+   description for the picker. The board's layout test (`layout.test.ts`) fails if sixteen
+   different pedals no longer fit two rows.
 6. **Tests and docs.** The registry and layout tests check every pedal has a switch, a panel, a
    description and a box. Add the pedal to the README Pedals row, `docs/ui.md` and the CHANGELOG.
 

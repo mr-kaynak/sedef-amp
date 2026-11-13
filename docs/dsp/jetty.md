@@ -18,6 +18,9 @@ peaks would be squared off by a drive after it. Of the three time-modulation ped
 densest, most metallic comb, so it comes last, where it modulates the others rather than being
 smeared by them.
 
+On the board it can also stand after the amp and cab, where it moves the finished amp sound in stereo
+(the effects-loop place; [board.md](../board.md)).
+
 ## Signal flow
 
 ```
@@ -108,4 +111,7 @@ from the plain comb's 2 to above 6. Cost: 42 ns a sample, 0.20 % of one core (48
 ## Known limitations
 
 - No companding (compressor/expander) noise or breathing, and no clock bleed: kept clean on purpose.
-- One LFO for both channels: no stereo spread yet.
+- One LFO; with two channels (after the amp) the second channel's delay sweeps a quarter cycle
+  ahead, with its own band-limit filter; the mono sum stays inside the mono flanger's own range
+  ([board.md](../board.md#6-stereo-modulation-after-the-amp)). The first channel is the mono
+  pedal sample for sample.

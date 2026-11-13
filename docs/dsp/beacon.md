@@ -21,6 +21,9 @@ The vibe is classically played after a fuzz or overdrive, which the throb then m
 drive, the drive's compression flattens it. It comes before the phaser and flanger because its
 slow, wide swirl sits best under their faster, sharper notches.
 
+On the board it can also stand after the amp and cab, where it moves the finished amp sound in stereo
+(the effects-loop place; [board.md](../board.md)).
+
 ## Signal flow
 
 ```

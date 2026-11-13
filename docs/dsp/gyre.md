@@ -18,6 +18,9 @@ heard; before a high-gain drive, the drive's compression and new harmonics fill 
 Gyre sits after Beacon (the warmer, lopsided throb) and before Jetty (whose comb has the most
 teeth), so the modulation grows denser along the chain.
 
+On the board it can also stand after the amp and cab, where it moves the finished amp sound in stereo
+(the effects-loop place; [board.md](../board.md)).
+
 ## Signal flow
 
 ```
@@ -95,4 +98,6 @@ At full Depth the break sweeps from 150 Hz to 2.4 kHz. Cost: 37 ns a sample, 0.1
 ## Known limitations
 
 - Ideal, matched stages: no component spread between stages and no transistor colour.
-- One LFO for both channels: no stereo spread yet.
+- One LFO; with two channels (after the amp) the second channel's sweep runs a quarter cycle
+  ahead, so the mono sum keeps the sweep at −3 dB and never cancels ([board.md](../board.md#6-stereo-modulation-after-the-amp)).
+  The first channel is the mono pedal sample for sample.

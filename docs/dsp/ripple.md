@@ -69,7 +69,8 @@ Depth and swing are smoothed per sample (30–60 ms), so turning the knobs never
 
 ## Known limitations
 
-- Single-voice chorus; no stereo tremolo/vibrato (both channels share the LFO phase).
+- Single-voice chorus; no stereo tremolo/vibrato (both channels share the LFO phase), on purpose
+  after the amp too: an offset vibrato's mono sum would be a comb ([board.md](../board.md#63-the-mono-sum-of-a-flanger-or-chorus)).
 - Vibrato's average delay follows the swing to keep latency minimal, so turning depth or speed
   causes a brief, gentle pitch glide while the knob moves.
 - No tempo sync and no waveform choice.

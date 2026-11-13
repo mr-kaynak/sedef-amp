@@ -171,7 +171,9 @@ moved to the status bar for the same row.
 ### 6.2 What a scene holds
 
 - **The switches**: the on/off parameter of every pedal in the registry (`PedalList.inc`, 16
-  today), the three EQ banks, the Doubler, Drift and Fathom: 22 switches. Each goes through its
+  today) and of each pedal's second copy ([board.md](board.md#8-scenes)), the three EQ banks,
+  the Doubler, Drift and Fathom: 38 switches. A scene switches pedals where they stand; which
+  pedals are on the board, and on which side of the amp, is the board's, not a scene's. Each goes through its
   module's bypass fade (10 ms) or, for Drift and Fathom, their own spill-over, so switching never
   clicks.
 - **Up to 16 values** the player picks (*Remember in scenes* in a control's menu): continuous
@@ -351,7 +353,7 @@ disagreeing.
 |---|---|---|
 | Scenes | 8 | §6.1 |
 | Picked values per preset | 16 | "A few chosen values" with room to spare; the list fits the panel without scrolling. |
-| Parameters in a scene | ≤ 48 | 22 switches + 16 values = 38; the rest is room for new pedals (a static assertion fails the build when the registry outgrows it). |
+| Parameters in a scene | ≤ 64 | 38 switches (both copies of 16 pedals, and 6) + 16 values = 54; the rest is room for new pedals (a static assertion fails the build when the registry outgrows it). |
 | Bindings | 64 | A 12-switch controller with two pedals, each switch driving up to four targets, is 56. |
 | MIDI messages read per block | 512 | A controller sends at most a few hundred messages a second; more in one block are dropped. |
 | Report ring (scene switches, program changes) | 64 | One entry per press; full only if the message thread stalls for seconds. |

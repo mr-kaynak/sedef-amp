@@ -34,7 +34,7 @@ chromium-headless-shell`.
 | `?overlay=tuner\|intonation`        | open the tuner or the intonation workbench                                                                                                                                                                                                                                                                            |
 | `?preset=soft-focus`                | start from a factory preset (the id in its file, here Vibrato Swell Wash; default `nacre`, Glassy Chorus)           |
 | `?set=pearlEnabled:1,pearlGain:0.4` | parameter values applied as part of that preset (no dirty dot)                                                                                                                                                                                                                                                        |
-| `?board=gate,pearl,ripple`          | the pedalboard, as part of that preset (empty: no pedals)                                                                                                                                                                                                                                                             |
+| `?board=gate,pearl,ripple`          | the pedalboard, as part of that preset (empty: no pedals; `kelp%232` is a second Kelp, and the pedals after `amp` stand after the amp)                                                                                                                                                                                |
 | `?freeze`                           | no simulation: static meters, pitch only from the demo hook                                                                                                                                                                                                                                                           |
 | `?demo`                             | expose `window.__sedefDemo` (`pitch`, `silence`, `intonation`, `set`, `midi`) for scripted frames                                                                                                                                                                                                                             |
 | `?grain=0`                          | hide the lacquer grain (much smaller PNGs)                                                                                                                                                                                                                                                                            |
@@ -219,7 +219,7 @@ browser the canvas fits the window. Everything is vector or text, so it stays cr
 | Header     | logo, preset bar (prev/next, category chip, name with dirty dot, A/B with copy, Save), input/output gain with peak meters and clip latches; the input meter marks the level the presets want and has the input level chip under it (No signal, Check level, Too quiet, Level good, Too hot), which opens the Input level panel ([input-level.md](ui/input-level.md)); the Doubler switch under the output meter; Tuner (T), Intonation, Metronome and Looper (standalone only; the Looper button shows its state while closed), Settings                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | Presets    | browser over the rig ([details](ui/presets.md)): search, the library switch, one list of one-line rows in two columns under category headers, a strip with the note of the row under the pointer; click or arrows audition, Enter keeps, Esc goes back exactly; `[` `]` `P` `A` `B` |
 | Tabs       | Pedals · Amp · EQ · Cab · FX, keys 1–5 and arrow keys; each tab shows what is switched on inside it. Then Transpose: a −/+ stepper ("−2 st"), and while it shifts the latency it adds and Back to 0. At the right end the scene bar (scenes 1–8, a radio group; made scenes are brighter and dotted; folded into one "Scene 3" button while Transpose shifts) and the MIDI button with its activity light ([live.md](live.md)) |
-| Pedals     | the pedalboard ([below](#pedalboard)): the signal runs along a cable from the Guitar jack through the pedals, row by row, into the amp in use; every pedal is its own enclosure (three widths, its own knob layout and painted figure), drawn as large as the board's length allows, and all sixteen fit without scrolling; drag a pedal, or use the arrow keys or move buttons on it, to reorder; Remove with Undo; Add pedal opens a shelf with a picture of every pedal by category. Gate (threshold, open/closed lamp); Trench Mono/Poly, Remora Germanium/Silicon, Breaker Treble/Full, Conch Manual/Auto, Anemone mode and direction, Gyre stages and Beacon Chorus/Vibrato switches; Tide gain reduction, Ripple rate lamp, Beacon lamp and Gyre/Jetty sweep LEDs; playing hints on Trench (it follows the mode: "One note at a time" in Mono, "Chords and single notes" in Poly) and Urchin, read with their footswitch |
+| Pedals     | the pedalboard ([below](#pedalboard)): the signal runs along a cable from the Guitar jack through the pedals, row by row, through the amp in use (a block in the chain) and the pedals after it to Out; every pedal is its own enclosure (three widths, its own knob layout and painted figure), drawn as large as the board's length allows, and sixteen different pedals fit without scrolling; drag a pedal, or use the arrow keys or move buttons on it, to reorder, modulation across the amp too; Remove with Undo; Add pedal opens a shelf with a picture of every pedal by category, adds a second copy (*Kelp 2*) and adds modulation after the amp. Gate (threshold, open/closed lamp); Trench Mono/Poly, Remora Germanium/Silicon, Breaker Treble/Full, Conch Manual/Auto, Anemone mode and direction, Gyre stages and Beacon Chorus/Vibrato switches; Tide gain reduction, Ripple rate lamp, Beacon lamp and Gyre/Jetty sweep LEDs; playing hints on Trench (it follows the mode: "One note at a time" in Mono, "Chords and single notes" in Poly) and Urchin, read with their footswitch |
 | Amp        | Lagoon/Reef/Abyss faceplates; Reef voice lever; Abyss bright/shift levers; amp/cab link; Capture: load or drop a .nam file, gear/author/model, trims, through-cab, interface level, recent, missing file                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | EQ         | the current amp's bank: 9 faders on a log axis under a live response curve, low/high cut, on/off, flatten                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | Cab        | cab picker; Mic A/B markers anywhere over the cone (drag or click to place, wheel or Alt-drag for distance, keys), off-axis stem, other speakers' map; type, position, distance, off-axis, level, pan, phase, room, custom IR                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
@@ -237,8 +237,9 @@ browser the canvas fits the window. Everything is vector or text, so it stays cr
 
 ![The pedalboard with the Add pedal shelf open](images/pedal-picker.png)
 
-The board is the list of pedal ids in signal order (`state/boardStore.ts`), mirrored from the
-plug-in: `hello.board`, `sedef_board_set(pedals)` (answers with the board it kept) and
+The board is the list of tokens in signal order (`state/boardStore.ts`): a pedal's id for its
+first copy, `kelp#2` for its second, and `amp` before the pedals after the amp, written only when
+one stands there ([board.md](board.md#33-saving)). It is mirrored from the plug-in: `hello.board`, `sedef_board_set(pedals)` (answers with the board it kept) and
 `sedef:board` for changes made elsewhere (presets, A/B, preset Undo, host restores). Edits
 apply at once; only the answer to the latest edit is taken, and a board older than the one held
 (by `revision`) is ignored. A plug-in without the board leaves `supported` false: the page then
@@ -258,29 +259,40 @@ shows 0.3.0's pedals in their fixed order without the editing tools.
   and the legends (knob labels, values, kinds, hints, switch labels) are 11 px at every scale,
   12 px for knob labels on a large pedal. A board that fits one row is drawn as large as the
   row allows (1.4 up to about five pedals, less for six to eight) and centred; a board that
-  needs two rows is at 1. While the Add pedal shelf is open the board is at most 1.2, so all
+  needs two rows is at 1. While the Add pedal shelf is open the board is at most 1.08, so all
   of it stays in view above the shelf.
 - **Layout** (`layout.ts`): arithmetic over the boxes on the fixed 1200 px canvas, no
   measuring. Rows fill from the left and are evened out, so a ninth pedal does not sit alone
-  under a row of eight. The widths are chosen so that all sixteen
-  fit two rows, in any order, in the 588 px under the toolbar (`layout.test.ts` tries a couple
-  of hundred orders); the page scrolls only if a later pedal breaks that.
+  under a row of eight. The widths are chosen so that sixteen different pedals fit two rows,
+  in any order and on either side of the amp, in the 588 px under the toolbar (`layout.test.ts`
+  tries a couple of hundred orders). A board with second copies can be longer: the largest, 25
+  pedals, takes three rows (four in some orders), and the board scrolls.
 - **Signal path**: a cable runs from the Guitar jack along each row at the height of the
   pedals' jacks, with an arrowhead in every gap, out past the row's end, back along the gap
-  between rows and into the next one. It ends in a small head in the colours and name of the
-  amp in use (Capture when a capture plays), which is a button to the Amp page. An empty board
-  is the jack, a short cable and the amp.
+  between rows and into the next one, and ends at the Out jack. On the way it passes through
+  the amp, a block in the chain (a list item with no tools, never dragged): a small head in the
+  colours and name of the amp in use (Capture when a capture plays), which is a button to the
+  Amp page. The pedals after the amp stand on a quiet band, one per row they stand in, named
+  *After the amp* upright at its start. An empty board is the jack, a short cable, the amp and
+  Out.
+- **Tab**: the Pedals tab shows a lamp per pedal on the board, on or off, up to eight; past
+  eight, five lamps and a count of the rest ("+20" on the largest board), so it is never wider
+  than with eight and the tab row keeps its room.
 - **Tools**: each pedal has its tools on its own top edge, on an ink strip that reads on any
   paint: the handle, then Move left, Move right and Remove. They show while the pointer or the
   keyboard focus is on the pedal, and always where there is no hover.
 - **Drag**: press the handle, or the enclosure anywhere but on a control, and move 4 px. The
   pedal follows the pointer (canvas pixels, so the Stage's scale doesn't matter), the others
-  stay put, and a nacre bar down the row marks the gap it would land in. When it lands, the
+  stay put, and a nacre bar down the row marks the gap it would land in, on either side of the
+  amp for a modulation pedal. Any other pedal's bar stops in front of the amp, and the toolbar
+  says *Only modulation goes after the amp* while the pointer is past it. When it lands, the
   pedals around it glide to their places. Near the scroller's top or bottom edge a scrolling
   board scrolls. Escape or a cancelled pointer puts it back.
-- **Keyboard**: on the handle, arrow keys move the pedal one place, Home and End to either end;
-  the move buttons do the same. Focus stays on the tool used (the handle when that button
-  switches off at an end). A polite live region says where it went: "Pearl moved to 4 of 5,
+- **Keyboard**: on the handle, arrow keys move the pedal one place (a modulation pedal steps
+  over the amp, anything else stops in front of it), Home and End to either end of its side;
+  the move buttons do the same, and say so when they cross the amp ("Move Gyre after the amp").
+  Focus stays on the tool used (the handle when that button switches off at an end). A polite
+  live region says where it went, with the side: "Pearl moved to 4 of 5 in front of the amp,
   after Coral."
 - **Remove** takes the pedal off at once and shows "Removed Pearl · Undo"; Undo puts it back
   where it was. The notice goes when a preset or A/B brings another board. Focus moves to the
@@ -291,13 +303,21 @@ shows 0.3.0's pedals in their fixed order without the editing tools.
   `inert` and hidden from assistive technology, so the picture always matches). Pointing at a
   card, with the pointer or the keyboard focus, shows a bar on the board where the pedal would
   land (its rank in the registry) and a line with what it does and where it goes; a pedal on
-  the board already is marked "On the board", ringed on the board, and picking it shows it
-  there. Adding announces the pedal's place and leaves the shelf open with focus on the card,
-  so several pedals can go on in one visit. Arrow keys, Home and End walk the cards; Close,
+  the board already is ringed there, and its card adds a second copy right after the first
+  (*+ Another*); with both copies on it reads *Both on board* and picking it shows them there.
+  When the board holds seven drives and fuzzes, their cards read *7 drives max* and stay
+  focusable (`aria-disabled`) so the reason can be read. Modulation cards have a second button,
+  *After the amp*, on two lines. The card lines are short so sixteen cards fit the shelf's width
+  in any state; the buttons' names and descriptions say it in full. Adding announces the
+  pedal's place and leaves the shelf open with focus on the card, so several pedals can go on
+  in one visit. A second copy is named with its number (*Kelp 2*), on its enclosure, its tools
+  and in the announcements, as the host names its parameters; its panel reads and writes its
+  own parameters (`copy.ts`). Arrow keys, Home and End walk the cards; Close,
   Escape or Add pedal closes the shelf, and focus goes back to Add pedal.
 - **Registry**: `features/pedals/registry.ts` reads `generated/pedals.json`, which
   `sedef-params --pedals` dumps from the engine's `PedalList.inc`, and mirrors `sedef::Board`'s
-  rules (add at rank, move, the legacy board for presets saved without one, only the pedals
+  rules (add at rank or next to the other copy, add after the amp, move across the amp, the
+  seven drives and fuzzes, the legacy board for presets saved without one, only the pedals
   switched on for Init). Adding a pedal: [architecture.md](architecture.md#adding-a-pedal).
 - **Mock**: the mock backend keeps a board per preset, snapshot and A/B side, counts it towards
   the dirty dot like the plug-in, and takes `?board=`. Factory presets bring the boards in their

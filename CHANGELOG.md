@@ -23,6 +23,26 @@ All notable changes to this project are documented here. The format follows
   presets and solo over your rhythm part. It allows for the interface's delay and Transpose's,
   so what you play in time with the click plays back in time with it, layer after layer, and
   every start, stop, punch-in and the seam where the loop wraps is a 10 ms crossfade: no clicks.
+- **Pedals after the amp.** A modulation pedal (Ripple, Beacon, Gyre, Jetty) can stand after the
+  amp and the cab, where a rig's effects loop puts it: a phaser or a chorus that moves the
+  finished amp sound instead of feeding the amp. On the board the amp is now a block in the
+  chain; drag a modulation pedal across it, or use the arrow keys or the move buttons, or add it
+  there from its card's **After the amp** button. Other pedals stop in front of the amp, and the
+  board says why. Crossing the amp fades the pedal out on one side and in on the other: no gap.
+- **Stereo modulation after the amp.** There the phaser and the flanger sweep the two sides a
+  quarter of a cycle apart, and Ripple's chorus keeps its own spread. Summed to mono they never
+  cancel and never get louder or deeper than the pedal on its own.
+- **Any pedal twice.** Two drives stacked, a boost before and after, a gate on either side of the
+  drives, a phaser before the amp and another after it: the shelf's **Add another** puts a
+  second copy right after the first. It is *Kelp 2*, with its own knobs and switch, in scenes
+  and in the host's automation list. The board holds up to 25 pedals, with at most seven drives
+  and fuzzes, so the rig's latency never changes.
+
+### Changed
+
+- Sessions and presets with pedals after the amp or second copies open in earlier versions with
+  those pedals in front of the amp and without the second copies; everything saved before opens
+  exactly as it did.
 
 ## [0.9.0] - 2026-11-13
 

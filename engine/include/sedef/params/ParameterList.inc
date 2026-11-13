@@ -210,6 +210,7 @@ SEDEF_PARAM(beaconSpeed, "Beacon Speed", "Beacon", Float, 0.3f, 8.0f, 2.0f, 0.38
 SEDEF_PARAM(beaconDepth, "Beacon Depth", "Beacon", Float, 0.0f, 1.0f, 0.7f, 1.0f, "knob", "", true)
 SEDEF_PARAM(beaconMode, "Beacon Mode", "Beacon", Choice, 0.0f, 1.0f, 0.0f, 1.0f, "", "Chorus|Vibrato", true)
 SEDEF_PARAM(trenchMode, "Trench Mode", "Trench", Choice, 0.0f, 1.0f, 0.0f, 1.0f, "", "Mono|Poly", true)
+SEDEF_PARAM(scene, "Scene", "Global", Choice, 0.0f, 7.0f, 0.0f, 1.0f, "", "1|2|3|4|5|6|7|8", true)
 SEDEF_PARAM(metronomeMode, "Metronome Mode", "Metronome", Choice, 0.0f, 1.0f, 0.0f, 1.0f, "", "Click|Drums", false)
 SEDEF_PARAM(drumsGroove, "Drums Groove", "Drums", Choice, 0.0f, 12.0f, 0.0f, 1.0f, "", "Straight rock|Half-time|Ballad|Fast eighths|Shuffle|Swing|Waltz|Two-step|Five|Six-eight|Seven|Nine|Slow twelve-eight", false)
 SEDEF_PARAM(drumsIntensity, "Drums Intensity", "Drums", Choice, 0.0f, 4.0f, 2.0f, 1.0f, "", "1|2|3|4|5", false)

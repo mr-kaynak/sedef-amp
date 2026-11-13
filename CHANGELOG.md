@@ -8,15 +8,6 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
-- **Transpose is back**, at the right end of the section tabs, on every page: play the whole rig
-  up to an octave lower or higher without retuning, chords included. It steps a semitone at a
-  time and goes back to 0 in one click. Shifting down adds 3 ms of latency and shifting up
-  10 ms; at 0 it is off and leaves the sound exactly as it was. Every attack comes out exactly
-  that much later, not anywhere in a 3–50 ms window as in 0.2.0, so a drop tuning plays as
-  tight as the strings. It is a new design: a model of the ringing partials is shifted on its
-  own, and only the rest is spliced ([docs/dsp/transpose.md](docs/dsp/transpose.md)). Chords
-  are cleaner than 0.2.0's, though not yet as clean as the quality bar asks; the page lists
-  what it measures and what it misses.
 - **Drums to play along with**, in the standalone app's metronome: switch Click to Drums and
   press play. Thirteen original grooves, each with a line on how it feels: straight rock,
   half-time, a ballad, fast eighths, a shuffle and a swing in 4/4, then a two-step, a waltz, a
@@ -30,6 +21,42 @@ All notable changes to this project are documented here. The format follows
   at any buffer size. Presets and the plug-in are unchanged: the drum settings belong to the app
   and are never saved in a preset ([docs/drums.md](docs/drums.md)).
 
+## [0.9.0] - 2026-11-13
+
+Play Sedef Amp live: learn any control to a foot controller, load presets with program changes and
+switch between eight scenes per preset without a gap. Transpose is back, to play the whole rig up to
+an octave lower or higher without retuning.
+
+### Added
+
+- **Transpose is back**, in the section tabs row, on every page: play the whole rig
+  up to an octave lower or higher without retuning, chords included. It steps a semitone at a
+  time and goes back to 0 in one click. Shifting down adds 3 ms of latency and shifting up
+  10 ms; at 0 it is off and leaves the sound exactly as it was. Every attack comes out exactly
+  that much later, not anywhere in a 3–50 ms window as in 0.2.0, so a drop tuning plays as
+  tight as the strings. It is a new design: a model of the ringing partials is shifted on its
+  own, and only the rest is spliced ([docs/dsp/transpose.md](docs/dsp/transpose.md)). Chords
+  are cleaner than 0.2.0's, though not yet as clean as the quality bar asks; the page lists
+  what it measures and what it misses.
+- **MIDI learn: play Sedef Amp from a foot controller.** Right-click any knob, switch, scene or
+  preset arrow (or press Shift+F10 on it), choose Learn MIDI, then press a footswitch or move a
+  pedal. Sedef tells a momentary footswitch from a latching one by itself, and an expression
+  pedal can sweep a knob's whole travel or a part of it, either way round. The MIDI panel, at the
+  right of the section tabs, lists what is learned and forgets one or all. What you learn belongs
+  to your controller, so it is the same in every session and host.
+- **Program changes load presets**: program 1 the first preset in the library, 2 the second, and
+  so on, or the preset or scene you assign in the MIDI panel, on any channel or the one you pick.
+  The VST3 version receives controllers but no program changes (VST3 has none): step presets and
+  scenes with footswitches there.
+- **Scenes: 8 per preset.** A scene keeps which pedals, EQ banks, Doubler, Drift and Fathom are on,
+  plus up to 16 knobs you choose (Remember in scenes). Switching is instant and gapless, through
+  the same fades as turning the controls by hand, from the scene bar, a footswitch, a program
+  change or host automation (the new Scene parameter; in Logic Pro, which sends no MIDI to
+  effects, assign a controller to it). A scene remembers what you change while it plays, and one
+  you have not used starts as a copy of the scene you left. Scenes are saved with the preset and
+  the session; older presets and sessions open as before, and a preset with scenes opens in
+  earlier versions without them.
+
 ### Changed
 
 - **The reported latency includes Transpose's while it shifts.** Turning Transpose on or off,
@@ -37,6 +64,8 @@ All notable changes to this project are documented here. The format follows
   don't. The status bar shows Transpose's share.
 - **The transpose parameter is called "Transpose" again and can be automated.** Sessions that
   saved a setting (0.2.0) play it again; sessions and automation saved since load unchanged.
+- **The update pill is in the status bar**, at the bottom right: the section tabs line now holds
+  Transpose and the scene bar, and the pill sat on Transpose's stepper there.
 
 ## [0.8.1] - 2026-11-13
 
@@ -557,7 +586,8 @@ The first public build: a complete guitar rig with a tuner and an intonation wor
 - Every CI build is checked with pluginval (strictness 8), clap-validator and auval, and a smoke
   test opens the editor in a real host and WebView on every OS.
 
-[Unreleased]: https://github.com/mr-kaynak/sedef-amp/compare/v0.8.1...HEAD
+[Unreleased]: https://github.com/mr-kaynak/sedef-amp/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.8.1...v0.9.0
 [0.8.1]: https://github.com/mr-kaynak/sedef-amp/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.6.0...v0.7.0

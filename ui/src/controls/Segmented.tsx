@@ -37,6 +37,7 @@ export function Segmented({
       role="radiogroup"
       aria-label={ariaLabel ?? p.spec.name}
       aria-describedby={ariaDescribedBy}
+      data-param={p.spec.id}
       className={[styles.segmented, styles[size], className].filter(Boolean).join(' ')}
       onKeyDown={onKeyDown}
     >

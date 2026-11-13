@@ -5,7 +5,9 @@ import type { PitchEvent } from '../bridge/protocol';
 import { hzToMidi, midiToHz, noteOf } from '../lib/music';
 import { getValue } from '../params/paramStore';
 import { setParam } from '../params/useParam';
+import { getBackend } from '../state/backendRef';
 import { pitch } from '../state/live';
+import { MockBackend } from '../bridge/mockBackend';
 import { useIntonationStore } from '../features/intonation/store';
 
 export interface PitchFrame {
@@ -21,6 +23,8 @@ export interface SedefDemo {
   /** Merges state into the intonation workbench store. */
   intonation(state: Partial<ReturnType<typeof useIntonationStore.getState>>): void;
   set(id: string, value: number): void;
+  /** Sends one MIDI message to the mock, as a controller plugged into the host would. */
+  midi(status: number, data1: number, data2?: number): void;
 }
 
 declare global {
@@ -65,5 +69,9 @@ export function installDemoHook(): void {
     silence: () => pitch.clear(),
     intonation: (state) => useIntonationStore.setState(state),
     set: (id, value) => setParam(id, value),
+    midi: (status, data1, data2) => {
+      const backend = getBackend();
+      if (backend instanceof MockBackend) backend.midi(status, data1, data2);
+    },
   };
 }

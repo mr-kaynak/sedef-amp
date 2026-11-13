@@ -1,0 +1,108 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* The scene bar and the MIDI button, in the tab row's right end (docs/live.md §6.1). The row's
+   background and hairline come from the row itself (App.module.css .tabRow). */
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-inline-start: 12px;
+  padding-inline-end: 12px;
+}
+
+.scenes {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.label {
+  color: var(--bone-3);
+  font-size: var(--t-11);
+  font-stretch: var(--legend-stretch);
+  font-weight: 520;
+}
+
+/* The segmented recipe (controls/Segmented.module.css) with square options: radius 6 = the
+   options' 4 + 1 padding + 1 border. */
+.track {
+  display: inline-flex;
+  gap: 2px;
+  padding: 1px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-ctl);
+  background: rgb(6 17 25 / 0.55);
+}
+
+.scene {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  /* bone-3: 6.4:1 on the track; bone-4 (3.3:1) is too faint for a label that can be clicked. */
+  color: var(--bone-3);
+  font-size: var(--t-11);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  transition: color var(--dur-1) var(--ease-out);
+}
+
+/* A scene the player has made reads brighter than one that would start as a copy, and carries a
+   dot under its number: the difference is not left to the colour alone. */
+.scene[data-made] {
+  color: var(--bone);
+}
+
+.scene[data-made]::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 3px;
+  width: 3px;
+  height: 3px;
+  margin-left: -1.5px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.7;
+}
+
+@media (hover: hover) {
+  .scene:hover {
+    color: var(--bone);
+  }
+}
+
+.scene[aria-checked='true'] {
+  color: var(--ink-1);
+}
+
+.anchor {
+  position: relative;
+}
+
+.midi {
+  gap: 6px;
+}
+
+/* The folded bar: the scene in use, opening the eight under it. */
+.chip {
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.scenePopover {
+  top: calc(100% + 14px);
+  right: 0;
+  padding: 10px;
+}
+
+/* Under the MIDI button, right-aligned with it: the panel opens into the canvas, not off it. The
+   button ends at 101 px, the tab row's hairline at 111: 14 px down puts the panel 4 px below the
+   hairline instead of on it. */
+.popover {
+  top: calc(100% + 14px);
+  right: 0;
+  width: 400px;
+}

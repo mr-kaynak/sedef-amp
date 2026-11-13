@@ -469,6 +469,7 @@ export function SpeakerStage({ cab, cabLabel }: { cab: number; cabLabel: string 
               }}
               className={styles.marker}
               data-mic={id}
+              data-param={m.position.spec.id}
               data-wheel={m.ir ? undefined : ''}
               data-off={!m.enabled || undefined}
               data-ir={m.ir || undefined}

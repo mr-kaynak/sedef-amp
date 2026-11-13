@@ -32,6 +32,7 @@ around them.
 | **Post** | **Drift** multi-head tape echo with wow, flutter and tape saturation · **Fathom** plate and hall reverbs · **Doubler**, a second take that differs from note to note, switched on from the header |
 | **Tools** | **Transpose**: play up to an octave lower or higher without retuning, chords included (3 ms of latency down, 10 ms up, none at 0) · **input level guide**: the input meter shows where the presets want your level and says in words whether it is right, too quiet or too hot · precision tuner · **intonation workbench** · **drums** to play along with (standalone): thirteen original grooves from straight rock to 12/8, with fills and one intensity control, on a kit synthesised from drum physics ([docs/drums.md](docs/drums.md)) · metronome with odd meters (standalone) |
 | **Presets** | browser with categories, tags and search · click to audition, Esc to go back · A/B compare · Undo when a load or delete would lose work |
+| **Live** | **MIDI learn** on any control: right-click, then move a pedal or press a footswitch · program changes load presets · **8 scenes** per preset (pedals on/off plus knobs you pick), switched by footswitch without a gap ([below](#playing-live)) |
 
 <img src="docs/images/amp.png" alt="The amp section" width="100%">
 
@@ -48,6 +49,21 @@ save your own with a category, tags and a note, and never lose edits: loads and 
 Undo. See [docs/ui/presets.md](docs/ui/presets.md) for the design.
 
 <img src="docs/images/presets.png" alt="Preset browser: one list grouped by category, each row with the preset's name, amp and signal chain" width="100%">
+
+## Playing live
+
+Right-click any knob, switch or scene and choose **Learn MIDI**, then press a footswitch or move
+an expression pedal: that is the binding. Sedef tells a momentary footswitch from a latching one
+by itself, and a pedal can sweep a knob's whole travel or just part of it, turned either way.
+Program changes load presets in library order, or the preset or scene you assign. Each preset
+has 8 scenes, which pedals and blocks are on plus up to 16 knobs you choose; switching is instant
+and gapless, and a scene remembers what you change while it plays. Bindings belong to your
+controller, so they are the same in every session; scenes are saved with the preset and the
+session. The VST3 version receives controllers but no program changes, and Logic Pro sends no MIDI
+to effects (assign Logic's controllers to the Scene parameter instead). See
+[docs/live.md](docs/live.md).
+
+<img src="docs/images/live-midi.png" alt="The MIDI panel open under the scene bar: learned footswitches and pedals with their controllers, Toggle or Latch, ranges and Invert" width="100%">
 
 ## Captures
 

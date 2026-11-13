@@ -87,10 +87,10 @@ bool PresetManager::isGlobal (ParamId id) noexcept
         ParamId::metronomeVolume, ParamId::metronomeSignature,
         ParamId::metronomeSound,  ParamId::presetPrevious,
         ParamId::presetNext,      ParamId::captureInterfaceLevel,
-        ParamId::oversampling,    ParamId::metronomeMode,
-        ParamId::drumsGroove,     ParamId::drumsIntensity,
-        ParamId::drumsFills,      ParamId::drumsLevel,
-        ParamId::drumsTone,
+        ParamId::oversampling,    ParamId::scene, // the scenes carry it (docs/live.md §6.6)
+        ParamId::metronomeMode,   ParamId::drumsGroove,
+        ParamId::drumsIntensity,  ParamId::drumsFills,
+        ParamId::drumsLevel,      ParamId::drumsTone,
     };
     return std::find (std::begin (kGlobal), std::end (kGlobal), id) != std::end (kGlobal);
 }
@@ -454,13 +454,17 @@ juce::String PresetManager::save (const juce::String& name, const juce::String& 
     scan();
     currentId_ = userId (file);
     currentName_ = cleanName;
-    // The saved state is the new reference for "dirty".
+    // The saved state is the new reference for "dirty", read back as a load would read it.
     if (const auto* e = find (currentId_))
         if (const auto parsed = read (*e))
+        {
             for (std::size_t i = 0; i < kNumParams; ++i)
                 if (!isGlobal (static_cast<ParamId> (i)))
                     loadedValues_[static_cast<ParamId> (i)] =
                         storedValue ((*parsed)["parameters"], i);
+            for (std::size_t i = 0; i < attachments_.size(); ++i)
+                loadedAttachments_[i] = resolved (attachments_[i], *parsed);
+        }
     markRecent (currentId_);
     return currentId_;
 }
@@ -585,6 +589,13 @@ void PresetManager::setFavorite (const juce::String& id, bool favorite)
         else
             favorites_.removeString (id);
     });
+}
+
+juce::String PresetManager::idAt (int position) const
+{
+    return position >= 0 && position < static_cast<int> (entries_.size())
+               ? entries_[static_cast<std::size_t> (position)].id
+               : juce::String();
 }
 
 void PresetManager::step (int delta)
@@ -732,10 +743,16 @@ void PresetManager::compareCopy()
 
 bool PresetManager::isDirty() const
 {
+    const auto owned = [this] (ParamId id) {
+        for (const auto& a : attachments_)
+            if (a.owns && a.owns (id))
+                return true;
+        return false;
+    };
     for (std::size_t i = 0; i < kNumParams; ++i)
     {
         const auto id = static_cast<ParamId> (i);
-        if (isGlobal (id))
+        if (isGlobal (id) || owned (id))
             continue;
         const auto& spec = kParamSpecs[i];
         const auto* raw = state_.getRawParameterValue (toJuce (spec.id));

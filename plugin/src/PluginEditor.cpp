@@ -333,6 +333,59 @@ juce::WebBrowserComponent::Options SedefEditor::makeOptions()
         done (boardState());
     });
 
+    // Playing live: scenes, MIDI learn and program changes (docs/live.md) ---------------------
+    // Each call answers with the live state; scenes count towards "dirty", shown at once.
+    const auto liveCall = [this, &proc] (auto action) {
+        return [this, &proc, action] (const juce::Array<juce::var>& a, Completion done) {
+            action (proc.live(), a);
+            lastLiveRevision_ = proc.live().revision.load();
+            if (proc.presets().isDirty() != lastDirty_)
+                emitPresets();
+            done (proc.live().stateAsVar());
+        };
+    };
+    const auto intArg = [] (const juce::Array<juce::var>& a, int i, int fallback) {
+        return a.size() > i && (a[i].isInt() || a[i].isInt64() || a[i].isDouble())
+                   ? static_cast<int> (a[i])
+                   : fallback;
+    };
+    fn ("sedef_live_get", liveCall ([] (LiveState&, const auto&) {}));
+    fn ("sedef_live_selectScene",
+        liveCall ([intArg] (LiveState& l, const auto& a) { l.selectScene (intArg (a, 0, -1)); }));
+    fn ("sedef_live_copyScene",
+        liveCall ([intArg] (LiveState& l, const auto& a) { l.copyScene (intArg (a, 0, -1)); }));
+    fn ("sedef_live_remember", liveCall ([] (LiveState& l, const auto& a) {
+            if (a.size() >= 2)
+                if (const auto id = paramFromVar (a[0]))
+                    l.rememberInScenes (*id, static_cast<bool> (a[1]));
+        }));
+    fn ("sedef_live_learn", liveCall ([] (LiveState& l, const auto& a) {
+            if (!a.isEmpty())
+                l.learn (a[0].toString());
+        }));
+    fn ("sedef_live_cancelLearn", liveCall ([] (LiveState& l, const auto&) { l.cancelLearn(); }));
+    fn ("sedef_live_forget", liveCall ([] (LiveState& l, const auto& a) {
+            if (!a.isEmpty())
+                l.forget (a[0].toString());
+        }));
+    fn ("sedef_live_updateBinding", liveCall ([intArg] (LiveState& l, const auto& a) {
+            l.updateBinding (intArg (a, 0, -1), a.size() > 1 ? a[1] : juce::var());
+        }));
+    fn ("sedef_live_removeBinding",
+        liveCall ([intArg] (LiveState& l, const auto& a) { l.removeBinding (intArg (a, 0, -1)); }));
+    fn ("sedef_live_clearBindings",
+        liveCall ([] (LiveState& l, const auto&) { l.clearBindings(); }));
+    fn ("sedef_live_setProgram", liveCall ([intArg] (LiveState& l, const auto& a) {
+            l.setProgram (intArg (a, 0, 0) - 1, a.size() > 1 ? a[1] : juce::var());
+        }));
+    fn ("sedef_live_setProgramChannel", liveCall ([intArg] (LiveState& l, const auto& a) {
+            l.setProgramChannel (intArg (a, 0, 0) - 1);
+        }));
+    fn ("sedef_live_setInput", liveCall ([] (LiveState& l, const auto& a) {
+            if (a.size() >= 2)
+                l.setInput (a[0].toString(), static_cast<bool> (a[1]));
+        }));
+
     // Tuner, metronome, UI ----------------------------------------------------------------------
     fn ("sedef_tuner_setActive", [&proc] (const juce::Array<juce::var>& a, Completion done) {
         proc.analysis().setActive (!a.isEmpty() && static_cast<bool> (a[0]));
@@ -468,6 +521,31 @@ void SedefEditor::emitBoard()
     browser_->emitEventIfBrowserIsVisible ("sedef:board", boardState());
 }
 
+void SedefEditor::emitLive()
+{
+    lastLiveRevision_ = processor_.live().revision.load();
+    browser_->emitEventIfBrowserIsVisible ("sedef:live", processor_.live().stateAsVar());
+}
+
+juce::var SedefEditor::liveActivity() const
+{
+    auto& control = processor_.live().control();
+    const auto last = control.lastMessage();
+    return object ({ { "count", static_cast<int> (control.messageCount()) },
+                     { "status", static_cast<int> (last >> 16 & 0xff) },
+                     { "data1", static_cast<int> (last >> 8 & 0xff) },
+                     { "data2", static_cast<int> (last & 0xff) } });
+}
+
+void SedefEditor::emitLiveActivity()
+{
+    const auto count = processor_.live().control().messageCount();
+    if (count == lastLiveCount_)
+        return;
+    lastLiveCount_ = count;
+    browser_->emitEventIfBrowserIsVisible ("sedef:liveActivity", liveActivity());
+}
+
 void SedefEditor::emitCapture()
 {
     lastCaptureRevision_ = processor_.captures().revision.load();
@@ -524,6 +602,8 @@ juce::var SedefEditor::hello()
     lastIrRevision_ = processor_.irRevision.load();
     lastCaptureRevision_ = processor_.captures().revision.load();
     lastBoardRevision_ = processor_.boardRevision.load();
+    lastLiveRevision_ = processor_.live().revision.load();
+    lastLiveCount_ = processor_.live().control().messageCount();
     lastDirty_ = processor_.presets().isDirty();
     lastSampleRate_ = processor_.engine().sampleRate();
     lastLatency_ = processor_.engine().latencySamples();
@@ -541,7 +621,9 @@ juce::var SedefEditor::hello()
                      { "presets", processor_.presets().stateAsVar() },
                      { "ir", processor_.irs().stateAsVar() },
                      { "capture", processor_.captures().stateAsVar() },
-                     { "board", boardState() } });
+                     { "board", boardState() },
+                     { "live", processor_.live().stateAsVar() },
+                     { "liveActivity", liveActivity() } });
 }
 
 void SedefEditor::timerCallback()
@@ -582,6 +664,10 @@ void SedefEditor::timerCallback()
     // Preset loads, A/B, snapshot restores and host restores change the board too.
     if (processor_.boardRevision.load() != lastBoardRevision_)
         emitBoard();
+    if (processor_.live().revision.load() != lastLiveRevision_)
+        emitLive();
+    if (tick_ % 4 == 0) // 15 Hz is plenty for a light
+        emitLiveActivity();
     emitSessionIfChanged();
 }
 

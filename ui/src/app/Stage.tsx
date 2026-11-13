@@ -28,6 +28,7 @@ export function Stage({ children }: { children: ReactNode }) {
     <div className={styles.viewport}>
       <div
         className={styles.canvas}
+        data-canvas
         style={{
           width: CANVAS_WIDTH,
           height: CANVAS_HEIGHT,

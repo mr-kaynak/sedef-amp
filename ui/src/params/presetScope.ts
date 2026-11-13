@@ -19,6 +19,8 @@ export const GLOBAL_PARAM_IDS: ReadonlySet<string> = new Set([
   'presetNext',
   'captureInterfaceLevel',
   'oversampling',
+  // The scenes carry it (docs/live.md §6.6).
+  'scene',
   'metronomeMode',
   'drumsGroove',
   'drumsIntensity',

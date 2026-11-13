@@ -17,8 +17,42 @@
 #include <utility>
 #include <vector>
 
+// Under a sanitizer the heavy accuracy grids run thinned, by one rule: one input level instead of
+// four (-40 dBFS, the farthest from the recordings' own), and of every run of seeds or semitones
+// the first, the last and every third between, the adversarial cases whole. The sanitizers look
+// for memory and thread errors, which the subset still meets on every code path; the full grids
+// and their bars run in the three engine jobs. Detected from the compiler's own macros (GCC and
+// MSVC define __SANITIZE_ADDRESS__ or __SANITIZE_THREAD__, Clang answers __has_feature);
+// SEDEF_TESTS_THINNED forces it, to check the subset in a release build.
+#if defined(SEDEF_TESTS_THINNED) || defined(__SANITIZE_ADDRESS__) || defined(__SANITIZE_THREAD__)
+#define SEDEF_TESTS_THIN 1
+#elif defined(__has_feature)
+#if __has_feature(address_sanitizer) || __has_feature(thread_sanitizer)
+#define SEDEF_TESTS_THIN 1
+#endif
+#endif
+
 namespace sedef::test::midi
 {
+
+#ifdef SEDEF_TESTS_THIN
+inline constexpr bool kThinned = true;
+#else
+inline constexpr bool kThinned = false;
+#endif
+
+/// Whether entry `k` of the run `first`..`last` (seeds, semitones) is played: every one, or,
+/// thinned, the first, the last and every third between.
+inline bool played (int k, int first, int last)
+{
+    return !kThinned || k == first || k == last || (k - first) % 3 == 0;
+}
+
+/// Whether a grid over input levels plays the one at `peakDb`: every one, or, thinned, -40 dBFS.
+inline bool levelPlayed (double peakDb)
+{
+    return !kThinned || peakDb == -40.0;
+}
 
 using octaver::bridgePluck;
 using octaver::kA2;

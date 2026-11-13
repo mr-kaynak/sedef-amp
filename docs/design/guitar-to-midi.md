@@ -1400,6 +1400,15 @@ numbers everywhere; no standard-library distribution), with no clock and no thre
 `sedef-midi-render` gives the same listing and the same MIDI file, byte for byte, run twice and
 at blocks of 64 and 512 samples (the test `midi-render-is-deterministic`).
 
+**Under a sanitizer.** ASan and TSan run the accuracy grids thinned, by one rule: one input level
+instead of four (-40 dBFS, the farthest from the recordings' own), and of every run of seeds or
+semitones the first, the last and every third between (of the tunings, where a test's bar is a
+median over its seeds), the adversarial cases whole. The sanitizers look for memory and thread
+errors, which the subset still meets on every code path; the full grids and their bars run in the
+three engine jobs. The thinned subset passes every bar too (checked in a release build with
+`SEDEF_TESTS_THINNED`), at 30 % of the full grids' time (190 against 625 s of CPU in a release
+build). The tests detect a sanitizer from the compiler's own macros (`MidiTestSignals.h`).
+
 **What is exact where.** On one build, every event is at the same sample run after run and at
 every block size, on every platform. Across platforms the pinned event streams keep their notes,
 channels, velocities and order exactly; their samples are exact on macOS on Apple silicon, where

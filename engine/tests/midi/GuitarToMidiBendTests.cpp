@@ -246,6 +246,8 @@ TEST_CASE ("Guitar to MIDI: Notes + Bend plays lines as Notes does, with the whe
     {
         for (std::uint32_t seed = 1; seed <= 3; ++seed)
         {
+            if (!played (static_cast<int> (seed), 1, 3))
+                continue;
             const auto sc = bassLine (seed, pickup, 120.0 + 4.0 * seed, kFs, 48, false);
             const auto run = convert (sc.signal, kFs, settings (midi::Mode::notesAndBend));
             add (lines, score (run, sc, 0));
@@ -253,6 +255,8 @@ TEST_CASE ("Guitar to MIDI: Notes + Bend plays lines as Notes does, with the whe
         }
         for (std::uint32_t seed = 1; seed <= 4; ++seed)
         {
+            if (!played (static_cast<int> (seed), 1, 4))
+                continue;
             const auto sc = fretThenPick (seed, pickup, kFs);
             const auto run = convert (sc.signal, kFs, settings (midi::Mode::notesAndBend));
             add (fretted, score (run, sc, 0, 0.08, false));

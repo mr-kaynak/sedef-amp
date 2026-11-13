@@ -129,6 +129,8 @@ TEST_CASE ("Guitar to MIDI names a clean note from one period of it", "[midi][ea
             for (bool fingers : { false, true })
                 for (std::uint32_t seed = 1; seed <= 3; ++seed)
                 {
+                    if (!played (static_cast<int> (seed), 1, 3))
+                        continue;
                     INFO ("note " << pitch << ", seed " << seed << (fingers ? ", fingers" : ""));
                     const auto sc = pickedTwice (pitch, pickup, seed, kFs, fingers);
                     const auto r = convertEarly (sc, plain());
@@ -179,16 +181,20 @@ TEST_CASE ("Guitar to MIDI's early reading is never a wrong note", "[midi][early
     {
         for (std::uint32_t seed = 1; seed <= 6; ++seed)
         {
+            if (!played (static_cast<int> (seed), 1, 6))
+                continue;
             over (bassLine (seed, pickup, 120.0 + 4.0 * seed, kFs, 48, false));
             over (sloppyLine (seed, pickup, 110.0 + 5.0 * seed, kFs, 48));
         }
         for (std::uint32_t seed = 1; seed <= 4; ++seed)
-            over (fretThenPick (seed, pickup, kFs));
+            if (played (static_cast<int> (seed), 1, 4))
+                over (fretThenPick (seed, pickup, kFs));
     }
     for (int tuning = 0; tuning < 3; ++tuning)
         for (auto pickup : { Pickup::bridge, Pickup::neck })
             for (std::uint32_t seed = 1; seed <= 3; ++seed)
-                over (fromSilence (seed, tuning, pickup, kFs));
+                if (played (static_cast<int> (seed), 1, 3))
+                    over (fromSilence (seed, tuning, pickup, kFs));
     std::printf ("early reading: %d of %d notes sent on it, %d wrong\n", early, notes, wrong);
     CHECK (wrong == 0);
     CHECK (early >= notes / 2);

@@ -86,9 +86,11 @@
   gap: 6px;
 }
 
-/* Under the MIDI button, right-aligned with it: the panel opens into the canvas, not off it. */
+/* Under the MIDI button, right-aligned with it: the panel opens into the canvas, not off it. The
+   button ends at 101 px, the tab row's hairline at 111: 14 px down puts the panel 4 px below the
+   hairline instead of on it. */
 .popover {
-  top: calc(100% + 10px);
+  top: calc(100% + 14px);
   right: 0;
   width: 400px;
 }

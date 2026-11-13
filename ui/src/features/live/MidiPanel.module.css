@@ -4,8 +4,8 @@
 .panel {
   display: flex;
   flex-direction: column;
-  /* The tab row ends at 105 px on the canvas and the status bar starts at 732: what is left,
-     less the popover's 10 px drop and a 12 px margin. */
+  /* The panel starts at 115 px on the canvas and the status bar at 736: 621 px, less a 12 px
+     margin above the status bar, rounded down. */
   max-height: 600px;
   /* The body's 14 px fade (below) takes the place of the bottom padding. */
   padding: 14px 16px 2px;

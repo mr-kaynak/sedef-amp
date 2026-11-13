@@ -1,11 +1,14 @@
 /* SPDX-License-Identifier: AGPL-3.0-or-later */
 /* Quiet on purpose: a hairline pill with one small nacre dot, the only thing in it that is alive.
    Absolutely placed against the header (position: relative), so it takes no room in the header
-   row: it sits at the right end of the section tabs line, vertically centred in it. */
+   row: it sits in the section tabs line, vertically centred in it, in the gap between the tabs
+   (they end at 622 px) and the scene bar, which starts at 843 px on the 1200 px canvas
+   (features/live/LiveBar): 1200 - 843 + 16 = 373. Its longest label ("Restart to update") ends
+   it about 700 px in, clear of the tabs. */
 .pill {
   position: absolute;
   top: calc(100% + 9px);
-  right: 16px;
+  right: 373px;
   display: inline-flex;
   align-items: center;
   gap: 7px;

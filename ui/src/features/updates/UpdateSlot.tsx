@@ -5,8 +5,9 @@
 // Renders nothing otherwise, and nothing at all in builds without the checker.
 //
 // The header row has no width to spare, so the pill takes none: it is positioned against the
-// header and hangs at the right end of the section tabs line below it, which is empty. The preset
-// browser covers that line (and the header stacks above it), so the pill steps aside meanwhile.
+// header and hangs in the section tabs line below it, in the empty stretch between the tabs and
+// the scene bar. The preset browser covers that line (and the header stacks above it), so the
+// pill steps aside meanwhile.
 import { useBrowserStore } from '../presets/session';
 import { restartText } from './text';
 import { selectPill, selectSupported, updateActions, useUpdateStore } from './updateStore';

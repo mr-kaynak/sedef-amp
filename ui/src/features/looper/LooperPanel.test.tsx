@@ -80,6 +80,15 @@ describe('the looper panel', () => {
     expect(panel).toHaveAttribute('data-tone', 'dub');
   });
 
+  it('says the count-in is a bar of the groove when the metronome plays drums', async () => {
+    const { panel } = await openPanel({ overrides: { metronomeEnabled: 1, metronomeMode: 1 } });
+    tick();
+    expect(within(panel).getByText('One bar of the groove first')).toBeInTheDocument();
+    expect(
+      within(panel).getByText('The drums are on: the loop snaps to whole bars.'),
+    ).toBeInTheDocument();
+  });
+
   it('presses the big button with Space anywhere in the panel but on a button', async () => {
     const { call, panel } = await openPanel();
     tick();

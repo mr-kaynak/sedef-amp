@@ -23,6 +23,20 @@ All notable changes to this project are documented here. The format follows
   presets and solo over your rhythm part. It allows for the interface's delay and Transpose's,
   so what you play in time with the click plays back in time with it, layer after layer, and
   every start, stop, punch-in and the seam where the loop wraps is a 10 ms crossfade: no clicks.
+- **Drums to play along with**, in the standalone app's metronome: switch Click to Drums and press
+  play. Thirteen original grooves, each with a line on how it feels: straight rock, half-time, a
+  ballad, fast eighths, a shuffle and a swing in 4/4, then a two-step, a waltz, a five, a
+  six-eight, a seven, a nine and a slow twelve-eight. Intensity 1–5 goes from the bare groove to
+  the busiest, a fill ends every 2, 4 or 8 bars with a crash after it, and Level and Tone set how
+  the drums sit under the guitar. They keep the metronome's tempo and meter to the sample and play
+  after the amp and cab, never into them. With the looper, a take starts on a drum bar line (the
+  count-in is a bar of the groove), the drums are never recorded, and they stay locked to the loop
+  pass after pass. The kit is synthesised from drum physics, with no samples: drum heads with
+  their real overtones, a kick that drops in pitch as it settles, snare wires that buzz only while
+  the head is loud enough, cymbals with clashing partials and hats that choke. Every groove
+  renders bit for bit the same on every platform and at any buffer size. Presets and the plug-in
+  are unchanged: the drum settings belong to the app and are never saved in a preset
+  ([docs/drums.md](docs/drums.md)).
 
 ## [0.9.0] - 2026-11-13
 

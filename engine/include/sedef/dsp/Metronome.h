@@ -6,6 +6,8 @@
 #include "sedef/core/Random.h"
 #include "sedef/core/Smoothed.h"
 #include "sedef/core/Transport.h"
+#include "sedef/dsp/drums/DrumKit.h"
+#include "sedef/dsp/drums/GroovePlayer.h"
 
 #include <array>
 #include <atomic>
@@ -14,7 +16,8 @@
 namespace sedef::dsp
 {
 
-/// Synthesised click track (no samples) with odd meters and per-step accents.
+/// Synthesised click track (no samples) with odd meters and per-step accents, or drum grooves on
+/// the same grid (docs/drums.md).
 class Metronome
 {
 public:
@@ -36,7 +39,20 @@ public:
         int sound = 0;     ///< Blip, Wood, Clave, Cowbell, Rim, Shaker
         float bpm = 120.0f;
         std::array<std::uint8_t, kMaxSteps> steps {}; ///< StepState per step; step 0 = downbeat
+        int mode = 0;                                 ///< 0 click, 1 drums
+        drums::GroovePlayer::Settings drums {};
+        float drumsLevelDb = 0.0f;
+        float drumsTone = 0.5f; ///< 0 dark … 1 bright; 0.5 is flat
     };
+
+    /// The drum events the last process() fired, for the tests (sample offset in that call).
+    struct FiredEvent
+    {
+        int offset = 0;
+        drums::Instrument instrument = drums::Instrument::kick;
+        int velocity = 0;
+    };
+    static constexpr int kMaxFired = 256;
 
     /// Steps per bar for a signature index.
     static int stepsFor (int signature) noexcept;
@@ -50,6 +66,15 @@ public:
     /// Index of the step that sounded last, or -1 when stopped (telemetry for the UI).
     int currentStep() const noexcept;
 
+    /// The drum events fired by the last process() call (at most kMaxFired), for the tests.
+    int firedEvents (const FiredEvent** events) const noexcept
+    {
+        *events = fired_.data();
+        return numFired_;
+    }
+    const drums::GroovePlayer& groovePlayer() const noexcept { return player_; }
+    const drums::DrumKit& drumKit() const noexcept { return kit_; }
+
     /// Counting, or about to start at the next process() (after setSettings).
     bool isRunning() const noexcept { return settings_.enabled && (running_ || startPending_); }
     /// Samples per bar at the current settings (steps x interval).
@@ -60,7 +85,8 @@ public:
     int downbeats (int frames, int* offsets, int maxOffsets) const noexcept;
     /// A loop wraps on this sample of the next process() (docs/looper.md, "Lock"): a bar starts
     /// there, its step 0 sounds there and the grid continues from it. A step that sounded less
-    /// than half a step before counts as that downbeat, so the click never doubles.
+    /// than half a step before counts as that downbeat, so the click never doubles; with the drums
+    /// only a step 0 does, since only a bar's first step plays its downbeat (docs/drums.md, 3.6).
     void alignDownbeat (int offset) noexcept;
 
 private:
@@ -94,9 +120,15 @@ private:
 
     double samplesPerStep() const noexcept;
     long long nextTrigger() const noexcept;
+    /// Starts a run with step 0 on this sample: the grid, and the drums' bars and noise.
+    void startRun (long long at) noexcept;
     void trigger (long long when, long long scheduled) noexcept;
     void startVoice (StepState state) noexcept;
     void render (const AudioView& io, int start, int end) noexcept;
+    void renderDrums (const AudioView& io, int start, int end) noexcept;
+    void queueDrums (int step, long long when) noexcept;
+    void fireDrums (long long upTo, int offset) noexcept;
+    bool drumsOn() const noexcept { return settings_.mode == 1; }
 
     double sampleRate_ = 48000.0;
     Settings settings_ {};
@@ -117,6 +149,29 @@ private:
     double interval_ = 0.0;
     int nextStep_ = 0;
     std::atomic<int> currentStep_ { -1 };
+
+    // Drums (docs/drums.md): the groove's events of the step that sounded last, in time order.
+    struct Pending
+    {
+        long long when = 0;
+        drums::Instrument instrument = drums::Instrument::kick;
+        int velocity = 0;
+    };
+    static constexpr int kMaxPending = drums::GroovePlayer::kMaxStepEvents;
+    drums::GroovePlayer player_;
+    drums::DrumKit kit_;
+    std::array<Pending, kMaxPending> pending_ {};
+    int numPending_ = 0;
+    int firstPending_ = 0;
+    std::array<FiredEvent, kMaxFired> fired_ {};
+    int numFired_ = 0;
+    LinearSmoothed drumsLevel_;
+    float drumsTone_ = 0.5f;
+    Biquad toneFilter_;
+    float toneGain_ = 1.0f;
+    static constexpr int kChunk = 256;
+    std::array<std::int32_t, kChunk> kitLeft_ {};
+    std::array<std::int32_t, kChunk> kitRight_ {};
 };
 
 } // namespace sedef::dsp

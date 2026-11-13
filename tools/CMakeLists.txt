@@ -28,6 +28,11 @@ if(SEDEF_BUILD_TESTS)
         COMMAND ${CMAKE_COMMAND} -DTOOL=$<TARGET_FILE:sedef-params> -DARGS=--midi
                 -DEXPECTED=${PROJECT_SOURCE_DIR}/ui/src/generated/midi-parameters.json
                 -P ${CMAKE_CURRENT_SOURCE_DIR}/CheckSchema.cmake)
+    # And its copy of the drum grooves (docs/drums.md).
+    add_test(NAME ui-grooves-in-sync
+        COMMAND ${CMAKE_COMMAND} -DTOOL=$<TARGET_FILE:sedef-params> -DARGS=--grooves
+                -DEXPECTED=${PROJECT_SOURCE_DIR}/ui/src/generated/grooves.json
+                -P ${CMAKE_CURRENT_SOURCE_DIR}/CheckSchema.cmake)
 endif()
 
 if(SEDEF_BUILD_TESTS)

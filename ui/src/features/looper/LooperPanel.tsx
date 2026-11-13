@@ -37,6 +37,8 @@ export function LooperPanel() {
   const rate = useAppStore((s) => s.session.sampleRate);
   const t = useLooper(rate);
   const clickOn = useParamValue('metronomeEnabled') >= 0.5;
+  // The metronome may play drums instead of a click (docs/drums.md): the copy says which.
+  const drums = Math.round(useParamValue('metronomeMode')) === 1;
   const steps = stepsFor(Math.round(useParamValue('metronomeSignature')));
   const detail = useLooperDetail(rate, clickOn ? steps : null);
   const main = mainAction(t);
@@ -87,7 +89,7 @@ export function LooperPanel() {
             {stateTitle(t)}
           </p>
           {detail && <p className={styles.detail}>{detail}</p>}
-          <p className={styles.hint}>{stateHint(t, clickOn)}</p>
+          <p className={styles.hint}>{stateHint(t, clickOn, drums)}</p>
         </div>
       </div>
 
@@ -138,7 +140,13 @@ export function LooperPanel() {
         <div className={styles.countIn}>
           <Toggle param="looperCountIn" label="Count-in" />
           <span className={styles.note}>
-            {clickOn ? 'One bar of clicks first' : 'Only with the click on'}
+            {clickOn
+              ? drums
+                ? 'One bar of the groove first'
+                : 'One bar of clicks first'
+              : drums
+                ? 'Only with the drums on'
+                : 'Only with the click on'}
           </span>
         </div>
       </div>

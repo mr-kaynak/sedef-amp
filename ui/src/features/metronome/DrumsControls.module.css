@@ -1,0 +1,162 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+.drums {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* The meter and, beside it, the bar's beats with the one playing lit. */
+.meter {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 132px;
+  color: var(--bone-3);
+  font-size: var(--t-11);
+}
+
+.beats {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 5px;
+  padding-bottom: 9px;
+}
+
+.beat {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--bone-4);
+}
+
+.beat[data-now] {
+  background: var(--nacre-aqua);
+  box-shadow: 0 0 8px rgb(200 241 234 / 0.6);
+}
+
+@media (forced-colors: active) {
+  .beat {
+    background: CanvasText;
+  }
+
+  .beat[data-now] {
+    background: Highlight;
+  }
+}
+
+/* The grooves of this meter: a name and a line on how it feels. */
+.grooves {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.groove {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  min-height: 40px;
+  padding: 5px 10px 5px 12px;
+  /* Under the selected row's shadow ring, so forced colors still draw its edge. */
+  border: 1px solid transparent;
+  border-radius: var(--r-ctl);
+  background: transparent;
+  color: var(--bone);
+  text-align: start;
+  transition: background-color var(--dur-1) var(--ease-out);
+}
+
+@media (hover: hover) {
+  .groove:hover {
+    background: rgb(237 230 214 / 0.05);
+  }
+}
+
+.groove[aria-checked='true'] {
+  background:
+    linear-gradient(90deg, rgb(205 238 238 / 0.1), rgb(205 238 238 / 0.03) 70%), rgb(6 17 25 / 0.35);
+  box-shadow: inset 0 0 0 1px rgb(205 238 238 / 0.14);
+}
+
+/* The checked row is the one Tab lands on: its tint ring must not hide the focus ring. */
+.groove[aria-checked='true']:focus-visible {
+  box-shadow: var(--focus);
+}
+
+/* Nacre edge on the groove that plays, as on the preset that plays. */
+.groove[aria-checked='true']::after {
+  content: '';
+  position: absolute;
+  inset-block: 7px;
+  inset-inline-start: -1px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--nacre);
+  box-shadow: 0 0 10px rgb(200 241 234 / 0.45);
+}
+
+@media (forced-colors: active) {
+  .groove[aria-checked='true'] {
+    border-color: Highlight;
+  }
+}
+
+.name {
+  font-size: var(--t-12);
+  font-weight: 560;
+  line-height: 1.3;
+}
+
+.feel {
+  color: var(--bone-3);
+  font-size: var(--t-11);
+  line-height: 1.3;
+}
+
+/* Intensity and fills: a label and a segmented row as wide as the panel. */
+.setting {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.label {
+  flex: none;
+  width: 64px;
+  color: var(--bone-3);
+  font-size: var(--t-11);
+}
+
+.segmented {
+  flex: 1;
+}
+
+.segmented > button {
+  flex: 1;
+  height: 28px;
+}
+
+.hint {
+  margin: 0;
+  /* Under the segments, past the 64px label and its 10px gap. */
+  margin-block-start: -4px;
+  margin-inline-start: 74px;
+  color: var(--bone-3);
+  font-size: var(--t-11);
+}
+
+.knobs {
+  display: flex;
+  gap: 20px;
+  padding-top: 2px;
+}

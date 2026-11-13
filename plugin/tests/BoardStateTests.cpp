@@ -27,9 +27,11 @@ struct Fixture
 {
     Fixture()
     {
+        // A folder of its own: ctest runs these cases as separate processes, several at a time,
+        // and a name picked as "not there yet" can be picked by two of them at once.
         root = juce::File::getSpecialLocation (juce::File::tempDirectory)
                    .getChildFile ("sedef-plugin-tests")
-                   .getNonexistentChildFile ("run", "");
+                   .getChildFile ("run-" + juce::Uuid().toString());
         root.createDirectory();
         plugin::PresetManager::testRoot() = root;
     }

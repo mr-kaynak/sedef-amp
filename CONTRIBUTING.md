@@ -23,6 +23,11 @@ cmake --preset engine && cmake --build --preset engine && ctest --preset engine 
 cmake --preset dev && cmake --build --preset dev                                   # everything
 ```
 
+The test presets run four tests at a time (`ctest --preset engine -j 1` runs them one by one).
+So a test that writes a file writes it under a name of its own (a temporary folder named with a
+`juce::Uuid`, or a folder in the build tree named for the test); one that must use a fixed path
+(the system's install folders, say) gets a `RESOURCE_LOCK` in its `catch_discover_tests`.
+
 UI development against the browser mock:
 
 ```sh

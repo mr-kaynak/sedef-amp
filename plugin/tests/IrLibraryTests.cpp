@@ -19,7 +19,7 @@ struct Folder
 {
     Folder()
         : dir (juce::File::getSpecialLocation (juce::File::tempDirectory)
-                   .getChildFile ("sedef-ir-tests-" + juce::String (juce::Random().nextInt64())))
+                   .getChildFile ("sedef-ir-tests-" + juce::Uuid().toString()))
     {
         dir.createDirectory();
     }

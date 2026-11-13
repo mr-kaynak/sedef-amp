@@ -9,6 +9,7 @@ import { useUiStore } from '../../state/uiStore';
 import { PresetBrowser } from '../presets/PresetBrowser';
 import { presetBrowser, useBrowserStore } from '../presets/session';
 import { Header } from '../header/Header';
+import { StatusBar } from '../../app/StatusBar';
 import { formatBytes, formatSince } from './text';
 import { useUpdateStore } from './updateStore';
 
@@ -16,7 +17,13 @@ let h: Harness | null = null;
 
 async function start(update: UpdateScenario): Promise<Harness> {
   h = await setupMock({ update });
-  render(<Header />);
+  // The panel belongs to the header, the pill to the status bar.
+  render(
+    <>
+      <Header />
+      <StatusBar />
+    </>,
+  );
   await act(flush);
   return h;
 }
@@ -96,11 +103,10 @@ describe('Update pill', () => {
     expect(pill()).toBeInTheDocument();
   });
 
-  it('steps aside while the preset browser covers the tabs line', async () => {
+  it('sits in the status bar, which the preset browser leaves uncovered', async () => {
     await start('available');
+    expect(screen.getByRole('contentinfo')).toContainElement(pill());
     act(() => useBrowserStore.setState({ open: true }));
-    expect(pill()).toBeNull();
-    act(() => useBrowserStore.setState({ open: false }));
     expect(pill()).toBeInTheDocument();
   });
 

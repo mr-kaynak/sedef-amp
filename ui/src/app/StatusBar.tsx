@@ -3,6 +3,7 @@ import { transposeLatencyMs } from '../lib/transpose';
 import { useParamValue } from '../params/useParam';
 import { useAppStore } from '../state/appStore';
 import { telemetry, useLiveSelector } from '../state/live';
+import { UpdatePill } from '../features/updates/UpdateSlot';
 import styles from './StatusBar.module.css';
 
 export function StatusBar() {
@@ -23,6 +24,7 @@ export function StatusBar() {
         <span className={styles.sim}>Simulated audio, browser preview</span>
       )}
       <span className={styles.spacer} />
+      <UpdatePill />
       <span aria-label="Audio processing load">DSP {cpu === null ? '—' : `${cpu}%`}</span>
     </footer>
   );

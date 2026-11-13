@@ -8,7 +8,7 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
-- **Transpose is back**, at the right end of the section tabs, on every page: play the whole rig
+- **Transpose is back**, in the section tabs row, on every page: play the whole rig
   up to an octave lower or higher without retuning, chords included. It steps a semitone at a
   time and goes back to 0 in one click. Shifting down adds 3 ms of latency and shifting up
   10 ms; at 0 it is off and leaves the sound exactly as it was. Every attack comes out exactly
@@ -43,7 +43,8 @@ All notable changes to this project are documented here. The format follows
   don't. The status bar shows Transpose's share.
 - **The transpose parameter is called "Transpose" again and can be automated.** Sessions that
   saved a setting (0.2.0) play it again; sessions and automation saved since load unchanged.
-- The update pill sits between the section tabs and the new scene bar.
+- **The update pill is in the status bar**, at the bottom right: the section tabs line now holds
+  Transpose and the scene bar, and the pill sat on Transpose's stepper there.
 
 ## [0.8.1] - 2026-11-13
 

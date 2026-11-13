@@ -3,9 +3,15 @@
 // every page, at every window size. Scenes are a radio group (one tab stop, arrows select);
 // right-click or the context-menu key on a scene learns a footswitch for it or copies the scene
 // in use into it (ControlMenu).
+//
+// The row also holds Transpose. While it shifts, its latency note and Back to 0 take the width the
+// eight buttons need (1200 px: tabs to 610, Transpose 356 px, the bar 357), so the bar folds into
+// one "Scene 3" button that opens the eight.
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Icon } from '../../controls/Icon';
 import { Popover } from '../../controls/Popover';
 import { Led } from '../../controls/Led';
+import { useParamValue } from '../../params/useParam';
 import buttons from '../../controls/Button.module.css';
 import nacre from '../../controls/NacreFill.module.css';
 import { useRadioGroup } from '../../controls/useRadioGroup';
@@ -14,7 +20,7 @@ import { MidiPanel } from './MidiPanel';
 import { sceneTarget, sourceLabel } from './model';
 import styles from './LiveBar.module.css';
 
-function SceneBar() {
+function SceneBar({ labelled = true }: { labelled?: boolean }) {
   const scenes = useLiveStore((s) => s.state?.scenes);
   const live = useLiveStore((s) => s.state);
   const count = scenes?.count ?? 0;
@@ -26,12 +32,14 @@ function SceneBar() {
 
   return (
     <div className={styles.scenes}>
-      <span className={styles.label} id="scene-bar-label" aria-hidden="true">
-        Scenes
-      </span>
+      {labelled && (
+        <span className={styles.label} id="scene-bar-label" aria-hidden="true">
+          Scenes
+        </span>
+      )}
       <div
         role="radiogroup"
-        aria-labelledby="scene-bar-label"
+        {...(labelled ? { 'aria-labelledby': 'scene-bar-label' } : { 'aria-label': 'Scenes' })}
         className={styles.track}
         onKeyDown={onKeyDown}
       >
@@ -64,6 +72,39 @@ function SceneBar() {
   );
 }
 
+/** The bar folded: the scene in use, and the eight a click away. */
+function SceneChip() {
+  const active = useLiveStore((s) => s.state?.scenes.active ?? 0);
+  const [open, setOpen] = useState(false);
+  const anchor = useRef<HTMLButtonElement>(null);
+  const close = useCallback(() => setOpen(false), []);
+  return (
+    <div className={styles.anchor}>
+      <button
+        ref={anchor}
+        type="button"
+        className={`${buttons.ghost} ${buttons.small} ${styles.chip}`}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-label={`Scene ${active + 1}, choose a scene`}
+        onClick={() => setOpen((o) => !o)}
+      >
+        Scene {active + 1}
+        <Icon name={open ? 'up' : 'down'} size={12} />
+      </button>
+      <Popover
+        open={open}
+        onClose={close}
+        anchorRef={anchor}
+        label="Scenes"
+        className={styles.scenePopover}
+      >
+        <SceneBar labelled={false} />
+      </Popover>
+    </div>
+  );
+}
+
 /** Lights for a moment whenever a control or program change arrives. */
 function ActivityLed() {
   const count = useLiveStore((s) => s.activity?.count ?? 0);
@@ -83,11 +124,12 @@ export function LiveBar() {
   const [open, setOpen] = useState(false);
   const anchor = useRef<HTMLButtonElement>(null);
   const close = useCallback(() => setOpen(false), []);
+  const folded = useParamValue('transpose') !== 0;
   if (!supported) return <div className={styles.bar} />;
 
   return (
     <div className={styles.bar}>
-      <SceneBar />
+      {folded ? <SceneChip /> : <SceneBar />}
       <div className={styles.anchor}>
         <button
           ref={anchor}

@@ -157,11 +157,16 @@ assignments; the panel shows what each program loads.
 **8 scenes per preset.** Foot controllers come with 4, 5, 6, 8, 10 or 12 switches; a page of 8
 (one row of 8, or two rows of 4) is the largest common block a controller gives to one function,
 while 4- and 5-switch units reach the first scenes directly and the rest with Next/Previous. On
-screen, 8 buttons of 26 × 24 px (the 24 px target of WCAG 2.5.8) with 2 px gaps take 226 px with
-their track; with the *Scenes* label and the MIDI button the bar spans 843–1188 px on the 1200 px
-canvas, right of the section tabs, which end at 622 px. So the scene bar is on every page and,
-since the canvas scales as a whole, at every window size including the smallest (75 %). More than
-8 would need a second row or a menu, which is no longer one press.
+screen, 8 buttons of 24 × 24 px (the 24 px target of WCAG 2.5.8) with 2 px gaps take 210 px with
+their track; with the *Scenes* label and the MIDI button the bar spans 859–1188 px on the 1200 px
+canvas. The section tabs end at 610 px and Transpose takes 651–835 px of the same row, so the bar
+is on every page and, since the canvas scales as a whole, at every window size including the
+smallest (75 %). More than 8 would need a second row or a menu, which is no longer one press.
+
+While Transpose shifts, its latency note and *Back to 0* widen it to 356 px (678–1022 px), and
+the eight buttons no longer fit beside it: the bar folds into one *Scene 3* button that opens the
+eight under it, still one click away, and unfolds when Transpose is back at 0. The update pill
+moved to the status bar for the same row.
 
 ### 6.2 What a scene holds
 

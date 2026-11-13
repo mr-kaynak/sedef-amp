@@ -309,8 +309,8 @@ needs no warm-up.
   format keys a parameter by a hash of its id string), never by name; the name only labels
   automation lanes, so sessions and automation saved under "Transpose (Unused)" load unchanged.
   Presets do not store it (`PresetManager.cpp`), so factory presets are unchanged.
-- The UI puts it at the right end of the section tab row, under the header, so it is on every
-  page and a click away: "Transpose" and a −/+ stepper that reads "−2 st". While it shifts, the
+- The UI puts it in the section tab row, under the header, after the tabs and before the scene
+  bar ([live.md](../live.md#61-how-many)), so it is on every page and a click away: "Transpose" and a −/+ stepper that reads "−2 st". While it shifts, the
   stepper takes the "on" colour, and "Adds 3 ms latency" and Back to 0 appear to its left (so the
   buttons never move under the pointer); the status bar names Transpose's share of the latency.
   The header's label row under the meters already holds the input level chip and the Doubler

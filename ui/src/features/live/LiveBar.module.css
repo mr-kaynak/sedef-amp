@@ -5,7 +5,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-inline-start: auto;
+  margin-inline-start: 12px;
   padding-inline-end: 12px;
 }
 
@@ -35,7 +35,7 @@
 
 .scene {
   position: relative;
-  width: 26px;
+  width: 24px;
   height: 24px;
   padding: 0;
   border: none;
@@ -84,6 +84,18 @@
 
 .midi {
   gap: 6px;
+}
+
+/* The folded bar: the scene in use, opening the eight under it. */
+.chip {
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.scenePopover {
+  top: calc(100% + 14px);
+  right: 0;
+  padding: 10px;
 }
 
 /* Under the MIDI button, right-aligned with it: the panel opens into the canvas, not off it. The

@@ -78,6 +78,28 @@ describe('Playing live', () => {
       expect(h.mock.value('scene')).toBe(3);
     });
 
+    it('folds into one button while Transpose shifts, for the room its note takes', async () => {
+      h = await setupMock({ overrides: { transpose: -2 } });
+      render(<Rig />);
+      expect(screen.queryByRole('radiogroup', { name: 'Scenes' })).toBeNull();
+      const chip = screen.getByRole('button', { name: 'Scene 1, choose a scene' });
+      expect(chip).toHaveTextContent('Scene 1');
+      await click(chip);
+      const popover = screen.getByRole('dialog', { name: 'Scenes' });
+      const group = within(popover).getByRole('radiogroup', { name: 'Scenes' });
+      await click(within(group).getByRole('radio', { name: 'Scene 3, empty' }));
+      expect(h.mock.value('scene')).toBe(2);
+      expect(screen.getByRole('button', { name: /^Scene 3, choose a scene/ })).toHaveTextContent(
+        'Scene 3',
+      );
+      // Back at 0, the eight are in the row again.
+      await act(async () => {
+        h!.mock.hostSet({ transpose: 0 });
+        await flush();
+      });
+      expect(screen.getByRole('radiogroup', { name: 'Scenes' })).toBeInTheDocument();
+    });
+
     it('follows a footswitch', async () => {
       h = await setupMock({ liveDemo: true });
       render(<Rig />);

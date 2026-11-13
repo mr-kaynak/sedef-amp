@@ -60,6 +60,7 @@ export function Knob({ param, label, size = 'md', hideValue, disabled, className
       <div
         ref={wheelRef}
         className={styles.dial}
+        data-param={p.spec.id}
         role="slider"
         tabIndex={disabled ? -1 : 0}
         aria-label={p.spec.name}

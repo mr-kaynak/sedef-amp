@@ -138,6 +138,62 @@ const SHOTS = {
       await page.waitForTimeout(400);
     },
   },
+  // Playing live (docs/live.md), with the demo's bindings and a preset saved with three scenes.
+  // The scene bar on the solo scene: Pearl, Drift and Fathom on.
+  'live-scenes': {
+    query: 'section=pedals&midi=demo&board=gate,tide,pearl,coral,ripple',
+    async prepare(page) {
+      await page.getByRole('radio', { name: 'Scene 3' }).click();
+      await page.waitForTimeout(300);
+    },
+  },
+  // A knob's menu: learn, remember in scenes.
+  'live-menu': {
+    query: 'section=pedals&midi=demo&board=gate,tide,pearl,coral,ripple&set=pearlEnabled:1',
+    keepPointer: true,
+    async prepare(page) {
+      await page.getByRole('slider', { name: 'Pearl Gain' }).click({ button: 'right' });
+      await page.getByRole('menu').waitFor();
+      await page.waitForTimeout(300);
+    },
+  },
+  // Learn mode: waiting for a controller, the knob outlined.
+  'live-learn': {
+    query: 'section=pedals&midi=demo&board=gate,tide,pearl,coral,ripple&set=pearlEnabled:1',
+    async prepare(page) {
+      await page.getByRole('slider', { name: 'Pearl Gain' }).click({ button: 'right' });
+      await page.getByRole('menuitem', { name: 'Learn MIDI' }).click();
+      await page.getByRole('status').getByText('Move a pedal').waitFor();
+      await page.waitForTimeout(300);
+    },
+  },
+  // The MIDI panel: the learned controls.
+  'live-midi': {
+    query: 'section=pedals&midi=demo&board=gate,tide,pearl,coral,ripple',
+    async prepare(page) {
+      await page.getByRole('button', { name: 'MIDI', exact: true }).click();
+      await page.getByRole('dialog', { name: 'MIDI' }).waitFor();
+      await page.waitForTimeout(300);
+    },
+  },
+  // Its program changes.
+  'live-programs': {
+    query: 'section=pedals&midi=demo&board=gate,tide,pearl,coral,ripple',
+    async prepare(page) {
+      await page.getByRole('button', { name: 'MIDI', exact: true }).click();
+      await page.getByRole('tab', { name: 'Programs' }).click();
+      await page.waitForTimeout(300);
+    },
+  },
+  // And what scenes keep (a layout check).
+  'live-scene-values': {
+    query: 'section=pedals&midi=demo&board=gate,tide,pearl,coral,ripple',
+    async prepare(page) {
+      await page.getByRole('button', { name: 'MIDI', exact: true }).click();
+      await page.getByRole('tab', { name: 'Scenes' }).click();
+      await page.waitForTimeout(300);
+    },
+  },
   updates: {
     query: 'section=amp&update=available',
     async prepare(page) {
@@ -162,6 +218,10 @@ const names = wanted.length
       'input-level',
       'transpose',
       'midi',
+      'live-scenes',
+      'live-menu',
+      'live-learn',
+      'live-midi',
     ];
 
 for (const name of names) if (!SHOTS[name]) throw new Error(`Unknown screenshot "${name}"`);

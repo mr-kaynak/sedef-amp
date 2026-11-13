@@ -19,6 +19,7 @@ export function ChoiceSelect({
       <select
         className={styles.select}
         aria-label={ariaLabel ?? p.spec.name}
+        data-param={p.spec.id}
         value={Math.round(p.value)}
         onChange={(e) => {
           p.begin();

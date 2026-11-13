@@ -1,0 +1,79 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* The scene bar and the MIDI button, in the tab row's right end (docs/live.md §6.1). The row's
+   background and hairline come from the row itself (App.module.css .tabRow). */
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-inline-start: auto;
+  padding-inline-end: 12px;
+}
+
+.scenes {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.label {
+  color: var(--bone-3);
+  font-size: var(--t-11);
+  font-stretch: var(--legend-stretch);
+  font-weight: 520;
+}
+
+/* The segmented recipe (controls/Segmented.module.css) with square options: radius 6 = the
+   options' 4 + 1 padding + 1 border. */
+.track {
+  display: inline-flex;
+  gap: 2px;
+  padding: 1px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-ctl);
+  background: rgb(6 17 25 / 0.55);
+}
+
+.scene {
+  position: relative;
+  width: 26px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--bone-4);
+  font-size: var(--t-11);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  transition: color var(--dur-1) var(--ease-out);
+}
+
+/* A scene the player has made reads brighter than one that would start as a copy. */
+.scene[data-made] {
+  color: var(--bone-2);
+}
+
+@media (hover: hover) {
+  .scene:hover {
+    color: var(--bone);
+  }
+}
+
+.scene[aria-checked='true'] {
+  color: var(--ink-1);
+}
+
+.anchor {
+  position: relative;
+}
+
+.midi {
+  gap: 6px;
+}
+
+/* Under the MIDI button, right-aligned with it: the panel opens into the canvas, not off it. */
+.popover {
+  top: calc(100% + 10px);
+  right: 0;
+  width: 400px;
+}

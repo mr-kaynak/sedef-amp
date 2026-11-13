@@ -15,6 +15,7 @@ export function DoublerSwitch() {
       role="switch"
       aria-checked={on}
       className={`${buttons.press} ${styles.switch}`}
+      data-param="doublerEnabled"
       data-on={on || undefined}
       title="Double tracking: a second take of your part on the right. Shape it on the FX page."
       onClick={() => {

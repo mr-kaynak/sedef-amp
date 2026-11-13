@@ -1,0 +1,86 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* The toast recipe (app/Toasts.module.css), at the top of the rig, where the eye is while a
+   control is being learned. */
+.region {
+  position: absolute;
+  z-index: 45;
+  left: 50%;
+  top: 14px;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 0 7px 0 14px;
+  border: 1px solid transparent;
+  border-radius: var(--r-pop);
+  background: var(--surface-pop);
+  box-shadow:
+    var(--shadow-pop),
+    inset 0 1px 0 rgb(255 255 255 / 0.06);
+  color: var(--bone-2);
+  font-size: var(--t-12);
+  white-space: nowrap;
+  pointer-events: auto;
+  animation: fade var(--dur-2) var(--ease-out);
+}
+
+.banner b {
+  color: var(--bone);
+  font-weight: 600;
+}
+
+.text {
+  max-width: 560px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+/* Waiting: the lamp breathes; under reduced motion it stays lit. */
+@media (prefers-reduced-motion: no-preference) {
+  .pulse {
+    animation: breathe 1.2s ease-in-out infinite;
+  }
+}
+
+@keyframes breathe {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* The control being learned, wherever it is drawn. The outline follows its corners. Doubled
+   (0,2,0): it must beat the global ":focus { outline: none }", as the control keeps the focus
+   once its menu closes. */
+:global([data-learning][data-learning]) {
+  outline: 2px solid var(--nacre-aqua);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :global([data-learning][data-learning]) {
+    animation: learning 1.2s ease-in-out infinite;
+  }
+}
+
+@keyframes learning {
+  50% {
+    outline-color: rgb(205 238 238 / 0.55);
+  }
+}
+
+@media (forced-colors: active) {
+  :global([data-learning][data-learning]) {
+    outline-color: Highlight;
+  }
+}

@@ -40,6 +40,7 @@ export function VSlider({ param, label, height = 180, disabled }: VSliderProps) 
       <div
         ref={wheelRef}
         className={styles.track}
+        data-param={p.spec.id}
         role="slider"
         aria-orientation="vertical"
         tabIndex={disabled ? -1 : 0}

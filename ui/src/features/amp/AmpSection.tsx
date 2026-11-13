@@ -51,6 +51,7 @@ function AmpPicker({ selected, withCapture }: { selected: number; withCapture: b
       data-count={count}
       role="radiogroup"
       aria-label="Amp"
+      data-param="ampModel"
       onKeyDown={onKeyDown}
     >
       {AMPS.map((amp) => (

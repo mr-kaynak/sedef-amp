@@ -86,8 +86,9 @@ exactly on the "1", with an optional bar of count-in, and the click stays locked
 long you play. Undo takes back the last part, Clear has an Undo too, and Feedback sets how much
 of the old take stays under a new one. It records the sound you hear, effects included, so you can
 change presets and solo over your rhythm part. Every start, stop and seam is crossfaded: no
-clicks. See [docs/looper.md](docs/looper.md) for the design, the timing to the sample and the
-memory it uses.
+clicks. A foot controller can work it as well: learn a footswitch for the main button, Stop,
+Undo and Clear, and optionally let a double tap stop it. See [docs/looper.md](docs/looper.md) for
+the design, the timing to the sample and the memory it uses.
 
 <img src="docs/images/looper.png" alt="The looper panel: a four-bar loop playing, its ring two fifths round, with Stop, Undo, Redo, Clear, level, feedback and count-in" width="100%">
 

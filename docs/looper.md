@@ -25,6 +25,10 @@ overdub, then play), so it can be driven with one hand on the guitar and a key o
 - **Level** sets how loud the loop plays against what you play live.
 - The looper never clicks: every start, stop, punch-in, punch-out and the seam where the loop
   wraps are 10 ms crossfades.
+- **Footswitches** work it too: learn one for the main button, Stop, Undo (pressed again, Redo)
+  and Clear, by right-clicking the button or from the MIDI panel. With *Double tap stops* on, two
+  quick presses of the main switch stop the looper and take back what the first one started
+  ([live.md](live.md) §4.5).
 
 ## 2. Where it lives
 
@@ -333,7 +337,8 @@ The panel, top to bottom:
   while the click runs.
 
 Keys: `L` anywhere (outside text fields) is the main button, `Shift+L` is Stop; inside the panel
-Space is the main button too. The panel follows [ui.md](ui.md): the shared buttons and knobs,
+Space is the main button too. The main button, Stop, Undo and Clear take a footswitch: right-click
+one (or Shift+F10 on it) and choose *Learn MIDI* ([live.md](live.md) §4.5). The panel follows [ui.md](ui.md): the shared buttons and knobs,
 visible focus, accessible names, a polite live region that announces state changes
 ("Recording", "Playing, 4 bars"), and under reduced motion the ring steps instead of gliding.
 

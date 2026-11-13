@@ -8,6 +8,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **Footswitches for the looper.** Right-click the looper's big button, Stop, Undo or Clear (or
+  use the MIDI panel) and press a footswitch: your feet now record, close the loop, overdub, stop,
+  undo and clear. The undo switch also redoes when pressed again, so one switch compares the loop
+  with and without its last part. Turn on *Double tap stops* for the main switch and two quick
+  presses (less than 0.4 s apart) stop the looper and take back what the first press started.
 - **A looper in the standalone app**, next to the metronome. One button, or the `L` key so a
   hand stays on the guitar, records, closes the loop and plays it, then lays parts on top; press
   it again to go back to playing. `Shift+L` stops. Up to two minutes at 48 kHz (one at 96).

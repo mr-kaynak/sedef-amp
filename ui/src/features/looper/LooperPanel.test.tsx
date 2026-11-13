@@ -121,7 +121,8 @@ describe('the looper panel', () => {
     h.mock.looper.demo('recording');
     tick(0);
     const button = screen.getByRole('button', { name: 'Looper, recording' });
-    expect(screen.getByRole('status')).toHaveTextContent('Recording');
+    // The recorder's button has its own status region beside it.
+    expect(screen.getAllByRole('status').map((s) => s.textContent)).toContain('Recording');
     // A shape as well as the colour: the badge in the corner follows the state.
     expect(button.querySelector('[data-state="recording"]')).not.toBeNull();
     h.mock.looper.demo('playing');

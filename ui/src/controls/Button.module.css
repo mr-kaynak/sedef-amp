@@ -32,7 +32,11 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  :is(.ghost, .solid, .nacre, .press, .stepper button):not(:disabled, .static):active {
+  :is(.ghost, .solid, .nacre, .press, .stepper button):not(
+      :disabled,
+      [aria-disabled='true'],
+      .static
+    ):active {
     scale: 0.96;
   }
 }

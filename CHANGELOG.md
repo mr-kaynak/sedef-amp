@@ -37,6 +37,23 @@ All notable changes to this project are documented here. The format follows
   renders bit for bit the same on every platform and at any buffer size. Presets and the plug-in
   are unchanged: the drum settings belong to the app and are never saved in a preset
   ([docs/drums.md](docs/drums.md)).
+- **Record your playing in the standalone app.** The Recorder button sits with the metronome and
+  the looper in the header; one press (or the R key) records the take as two WAV files: your
+  guitar dry, the way it came in, and the sound you hear, effects and click included. They start
+  on the same sample and line up sample for sample, with the rig's latency taken out. The panel
+  shows the time, the level going into each file and where they went, with a button that opens the
+  folder (Music/Sedef Amp/Recordings). Recording never interrupts the sound: if the disk falls
+  behind for more than 4 seconds the take keeps going, the panel says how much was lost, and the
+  files say so too ([docs/recorder.md](docs/recorder.md)).
+- **Re-amp**: play a recorded DI, or any WAV, AIFF or FLAC file you open or drop on the panel,
+  through the rig as if it were your guitar. Change the tone while it plays, loop it, and mute
+  your guitar or play along. A take from Sedef plays exactly as recorded; a file at another
+  sample rate is converted first. Record while re-amping to keep the new sound.
+
+### Changed
+
+- **Intonation is an icon button in the standalone app's header**, to make room for the
+  Metronome, Looper and Recorder side by side.
 
 ## [0.9.0] - 2026-11-13
 

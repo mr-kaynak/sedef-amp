@@ -9,6 +9,8 @@
 #include "sedef/dsp/cab/CabSim.h"
 #include "sedef/dsp/capture/CaptureStage.h"
 #include "sedef/dsp/drums/Grooves.h"
+#include "sedef/record/Deck.h"
+#include "sedef/record/ReampFeeder.h"
 
 #include <algorithm>
 #include <atomic>
@@ -1347,4 +1349,76 @@ TEST_CASE ("Engine: an idle looper leaves the rig's output bit for bit", "[engin
         return rig.out.data;
     };
     CHECK (render (true) == render (false));
+}
+
+// -------------------------------------------------------------------------------------------------
+// The recorder and re-amp around the engine (docs/recorder.md).
+
+TEST_CASE ("Deck: recording, dropping, re-amping and looping never allocate", "[engine][record]")
+{
+    const double fs = 48000.0;
+    const int block = 256;
+    const int frames = 48000 * 2;
+    test::Buffer in (1, frames), out (2, frames);
+    test::fillNoise (in[0], 0.3f, 3);
+    Engine engine;
+    engine.prepare (fs, block, 1, 2);
+    record::Deck deck;
+    deck.prepare (fs, 1, block);
+    Transport transport;
+    auto p = ParamSnapshot::defaults();
+
+    const auto run = [&] (int at, bool track) {
+        std::array<float*, 2> ip { in.ptrs[0] + at, nullptr };
+        std::array<float*, 2> op { out.ptrs[0] + at, out.ptrs[1] + at };
+        if (track)
+        {
+            TrackAllocations tracking;
+            deck.process (engine, ip.data(), op.data(), 1, 2, block, p, transport);
+        }
+        else
+        {
+            deck.process (engine, ip.data(), op.data(), 1, 2, block, p, transport);
+        }
+    };
+    p[ParamId::transpose] = 4.0f;
+    for (int at = 0; at < 16 * block; at += block)
+        run (at, false); // first-use paths
+    p[ParamId::transpose] = 0.0f;
+
+    // A 1000-frame file, looping: several seams per FIFO refill.
+    record::MemorySource file ({ std::vector<float> (1000, 0.1f) }, fs);
+    record::ReampFeeder feeder;
+    feeder.setSource (deck.reamp(), &file);
+    feeder.play (deck.reamp());
+    // A FIFO for 0.1 s and a writer that only comes after a third of the run: the drop path.
+    record::TakeRecorder::Config config;
+    config.sampleRate = fs;
+    config.diChannels = 1;
+    config.outChannels = 2;
+    config.stallSeconds = 0.1;
+    REQUIRE (deck.recorder().start (config));
+
+    gAllocations = 0;
+    int drained = 0;
+    for (int at = 16 * block; at < frames; at += block)
+    {
+        if (at >= frames / 2)
+            p[ParamId::transpose] = 4.0f; // a latency change mid-take
+        deck.reamp().setMix (at >= frames / 4);
+        if (at == 64 * block)
+            feeder.setLoop (deck.reamp(), false);
+        if (at == 300 * block)
+            deck.recorder().requestStop();
+        run (at, true);
+        REQUIRE (feeder.pump (deck.reamp()));
+        if (at > frames / 3)
+            drained += deck.recorder().drain ([] (const record::TakeChunk&) {});
+    }
+    CHECK (gAllocations.load() == 0);
+    CHECK (deck.recorder().droppedBlocks() > 0);
+    CHECK (drained > 0);
+    CHECK (deck.recorder().latencyChanged());
+    CHECK (deck.recorder().phase() == record::TakeRecorder::Phase::finished);
+    CHECK (deck.reamp().endings() == 1);
 }

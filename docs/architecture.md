@@ -21,10 +21,15 @@ Input ─► Tuner tap ─► Input Gain ─► Transpose ─► Pedalboard: the
       ─► Fathom (plate | hall reverb) ─► Looper ─► Metronome (click | drums) ─► Output Gain ─► Output
 ```
 
+In the standalone app, `record::Deck` wraps the engine: a re-amped file replaces or joins the
+input before it, the recorder takes the DI there and the output after the engine
+([recorder.md](recorder.md#2-signal-points)).
+
 On top of the rig it ships musician tools: a precision chromatic tuner, a
 guided **intonation workbench** that tells a player which way, and roughly how
 far, to move each saddle, and in the standalone app a metronome that also plays
-**drums** ([drums.md](drums.md)) and a **looper** ([looper.md](looper.md)).
+**drums** ([drums.md](drums.md)), a **looper** ([looper.md](looper.md)) and a **recorder**
+that also re-amps ([recorder.md](recorder.md)).
 
 ### Goals
 
@@ -82,6 +87,8 @@ plugin (it ships a mock backend for browser development).
 | Analysis (ours) | pitch detection for tuner and intonation | touch engine state |
 | Loader (ours) | IR file decoding, resampling, FFT partitioning; .nam capture validation, building and level measurement | touch engine state |
 | Updates (ours) | update check and installer download ([updates.md](updates.md)) | touch engine or plugin state |
+| Recorder (ours, standalone) | writing takes to WAV files ([recorder.md](recorder.md#3-real-time-adr-0005)) | touch engine state |
+| Re-amp (ours, standalone) | decoding and converting the file being re-amped, filling its FIFO | touch engine state |
 
 Communication:
 
@@ -105,6 +112,9 @@ Communication:
   `core/RtHandoff.h` (atomic pointer swap; the old object is reclaimed on the
   message thread, never freed on the audio thread). Captures use the same scheme with room for
   several retired models, so the newest always gets through ([nam.md](dsp/nam.md#5-real-time)).
+- **Audio ↔ recorder and re-amp:** preallocated chunks and frame FIFOs passed through
+  `SpscRing` queues; the audio thread drops rather than waits when the disk falls behind, and
+  counts what it dropped ([recorder.md](recorder.md#3-real-time-adr-0005)).
 
 ## 4. Parameter schema
 

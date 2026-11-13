@@ -179,11 +179,12 @@ TEST_CASE ("Guitar to MIDI's automatic range is a six-string's until it hears a 
     // first, and strummed chords (two strings ringing together repeat at a long period too).
     double worst = 0.0;
     int notes = 0, moved = 0;
+    const int length = kThinned ? 16 : 48; // shorter lines under a sanitizer
     for (auto pickup : { Pickup::bridge, Pickup::piezo })
         for (std::uint32_t seed = 1; seed <= 2; ++seed)
         {
-            const Scenario sets[] = { bassLine (seed, pickup, 124.0, kFs, 48, false),
-                                      sloppyLine (seed, pickup, 115.0, kFs, 48),
+            const Scenario sets[] = { bassLine (seed, pickup, 124.0, kFs, length, false),
+                                      sloppyLine (seed, pickup, 115.0, kFs, length),
                                       fretThenPick (seed, pickup, kFs) };
             for (const auto& sc : sets)
             {
@@ -282,6 +283,8 @@ TEST_CASE ("Guitar to MIDI's low ranges: every note within two of its periods pl
     std::printf ("note   two periods   B1 range   F#1 range   (median ms)\n");
     for (int pitch = 28; pitch <= 40; ++pitch)
     {
+        if (!played (pitch, 28, 40))
+            continue;
         const double two = 2000.0 / hzOf (pitch);
         double medians[2] = { -1.0, -1.0 };
         int k = 0;
@@ -308,6 +311,8 @@ TEST_CASE ("Guitar to MIDI's low ranges: every note within two of its periods pl
     for (int pitch = 41; pitch <= 64; ++pitch)
         for (std::uint32_t seed = 1; seed <= 2; ++seed)
         {
+            if (!played (pitch, 41, 64))
+                continue;
             INFO ("note " << pitch << ", seed " << seed);
             const double e2 =
                 secondPickMs (pitch, range (LowNote::e2), Pickup::bridge, seed, false);

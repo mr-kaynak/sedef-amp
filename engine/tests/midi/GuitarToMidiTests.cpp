@@ -101,6 +101,8 @@ TEST_CASE ("Guitar to MIDI plays bass lines note for note", "[midi][accuracy]")
     for (auto pickup : { Pickup::bridge, Pickup::neck, Pickup::piezo })
         for (std::uint32_t seed = 1; seed <= 6; ++seed)
         {
+            if (!played (static_cast<int> (seed), 1, 6))
+                continue;
             const auto sc = bassLine (seed, pickup, 120.0 + 4.0 * seed, kFs, 48, false);
             const auto run = convert (sc.signal, kFs, plain());
             addInto (total, score (run, sc, 0));
@@ -137,6 +139,8 @@ TEST_CASE ("Guitar to MIDI plays a sloppy player's bass lines", "[midi][accuracy
         for (auto pickup : { Pickup::bridge, Pickup::neck, Pickup::piezo })
             for (std::uint32_t seed = 1; seed <= 6; ++seed)
             {
+                if (!played (static_cast<int> (seed), 1, 6))
+                    continue;
                 const auto sc = sloppyLine (seed, pickup, 110.0 + 5.0 * seed, kFs, 48);
                 auto settings = plain();
                 settings.timing = timing;
@@ -172,6 +176,8 @@ TEST_CASE ("Guitar to MIDI waits for the pick when the fretting hand moves first
         for (auto pickup : { Pickup::bridge, Pickup::neck, Pickup::piezo })
             for (std::uint32_t seed = 1; seed <= 4; ++seed)
             {
+                if (!played (static_cast<int> (seed), 1, 4))
+                    continue;
                 const auto sc = fretThenPick (seed, pickup, kFs);
                 auto settings = plain();
                 settings.timing = timing;
@@ -225,6 +231,8 @@ ChordRun playChords (double peakDb, midi::Timing timing, bool atLevel);
 /// level hold at every level.
 void levelSuite (double peakDb)
 {
+    if (!levelPlayed (peakDb))
+        return;
     INFO ("peak " << peakDb << " dBFS");
     char name[64];
     {
@@ -232,6 +240,8 @@ void levelSuite (double peakDb)
         for (auto pickup : { Pickup::bridge, Pickup::neck, Pickup::piezo })
             for (std::uint32_t seed = 1; seed <= 6; ++seed)
             {
+                if (!played (static_cast<int> (seed), 1, 6))
+                    continue;
                 const auto sc =
                     atPeak (bassLine (seed, pickup, 120.0 + 4.0 * seed, kFs, 48, false), peakDb);
                 const auto run = convert (sc.signal, kFs, plain());
@@ -255,6 +265,8 @@ void levelSuite (double peakDb)
         {
             for (std::uint32_t seed = 1; seed <= 6; ++seed)
             {
+                if (!played (static_cast<int> (seed), 1, 6))
+                    continue;
                 const auto sc =
                     atPeak (sloppyLine (seed, pickup, 110.0 + 5.0 * seed, kFs, 48), peakDb);
                 const auto run = convert (sc.signal, kFs, settings);
@@ -265,6 +277,8 @@ void levelSuite (double peakDb)
             }
             for (std::uint32_t seed = 1; seed <= 4; ++seed)
             {
+                if (!played (static_cast<int> (seed), 1, 4))
+                    continue;
                 const auto sc = atPeak (fretThenPick (seed, pickup, kFs), peakDb);
                 const auto run = convert (sc.signal, kFs, settings);
                 addInto (fretted, score (run, sc, 0, steady ? 0.12 : 0.08, false));
@@ -335,6 +349,8 @@ ChordRun playChords (double peakDb, midi::Timing timing, bool atLevel)
     for (auto pickup : { Pickup::bridge, Pickup::neck, Pickup::piezo })
         for (std::uint32_t seed = 1; seed <= 4; ++seed)
         {
+            if (!played (static_cast<int> (seed), 1, 4))
+                continue;
             auto sc = strummedChords (seed, pickup, kFs);
             if (atLevel)
                 sc = atPeak (sc, peakDb);
@@ -391,10 +407,14 @@ TEST_CASE ("Guitar to MIDI velocity is the same at any input level", "[midi][vel
     int matched = 0, same = 0;
     for (double peakDb : { -40.0, -30.0, -18.0, -6.0 })
     {
+        if (!levelPlayed (peakDb))
+            continue;
         std::vector<double> velocities;
         for (auto pickup : { Pickup::bridge, Pickup::neck, Pickup::piezo })
             for (std::uint32_t seed = 1; seed <= 6; ++seed)
             {
+                if (!played (static_cast<int> (seed), 1, 6))
+                    continue;
                 const auto sc = bassLine (seed, pickup, 120.0 + 4.0 * seed, kFs, 48, false);
                 const auto ref = convert (sc.signal, kFs, plain());
                 const auto at = convert (atPeak (sc, peakDb).signal, kFs, plain());
@@ -418,7 +438,7 @@ TEST_CASE ("Guitar to MIDI velocity is the same at any input level", "[midi][vel
         CHECK (percentile (velocities, 0.9) - percentile (velocities, 0.1) >= 12.0);
     }
     std::printf ("velocity: %d of %d notes within 4 of the as-recorded level's\n", same, matched);
-    REQUIRE (matched > 3000);
+    REQUIRE (matched > (kThinned ? 300 : 3000));
     CHECK (same >= 0.95 * matched);
 }
 
@@ -492,6 +512,10 @@ TEST_CASE ("Guitar to MIDI catches a note from silence as soon as one from a rin
     for (int tuning = 0; tuning < 3; ++tuning)
         for (auto pickup : { Pickup::bridge, Pickup::neck })
         {
+            // Thinned, the tunings are the run (the first and the last): the bar is a median over
+            // the seeds, which a third fewer would leave to chance.
+            if (!played (tuning, 0, 2))
+                continue;
             INFO ("tuning " << tuning << (pickup == Pickup::bridge ? ", bridge" : ", neck"));
             Score silent;
             std::vector<std::vector<double>> afterRest (6), afterRinging (6);

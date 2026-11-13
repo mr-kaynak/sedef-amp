@@ -5,13 +5,17 @@
 import { create } from 'zustand';
 import type { BoardState } from '../bridge/protocol';
 import {
+  addAfterAmp,
   addPedal,
   LEGACY_BOARD,
   movePedal,
   pedalName,
+  placePedal,
   removePedal,
   sanitiseBoard,
   sameBoard,
+  sides,
+  sideOf,
 } from '../features/pedals/registry';
 import { invoke } from './backendRef';
 import { dismissToast, showToast } from './toastStore';
@@ -73,28 +77,36 @@ function set(pedals: string[]): Promise<void> {
 
 export const boardActions = {
   set,
-  /** Adds a pedal at its default position; returns where it went. */
-  add(id: string): number {
+  /** Adds the next copy of a pedal (Add, Add another); returns the board it made. */
+  add(id: string): string[] {
     const next = addPedal(useBoardStore.getState().pedals, id);
     void set(next);
-    return next.indexOf(id);
+    return next;
   },
-  move(id: string, index: number): void {
-    void set(movePedal(useBoardStore.getState().pedals, id, index));
+  /** Adds the next copy of a pedal at the end of the side after the amp. */
+  addAfterAmp(id: string): string[] {
+    const next = addAfterAmp(useBoardStore.getState().pedals, id);
+    void set(next);
+    return next;
+  },
+  /** Moves a pedal to `index` in the board as drawn, amp included, without it (movePedal). */
+  move(token: string, index: number): void {
+    void set(movePedal(useBoardStore.getState().pedals, token, index));
   },
   /** Takes a pedal off the board, with Undo in a notice instead of a confirmation. */
-  remove(id: string): void {
+  remove(token: string): void {
     const before = useBoardStore.getState().pedals;
-    const at = before.indexOf(id);
-    if (at < 0) return;
-    void set(removePedal(before, id));
-    removedToast = showToast(`Removed ${pedalName(id)}`, {
+    const side = sideOf(before, token);
+    if (!side) return;
+    const at = sides(before)[side].indexOf(token);
+    void set(removePedal(before, token));
+    removedToast = showToast(`Removed ${pedalName(token)}`, {
       label: 'Undo',
-      // Back where it was, on the board as it is by then.
+      // Back where it was, on its side of the amp, on the board as it is by then.
       run: () => {
         removedToast = null;
         const now = useBoardStore.getState().pedals;
-        if (!now.includes(id)) void set(movePedal([...now, id], id, at));
+        if (!now.includes(token)) void set(placePedal(now, token, side, at));
       },
     });
   },

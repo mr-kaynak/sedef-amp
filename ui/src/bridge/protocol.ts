@@ -42,7 +42,7 @@ export type PostBlock = 'eq' | 'doubler' | 'drift' | 'fathom';
 
 /**
  * A block a preset switches on besides the amp and cab: a pedal id from the pedal registry
- * (src/generated/pedals.json), or a post block.
+ * (src/generated/pedals.json), "amp" before the pedals after the amp, or a post block.
  */
 export type PresetBlock = string;
 
@@ -64,7 +64,8 @@ export interface PresetInfo {
   cab: number;
   /**
    * Switched-on blocks besides the amp and cab, in signal order: the pedals on its board that it
-   * switches on, in the board's order, then the post blocks. The EQ counts only when the amp's
+   * switches on, in the board's order and each pedal once a side, with "amp" before the ones
+   * after the amp when there are any; then the post blocks. The EQ counts only when the amp's
    * bank is on and not flat.
    */
   blocks: PresetBlock[];
@@ -568,6 +569,9 @@ export interface TelemetryEvent {
   gateOpen: boolean;
   gateReductionDb: number;
   tideReductionDb: number;
+  /** The second Gate's and the second Tide's (docs/board.md); absent from older builds. */
+  gate2Open?: boolean;
+  tide2ReductionDb?: number;
   /** Current metronome step or -1. */
   metronomeStep: number;
   /** Effective Drift delay time in ms (after sync). */

@@ -2,7 +2,7 @@
 // The preset browser's model, as pure functions: which presets a library view holds, the
 // order and grouping by category, search, and the signal-chain summary of a row.
 import type { PostBlock, PresetBlock, PresetInfo } from '../../bridge/protocol';
-import { isPedalId, pedalName } from '../pedals/registry';
+import { AMP, isPedalId, pedalName } from '../pedals/registry';
 import { AMP_NAMES, bundledSchema } from '../../params/schema';
 
 export type Library = 'all' | 'favorites' | 'recent' | 'user';
@@ -124,14 +124,17 @@ export function ampName(p: Pick<PresetInfo, 'amp'>): string {
 }
 
 /**
- * The switched-on chain in signal order: the pedals in their board's order, then amp and cab,
- * then post effects. The gate is left out: it is on in almost every preset and says nothing about
- * the sound.
+ * The switched-on chain in signal order: the pedals in front of the amp in their board's order,
+ * then amp and cab, the pedals after the amp and the post effects. The gate is left out: it is on
+ * in almost every preset and says nothing about the sound.
  */
 export function chainParts(p: Pick<PresetInfo, 'amp' | 'cab' | 'blocks'>): ChainPart[] {
   const block = (b: PresetBlock): ChainPart => ({ kind: 'block', label: blockLabel(b) });
-  const pre = p.blocks.filter((b) => isPedalId(b) && b !== 'gate');
-  const post = p.blocks.filter((b) => !isPedalId(b));
+  const amp = p.blocks.indexOf(AMP);
+  const front = amp < 0 ? p.blocks : p.blocks.slice(0, amp);
+  const back = amp < 0 ? [] : p.blocks.slice(amp + 1);
+  const pre = front.filter((b) => isPedalId(b) && b !== 'gate');
+  const post = [...back.filter(isPedalId), ...p.blocks.filter((b) => b !== AMP && !isPedalId(b))];
   return [
     ...pre.map(block),
     { kind: 'amp', label: ampName(p), detail: CAB_LABELS[p.cab] ?? '' },

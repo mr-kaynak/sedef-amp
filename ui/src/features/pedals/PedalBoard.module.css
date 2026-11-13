@@ -20,6 +20,11 @@
   font-size: var(--t-11);
 }
 
+/* Said while a pedal is dragged past where it may go. */
+.note {
+  color: var(--bone);
+}
+
 /* The board scrolls only when it has to: a board that fits is centred in the room there is. */
 .scroller {
   position: relative;
@@ -72,7 +77,34 @@
   stroke-width: 1.5;
 }
 
-/* Where the guitar comes in: a jack socket on the cable, named above it. */
+/* Behind the pedals after the amp: a quiet band, named at its start, so the two sides of the
+   amp read at a glance. */
+.afterAmp {
+  position: absolute;
+  border: 1px solid var(--line);
+  border-radius: var(--r-panel);
+  background: rgb(237 230 214 / 0.035);
+  pointer-events: none;
+}
+
+/* The band's name stands upright, read from the bottom up like the amp's, above the cable. */
+.afterAmpLabel {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--bone-3);
+  font-size: var(--t-10);
+  font-stretch: var(--legend-stretch);
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  writing-mode: vertical-rl;
+  rotate: 180deg;
+  pointer-events: none;
+}
+
+/* Where the guitar comes in and where the signal leaves: jack sockets on the cable, named above. */
 .input {
   position: absolute;
   display: flex;
@@ -101,9 +133,15 @@
   font-weight: 500;
 }
 
-/* Where it goes: the amp in use, as a small head in its own colours. */
+/* The amp in use, a block in the chain as a small head in its own colours. It fills its place
+   on the board and is never dragged. */
+.ampSlot {
+  cursor: default;
+}
+
 .amp {
   position: absolute;
+  inset: 0;
   display: flex;
   flex-direction: column;
   align-items: center;

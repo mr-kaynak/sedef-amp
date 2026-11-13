@@ -165,9 +165,11 @@ describe('targets and labels', () => {
     expect(canRememberInScenes(spec('pearlEnabled'))).toBe(false);
   });
 
-  it('list the 22 switches every scene holds, as the engine does', () => {
-    expect(SCENE_SWITCHES).toHaveLength(22);
-    expect(new Set(SCENE_SWITCHES).size).toBe(22);
+  it('list the 38 switches every scene holds, as the engine does', () => {
+    // Both copies of the 16 pedals, the three EQ banks, Doubler, Drift and Fathom.
+    expect(SCENE_SWITCHES).toHaveLength(38);
+    expect(new Set(SCENE_SWITCHES).size).toBe(38);
+    expect(SCENE_SWITCHES).toContain('kelp2Enabled');
     for (const id of SCENE_SWITCHES) expect(spec(id).kind).toBe('bool');
   });
 });

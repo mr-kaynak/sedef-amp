@@ -5,6 +5,7 @@ import { Footswitch } from '../../controls/Footswitch';
 import { Led } from '../../controls/Led';
 import { useParamValue } from '../../params/useParam';
 import { PedalArt } from './art';
+import { useCopyParam, usePedalCopy } from './copy';
 import { usePedalScale } from './density';
 import { pedalBox } from './sizes';
 import styles from './Pedal.module.css';
@@ -62,7 +63,12 @@ export function Pedal({
   led,
   lamp = 'above',
 }: PedalProps) {
-  const on = useParamValue(enableParam) >= 0.5;
+  // A second copy reads its own switch, and carries its number in its name ("Kelp 2").
+  const copyParam = useCopyParam();
+  const copy = usePedalCopy();
+  const shownName = copy && copy.copy > 1 ? `${name} ${copy.copy}` : name;
+  const enable = copyParam(enableParam);
+  const on = useParamValue(enable) >= 0.5;
   const scale = usePedalScale();
   // Type steps once, where the enclosure is clearly the larger kind.
   const density = scale >= 1.25 ? 'large' : 'small';
@@ -84,7 +90,7 @@ export function Pedal({
     <section
       className={styles.pedal}
       style={style}
-      aria-label={`${name} ${kind}`}
+      aria-label={`${shownName} ${kind}`}
       data-on={on || undefined}
       data-density={density}
       data-lamp={lamp}
@@ -96,7 +102,7 @@ export function Pedal({
       <span className={`${styles.screw} ${styles.br}`} aria-hidden="true" />
       <div className={styles.controls}>{children}</div>
       <div className={styles.identity}>
-        <h2 className={styles.name}>{name}</h2>
+        <h2 className={styles.name}>{shownName}</h2>
         <p className={styles.kind}>{kind}</p>
       </div>
       {(status || hint) && (
@@ -114,8 +120,8 @@ export function Pedal({
           {led ?? <Led on={on} size={density === 'large' ? 10 : 8} />}
         </div>
         <Footswitch
-          param={enableParam}
-          label={`${name} on/off`}
+          param={enable}
+          label={`${shownName} on/off`}
           describedBy={hint ? hintId : undefined}
         />
       </div>

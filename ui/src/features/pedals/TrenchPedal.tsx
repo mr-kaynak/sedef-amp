@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { useParamValue } from '../../params/useParam';
+import { useCopyParam } from './copy';
 import { Pedal, PedalRow, type PedalFinish } from './Pedal';
 import { PedalKnob } from './PedalKnob';
 import { PedalSwitch } from './PedalSwitch';
@@ -19,7 +20,7 @@ const HINTS = ['One note at a time', 'Chords and single notes'] as const;
  * single notes; Poly divides every string of a chord.
  */
 export function TrenchPedal() {
-  const poly = Math.round(useParamValue('trenchMode')) === 1;
+  const poly = Math.round(useParamValue(useCopyParam()('trenchMode'))) === 1;
   return (
     <Pedal
       id="trench"

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { Knob } from '../../controls/Knob';
+import { useCopyParam } from './copy';
 import { KNOB_UNITS, usePedalScale, type KnobWeight } from './density';
 
 /** A knob on an enclosure: its size follows the pedal's scale and the knob's weight there. */
@@ -13,5 +14,8 @@ export function PedalKnob({
   weight?: KnobWeight;
 }) {
   const scale = usePedalScale();
-  return <Knob param={param} label={label} size={Math.round(KNOB_UNITS[weight] * scale)} />;
+  const copyParam = useCopyParam();
+  return (
+    <Knob param={copyParam(param)} label={label} size={Math.round(KNOB_UNITS[weight] * scale)} />
+  );
 }

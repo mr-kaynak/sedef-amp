@@ -7,7 +7,7 @@ import { Led } from '../controls/Led';
 import { useParamSpec, useParamValue } from '../params/useParam';
 import { AMP_NAMES, effectiveCab } from '../params/schema';
 import { TransposeControl } from '../features/transpose/TransposeControl';
-import { pedalMeta } from '../features/pedals/registry';
+import { AMP, enableOf } from '../features/pedals/registry';
 import { useBoardStore } from '../state/boardStore';
 import { SECTION_LABELS, SECTIONS, uiActions, useUiStore, type Section } from '../state/uiStore';
 import styles from './SectionTabs.module.css';
@@ -41,11 +41,11 @@ function EqStatus() {
 const MAX_PEDAL_LEDS = 8;
 
 function PedalsStatus() {
-  const pedals = useBoardStore((s) => s.pedals);
+  const pedals = useBoardStore((s) => s.pedals).filter((token) => token !== AMP);
   const enables = pedals
     .slice(0, MAX_PEDAL_LEDS)
-    .map((id) => pedalMeta(id)?.enable)
-    .filter((id): id is string => id !== undefined);
+    .map(enableOf)
+    .filter((id) => id !== '');
   const more = pedals.length - MAX_PEDAL_LEDS;
   return (
     <>

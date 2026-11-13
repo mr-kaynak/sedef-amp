@@ -25,9 +25,14 @@ const settle = () =>
     await new Promise((resolve) => setTimeout(resolve, 0));
   });
 
-/** The pedals on screen, in order. */
-const shown = () =>
+/** The pedals on screen, in order, and the amp among them when a pedal stands after it. */
+const drawn = () =>
   [...document.querySelectorAll<HTMLElement>('li[data-pedal]')].map((li) => li.dataset.pedal);
+/** The pedals on screen, in order (the board as the store spells it). */
+const shown = () => {
+  const items = drawn();
+  return items.at(-1) === 'amp' ? items.slice(0, -1) : items;
+};
 const board = () => useBoardStore.getState().pedals;
 /** The board's announcements (the Toasts region is a status too). */
 const status = () => {
@@ -107,8 +112,12 @@ describe('PedalBoard', () => {
     const first = within(list).getAllByRole('listitem')[0]!;
     expect(within(first).getByRole('button', { name: 'Move Gate left' })).toBeDisabled();
     expect(within(first).getByRole('button', { name: 'Move Gate right' })).toBeEnabled();
-    expect(handle('Ripple')).toHaveAccessibleDescription('Drag to move it, or use the arrow keys.');
-    expect(screen.getByRole('button', { name: 'Move Ripple right' })).toBeDisabled();
+    expect(handle('Ripple')).toHaveAccessibleDescription(
+      'Drag to move it, or use the arrow keys. Modulation can go after the amp.',
+    );
+    // The amp is in the chain, last: modulation steps over it, a drive stops in front of it.
+    expect(drawn()).toEqual(['gate', 'tide', 'pearl', 'coral', 'ripple', 'amp']);
+    expect(screen.getByRole('button', { name: 'Move Ripple after the amp' })).toBeEnabled();
   });
 
   describe('adding and removing', () => {
@@ -157,21 +166,86 @@ describe('PedalBoard', () => {
       const coral = within(picker()).getByRole('button', { name: 'Add Coral, distortion' });
       // What it does, and where it would go on this board.
       expect(coral).toHaveAccessibleDescription(
-        'Hard clipping with a cut control for darker tones. Goes after Tide.',
+        'Hard clipping with a cut control for darker tones. Goes in front of the amp, after Tide.',
       );
       coral.focus();
       fireEvent.click(coral);
       await settle();
       expect(shown()).toEqual(['gate', 'tide', 'coral', 'ripple']);
       expect((await h.mock.hello()).board?.pedals).toEqual(['gate', 'tide', 'coral', 'ripple']);
-      expect(status()).toHaveTextContent('Added Coral, 3 of 4, after Tide.');
-      // The shelf stays for the next pedal; the card keeps focus and now says where Coral is.
+      expect(status()).toHaveTextContent('Added Coral, 3 of 4 in front of the amp, after Tide.');
+      // The shelf stays for the next pedal; the card keeps focus and now offers a second Coral.
       expect(coral).toHaveFocus();
-      expect(coral).toHaveAccessibleName('Coral, distortion, on the board. Show it');
+      expect(coral).toHaveAccessibleName('Add another Coral, distortion');
+      expect(coral).toHaveAccessibleDescription(
+        'Hard clipping with a cut control for darker tones. Coral 2 goes in front of the amp, after Coral.',
+      );
       fireEvent.click(within(picker()).getByRole('button', { name: 'Add Kelp, mid overdrive' }));
       await settle();
       expect(shown()).toEqual(['gate', 'tide', 'kelp', 'coral', 'ripple']);
-      expect(status()).toHaveTextContent('Added Kelp, 3 of 5, after Tide.');
+      expect(status()).toHaveTextContent('Added Kelp, 3 of 5 in front of the amp, after Tide.');
+    });
+
+    it('adds a second copy next to the first, then shows both', async () => {
+      await start({ board: ['gate', 'kelp', 'ripple'] });
+      fireEvent.click(screen.getByRole('button', { name: 'Add pedal' }));
+      const kelp = within(picker()).getByRole('button', {
+        name: 'Add another Kelp, mid overdrive',
+      });
+      expect(within(kelp).getByText('On the board')).toBeInTheDocument();
+      expect(within(kelp).getByText('Add another')).toBeInTheDocument();
+      fireEvent.click(kelp);
+      await settle();
+      expect(shown()).toEqual(['gate', 'kelp', 'kelp#2', 'ripple']);
+      expect((await h.mock.hello()).board?.pedals).toEqual(['gate', 'kelp', 'kelp#2', 'ripple']);
+      expect(status()).toHaveTextContent('Added Kelp 2, 3 of 4 in front of the amp, after Kelp.');
+      // The second copy is a pedal of its own: its name, its own switch and controls.
+      expect(screen.getByRole('region', { name: 'Kelp 2 Mid overdrive' })).toBeInTheDocument();
+      expect(handle('Kelp 2')).toBeInTheDocument();
+      // Both on the board: the card shows them instead.
+      expect(kelp).toHaveAccessibleName('Kelp, mid overdrive, both on the board. Show them');
+      fireEvent.click(kelp);
+      await settle();
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(handle('Kelp')).toHaveFocus();
+    });
+
+    it('adds modulation after the amp from its card', async () => {
+      await start({ board: ['gate', 'tide'] });
+      fireEvent.click(screen.getByRole('button', { name: 'Add pedal' }));
+      const after = within(picker()).getByRole('button', { name: 'Add Gyre after the amp' });
+      expect(after).toHaveAccessibleDescription('Goes after the amp, first.');
+      // Only modulation has the button.
+      expect(within(picker()).queryByRole('button', { name: 'Add Kelp after the amp' })).toBeNull();
+      fireEvent.click(after);
+      await settle();
+      expect(drawn()).toEqual(['gate', 'tide', 'amp', 'gyre']);
+      expect((await h.mock.hello()).board?.pedals).toEqual(['gate', 'tide', 'amp', 'gyre']);
+      expect(status()).toHaveTextContent('Added Gyre, 1 of 1 after the amp, first.');
+      // A second Gyre from the card's main button joins the first, after the amp.
+      fireEvent.click(within(picker()).getByRole('button', { name: 'Add another Gyre, phaser' }));
+      await settle();
+      expect(drawn()).toEqual(['gate', 'tide', 'amp', 'gyre', 'gyre#2']);
+    });
+
+    it('holds seven drives and fuzzes at most, and says so on the cards', async () => {
+      const drives = ['remora', 'urchin', 'sargasso', 'pearl', 'kelp', 'coral', 'breaker'];
+      await start({ board: ['gate', ...drives] });
+      fireEvent.click(screen.getByRole('button', { name: 'Add pedal' }));
+      const kelp = within(picker()).getByRole('button', {
+        name: 'Add another Kelp, mid overdrive',
+      });
+      expect(kelp).toHaveAttribute('aria-disabled', 'true');
+      expect(kelp).toHaveAccessibleDescription(
+        'Mid-hump drive, or a tight boost into a high-gain amp. The board holds 7 drives and fuzzes at most.',
+      );
+      expect(within(kelp).getByText('7 drives and fuzzes at most')).toBeInTheDocument();
+      fireEvent.click(kelp);
+      await settle();
+      expect(shown()).toEqual(['gate', ...drives]);
+      // Anything else still goes on.
+      const gate = within(picker()).getByRole('button', { name: 'Add another Gate, noise gate' });
+      expect(gate).not.toHaveAttribute('aria-disabled');
     });
 
     it('adds the first pedal from the empty board', async () => {
@@ -181,7 +255,7 @@ describe('PedalBoard', () => {
       fireEvent.click(within(picker()).getByRole('button', { name: 'Add Gate, noise gate' }));
       await settle();
       expect(shown()).toEqual(['gate']);
-      expect(status()).toHaveTextContent('Added Gate, 1 of 1, first.');
+      expect(status()).toHaveTextContent('Added Gate, 1 of 1 in front of the amp, first.');
     });
   });
 
@@ -207,6 +281,7 @@ describe('PedalBoard', () => {
         within(groups[i]!)
           .getAllByRole('button')
           .map((b) => b.getAttribute('aria-label'));
+      // Modulation also adds after the amp.
       expect(names(1)).toEqual([
         'Add Pearl, overdrive',
         'Add Kelp, mid overdrive',
@@ -221,14 +296,18 @@ describe('PedalBoard', () => {
       expect(names(3)).toEqual(['Add Anemone, envelope filter', 'Add Conch, wah']);
       expect(names(4)).toEqual([
         'Add Beacon, photocell vibe',
+        'Add Beacon after the amp',
         'Add Gyre, phaser',
+        'Add Gyre after the amp',
         'Add Jetty, flanger',
-        'Ripple, modulation, on the board. Show it',
+        'Add Jetty after the amp',
+        'Add another Ripple, modulation',
+        'Add another Ripple after the amp',
       ]);
       const dynamics = within(groups[0]!).getAllByRole('button');
       expect(dynamics.map((b) => b.getAttribute('aria-label'))).toEqual([
         'Add Gate, noise gate',
-        'Tide, compressor, on the board. Show it',
+        'Add another Tide, compressor',
       ]);
       expect(within(dynamics[1]!).getByText('On the board')).toBeInTheDocument();
       expect(within(dynamics[0]!).getByText('Add')).toBeInTheDocument();
@@ -236,15 +315,20 @@ describe('PedalBoard', () => {
       expect(dynamics[0]).toHaveFocus();
     });
 
-    it('shows a pedal that is on the board already instead of adding it twice', async () => {
-      await start();
+    it('shows a pedal whose copies are both on the board instead of adding a third', async () => {
+      await start({ board: [...FIVE, 'amp', 'ripple#2'] });
       fireEvent.click(screen.getByRole('button', { name: 'Add pedal' }));
+      expect(
+        within(picker()).getByRole('button', { name: 'Add another Ripple after the amp' }),
+      ).toHaveAttribute('aria-disabled', 'true');
       fireEvent.click(
-        within(picker()).getByRole('button', { name: 'Ripple, modulation, on the board. Show it' }),
+        within(picker()).getByRole('button', {
+          name: 'Ripple, modulation, both on the board. Show them',
+        }),
       );
       await settle();
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-      expect(shown()).toEqual(['gate', 'tide', 'pearl', 'coral', 'ripple']);
+      expect(drawn()).toEqual([...FIVE, 'amp', 'ripple#2']);
       expect(handle('Ripple')).toHaveFocus();
     });
 
@@ -252,10 +336,12 @@ describe('PedalBoard', () => {
       await start({ board: ['gate', 'tide', 'ripple'] });
       fireEvent.click(screen.getByRole('button', { name: 'Add pedal' }));
       const landing = () => document.querySelector<HTMLElement>('li[data-landing]');
-      // Gate, the first card, has focus: it is on the board, so it is ringed there.
-      expect(landing()).toBeNull();
+      // Gate, the first card, has focus: it is on the board, so it is ringed there, and its
+      // second copy would land right after it.
       expect(document.querySelector('li[data-pedal="gate"]')).toHaveAttribute('data-marked');
-      expect(picker()).toHaveTextContent('On the board, first.');
+      const second = gapAt(layoutBoard(['gate', 'tide', 'ripple'], false), 1)!;
+      expect(landing()!.style.left).toBe(`${second.x}px`);
+      expect(picker()).toHaveTextContent('Gate 2 goes in front of the amp, after Gate.');
 
       const coral = within(picker()).getByRole('button', { name: 'Add Coral, distortion' });
       act(() => coral.focus());
@@ -265,15 +351,22 @@ describe('PedalBoard', () => {
       expect(landing()!.style.height).toBe(`${gap.h}px`);
       expect(document.querySelector('li[data-marked]')).toBeNull();
       expect(picker()).toHaveTextContent('Hard clipping with a cut control for darker tones.');
-      expect(picker()).toHaveTextContent('Goes after Tide.');
+      expect(picker()).toHaveTextContent('Goes in front of the amp, after Tide.');
 
       // Pointing with the mouse does the same, and leaving the shelf clears the mark.
       fireEvent.pointerEnter(
         within(picker()).getByRole('button', { name: 'Add Trench, octave down' }).closest('li')!,
       );
-      expect(picker()).toHaveTextContent('Goes after Gate.');
+      expect(picker()).toHaveTextContent('Goes in front of the amp, after Gate.');
       fireEvent.pointerLeave(picker());
       expect(landing()).toBeNull();
+
+      // After the amp: past the amp, which the board draws last.
+      const after = within(picker()).getByRole('button', { name: 'Add Gyre after the amp' });
+      act(() => after.focus());
+      const past = gapAt(layoutBoard(['gate', 'tide', 'ripple'], false), 4)!;
+      expect(landing()!.style.left).toBe(`${past.x}px`);
+      expect(picker()).toHaveTextContent('Goes after the amp, first.');
     });
 
     it('draws the board smaller while the shelf is open, so all of it stays in view', async () => {
@@ -296,7 +389,7 @@ describe('PedalBoard', () => {
       expect(gate).toHaveFocus();
       fireEvent.keyDown(gate, { key: 'ArrowRight' });
       expect(
-        within(picker()).getByRole('button', { name: 'Tide, compressor, on the board. Show it' }),
+        within(picker()).getByRole('button', { name: 'Add another Tide, compressor' }),
       ).toHaveFocus();
       fireEvent.keyDown(document.activeElement!, { key: 'End' });
       expect(
@@ -312,7 +405,8 @@ describe('PedalBoard', () => {
       // Only the cards and Close are controls: no knob or footswitch of a picture is exposed.
       expect(within(picker()).queryAllByRole('slider')).toHaveLength(0);
       expect(within(picker()).queryAllByRole('switch')).toHaveLength(0);
-      expect(within(picker()).getAllByRole('button')).toHaveLength(17);
+      // Sixteen cards, four of them with After the amp, and Close.
+      expect(within(picker()).getAllByRole('button')).toHaveLength(21);
       for (const picture of picker().querySelectorAll('[inert]'))
         expect(picture).toHaveAttribute('aria-hidden', 'true');
       expect(picker().querySelectorAll('[inert]')).toHaveLength(16);
@@ -335,24 +429,52 @@ describe('PedalBoard', () => {
       fireEvent.keyDown(handle('Pearl'), { key: 'ArrowRight' });
       await settle();
       expect(shown()).toEqual(['gate', 'tide', 'coral', 'pearl', 'ripple']);
-      expect(status()).toHaveTextContent('Pearl moved to 4 of 5, after Coral.');
+      expect(status()).toHaveTextContent('Pearl moved to 4 of 5 in front of the amp, after Coral.');
       expect(handle('Pearl')).toHaveFocus();
 
       fireEvent.keyDown(handle('Pearl'), { key: 'Home' });
       await settle();
       expect(shown()).toEqual(['pearl', 'gate', 'tide', 'coral', 'ripple']);
-      expect(status()).toHaveTextContent('Pearl moved to 1 of 5, first.');
+      expect(status()).toHaveTextContent('Pearl moved to 1 of 5 in front of the amp, first.');
 
       fireEvent.keyDown(handle('Pearl'), { key: 'End' });
       await settle();
       expect(shown()).toEqual(['gate', 'tide', 'coral', 'ripple', 'pearl']);
 
-      // At the end of the board the key does nothing, and says nothing new.
+      // A drive stops in front of the amp: there the key does nothing, and says nothing new.
       fireEvent.keyDown(handle('Pearl'), { key: 'ArrowDown' });
       await settle();
       expect(shown()).toEqual(['gate', 'tide', 'coral', 'ripple', 'pearl']);
-      expect(status()).toHaveTextContent('Pearl moved to 5 of 5, after Ripple.');
+      expect(status()).toHaveTextContent(
+        'Pearl moved to 5 of 5 in front of the amp, after Ripple.',
+      );
       expect((await h.mock.hello()).board?.pedals).toEqual(board());
+    });
+
+    it('takes modulation across the amp and back from the keyboard', async () => {
+      await start();
+      handle('Ripple').focus();
+      fireEvent.keyDown(handle('Ripple'), { key: 'ArrowRight' });
+      await settle();
+      expect(drawn()).toEqual(['gate', 'tide', 'pearl', 'coral', 'amp', 'ripple']);
+      expect(status()).toHaveTextContent('Ripple moved to 1 of 1 after the amp, first.');
+      expect(handle('Ripple')).toHaveFocus();
+      // Its left button now says where it goes.
+      expect(screen.getByRole('button', { name: 'Move Ripple in front of the amp' })).toBeEnabled();
+      // Home and End stay on its side of the amp.
+      fireEvent.keyDown(handle('Ripple'), { key: 'Home' });
+      await settle();
+      expect(drawn()).toEqual(['gate', 'tide', 'pearl', 'coral', 'amp', 'ripple']);
+      fireEvent.click(screen.getByRole('button', { name: 'Move Ripple in front of the amp' }));
+      await settle();
+      expect(drawn()).toEqual(['gate', 'tide', 'pearl', 'coral', 'ripple', 'amp']);
+      expect(status()).toHaveTextContent(
+        'Ripple moved to 5 of 5 in front of the amp, after Coral.',
+      );
+      // Focus stays on the button used, which says where it goes now.
+      expect(screen.getByRole('button', { name: 'Move Ripple left' })).toHaveFocus();
+      expect(screen.getByRole('button', { name: 'Move Ripple after the amp' })).toBeEnabled();
+      expect((await h.mock.hello()).board?.pedals).toEqual(FIVE);
     });
 
     it('moves a pedal with its move buttons, keeping focus on the button used', async () => {
@@ -360,7 +482,7 @@ describe('PedalBoard', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Move Tide left' }));
       await settle();
       expect(shown()).toEqual(['tide', 'gate', 'pearl', 'coral', 'ripple']);
-      expect(status()).toHaveTextContent('Tide moved to 1 of 5, first.');
+      expect(status()).toHaveTextContent('Tide moved to 1 of 5 in front of the amp, first.');
       // Tide is first now: its left button switched off, so focus lands on its handle.
       expect(handle('Tide')).toHaveFocus();
 
@@ -404,16 +526,51 @@ describe('PedalBoard', () => {
         'pearl',
         'coral',
       ]);
-      expect(status()).toHaveTextContent('Ripple moved to 3 of 5, after Tide.');
+      expect(status()).toHaveTextContent('Ripple moved to 3 of 5 in front of the amp, after Tide.');
     });
 
-    it('drops after the last pedal past the end of the board', async () => {
+    it('drops a drive dragged past the amp in front of it, and says why', async () => {
       await start();
-      const el = drag('Gate', 5 * PITCH + 60);
-      expect(bar()!.style.left).toBe(`${4 * PITCH + WIDTH + GAP / 2}px`);
+      // The amp is the sixth item (index 5); past it, Gate can't go.
+      const el = drag('Gate', 6 * PITCH + 60);
+      expect(bar()!.style.left).toBe(`${5 * PITCH - GAP / 2}px`);
+      expect(screen.getByText('Only modulation goes after the amp')).toBeInTheDocument();
       fireEvent.pointerUp(el, { pointerId: 1 });
       await settle();
       expect(shown()).toEqual(['tide', 'pearl', 'coral', 'ripple', 'gate']);
+      expect(screen.queryByText('Only modulation goes after the amp')).toBeNull();
+    });
+
+    it('drags modulation across the amp and back', async () => {
+      await start();
+      // Past the middle of the amp: Ripple lands after it.
+      let el = drag('Ripple', 5 * PITCH + 150);
+      expect(bar()!.style.left).toBe(`${5 * PITCH + WIDTH + GAP / 2}px`);
+      expect(screen.queryByText('Only modulation goes after the amp')).toBeNull();
+      fireEvent.pointerUp(el, { pointerId: 1 });
+      await settle();
+      expect(drawn()).toEqual(['gate', 'tide', 'pearl', 'coral', 'amp', 'ripple']);
+      expect((await h.mock.hello()).board?.pedals).toEqual([
+        'gate',
+        'tide',
+        'pearl',
+        'coral',
+        'amp',
+        'ripple',
+      ]);
+      expect(status()).toHaveTextContent('Ripple moved to 1 of 1 after the amp, first.');
+      // Back over Tide.
+      el = drag('Ripple', PITCH + 40);
+      fireEvent.pointerUp(el, { pointerId: 1 });
+      await settle();
+      expect(drawn()).toEqual(['gate', 'ripple', 'tide', 'pearl', 'coral', 'amp']);
+      expect((await h.mock.hello()).board?.pedals).toEqual([
+        'gate',
+        'ripple',
+        'tide',
+        'pearl',
+        'coral',
+      ]);
     });
 
     it('puts the pedal back on Escape', async () => {
@@ -451,7 +608,7 @@ describe('PedalBoard', () => {
       fireEvent.pointerUp(enclosure, { pointerId: 1, clientX: PITCH + 40, clientY: 200 });
       await settle();
       expect(shown()).toEqual(['gate', 'ripple', 'tide', 'pearl', 'coral']);
-      expect(status()).toHaveTextContent('Ripple moved to 2 of 5, after Gate.');
+      expect(status()).toHaveTextContent('Ripple moved to 2 of 5 in front of the amp, after Gate.');
 
       // A press on a knob turns the knob.
       const knob = screen.getByRole('slider', { name: 'Pearl Gain' });
@@ -479,16 +636,25 @@ describe('PedalBoard', () => {
   });
 
   describe('the signal path', () => {
-    it('ends in the amp in use, which opens the Amp page', async () => {
-      await start();
+    it('runs through the amp in use, which opens the Amp page', async () => {
+      await start({ board: ['gate', 'tide', 'amp', 'gyre'] });
       act(() => useUiStore.setState({ section: 'pedals' }));
-      const amp = screen.getByRole('button', { name: 'Into the amp: Lagoon. Open the Amp page' });
-      // After the list in the document, as in the signal.
+      const amp = screen.getByRole('button', { name: 'The amp: Lagoon. Open the Amp page' });
+      // In the list, between the two sides, as in the signal; Guitar before it, Out after.
       const list = screen.getByRole('list', { name: 'Pedalboard, in signal order' });
-      expect(list.compareDocumentPosition(amp) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      const items = within(list).getAllByRole('listitem');
+      expect(items.map((li) => li.dataset.pedal)).toEqual(['gate', 'tide', 'amp', 'gyre']);
+      expect(items[2]).toContainElement(amp);
+      // The amp is not a pedal: it has no tools and is not dragged.
+      expect(within(items[2]!).queryByRole('button', { name: /^Move / })).toBeNull();
       expect(screen.getByText('Guitar').compareDocumentPosition(list)).toBe(
         Node.DOCUMENT_POSITION_FOLLOWING,
       );
+      expect(list.compareDocumentPosition(screen.getByText('Out'))).toBe(
+        Node.DOCUMENT_POSITION_FOLLOWING,
+      );
+      // The pedals after it stand on a band named for them.
+      expect(screen.getByText('After the amp')).toBeInTheDocument();
       fireEvent.click(amp);
       expect(useUiStore.getState().section).toBe('amp');
     });
@@ -500,7 +666,7 @@ describe('PedalBoard', () => {
       });
       await settle();
       expect(
-        screen.getByRole('button', { name: 'Into the amp: Abyss. Open the Amp page' }),
+        screen.getByRole('button', { name: 'The amp: Abyss. Open the Amp page' }),
       ).toBeInTheDocument();
     });
 

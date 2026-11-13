@@ -3,6 +3,7 @@ import { useRef } from 'react';
 import { Led } from '../../../controls/Led';
 import { useParamValue } from '../../../params/useParam';
 import { telemetry, useLiveFrame } from '../../../state/live';
+import { useCopyParam } from '../copy';
 import { usePedalScale } from '../density';
 import { Pedal, PedalRow } from '../Pedal';
 import { PedalKnob } from '../PedalKnob';
@@ -19,8 +20,9 @@ function RateLed() {
   const ref = useRef<HTMLSpanElement>(null);
   const phase = useRef(0);
   const large = usePedalScale() >= 1.25;
-  const on = useParamValue('rippleEnabled') >= 0.5;
-  const speed = useParamValue('rippleSpeed');
+  const copyParam = useCopyParam();
+  const on = useParamValue(copyParam('rippleEnabled')) >= 0.5;
+  const speed = useParamValue(copyParam('rippleSpeed'));
   useLiveFrame(telemetry, (_t, dt) => {
     const el = ref.current;
     if (!el || !on) return;

@@ -2,6 +2,7 @@
 import { useRef } from 'react';
 import { useParamValue } from '../../../params/useParam';
 import { telemetry, useLiveFrame } from '../../../state/live';
+import { usePedalCopy } from '../copy';
 import { Pedal, PedalRow } from '../Pedal';
 import { PedalKnob } from '../PedalKnob';
 import { TIDE } from './finishes';
@@ -10,11 +11,13 @@ import styles from './Panels.module.css';
 /** Gain-reduction ladder for the compressor, drawn from telemetry without re-rendering. */
 function ReductionMeter() {
   const ref = useRef<HTMLDivElement>(null);
-  const on = useParamValue('tideEnabled') >= 0.5;
+  const second = (usePedalCopy()?.copy ?? 1) > 1;
+  const on = useParamValue(second ? 'tide2Enabled' : 'tideEnabled') >= 0.5;
   useLiveFrame(telemetry, (t) => {
     const el = ref.current;
     if (!el) return;
-    const gr = on && t ? Math.min(12, Math.max(0, -t.tideReductionDb)) : 0;
+    const reduction = second ? (t?.tide2ReductionDb ?? 0) : (t?.tideReductionDb ?? 0);
+    const gr = on && t ? Math.min(12, Math.max(0, -reduction)) : 0;
     el.style.setProperty('--gr', String(gr / 12));
   });
   return (

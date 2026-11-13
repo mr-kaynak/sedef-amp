@@ -2,6 +2,7 @@
 import { Led } from '../../../controls/Led';
 import { useParamValue } from '../../../params/useParam';
 import { telemetry, useLiveSelector } from '../../../state/live';
+import { usePedalCopy } from '../copy';
 import { Pedal, PedalRow } from '../Pedal';
 import { PedalKnob } from '../PedalKnob';
 import { GATE } from './finishes';
@@ -9,8 +10,9 @@ import styles from './Panels.module.css';
 
 /** Open, closed or bypassed, in words as well as on the lamp. */
 function GateState() {
-  const enabled = useParamValue('gateEnabled') >= 0.5;
-  const open = useLiveSelector(telemetry, (t) => t?.gateOpen ?? true);
+  const second = (usePedalCopy()?.copy ?? 1) > 1;
+  const enabled = useParamValue(second ? 'gate2Enabled' : 'gateEnabled') >= 0.5;
+  const open = useLiveSelector(telemetry, (t) => (second ? t?.gate2Open : t?.gateOpen) ?? true);
   return (
     <span className={styles.gateState}>
       <Led on={enabled && open} size={7} />

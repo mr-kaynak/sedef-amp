@@ -5,7 +5,7 @@ import { getValue } from '../../params/paramStore';
 import { flush, setupMock, type Harness } from '../../test/harness';
 import { KelpPedal } from './KelpPedal';
 import { PedalBoard } from './PedalBoard';
-import { switchedOnBoardFor } from './registry';
+import { PEDALS, switchedOnBoardFor } from './registry';
 import { TrenchPedal } from './TrenchPedal';
 import { UrchinPedal } from './UrchinPedal';
 
@@ -102,9 +102,14 @@ describe('Trench, Urchin and Kelp panels', () => {
   });
 
   it('sit in signal order on a board with every pedal', async () => {
-    // Init's board holds the Gate alone; switch every pedal on to see where each one sits.
+    // Init's board holds the Gate alone; switch every pedal on (first copies) to see where each
+    // one sits.
     h.dispose();
-    h = await setupMock({ initialPresetId: null, board: switchedOnBoardFor(() => true) });
+    const firsts = new Set(PEDALS.map((p) => p.enable));
+    h = await setupMock({
+      initialPresetId: null,
+      board: switchedOnBoardFor((enable) => firsts.has(enable)),
+    });
     render(<PedalBoard />);
     const names = screen.getAllByRole('region').map((region) => region.getAttribute('aria-label'));
     expect(names).toEqual([

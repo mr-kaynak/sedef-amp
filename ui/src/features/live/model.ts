@@ -15,7 +15,10 @@ export const SWITCH_THRESHOLD = 64;
 /** How long learn watches a footswitch for its release (§4.4), seconds. */
 export const LEARN_WINDOW_S = 1.5;
 
-/** The switches every scene holds: each pedal's on/off, the EQ banks, Doubler, Drift, Fathom. */
+/**
+ * The switches every scene holds: each pedal's on/off, the EQ banks, Doubler, Drift, Fathom, then
+ * each pedal's second copy's on/off (sedef::kSceneSwitches).
+ */
 export const SCENE_SWITCHES: readonly string[] = [
   ...PEDALS.map((p) => p.enable),
   'eqLagoonEnabled',
@@ -24,6 +27,7 @@ export const SCENE_SWITCHES: readonly string[] = [
   'doublerEnabled',
   'driftEnabled',
   'fathomEnabled',
+  ...PEDALS.map((p) => p.enable2),
 ];
 
 /** A continuous parameter of the preset: what can be kept per scene (§6.2). */

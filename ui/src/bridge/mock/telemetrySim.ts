@@ -67,6 +67,12 @@ export class TelemetrySimulator {
     const tideReductionDb = tideOn
       ? -Math.max(0, (inDb + 34) * 0.35) * (0.4 + this.value('tideComp'))
       : 0;
+    // The second copies (docs/board.md) read the same input with their own settings.
+    const gate2Open = this.value('gate2Enabled') < 0.5 || raw > this.value('gate2Threshold');
+    const tide2ReductionDb =
+      this.value('tide2Enabled') >= 0.5
+        ? -Math.max(0, (inDb + 34) * 0.35) * (0.4 + this.value('tide2Comp'))
+        : 0;
 
     const outBase = gateOpen ? inDb + 6 + tideReductionDb * 0.5 : -90;
     const outDb = Math.min(3, outBase + this.value('outputGain'));
@@ -81,6 +87,8 @@ export class TelemetrySimulator {
       gateOpen,
       gateReductionDb,
       tideReductionDb,
+      gate2Open,
+      tide2ReductionDb,
       metronomeStep: this.metronomeStep(dt),
       driftTimeMs: this.driftTimeMs(),
       cpu: 0.05 + this.random() * 0.012 + this.enabledCount() * 0.007,

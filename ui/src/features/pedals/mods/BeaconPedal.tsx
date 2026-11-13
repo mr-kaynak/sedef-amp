@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { useRef } from 'react';
 import { useParamValue } from '../../../params/useParam';
+import { useCopyParam } from '../copy';
 import { Pedal, PedalRow } from '../Pedal';
 import { PedalKnob } from '../PedalKnob';
 import { PedalSwitch } from '../PedalSwitch';
@@ -14,7 +15,7 @@ import { LfoLed } from './LfoLed';
  */
 export function BeaconPedal() {
   const lamp = useRef(new VibeLamp());
-  const depth = useParamValue('beaconDepth');
+  const depth = useParamValue(useCopyParam()('beaconDepth'));
   return (
     <Pedal
       id="beacon"

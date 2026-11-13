@@ -4,7 +4,7 @@
 import type { ParamSpec, PresetBlock, PresetInfo } from '../protocol';
 import { snapValue } from '../../params/normalise';
 import { AMP_NAMES } from '../../params/schema';
-import { legacyBoardFor, pedalMeta } from '../../features/pedals/registry';
+import { AMP, baseId, enableOf, legacyBoardFor, sides } from '../../features/pedals/registry';
 
 type Described = Pick<PresetInfo, 'amp' | 'cab' | 'blocks'>;
 
@@ -32,12 +32,20 @@ export function describePreset(
     value(`${bank}HighCut`) < 19990 ||
     EQ_BANDS.some((b) => Math.abs(value(`${bank}Band${b}`)) > 0.05);
 
-  // The pedals on its board that it switches on, in the board's order, then the post blocks.
-  const board = pedals ?? legacyBoardFor(on);
-  const blocks: PresetBlock[] = board.filter((id) => {
-    const meta = pedalMeta(id);
-    return meta !== undefined && on(meta.enable);
-  });
+  // The pedals on its board that it switches on, in the board's order, each pedal once a side
+  // (two Kelps are one Kelp block), "amp" before the ones after the amp when one is on there;
+  // then the post blocks.
+  const { pre, post } = sides(pedals ?? legacyBoardFor(on));
+  const pedalsOn = (side: readonly string[]) => {
+    const list: PresetBlock[] = [];
+    for (const token of side) {
+      const enable = enableOf(token);
+      if (enable !== '' && on(enable) && !list.includes(baseId(token))) list.push(baseId(token));
+    }
+    return list;
+  };
+  const after = pedalsOn(post);
+  const blocks: PresetBlock[] = [...pedalsOn(pre), ...(after.length > 0 ? [AMP, ...after] : [])];
   const add = (id: string, block: PresetBlock) => {
     if (on(id)) blocks.push(block);
   };

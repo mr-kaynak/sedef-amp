@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// The Pedals page: the pedalboard. The signal comes in at the input jack, runs along a cable
-// through the pedals in order, row by row, and into the amp. Each pedal carries its own tools
-// (a handle, move left and right, remove), shown when the pointer or the keyboard is on it; a
-// pedal also drags by its enclosure. Add pedal opens the shelf under the board. Moves and
-// additions are announced politely; removals show a notice with Undo.
+// The Pedals page: the pedalboard. The signal comes in at the Guitar jack, runs along a cable
+// through the pedals in front of the amp, into the amp (a block in the chain), out through the
+// pedals after it and on to the Out jack, row by row (docs/board.md §5). Each pedal carries its
+// own tools (a handle, move left and right, remove), shown when the pointer or the keyboard is on
+// it; a pedal also drags by its enclosure. Only modulation crosses the amp. Add pedal opens the
+// shelf under the board. Moves and additions are announced politely; removals show a notice with
+// Undo.
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent } from 'react';
 import buttons from '../../controls/Button.module.css';
@@ -14,10 +16,24 @@ import { boardActions, useBoardStore } from '../../state/boardStore';
 import { uiActions } from '../../state/uiStore';
 import { AMPS } from '../amp/amps';
 import { PEDAL_CATALOG } from './catalog';
+import { PedalCopyContext } from './copy';
 import { PedalScaleContext } from './density';
 import { gapAt, layoutBoard, type Arrow, type BoardLayout } from './layout';
-import { PedalPicker } from './PedalPicker';
-import { addPedal, pedalName } from './registry';
+import { PedalPicker, type AddWhere } from './PedalPicker';
+import {
+  addAfterAmp,
+  addPedal,
+  AMP,
+  baseId,
+  copyNumber,
+  movePedal,
+  pedalMeta,
+  pedalName,
+  positionText,
+  sameBoard,
+  sideOf,
+  withAmp,
+} from './registry';
 import { useBoardDrag } from './useBoardDrag';
 import styles from './PedalBoard.module.css';
 
@@ -30,13 +46,6 @@ function countText(n: number): string {
   return plural.select(n) === 'one' ? `${n} pedal` : `${n} pedals`;
 }
 
-/** Where a pedal sits, for the announcement after it moved or joined. */
-function placeText(board: readonly string[], id: string): string {
-  const at = board.indexOf(id);
-  const where = at === 0 ? 'first' : `after ${pedalName(board[at - 1] ?? '')}`;
-  return `${at + 1} of ${board.length}, ${where}`;
-}
-
 /** Room under an empty board's cable for what the page says about it. */
 const EMPTY_TEXT = 150;
 
@@ -46,7 +55,7 @@ const ARROWS: Record<Arrow['heading'], string> = {
   down: 'M-3.5 -2 0 1.5 3.5 -2',
 };
 
-/** The signal's path: a cable from the input jack to the amp, with its direction marked. */
+/** The signal's path: a cable from the Guitar jack to Out, with its direction marked. */
 function Cable({ layout }: { layout: BoardLayout }) {
   return (
     <svg
@@ -70,8 +79,8 @@ function Cable({ layout }: { layout: BoardLayout }) {
   );
 }
 
-/** Where the board's signal goes: the amp, by name, and a way to its page. */
-function AmpTerminal({ style }: { style: CSSProperties }) {
+/** The amp in the chain: by name, in its colours, and a way to its page. */
+function AmpTerminal() {
   const model = Math.round(useParamValue('ampModel'));
   const capture = useParamValue('ampSource') >= 0.5;
   const amp = AMPS[model];
@@ -88,8 +97,8 @@ function AmpTerminal({ style }: { style: CSSProperties }) {
     <button
       type="button"
       className={`${buttons.press} ${styles.amp}`}
-      style={{ ...style, ...paint }}
-      aria-label={`Into the amp: ${name}. Open the Amp page`}
+      style={paint}
+      aria-label={`The amp: ${name}. Open the Amp page`}
       title="Open the Amp page"
       onClick={() => uiActions.setSection('amp')}
     >
@@ -109,12 +118,18 @@ const box = (r: { x: number; y: number; w: number; h: number }): CSSProperties =
   height: r.h,
 });
 
+/** What the shelf points at: a pedal, and which of its buttons. */
+interface Considered {
+  id: string;
+  where: AddWhere;
+}
+
 export function PedalBoard() {
   const pedals = useBoardStore((s) => s.pedals);
   const supported = useBoardStore((s) => s.supported);
   const [picker, setPicker] = useState<'toolbar' | 'empty' | null>(null);
   /** The pedal the shelf is pointing at: where it would land, or where it is. */
-  const [considered, setConsidered] = useState<string | null>(null);
+  const [considered, setConsidered] = useState<Considered | null>(null);
   const [announcement, setAnnouncement] = useState('');
   const toolbarAdd = useRef<HTMLButtonElement>(null);
   const emptyAdd = useRef<HTMLButtonElement>(null);
@@ -124,7 +139,11 @@ export function PedalBoard() {
   const focusNext = useRef<{ id: string | null; reveal: boolean; control: Control } | null>(null);
   const hintId = useId();
 
-  const shown = useMemo(() => pedals.filter((id) => PEDAL_CATALOG[id]), [pedals]);
+  const shown = useMemo(
+    () => pedals.filter((t) => t === AMP || PEDAL_CATALOG[baseId(t)] !== undefined),
+    [pedals],
+  );
+  const pedalCount = shown.filter((t) => t !== AMP).length;
   const layout = useMemo(() => layoutBoard(shown, picker === null), [shown, picker]);
 
   /**
@@ -153,10 +172,10 @@ export function PedalBoard() {
 
   const move = useCallback((id: string, index: number, control: Control = 'handle') => {
     const board = useBoardStore.getState().pedals;
-    if (board.indexOf(id) === index) return;
+    if (sameBoard(movePedal(board, id, index), board)) return;
     boardActions.move(id, index);
     const after = useBoardStore.getState().pedals;
-    setAnnouncement(`${pedalName(id)} moved to ${placeText(after, id)}.`);
+    setAnnouncement(`${pedalName(id)} moved to ${positionText(after, id)}.`);
     afterRender(id, false, control);
   }, []);
 
@@ -167,6 +186,15 @@ export function PedalBoard() {
     },
     [layout],
   );
+
+  /** A pedal that can't stand after the amp lands in front of it however far it is dragged. */
+  const clamp = useCallback((id: string, index: number) => {
+    if (pedalMeta(id)?.afterAmp) return index;
+    const amp = withAmp(useBoardStore.getState().pedals)
+      .filter((t) => t !== id)
+      .indexOf(AMP);
+    return Math.min(index, amp);
+  }, []);
 
   // A pedal let go lands where it was dropped: it does not glide there from its old place, as
   // the pedals making room for it do.
@@ -189,11 +217,12 @@ export function PedalBoard() {
     scrollerRef,
     gap: layout.gap,
     rowOf,
+    clamp,
     onDrop: drop,
   });
 
   const remove = (id: string) => {
-    const board = useBoardStore.getState().pedals;
+    const board = withAmp(useBoardStore.getState().pedals).filter((t) => t !== AMP);
     const at = board.indexOf(id);
     const neighbour = board[at + 1] ?? board[at - 1] ?? null;
     boardActions.remove(id);
@@ -202,9 +231,11 @@ export function PedalBoard() {
 
   // The shelf stays open after a pedal is added, so several can go on in one visit; focus stays
   // on the pedal's card, which now says it is on the board.
-  const add = (id: string) => {
-    boardActions.add(id);
-    setAnnouncement(`Added ${pedalName(id)}, ${placeText(useBoardStore.getState().pedals, id)}.`);
+  const add = (id: string, where: AddWhere) => {
+    const before = useBoardStore.getState().pedals;
+    const after = where === 'post' ? boardActions.addAfterAmp(id) : boardActions.add(id);
+    const added = after.find((t) => t !== AMP && !before.includes(t));
+    if (added) setAnnouncement(`Added ${pedalName(added)}, ${positionText(after, added)}.`);
   };
 
   const closePicker = useCallback(() => {
@@ -214,24 +245,41 @@ export function PedalBoard() {
 
   const show = (id: string) => {
     closePicker();
-    afterRender(id, true);
+    afterRender(pedals.includes(id) ? id : `${id}#2`, true);
+  };
+
+  /** Where the arrow keys and the move buttons take a pedal: its place in the drawn chain. */
+  const placeOf = (id: string) => {
+    const drawn = withAmp(pedals);
+    const at = drawn.indexOf(id);
+    const rest = drawn.filter((t) => t !== id);
+    const amp = rest.indexOf(AMP);
+    const after = sideOf(pedals, id) === 'post';
+    const crosses = pedalMeta(id)?.afterAmp ?? false;
+    return {
+      at,
+      first: after ? amp + 1 : 0,
+      last: after ? rest.length : amp,
+      canLeft: at > 0,
+      canRight: at < drawn.length - 1 && (crosses || drawn[at + 1] !== AMP),
+    };
   };
 
   const onHandleKey = (id: string) => (e: KeyboardEvent<HTMLButtonElement>) => {
-    const at = pedals.indexOf(id);
+    const place = placeOf(id);
     const to =
       e.key === 'ArrowLeft' || e.key === 'ArrowUp'
-        ? at - 1
+        ? place.at - 1
         : e.key === 'ArrowRight' || e.key === 'ArrowDown'
-          ? at + 1
+          ? place.at + 1
           : e.key === 'Home'
-            ? 0
+            ? place.first
             : e.key === 'End'
-              ? pedals.length - 1
+              ? place.last
               : null;
     if (to === null) return;
     e.preventDefault();
-    if (to >= 0 && to < pedals.length) move(id, to);
+    if (to >= 0) move(id, to);
   };
 
   // Forget the handles of pedals that left.
@@ -239,22 +287,30 @@ export function PedalBoard() {
     for (const id of handles.current.keys()) if (!pedals.includes(id)) handles.current.delete(id);
   }, [pedals]);
 
-  // Where the pedal the shelf points at would land: a bar in that gap, brought into view. A pedal
-  // on the board already is ringed where it stands.
-  const onBoard = considered !== null && shown.includes(considered);
-  const landing =
-    considered && !onBoard ? gapAt(layout, addPedal(shown, considered).indexOf(considered)) : null;
+  // Where the pedal the shelf points at would land: a bar in that gap, brought into view. Copies
+  // already on the board are ringed where they stand.
+  const marked = considered ? shown.filter((t) => t !== AMP && baseId(t) === considered.id) : [];
+  const landing = useMemo(() => {
+    if (!considered) return null;
+    const next =
+      considered.where === 'post'
+        ? addAfterAmp(shown, considered.id)
+        : addPedal(shown, considered.id);
+    const added = next.find((t) => t !== AMP && !shown.includes(t));
+    return added ? gapAt(layout, withAmp(next).indexOf(added)) : null;
+  }, [considered, layout, shown]);
   const landingRef = useRef<HTMLLIElement>(null);
   const landingKey = landing ? `${landing.x},${landing.y}` : '';
   useEffect(() => {
     if (landingKey) landingRef.current?.scrollIntoView?.({ block: 'nearest' });
   }, [landingKey]);
+  const markedKey = marked.join(',');
   useEffect(() => {
-    if (!considered || !onBoard) return;
+    if (!markedKey || landingKey) return;
     listRef.current
-      ?.querySelector<HTMLElement>(`[data-pedal="${considered}"]`)
+      ?.querySelector<HTMLElement>(`[data-pedal="${markedKey.split(',')[0]}"]`)
       ?.scrollIntoView?.({ block: 'nearest' });
-  }, [considered, onBoard]);
+  }, [markedKey, landingKey]);
 
   const addButton = (where: 'toolbar' | 'empty') => (
     <button
@@ -276,15 +332,38 @@ export function PedalBoard() {
   return (
     <div className={styles.section}>
       <div className={styles.toolbar}>
-        <span className={styles.count}>{countText(pedals.length)}</span>
+        <span className={styles.count}>
+          {drag?.clamped ? (
+            <span className={styles.note}>Only modulation goes after the amp</span>
+          ) : (
+            countText(pedalCount)
+          )}
+        </span>
         {supported && addButton('toolbar')}
       </div>
 
       <div ref={scrollerRef} className={styles.scroller} data-dragging={drag ? true : undefined}>
         <div
           className={styles.stage}
-          style={{ height: layout.height + (pedals.length === 0 ? EMPTY_TEXT : 0) }}
+          style={{ height: layout.height + (pedalCount === 0 ? EMPTY_TEXT : 0) }}
         >
+          {layout.afterAmp.map((band) => (
+            <div
+              key={`${band.x},${band.y}`}
+              className={styles.afterAmp}
+              style={box(band)}
+              aria-hidden="true"
+            />
+          ))}
+          {layout.afterAmpLabel && (
+            <span
+              className={styles.afterAmpLabel}
+              style={box(layout.afterAmpLabel)}
+              aria-hidden="true"
+            >
+              After the amp
+            </span>
+          )}
           <Cable layout={layout} />
           <div className={styles.input} style={box(layout.input)}>
             <span className={styles.jack} aria-hidden="true" />
@@ -298,11 +377,29 @@ export function PedalBoard() {
               style={{ '--u': `${layout.scale}px` } as CSSProperties}
               aria-label="Pedalboard, in signal order"
             >
-              {layout.pedals.map((placed, i) => {
+              {layout.items.map((placed) => {
                 const { id } = placed;
-                const { Panel } = PEDAL_CATALOG[id]!;
+                if (id === AMP)
+                  return (
+                    <li
+                      key={AMP}
+                      data-pedal={AMP}
+                      data-row={placed.row}
+                      className={`${styles.slot} ${styles.ampSlot}`}
+                      style={box(placed)}
+                    >
+                      <AmpTerminal />
+                    </li>
+                  );
+                const base = baseId(id);
+                const { Panel } = PEDAL_CATALOG[base]!;
                 const name = pedalName(id);
                 const dragging = drag?.id === id;
+                const place = placeOf(id);
+                const drawn = withAmp(pedals);
+                // The move buttons say so when they take the pedal across the amp.
+                const crossesLeft = drawn[place.at - 1] === AMP;
+                const crossesRight = place.canRight && drawn[place.at + 1] === AMP;
                 return (
                   <li
                     key={id}
@@ -311,7 +408,7 @@ export function PedalBoard() {
                     className={styles.slot}
                     data-dragging={dragging || undefined}
                     data-dropped={dropped === id || undefined}
-                    data-marked={considered === id || undefined}
+                    data-marked={marked.includes(id) || undefined}
                     data-editable={supported || undefined}
                     style={{
                       ...box(placed),
@@ -340,10 +437,12 @@ export function PedalBoard() {
                           type="button"
                           className={`${buttons.press} ${styles.tool}`}
                           data-control="left"
-                          aria-label={`Move ${name} left`}
-                          title="Move left"
-                          disabled={i === 0}
-                          onClick={() => move(id, i - 1, 'left')}
+                          aria-label={
+                            crossesLeft ? `Move ${name} in front of the amp` : `Move ${name} left`
+                          }
+                          title={crossesLeft ? 'Move in front of the amp' : 'Move left'}
+                          disabled={!place.canLeft}
+                          onClick={() => move(id, place.at - 1, 'left')}
                         >
                           <Icon name="prev" size={12} />
                         </button>
@@ -351,10 +450,12 @@ export function PedalBoard() {
                           type="button"
                           className={`${buttons.press} ${styles.tool}`}
                           data-control="right"
-                          aria-label={`Move ${name} right`}
-                          title="Move right"
-                          disabled={i === layout.pedals.length - 1}
-                          onClick={() => move(id, i + 1, 'right')}
+                          aria-label={
+                            crossesRight ? `Move ${name} after the amp` : `Move ${name} right`
+                          }
+                          title={crossesRight ? 'Move after the amp' : 'Move right'}
+                          disabled={!place.canRight}
+                          onClick={() => move(id, place.at + 1, 'right')}
                         >
                           <Icon name="next" size={12} />
                         </button>
@@ -369,7 +470,9 @@ export function PedalBoard() {
                         </button>
                       </div>
                     )}
-                    <Panel />
+                    <PedalCopyContext value={{ pedal: base, copy: copyNumber(id) }}>
+                      <Panel />
+                    </PedalCopyContext>
                   </li>
                 );
               })}
@@ -392,9 +495,12 @@ export function PedalBoard() {
             </ol>
           </PedalScaleContext>
 
-          <AmpTerminal style={box(layout.output)} />
+          <div className={styles.input} style={box(layout.output)}>
+            <span className={styles.jack} aria-hidden="true" />
+            <span className={styles.inputLabel}>Out</span>
+          </div>
 
-          {pedals.length === 0 && (
+          {pedalCount === 0 && (
             <div className={styles.empty} style={{ top: layout.height }}>
               <p className={styles.emptyTitle}>No pedals on the board</p>
               <p className={styles.emptyText}>
@@ -411,13 +517,13 @@ export function PedalBoard() {
         board={shown}
         onAdd={add}
         onShow={show}
-        onConsider={setConsidered}
+        onConsider={(id, where) => setConsidered(id ? { id, where } : null)}
         onClose={closePicker}
         returnFocusTo={picker === 'empty' ? emptyAdd : toolbarAdd}
       />
 
       <span id={hintId} className="visually-hidden">
-        Drag to move it, or use the arrow keys.
+        Drag to move it, or use the arrow keys. Modulation can go after the amp.
       </span>
       <div className="visually-hidden" role="status" aria-live="polite">
         {announcement}

@@ -12,8 +12,8 @@ describe('MockBackend', () => {
     mock = new MockBackend();
     const hello = await mock.hello();
     expect(hello.protocol).toBe(PROTOCOL_VERSION);
-    expect(hello.schema).toHaveLength(204);
-    expect(Object.keys(hello.values)).toHaveLength(204);
+    expect(hello.schema).toHaveLength(277);
+    expect(Object.keys(hello.values)).toHaveLength(277);
     expect(hello.presets.currentName).toBe('Glassy Chorus');
     expect(hello.presets.currentId).toBe('factory:nacre');
     expect(

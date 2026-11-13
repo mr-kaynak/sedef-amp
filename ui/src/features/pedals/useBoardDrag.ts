@@ -13,6 +13,8 @@ export interface DragView {
   dy: number;
   /** Where it would land on the board without it (movePedal's index). */
   index: number;
+  /** The pointer is past where this pedal can go (after the amp), so it lands short of it. */
+  clamped: boolean;
   /** The drop bar: its centre line and height, in the list's canvas pixels. */
   bar: { x: number; y: number; height: number } | null;
 }
@@ -46,9 +48,11 @@ export function useBoardDrag(options: {
    * the bar spans the row. Without it the bar takes the neighbouring pedal's own box.
    */
   rowOf?: (el: HTMLElement) => { top: number; height: number } | undefined;
+  /** The nearest index the pedal may land at, for one that can't go everywhere. */
+  clamp?: (id: string, index: number) => number;
   onDrop: (id: string, index: number) => void;
 }) {
-  const { listRef, scrollerRef, gap, rowOf, onDrop } = options;
+  const { listRef, scrollerRef, gap, rowOf, clamp, onDrop } = options;
   const [drag, setDrag] = useState<DragView | null>(null);
   const session = useRef<Session | null>(null);
 
@@ -80,15 +84,16 @@ export function useBoardDrag(options: {
           bottom: Math.max(band?.bottom ?? r.bottom, r.bottom),
         });
       });
-      let index = rest.length;
+      let pointed = rest.length;
       for (let i = 0; i < rest.length; i += 1) {
         const r = rects[i]!;
         const band = bands.get(rest[i]!.dataset.row ?? '')!;
         if (s.y < band.top || (s.y <= band.bottom && s.x < r.left + r.width / 2)) {
-          index = i;
+          pointed = i;
           break;
         }
       }
+      const index = clamp ? clamp(s.id, pointed) : pointed;
       const before = rest[index];
       const after = rest[index - 1];
       const beside = before ?? after;
@@ -111,10 +116,11 @@ export function useBoardDrag(options: {
         dx: (s.x - s.startX) / scale,
         dy: (s.y - s.startY) / scale + scroll,
         index,
+        clamped: index !== pointed,
         bar,
       };
     },
-    [gap, listRef, others, rowOf, scrollerRef],
+    [clamp, gap, listRef, others, rowOf, scrollerRef],
   );
 
   const stop = useCallback(() => {

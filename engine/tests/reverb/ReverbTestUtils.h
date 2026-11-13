@@ -4,6 +4,7 @@
 #include "TestUtils.h"
 #include "sedef/core/Biquad.h"
 
+#include <algorithm>
 #include <cmath>
 #include <pffft/pffft.h>
 #include <vector>
@@ -20,16 +21,18 @@ inline std::vector<double> magnitudeSpectrum (const float* x, int n, int fftSize
     auto* in = static_cast<float*> (pffft_aligned_malloc (bytes));
     auto* out = static_cast<float*> (pffft_aligned_malloc (bytes));
     auto* work = static_cast<float*> (pffft_aligned_malloc (bytes));
-    for (int i = 0; i < fftSize; ++i)
-        in[i] =
-            i < n ? x[i] * static_cast<float> (0.5 - 0.5 * std::cos (kTwoPiD * i / (n - 1))) : 0.0f;
-    pffft_transform_ordered (setup, in, out, work, PFFFT_FORWARD);
-
-    std::vector<double> mag (static_cast<size_t> (fftSize / 2 + 1));
-    mag[0] = std::abs (out[0]);
-    mag.back() = std::abs (out[1]);
-    for (int k = 1; k < fftSize / 2; ++k)
-        mag[static_cast<size_t> (k)] = std::hypot (out[2 * k], out[2 * k + 1]);
+    std::vector<double> mag (static_cast<size_t> (std::max (fftSize, 2) / 2 + 1), 0.0);
+    if (setup != nullptr && in != nullptr && out != nullptr && work != nullptr)
+    {
+        for (int i = 0; i < fftSize; ++i)
+            in[i] = i < n ? x[i] * static_cast<float> (0.5 - 0.5 * std::cos (kTwoPiD * i / (n - 1)))
+                          : 0.0f;
+        pffft_transform_ordered (setup, in, out, work, PFFFT_FORWARD);
+        mag.front() = std::abs (out[0]);
+        mag.back() = std::abs (out[1]);
+        for (int k = 1; k < fftSize / 2; ++k)
+            mag[static_cast<size_t> (k)] = std::hypot (out[2 * k], out[2 * k + 1]);
+    }
 
     pffft_aligned_free (in);
     pffft_aligned_free (out);

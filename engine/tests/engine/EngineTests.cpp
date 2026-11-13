@@ -587,7 +587,7 @@ TEST_CASE ("Transpose's latency is reported and follows its direction", "[engine
     const auto down = static_cast<int> (std::lround (0.003 * fs));
     const auto up = static_cast<int> (std::lround (0.010 * fs));
     int offset = 1024;
-    for (const auto [st, added] :
+    for (const auto& [st, added] :
          { std::pair { -2, down }, std::pair { -5, down }, std::pair { 7, up },
            std::pair { 12, up }, std::pair { 0, 0 }, std::pair { -12, down } })
     {

@@ -11,6 +11,18 @@ namespace
 {
 constexpr const char* kModeNames[] = { "toggle", "latch" };
 
+struct LooperName
+{
+    live::Action action;
+    const char* name;
+};
+constexpr LooperName kLooperTargets[] = {
+    { live::Action::looperMain, "looper:main" },
+    { live::Action::looperStop, "looper:stop" },
+    { live::Action::looperUndo, "looper:undo" },
+    { live::Action::looperClear, "looper:clear" },
+};
+
 // midi.json is a file people edit (docs/robustness.md, section 2): a field that is null, of the
 // wrong type, or not a finite number is absent. A boolean is not a number here.
 int clampInt (const juce::var& v, int lo, int hi, int fallback)
@@ -27,6 +39,11 @@ float clampUnit (const juce::var& v, float fallback)
     return static_cast<float> (toDoubleIn (v, 0.0, 1.0, static_cast<double> (fallback)));
 }
 } // namespace
+
+bool isTrue (const juce::var& v)
+{
+    return v.isBool() && static_cast<bool> (v);
+}
 
 // LiveTarget --------------------------------------------------------------------------------------
 
@@ -48,6 +65,12 @@ std::optional<LiveTarget> LiveTarget::parse (const juce::String& text)
         t.param = *id;
         return t;
     }
+    for (const auto& looper : kLooperTargets)
+        if (text == looper.name)
+        {
+            t.action = looper.action;
+            return t;
+        }
     if (text == "scene:next")
         t.action = live::Action::sceneNext;
     else if (text == "scene:previous")
@@ -86,6 +109,14 @@ juce::String LiveTarget::toString() const
         return "preset:next";
     case live::Action::presetPrevious:
         return "preset:previous";
+    case live::Action::looperMain:
+    case live::Action::looperStop:
+    case live::Action::looperUndo:
+    case live::Action::looperClear:
+        for (const auto& looper : kLooperTargets)
+            if (looper.action == action)
+                return looper.name;
+        break;
     }
     return {};
 }
@@ -93,6 +124,12 @@ juce::String LiveTarget::toString() const
 bool LiveTarget::isSwitch() const noexcept
 {
     return action != live::Action::parameter || live::isSwitch (spec (param));
+}
+
+bool LiveTarget::isLooper() const noexcept
+{
+    return action == live::Action::looperMain || action == live::Action::looperStop ||
+           action == live::Action::looperUndo || action == live::Action::looperClear;
 }
 
 // LiveSettings ------------------------------------------------------------------------------------
@@ -111,6 +148,7 @@ live::MidiMap LiveSettings::toMap() const
         out.mode = b.mode;
         out.low = b.low;
         out.high = b.high;
+        out.doubleTap = b.doubleTap && b.target.action == live::Action::looperMain;
         if (!map.add (out))
             break;
     }
@@ -142,7 +180,9 @@ int LiveSettings::bind (const LiveTarget& target, int channel, int controller,
         at = static_cast<int> (bindings.size()) - 1;
     }
     auto& b = bindings[static_cast<std::size_t> (at)];
-    b = LiveBinding { channel, controller, target, mode, 0.0f, 1.0f };
+    // Learning again moves the controller; the double-tap option stays the player's.
+    const bool doubleTap = b.doubleTap;
+    b = LiveBinding { channel, controller, target, mode, 0.0f, 1.0f, doubleTap };
     return at;
 }
 
@@ -162,6 +202,8 @@ juce::var LiveSettings::toVar() const
             o->setProperty ("low", static_cast<double> (b.low));
             o->setProperty ("high", static_cast<double> (b.high));
         }
+        if (b.doubleTap) // only when on: a file without looper bindings reads as before
+            o->setProperty ("doubleTap", true);
         list.add (juce::var (o));
     }
     juce::Array<juce::var> assigned;
@@ -206,6 +248,7 @@ LiveSettings LiveSettings::fromVar (const juce::var& v)
                                                         : live::SwitchMode::toggle;
             b.low = clampUnit (item["low"], 0.0f);
             b.high = clampUnit (item["high"], 1.0f);
+            b.doubleTap = b.target.action == live::Action::looperMain && isTrue (item["doubleTap"]);
             s.bindings.push_back (b);
         }
     const auto& programs = v["programs"];

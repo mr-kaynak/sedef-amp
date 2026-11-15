@@ -6,11 +6,20 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Footswitches for the looper.** Right-click the looper's big button, Stop, Undo or Clear (or
+  use the MIDI panel) and press a footswitch: your feet now record, close the loop, overdub, stop,
+  undo and clear. The undo switch also redoes when pressed again, so one switch compares the loop
+  with and without its last part. Turn on *Double tap stops* for the main switch and two quick
+  presses (less than 0.4 s apart) stop the looper and take back what the first press started.
+
 ### Fixed
 
 - **Changing Settings > Latency in a CLAP host can't crash or garble the sound any more.** The
   engine was prepared again while the host's audio thread could still be inside it; now the audio
-  is held out first (a few milliseconds of silence, as before in VST3, AU and the standalone app).
+  is held out first: a moment of silence while it re-prepares, as VST3, AU and the standalone
+  app already had.
 - **A broken value in a session or from host automation no longer silences the rig.** A
   parameter saved as "not a number" played as noise or silence and kept the filters stuck after
   the value was fixed; it now plays the parameter's default, is saved as the default, and the rig

@@ -26,8 +26,15 @@ export function isLooperDemo(value: unknown): value is LooperDemo {
   return typeof value === 'string' && (LOOPER_DEMOS as readonly string[]).includes(value);
 }
 
+/** What a footswitch asks of the looper (docs/live.md §4.5). */
+export type LooperPress = 'main' | 'stop' | 'undo' | 'clear' | 'doubleTap';
+
 export class LooperSim {
   private state: LooperStateName = 'unavailable';
+  /** Overdub layers begun, and the state and count when the last footswitch main press acted. */
+  private layers = 0;
+  private tapState: LooperStateName = 'unavailable';
+  private tapLayers = 0;
   private now = 0;
   private clickOn = false;
   private clickStart = 0;
@@ -168,6 +175,7 @@ export class LooperSim {
             this.state = 'overdubbing';
             this.lastAction = 'layer';
             this.undone = false;
+            this.layers += 1;
             return;
           case 'overdubbing':
             this.state = 'playing';
@@ -237,6 +245,34 @@ export class LooperSim {
           default:
             return;
         }
+    }
+  }
+
+  /** A footswitch press, resolved as the engine resolves it (Engine::footswitchCommands). */
+  footswitch(press: LooperPress): void {
+    switch (press) {
+      case 'main':
+        this.tapState = this.state;
+        this.tapLayers = this.layers;
+        return this.command('main');
+      case 'undo':
+        // One switch for both: redo when the last layer (or clear) was just undone.
+        return this.command(!this.canUndo() && this.canRedo() ? 'redo' : 'undo');
+      case 'stop':
+      case 'clear':
+        return this.command(press);
+      case 'doubleTap': {
+        // Stop, and take back what the first press started.
+        const now = this.state;
+        if (
+          this.tapState === 'empty' &&
+          (now === 'armed' || now === 'recording' || now === 'closing')
+        )
+          return this.command('clear');
+        this.command('stop');
+        if (this.layers !== this.tapLayers) this.command('undo');
+        return;
+      }
     }
   }
 

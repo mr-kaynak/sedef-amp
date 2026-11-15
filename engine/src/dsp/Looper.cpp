@@ -690,6 +690,7 @@ void Looper::beginDub() noexcept
         otherInfo_ = liveInfo_;
         lastAction_ = Action::layer;
         undone_ = false;
+        ++layerSerial_;
         dubLatency_ = std::clamp (settings_.latencySamples, 0, maxLatency_);
     }
     dub_.up = true;

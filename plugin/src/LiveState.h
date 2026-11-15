@@ -102,6 +102,8 @@ private:
     void finishLearn (std::optional<live::SwitchMode> mode);
     /// The learn's binding in settings_, found by its target (one binding per target), or -1.
     int learnBinding() const;
+    /// A looper binding reserves the looper's memory, so its first press records (§4.5).
+    void reserveLooper();
 
     SedefProcessor& processor_;
     live::LiveControl control_;

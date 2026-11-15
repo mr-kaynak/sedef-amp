@@ -88,3 +88,50 @@ describe('the mock looper', () => {
     expect(s.telemetry()).toMatchObject({ state: 'recording', bars: 2 });
   });
 });
+
+describe('the mock looper’s footswitches (docs/live.md §4.5)', () => {
+  /** A one-second loop, playing. */
+  const playing = () => {
+    const { s } = sim();
+    s.open();
+    s.footswitch('main');
+    s.step(1);
+    s.footswitch('main');
+    expect(s.telemetry().state).toBe('playing');
+    return s;
+  };
+
+  it('take back what the first press of a double tap started', () => {
+    const s = playing();
+    s.footswitch('main'); // overdub
+    s.step(0.2);
+    s.footswitch('doubleTap');
+    expect(s.telemetry()).toMatchObject({ state: 'stopped', canUndo: false, canRedo: true });
+
+    const { s: empty } = sim();
+    empty.open();
+    empty.footswitch('main'); // a take
+    empty.step(0.2);
+    empty.footswitch('doubleTap');
+    expect(empty.telemetry()).toMatchObject({ state: 'empty', length: 0, canUndo: false });
+  });
+
+  it('keep a layer the first press ended', () => {
+    const s = playing();
+    s.command('main'); // overdub from the screen
+    s.step(0.5);
+    s.footswitch('main'); // ends it
+    s.footswitch('doubleTap');
+    expect(s.telemetry()).toMatchObject({ state: 'stopped', canUndo: true });
+  });
+
+  it('undo with one switch, then redo', () => {
+    const s = playing();
+    s.command('main');
+    s.command('main');
+    s.footswitch('undo');
+    expect(s.telemetry()).toMatchObject({ canUndo: false, canRedo: true });
+    s.footswitch('undo');
+    expect(s.telemetry()).toMatchObject({ canUndo: true, canRedo: false });
+  });
+});

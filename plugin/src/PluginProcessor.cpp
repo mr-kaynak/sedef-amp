@@ -134,6 +134,7 @@ void SedefProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
         const ProcessHold::Scope hold (hold_, kHoldTimeout);
         engine_.setOversampling (requestedOversampling());
         engine_.prepare (sampleRate, samplesPerBlock, ins, outs);
+        live_->control().prepare (sampleRate); // the looper's double-tap window (live.md §4.5)
         engine_.expectTranspose (paramValue (ParamId::transpose));
         engine_.setMetronomeAllowed (isStandalone());
         engine_.setMetronomePattern (metronomePattern());
@@ -198,6 +199,9 @@ void SedefProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiB
                                                                           : std::uint8_t {} };
     }
     liveControl.process (snapshot, messages.data(), count, numSamples);
+    // Footswitch presses for the looper act at this block's start (docs/live.md §4.5).
+    for (int k = 0; k < liveControl.numLooperPresses(); ++k)
+        engine_.looperFootswitch (liveControl.looperPress (k));
 
     Transport transport;
     if (auto* playHead = getPlayHead())

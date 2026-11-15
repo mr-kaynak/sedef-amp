@@ -178,6 +178,20 @@
   height: 34px;
 }
 
+/* Unavailable, not disabled (LooperPanel.tsx): it looks and holds still as a disabled button
+   does, and stays in the tab order with its menu. */
+.actions button[aria-disabled='true'] {
+  opacity: var(--disabled-opacity);
+  cursor: default;
+}
+
+@media (hover: hover) {
+  .actions button[aria-disabled='true']:hover {
+    color: var(--bone-2);
+    background: transparent;
+  }
+}
+
 .settings {
   display: flex;
   align-items: flex-end;

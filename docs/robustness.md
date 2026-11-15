@@ -41,7 +41,8 @@ either the block's `fetch_add` comes first, and the holder's wait sees the block
 leaves, or the hold comes first, and the block sees it and leaves without touching anything.
 The audio thread never waits, locks or loops: three atomic operations a block, and a held block
 is a `clear()` of the buffer. While held, the block also skips the live layer, so a MIDI message
-in a held block is lost (a footswitch pressed in the few milliseconds of a latency change).
+in a held block is lost (a footswitch pressed during the tens of milliseconds a latency change
+takes).
 
 **States.** Open (blocks run); held (blocks play silence); a holder waiting for the block inside
 to leave. Holds nest: two holders at once each count, and the audio stays out until both lower.
@@ -58,7 +59,9 @@ or an offline render passes a huge block, so:
 **What the hold covers.** In both places: the engine's prepare, the capture rebuilt for the new
 conversion (it must not play a block built for the old one) and, in `prepareToPlay`, re-amp and
 the deck. The hold is raised after the engine lock is taken, so while a loader thread still
-holds that lock the guitar keeps playing; the silence lasts only for the work itself. IR kernels
+holds that lock the guitar keeps playing; the silence lasts only for the work itself (a median
+of 55 ms and at most 137 ms over 60 latency changes with every block on, at 48 kHz and 256
+samples, in a Release build on a Mac). IR kernels
 and the pitch tracker are rebuilt after the hold is lowered, as before: a kernel built for
 another rate is ignored by the cab until then (`docs/dsp/cab.md`, section 6).
 

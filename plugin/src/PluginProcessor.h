@@ -133,6 +133,8 @@ public:
     /// How long a re-prepare waits for the block inside processBlock to leave
     /// (docs/robustness.md, section 1).
     static constexpr auto kHoldTimeout = std::chrono::milliseconds (500);
+    /// What keeps processBlock out of the engine while it is prepared again (tests).
+    ProcessHold& processHold() noexcept { return hold_; }
 
 private:
     void timerCallback() override { tick(); }

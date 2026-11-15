@@ -143,6 +143,41 @@ juce::String irPathIn (const juce::MemoryBlock& state)
 
 // 1. The hold ------------------------------------------------------------------------------------
 
+TEST_CASE ("While the hold is raised a block plays silence and stays out of the engine", "[hold]")
+{
+    // The audio thread's side of the handshake (docs/robustness.md, section 1).
+    Fixture f;
+    SedefProcessor p;
+    prepare (p);
+    p.setParamValue (ParamId::gateEnabled, 0.0f);
+    CHECK (play (p, 4) > 1.0e-3f);
+    p.processHold().raise();
+    CHECK (play (p, 4, 4) <= 0.0f); // silence: the block left without touching the engine
+    CHECK (p.processHold().audioIsOut());
+    p.processHold().lower();
+    CHECK (play (p, 4, 8) > 1.0e-3f);
+}
+
+TEST_CASE ("A latency change waits for the block inside and never prepares under it", "[hold]")
+{
+    // The message thread's side: with a block inside processBlock (as a CLAP host's audio thread
+    // can be), Settings > Latency gives up after the timeout instead of preparing the engine
+    // under it, and applies on a later tick once the block has left.
+    Fixture f;
+    SedefProcessor p;
+    prepare (p);
+    REQUIRE (p.engine().oversampling() == OversamplingMode::lowLatency);
+    REQUIRE (p.processHold().enter()); // a block is running
+    p.setParamValue (ParamId::oversampling, 1.0f);
+    p.tick();
+    CHECK (p.engine().oversampling() == OversamplingMode::lowLatency); // not prepared under it
+    CHECK_FALSE (p.processHold().isHeld());                            // and the hold lowered again
+    p.processHold().leave();
+    p.tick();
+    CHECK (p.engine().oversampling() == OversamplingMode::linearPhase);
+    CHECK (p.getLatencySamples() == p.engine().latencySamples());
+}
+
 TEST_CASE ("A latency change while another thread plays never meets a running block", "[hold]")
 {
     // The CLAP wrapper calls processBlock without JUCE's callback lock, so the old

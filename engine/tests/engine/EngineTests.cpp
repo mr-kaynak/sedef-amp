@@ -1645,3 +1645,103 @@ TEST_CASE ("Deck: recording, dropping, re-amping and looping never allocate", "[
     CHECK (deck.recorder().phase() == record::TakeRecorder::Phase::finished);
     CHECK (deck.reamp().endings() == 1);
 }
+
+namespace
+{
+using Timed = std::vector<std::pair<int, live::MidiMessage>>;
+
+/// The live layer in front of the engine, as SedefProcessor::processBlock runs them: the block's
+/// controller messages, then the looper's presses handed to the engine, then process().
+struct LiveLoopRig : LoopRig
+{
+    LiveLoopRig (double fs, int blockSize, int frames, const live::MidiMap& map)
+        : LoopRig (fs, blockSize, frames)
+    {
+        control.prepare (fs);
+        control.setMap (map);
+    }
+
+    /// `messages` are (sample, message) in order; each arrives in the block holding its sample.
+    void play (const ParamSnapshot& p, const Timed& messages)
+    {
+        std::array<live::MidiMessage, 16> inBlock {};
+        std::size_t next = 0;
+        for (int s = 0; s < in.frames(); s += block)
+        {
+            const int n = std::min (block, in.frames() - s);
+            int count = 0;
+            while (next < messages.size() && messages[next].first < s + n && count < 16)
+                inBlock[static_cast<std::size_t> (count++)] = messages[next++].second;
+            control.acknowledge();
+            auto snapshot = p;
+            control.process (snapshot, inBlock.data(), count, n);
+            for (int k = 0; k < control.numLooperPresses(); ++k)
+                engine.looperFootswitch (control.looperPress (k));
+            std::array<const float*, 2> ip { in.ptrs[0] + s, nullptr };
+            std::array<float*, 2> op { out.ptrs[0] + s, out.ptrs[1] + s };
+            engine.process (ip.data(), op.data(), n, snapshot, transport);
+        }
+    }
+
+    live::LiveControl control;
+};
+} // namespace
+
+TEST_CASE ("Engine: a footswitch's message at sample n reaches the looper in that block",
+           "[engine][looper][live]")
+{
+    // docs/live.md §4.5 and §7.1: wherever in a block the message lies, the press acts at that
+    // block's start, as an L press made just before the block would. A momentary switch (Toggle)
+    // presses once per press and release, a latching one (Latch) once per message.
+    const int block = GENERATE (1, 7, 64, 333, 4096);
+    const bool latching = GENERATE (false, true);
+    CAPTURE (block, latching);
+    constexpr int frames = 110000;
+    constexpr int kMain = 60, kStop = 61;
+    const auto mode = latching ? live::SwitchMode::latch : live::SwitchMode::toggle;
+    live::MidiMap map;
+    map.add (test::bindAction (live::Action::looperMain, kMain, 0, mode));
+    map.add (test::bindAction (live::Action::looperStop, kStop, 0, mode));
+
+    // Record, close (the loop plays), overdub, play, then stop: off the block grid on purpose.
+    const std::vector<std::pair<int, int>> pressAt {
+        { 5003, kMain }, { 53011, kMain }, { 70001, kMain }, { 90107, kMain }, { 100501, kStop }
+    };
+    Timed messages;
+    std::vector<std::pair<int, LooperCommand>> screenPresses;
+    bool latched = false;
+    for (const auto& [t, controller] : pressAt)
+    {
+        if (latching) // a latching switch sends the other value on each press, nothing more
+        {
+            latched = controller == kMain ? !latched : true;
+            messages.push_back ({ t, test::cc (controller, latched ? 127 : 0) });
+        }
+        else // a momentary one sends 127, then 0 when released 50 ms later
+        {
+            messages.push_back ({ t, test::cc (controller, 127) });
+            messages.push_back ({ t + 2400, test::cc (controller, 0) });
+        }
+        // On screen: the same press at the start of the block its message falls in.
+        screenPresses.push_back (
+            { t / block * block, controller == kMain ? LooperCommand::main : LooperCommand::stop });
+    }
+
+    LoopRig screen (48000.0, block, frames);
+    LiveLoopRig foot (48000.0, block, frames, map);
+    test::fillNoise (screen.in[0], 0.3f, 17);
+    foot.in = screen.in;
+    REQUIRE (screen.engine.prepareLooper());
+    REQUIRE (foot.engine.prepareLooper());
+    screen.run (quietRig(), screenPresses);
+
+    gAllocations = 0;
+    {
+        TrackAllocations track;
+        foot.play (quietRig(), messages);
+    }
+    CHECK (gAllocations.load() == 0);
+    CHECK (foot.out.data == screen.out.data);
+    CHECK (looperState (foot.engine) == state (dsp::Looper::State::stopped));
+    CHECK (looperFlag (foot.engine, Engine::kLooperCanUndo)); // the overdub layer is there
+}

@@ -701,15 +701,21 @@ TEST_CASE ("Guitar to MIDI's early reading names no note the tracker could not",
     // Strings around and above the tracker's highest note (it reads up to A6; a guitar's highest
     // fret is E6): the early reading looks no higher (kEarlyHighestHz), so Fastest sends the
     // notes Steady sends, sooner. Over the tracker's reach a string is either not a note (B6) or
-    // read an octave down by both (C#7).
+    // read an octave down (C#7): by both timings before the decoder; now Steady, whose decoder
+    // asks twice the evidence, sends nothing for it (the string has faded before it agrees),
+    // which for a note that is not the one played is no loss.
     for (int pitch : { 89, 93, 95, 97 })
         for (auto pickup : { Pickup::bridge, Pickup::neck })
         {
             INFO ("note " << pitch << (pickup == Pickup::neck ? ", neck" : ", bridge"));
             const auto sc =
                 twice (pluckFor (pickup, hzOf (pitch), 0.25f, 1), kFs, -80.0f, 1, 0.4, 0.5);
-            CHECK (pitches (noteOns (sent (sc.signal, kFs, fastest(), 64))) ==
-                   pitches (noteOns (sent (sc.signal, kFs, steady(), 64))));
+            const auto fast = pitches (noteOns (sent (sc.signal, kFs, fastest(), 64)));
+            const auto slow = pitches (noteOns (sent (sc.signal, kFs, steady(), 64)));
+            if (pitch <= 95)
+                CHECK (fast == slow);
+            else
+                CHECK ((slow.empty() || slow == fast));
         }
 }
 

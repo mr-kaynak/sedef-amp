@@ -1607,3 +1607,403 @@ every string here, which is measured, not proved ("Why the early reading can be 
 and 7); and when a piezo's low F♯1 whose partials start together is damped, the tracker sends a
 D6 that ends within a millisecond and sounds nothing (0.8.0 does the same; the early reading has
 no part in it).
+
+### Real playing (2026-11-15)
+
+After 0.10.2 the musician's verdict was "a bit better, but the tracking is the problem", while
+every gate above stood at 99 % or more. Both are true, and this round shows why: the gates are
+synthetic strings and his one chromatic run, and real lines are something else. It measures real
+playing first, sorts the errors by cause, and then changes the decision layer where the errors
+are.
+
+#### The recordings, and what they are not
+
+**GuitarSet** 1.1.0 (Q. Xi, R. Bittner, J. Pauwels, X. Ye and J. P. Bello, "GuitarSet: A Dataset
+for Guitar Transcription", ISMIR 2018; https://zenodo.org/records/3371780), licensed **CC BY
+4.0**: read on the record's own page and in its metadata on 2026-11-15 (licence `cc-by-4.0`,
+open access; the page asks that the paper be cited, and states no other terms). Six players, 30
+lead sheets, each played once as a solo and once as an accompaniment, about 30 s each, on an
+acoustic guitar with a hexaphonic pickup: one channel per string, and from them a note list per
+string (onset, offset, pitch), which is as exact as ground truth for a guitar gets. The data
+stays outside the repository; only these numbers and the method are here.
+
+Used: the 180 **solos**, in the set's own "mono pickup mix" (the six string channels summed to
+one, 44.1 kHz, 16 bit), 5484 s, 16 861 annotated notes. Each recording is scored with a second
+of digital silence before it, as a session starts (the files begin on a note; see "Left open").
+Octave 0, every other setting at its default.
+
+What that signal is and is not:
+- It is one signal with every string in it, as a guitar's output is, with real fretting, real
+  damping, strings left ringing, position shifts and string noise.
+- It is not a magnetic pickup: a hexaphonic pickup sits at the bridge and hears each string
+  separately, so the sum has no pickup comb, a little of each neighbouring string in every
+  channel, and an acoustic guitar's strings and body. An electric guitar's bridge pickup is
+  brighter and sustains longer. The players use a pick; the musician this is built for plays
+  with his fingers.
+- The solos are single lines with double stops and short chords in them: 1701 notes (10 %) are
+  on two strings within 30 ms of each other. A one-note converter cannot play those; they are
+  left out of every figure, and so is whatever is sent during them. 15 160 notes are scored.
+- The annotation dates a note where its string's pitch is first read, about 11 ms after the
+  pick (Steady's median onset error, lag taken off, is −11 ms), and its offsets end where the
+  pitch is lost. Two files of the set have a known timing offset (its issue 5); both are
+  accompaniments, not used here, and every solo's most common onset difference to the
+  converter's own notes is within 10 ms.
+
+#### How a note is scored
+
+`sedef-midi-render score <manifest>` and `engine/tests/midi/MidiScore.h`, deterministic (no
+clock, no randomness, ties broken by time). The reference notes are taken in onset order.
+
+| Term | Definition | Why this much |
+|---|---|---|
+| Window | from 50 ms before the annotated onset to 120 ms after it | before: the annotation is about 11 ms late, and the fretting hand can sound the note before the pick. After: twice the slowest sure note (a soft pick over a ringing string, 60 ms); later than that it is not the note played, to a listener |
+| Right | a sent note of the reference's pitch (within 0.75 semitone of its annotated pitch: a bent or sliding note is right as either neighbour) starts in the window. One sent note serves one reference note: the earliest still free | |
+| Octave error | not right, and a free sent note 12 or 24 semitones away starts in the window | |
+| Wrong pitch | neither, and a free sent note of another pitch starts in the window (cut 50 ms before the next reference onset) | |
+| Missed | nothing starts for it: *held* (its pitch was already sounding and went on), *other pitch* (another note sounded through it), *silent* | |
+| Extra | a sent note that serves no reference note. The first that applies: *split* (the pitch of the note being played, started again), *ringing* (the pitch of an earlier note still sounding on its string), *ahead* (the next note's pitch, up to 250 ms before its window), *octave* (12 or 24 semitones from the note being played, or 19 over it), *neighbour* (one or two semitones from the note being played or the next), *silence* (no reference note sounds), *other* | |
+| Under 40 ms | sent notes shorter than 40 ms, extra or not | Steady's own measure of a glitch |
+| Onset error | sent onset minus annotated onset, right notes | |
+| Note-off error | sent note-off minus the note's end in the line (its annotated offset, or the next onset if sooner), right notes | |
+| The right pitch sounds | of the milliseconds in which the reference has a note, the share in which the note being played is what sounds | one number for "does it play what I play" |
+| By register, length, context | E2 to D♯3, E3 to D♯4, E4 to D♯5, E5 up; the note's length in the line; *from silence*, *same string* (the note before is on its string and still sounds: a new fret, or picked again), *over a ringing string* | |
+
+#### Main, as it was
+
+| 180 solos, 15 160 notes | Right | Wrong | Octave | Missed (held / other / silent) | Extra per 100 | Under 40 ms per 100 | The right pitch sounds |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Fastest | 85.80 % | 505 | 93 | 1554 (92 / 89 / 1373) | 35.3 | 23.5 | 79.4 % |
+| Steady | 84.95 % | 406 | 94 | 1781 (120 / 100 / 1561) | 26.3 | 10.6 | 79.9 % |
+| Notes + Bend (Fastest) | 85.71 % | 508 | 94 | 1564 (93 / 94 / 1377) | 34.8 | 23.5 | 79.4 % |
+
+So of 100 notes played, 86 came out, with 35 notes nobody played beside them, 23 of them
+shorter than 40 ms. That is the complaint, in numbers.
+
+Fastest, by register, length and context:
+
+| | Notes | Right | Wrong | Octave | Missed | Onset p50 / p95 |
+|---|---:|---:|---:|---:|---:|---:|
+| E2 to D♯3 | 1074 | 83.8 % | 61 | 10 | 103 | 7.6 / 60.9 ms |
+| E3 to D♯4 | 7478 | 87.2 % | 229 | 48 | 682 | 3.5 / 57.1 |
+| E4 to D♯5 | 6396 | 84.6 % | 205 | 34 | 744 | 2.4 / 54.1 |
+| E5 and up | 212 | 83.0 % | 10 | 1 | 25 | 4.3 / 52.9 |
+| Under 80 ms long | 389 | 57.8 % | 23 | 6 | 135 | 6.2 / 62.7 |
+| 80 to 160 ms | 4547 | 84.7 % | 164 | 27 | 503 | 2.9 / 50.4 |
+| 160 to 320 ms | 7628 | 86.9 % | 225 | 40 | 737 | 3.3 / 60.5 |
+| 320 ms and more | 2596 | 88.8 % | 93 | 20 | 179 | 3.5 / 59.6 |
+| From silence | 7105 | 94.1 % | 78 | 6 | 337 | 2.8 / 48.1 |
+| Same string | 4975 | 81.7 % | 171 | 23 | 715 | 3.3 / 67.3 |
+| Over a ringing string | 3080 | 73.3 % | 256 | 64 | 502 | 5.0 / 59.8 |
+
+No register stands out; what the note follows does. Onsets (right notes) are 3 ms after the
+annotation in the median (about 14 ms after the pick) and 56 ms at the 95th percentile; 5.6 %
+of all notes are right but more than 50 ms late. Note-offs are 11 ms early in the median, 7.8 %
+more than 50 ms early and 2.9 % more than 100 ms late; a right note's pitch sounds for 92 % of
+its time in the median.
+
+**The musician's own recordings**, with the same scorer (the chromatic run's reference rebuilt
+offline: each pluck the last moment the input stops repeating at the new note's period; it
+gives the nine onsets quoted above within 2 ms): 78 of 78 right in Fastest, Steady and Notes +
+Bend, 6 extra (3 in Steady), 3 under 40 ms (none in Steady); the strummed chords give 29 notes.
+His exercise is one string at a time, every note picked, from silence or over its own string.
+It measures the 94 % row, and nothing else.
+
+#### Where the errors come from
+
+For every reference note the dump (`--dump`) holds what the tracker read around it: how much of
+the time from 10 ms before its onset to 120 ms after the tracker held its pitch and from when,
+the level against the player's and the gate, the level's rise, and the picks the tracker's
+detector saw. Fastest:
+
+| Error | Count | What the tracker saw | Cause |
+|---|---:|---|---|
+| **Missed, nothing sounding** | 1373 (9.1 % of notes) | In 1068 the tracker held the right pitch, from the first millisecond in the median, and in 89 % its detector saw no pick | The pitch was known and nothing was allowed to start a note. (a) The detector compares the level's 2 ms power with its 40 ms power: a note softer than the one just damped never crosses it (level rise 12 dB in the median for the notes from silence, yet no pick). The note before had been ended by the level rule (a mute, 60 % of the cases within 50 ms before the onset), and the tracker, which rides through 30 ms of anything, never let go, so "the tracker locking with the level on the rise" did not stand in for the pick either. (b) A hammer-on, a pull-off or a slide arriving when no note sounds (level rise 1 dB in the median on the same string): legato needs a sounding note, so one lost note loses those that follow (231 of the missed follow another missed note) |
+| Missed, its pitch already sounding / another pitch through it | 92 / 89 | | The same note picked again without a break in its period; a wrong note held |
+| **Extra, within 50 ms of an onset** | 2644 (1483 under 40 ms) | | The first reading at a change of note: the tracker's window holds two notes, or an attack, and names a neighbour; a note-on goes out and is replaced 10 to 40 ms on |
+| Extra, inside a note | 1240 | | A legato "note" a semitone away as a string is bent or a finger shifts (382 over 40 ms long); the same note started again (repick, 224) |
+| Extra, at a note's end | 889 (511 under 40 ms) | | The mute's own transient breaks the period, counts as a pick in Fastest before its level has fallen, and the note dies with the mute (922 extras under 20 ms end that way) |
+| Extra, in a rest | 577 | | Strings ringing on, handling |
+| Wrong pitch | 505 | the tracker never held the pitch in 30 % | 164 a semitone off, 73 a whole tone, 49 a twelfth low |
+| Octave | 93 | | |
+| Right, but more than 50 ms late | 850 | | 365 legato, 303 a correction of a wrong first note, 150 picks |
+
+By how the extra note was started: 49 % of the notes started by a pick seen only as a lost
+period are extra (1698 of 3447), 44 % of the legato notes (994 of 2264), 38 % of the
+corrections, 49 % of the repicks, and 12 % of those the detector saw (1352 of 11 085). By kind:
+2235 a semitone or two from the note being played, 1008 in the reference's rests, 807 other,
+695 the same note again, 387 the next note early, 126 an octave, 92 a string still ringing.
+
+How many of the extras are real: the set's pitch contours (per string, every 5.8 ms) hold the
+extra note's pitch for half its length in 1246 of 5350. Those are strings that do sound it: the
+same note re-attacked (571 of the 695 splits), the next fret reached early (216 of 387), a
+neighbour passed through (359 of 2235). The other 4104 are in no string.
+
+So the errors are not in the pitch reading. For most missed notes the tracker had the pitch;
+most extra notes are a first reading taken at its word. Steady's 38 ms remove only a quarter of
+the extras, because the lag is spent waiting, not weighing: the same rules decide, later.
+
+#### The decoder
+
+The decision layer grew guard by guard; a further threshold would be the wrong answer to "a
+first reading is taken at its word". What is missing is a second opinion that weighs every
+candidate period over time, with the instrument written into what a change costs.
+`sedef::midi::NoteDecoder` is that: a Viterbi decoder over the states {silence, one state per
+semitone from C1 to C7}, stepped once per estimate of the tracker (every 0.5 ms).
+
+**What it is fed.** The tracker already keeps, for every lag, how well the input repeats there
+over a window of one period (the NSDF of its estimator), and at every estimate picks the top of
+each positive lobe: the periods the input repeats at. They are now readable
+(`MonoTracker::key()`, read-only; the tracker's behaviour is untouched, and a test holds a read
+tracker to the same output, sample for sample, as an unread one). For note `n`, `d_n` is 1 minus
+the value of the period that rounds to `n` (1 when there is none): the share of the input one
+period of `n` leaves unexplained, the same quantity as in "Why the early reading can be
+trusted", over the tracker's sliding window instead of the stretch since the pick.
+
+**The observation model.** If `n` sounds, `d_n` is what does not repeat: noise and the partials'
+drift (0.002 to 0.04 over a whole period, 1 above), more while another string rings. An
+exponential with mean 0.1 covers that; and in a share of hops, 0.1, anything can be read (an
+attack, a transition): uniform on [0, 1]. If `n` does not sound, `d_n` is anything: uniform.
+The evidence of one observation is the log likelihood ratio
+
+    L(d) = ln (0.9 e^(-d / 0.1) / 0.1 + 0.1):    L(0) = +2.21,  L(0.1) = +1.23,  L(0.3) = -0.60,  L(1) = -2.30.
+
+It crosses zero at `d` = 0.22: the tracker's own bar for "periodic" (an NSDF of 0.8) is the
+same number, arrived at from the other side. Silence scores 0.
+
+**One observation is one window, not one hop.** The tracker's window is one period long (4 ms
+at least), and its estimates are 0.5 ms apart: consecutive hops see nearly the same samples.
+Counted as independent, eight hops of one misreading outweigh everything (measured: the decoder
+alone then sends 354 notes for 100 played). So a hop counts for its share of a window,
+`hop / W(n)`, with `W(n)` half the note's period, at least 4 ms and at most 6 ms (half a period
+of the low E; a longer window makes the lowest strings of a seven or eight-string wait for
+nothing: a low E1 took 74 ms where two periods and 8 ms is 57). A clean note so earns `L(0)`
+per window.
+
+**A period's multiples.** A note an octave or a twelfth above `n` repeats at `n`'s period too.
+When such a note explains the input as well as `n` does (its `d` within 0.08 of `n`'s), the
+evidence is its, and `n` gets none: the octave-low error has no state to live in. The reverse
+needs no rule: a string's odd partials break its half period (2 x their share, 0.82 or more,
+"Why the early reading can be trusted", 2).
+
+**Level.** Under the quietest a note can be for this player (the gate, or 40 dB under how they
+pick), every note loses 0.35 per dB, up to 3: at 9 dB under, more than a clean period earns.
+
+**Transitions: the instrument.** A change of state costs a number of clean observations,
+`patience x count x L(0)`:
+
+| Transition | Count | Why |
+|---|---:|---|
+| A note starts, or changes, with an attack behind it: a pick the detector saw, or the level 6 dB over where it was 10 ms before, no longer ago than 12 ms and two of the note's periods | 1 | after an attack a new note is as likely as not: one clean observation settles it. Two periods is what the tracker needs before the note's period can show at all; with 12 ms for every note a low E1's evidence began after its attack had "passed", and it took 60 ms where 57 is the bar |
+| A note starts from silence without an attack | 2 | a string ringing on, a string in sympathy: twice the evidence |
+| A step of one or two semitones without an attack | 2 | a hammer-on, a pull-off, a slide's step: no likelier than a note from nothing, but the old note's period stops repeating at the same time, which pays half of it |
+| Any other move without an attack | 3 | the fretting hand does not leap without a pick; the tracker's reading across two strings does |
+| A note ends | 3 (not scaled) | a note that has stopped repeating loses 2.3 per window: it is let go after 3 x 2.21 / 2.30 windows, 12 to 17 ms |
+
+There is no minimum note length and no octave rule among them. A 10 ms note is impossible
+because it cannot earn its start and the way back (three observations at patience 1 is 12 ms
+of a clean period, and it has no clean period); an octave jump is a leap like any other, and
+the multiples rule has already said which octave the evidence belongs to.
+
+**Lag against error: one setting.** The wait before a new note is believed is
+`patience x count x W(n)`, plus what the note's period leaves: with an attack, at patience 1,
+one window (4 ms from G3 up, 6 ms at E2). The tests compute each wait from the model and hold
+the decoder to it within a hop. Every result below is one of two settings of it: **Fastest is
+patience 1, Steady is patience 2**, cut for a low note to what the 38 ms leave once the note
+could be read at all (two periods and 5 ms): 1.45 for a low E, 2 from A2 up. In Steady a note
+the decoder has not agreed to when its lag is up still waits for it
+(`kSteadyWaitsPastLag`; see the gates below for what that costs and "Tried" for what turning
+it off costs). A fixed lag in the textbook sense (answer for the hop
+`lag` ago, by tracing the best path back) is in the class too, and tested: with a 10 ms lag a
+3 ms misreading in an attack is never in the answer, while without a lag it is, for a moment.
+
+What the patience and the lag buy, measured on every sixth solo (30 recordings, 2030 notes).
+The decoder alone, as the only thing that decides, and the converter with the decoder as a
+second opinion:
+
+| | Right | Wrong | Extra per 100 | Under 40 ms per 100 | Onset p50 |
+|---|---:|---:|---:|---:|---:|
+| Main, Fastest | 86.6 % | 70 | 41.5 | 27.0 | 1.5 ms |
+| Main, Steady | 85.9 % | 51 | 32.0 | 12.9 | |
+| Decoder alone, patience 1, no lag | 93.0 % | 66 | 155 | 141 | 0.5 |
+| Decoder alone, patience 1, lag 10 ms | 92.8 % | 66 | 134 | 120 | |
+| Decoder alone, patience 1, lag 38 ms | 91.3 % | 59 | 65 | 50 | |
+| Decoder alone, patience 2, no lag | 91.7 % | 69 | 68 | 53 | 4.8 |
+| Decoder alone, patience 2, lag 38 ms | 90.4 % | 61 | 43 | 28 | |
+| Converter, notes nobody saw picked, no second opinion | 90.7 % | 62 | 43.9 | 27.9 | 1.8 |
+| Converter + second opinion at patience 1 (Fastest now) | 91.0 % | 60 | 31.1 | 17.7 | 2.1 |
+| Converter + second opinion at patience 2, in Fastest (measured before the shared-period rule) | 90.0 % | 52 | 23.7 | 11.4 | 4.4 |
+| Converter + second opinion at patience 2, in Steady (Steady now) | 89.8 % | 49 | 21.7 | 6.7 | |
+
+So the decoder alone finds more of the notes than the rules do (93 against 87 %), and sends
+far more that nobody played: it has no notion of a pick's level, a mute, a string in sympathy,
+a fretting hand, all of which the rules encode and all of which were measured into them. Its
+lag does what a lag should (155 extra notes per 100 at no lag, 65 at 38 ms), and still ends
+above the rules. Replacing the rules with it was therefore rejected, on these numbers. As a
+second opinion it removes what it is good at removing, the first reading taken at its word,
+and costs what its patience says: 0.4 ms on the median real note at patience 1, 2.6 ms at
+patience 2.
+
+#### What changed in the converter
+
+1. **A note the tracker names needs the decoder's agreement** since its pick: from silence,
+   over a sounding note, and as a correction. Agreement is the same note, or a note whose
+   period is a whole multiple of it (an octave, a twelfth or two octaves under it): a note
+   picked over a string still ringing a fifth or a fourth away repeats only at such a period,
+   and the decoder, which sees periods, then holds that one; which of them is the note is the
+   tracker's call, which looks at the fundamental itself. Above 500 Hz the octave above counts
+   too (the band, to 1.5 kHz, holds one odd partial of such a note). The early reading is not
+   asked: it has its own proof, and stays exactly as fast. Legato is not asked either: tried,
+   it lost notes (0.4 point) and removed almost no extras.
+2. **A note nobody saw picked starts all the same** when the decoder and the tracker hold the
+   very same note, no pick was seen for 50 ms, an attack has passed (so the detector had its
+   chance), the level is within 10 dB of how this player picks and has risen 6 dB out of the
+   quietest millisecond of the last 40 (a fretting hand adds no energy). This is the fix for
+   the missed notes: `Why::heard` in the diagnostics.
+
+Nothing else moved: the early reading, the level rules, legato, repicks, bends, note-offs and
+velocities are as they were, and no parameter was added.
+
+#### Tried and rejected
+
+| What | Result | Kept instead |
+|---|---|---|
+| The decoder as the only decision maker (above) | 43 to 155 extra notes per 100 on real playing | a second opinion beside the rules |
+| Every hop an independent observation | the decoder alone: 354 notes sent per 100 played, 229 of them under 40 ms | a hop counts for its share of a window |
+| The window a whole period for every note | a low E waits 58 ms for the decoder (bass lines: 14 notes missed in 864, latency p95 52 ms) | half a period, 4 to 6 ms |
+| An attack behind a note for 12 ms, whatever the note | a low E1's period cannot show before two of its periods (49 ms): by then the attack had "passed", it cost a note without one, and came at 60 to 74 ms where the range's test allows 57 | 12 ms and two of the note's periods |
+| No attack once its span has passed, even while the detector's pick still waits for its note | a soft pick over a ringing string that the tracker reads 75 ms late pays for a note without an attack: 3 more notes in 864 past their window on the eight-string sloppy lines (98.50 %, under the 98.5 bar) | a detector pick that has not started its note yet is an attack behind it |
+| ...and a pick seen as a lost period too | every synthetic latency back to main's (bass lines' p95 29.0 ms), but 3.2 more stray notes per 100 on real playing (34.2 against 31.0 on every sixth solo) | detector picks only |
+| Patience 2 in Fastest | 7 more extras per 100 removed, for 2.2 ms more on the median real note and bass lines' p95 at 43 ms instead of 33 | patience 1 in Fastest, 2 in Steady, where the lag is already paid |
+| The same note only: no shared periods | "does not take a ringing note for the note picked over it" fails (a note over a ringing fifth: the decoder holds the period both share), and every note above F5 on a bright pickup is lost (the band holds its second partial and little else) | agreement on a whole multiple of the period; the tracker says which |
+| Agreement at the moment the note starts | the first note of a session waits 60 ms for another reason, and a short high note has faded by then: no note at all | agreement at any moment since the pick |
+| The second opinion for legato too | 0.4 point fewer right notes, 0.4 extra per 100 fewer | legato unasked |
+| A note nobody saw picked, with no condition on its level's rise | fretted-first runs: 64 extra notes in 312 (the fretting hand's move, now the decoder's note too) | the rise out of the trough, an attack passed, and not one beginning this moment |
+| ...measured against the loudest of the 16 ms before the attack | a soft note after a damped louder one has no rise over that: still missed | against the quietest millisecond of the last 40 |
+| Holding every Steady note-on back 12 or 20 ms more, to see more of the glitch coming | extras 33.6 to 32.0 and 30.0 per 100, 0 to 1 point fewer on time: waiting is not weighing | patience 2 |
+| A weak pick judged by the mute's slope before its 12 ms are up | no change on any set | as it was |
+| Steady sending the tracker's reading at its lag whether the decoder agrees or not (`kSteadyWaitsPastLag` off) | Steady's timing exactly as before (89 % of clean bass-line notes within 1 ms, 97 % within 3, all within 6), and most of its stray notes back: 30.6 extra per 100 on every sixth solo instead of 21.6 (main: 32.0), 10.6 under 40 ms instead of 6.7 | waiting: the design puts a wrong or extra note above a little latency. One constant turns it back |
+| Steady at patience 2 for every note | a low E is read at 27 ms and would need 12 more: clean bass-line notes 92.2 % within 3 ms of the lag and 96.5 % within 6 | the budget: 94.3 % and 98.6 % |
+
+#### What it gives
+
+**Real playing** (180 solos, 15 160 notes; before → now):
+
+| | Right | Wrong | Octave | Missed | Extra per 100 | Under 40 ms per 100 | The right pitch sounds | Onset p50 / p95 |
+|---|---|---|---|---|---|---|---|---|
+| Fastest | 85.80 → 91.01 % | 505 → 395 | 93 → 88 | 1554 → 880 | 35.3 → 27.3 | 23.5 → 15.5 | 79.4 → 83.8 % | 3.3 / 56.2 → 3.7 / 54.6 ms |
+| Steady | 84.95 → 90.01 % | 406 → 345 | 94 → 89 | 1781 → 1080 | 26.3 → 19.1 | 10.6 → 5.8 | 79.9 → 84.9 % | −11.1 / 32.6 → −11.3 / 28.5 |
+| Notes + Bend (Fastest) | 85.71 → 90.90 % | 508 → 400 | 94 → 89 | 1564 → 890 | 34.8 → 26.8 | 23.5 → 15.5 | 79.4 → 83.7 % | |
+
+The bar set before building was Steady at 92 % right with under 12 extra notes per 100, and
+Fastest no worse on any gate. **Steady did not reach it**: 90.0 % and 19.1. Fastest gained
+5.2 points and lost 8.0 extra notes per 100.
+
+Fastest, by what the note follows, register and length:
+
+| | Notes | Right | Wrong | Missed |
+|---|---:|---|---|---|
+| From silence | 7105 | 94.1 → 98.0 % | 78 → 60 | 337 → 79 |
+| Same string | 4975 | 81.7 → 88.9 % | 171 → 110 | 715 → 423 |
+| Over a ringing string | 3080 | 73.3 → 78.3 % | 256 → 225 | 502 → 378 |
+| E2 to D♯3 | 1074 | 83.8 → 84.0 % | 61 → 46 | 103 → 118 |
+| E3 to D♯4 | 7478 | 87.2 → 92.2 % | 229 → 166 | 682 → 378 |
+| E4 to D♯5 | 6396 | 84.6 → 90.8 % | 205 → 178 | 744 → 372 |
+| E5 and up | 212 | 83.0 → 91.5 % | 10 → 5 | 25 → 12 |
+| Under 80 ms long | 389 | 57.8 → 59.4 % | 23 → 18 | 135 → 138 |
+| 80 to 160 ms | 4547 | 84.7 → 90.9 % | 164 → 122 | 503 → 261 |
+| 160 to 320 ms | 7628 | 86.9 → 92.3 % | 225 → 183 | 737 → 367 |
+| 320 ms and more | 2596 | 88.8 → 92.1 % | 93 → 72 | 179 → 114 |
+
+Steady by what the note follows: 93.9 → 97.7 %, 80.4 → 87.8 %, 71.9 → 75.8 %.
+
+Where the extra notes are, Fastest: within 50 ms of an onset 2644 → 1954, inside a note 1240 →
+1103, at a note's end 889 → 708, in a rest 577 → 378 (Steady: 1694 → 1218, 1160 → 961, 683 →
+454, 444 → 259). By kind, Fastest: a semitone or two off 2235 → 1835, in the reference's
+rests 1008 → 663, other 807 → 376, the same note again 695 → 706, the next note early 387 →
+374, an octave 126 → 107, a ringing string 92 → 82. The 763 notes started without a pick are
+extra 12 % of the time (94 of them), as rarely as a note the detector saw (10 %).
+Note-offs and how long a right note's pitch sounds did not move (Fastest: 11 ms early in the
+median, 7.1 % more than 50 ms early; 91.9 % of the note's time). Right but more than 50 ms
+late in Fastest: 851 → 855.
+
+What is left, Fastest: of the 4143 extra notes, 1044 are legato notes (44 % of all legato
+notes sent: a neighbour as a string is bent or a finger rolls), 837 start from a pick seen as a
+lost period, 550 are the same note started again, 508 are corrections, and 1235 are pitches a
+string really holds by the set's own contours. Notes shorter than 80 ms are still right only
+59 times in 100, and the lowest register did not gain.
+
+**The musician's recordings.** The chromatic run: 78 of 78 right in the three modes, the same
+84 notes in the same order (81 in Steady), the same 6 extra and 3 under 40 ms. 70 of the 84
+note-ons are at the sample they were; the rest are later by 0.4 ms at the 90th percentile and
+5.2 ms at most (three notes over 2 ms: tracker-read notes on the low strings, which now wait
+for the decoder); in Steady 79 of 81 are unchanged and two are 5 ms later. Velocities move by
+at most 7. His strummed chords give 22 notes for 13 strums (29 before), in every mode.
+
+**The gates** (synthetic sets, 48 kHz, Fastest unless said; before → now):
+
+| Set | Notes | Right | Wrong | Missed | Extra | Under 40 ms | Latency p50 / p95 |
+|---|---:|---|---|---|---|---|---|
+| Bass lines | 864 | 99.42 → 99.54 % | 0 → 0 | 5 → 4 | 0 → 0 | 0 → 0 | 17.9 / 28.5 → 18.3 / 33.1 ms |
+| Sloppy lines | 864 | 99.19 → 99.19 % | 4 → 3 | 3 → 4 | 6 → 4 | 9 → 9 | 20.3 / 34.8 → 20.4 / 37.0 |
+| Fretted first | 312 | 100 → 100 % | 0 | 0 | 0 | 0 | 12.1 / 20.6 → 12.1 / 20.6 |
+| From silence | 324 | 100 → 100 % | 0 | 0 | 0 | 0 | 13.2 / 60.0 → 13.3 / 60.0 |
+| Bass lines, Steady | 864 | 99.42 → 99.54 % | 0 | 5 → 4 | 0 → 0 | 0 → 0 | 37.9 / 40.1 → 37.9 / 41.7 |
+| Sloppy lines, Steady | 864 | 98.38 → 98.50 % | 4 → 3 | 10 → 10 | 7 → 3 | 3 → 1 | 37.8 / 59.8 → 37.8 / 59.8 |
+| Sloppy lines, a seventh lower, F♯1 range | 864 | 98.84 → 98.73 % | 4 → 4 | 6 → 7 | 13 → 12 | 10 → 6 | 34.6 / 53.3 → 34.7 / 55.0 |
+| Strummed chords (outside the design) | 144 chords | 113 → 86 notes (Steady 110 → 72) | | | | | |
+| Soft notes after a damped louder one (new) | 96 | 75 → 99 % (72 → 95 notes), both timings | 0 | 24 → 1 | 0 | | |
+
+Every bar holds. Three costs are real, and none of them is a strict improvement:
+
+- **The 95th percentile of the bass lines' latency rises from 28.5 to 33.1 ms** in Fastest
+  (37.0 from 34.8 on the sloppy lines). Those are the notes the tracker reads after a pick seen
+  only as a lost period, soft picks over a ringing string: they wait one window more (4 to
+  6 ms). The median moves by 0.4 ms.
+- **Steady's lag is no longer exact for every clean note**: of 141 clean bass-line notes, 85 %
+  are within 1 ms of the lag, 94 % within 3 and 98.6 % within 6, the latest 15 ms after it
+  (before: 89 %, 97 %, all within 6). A note the decoder has not agreed to when its lag is up
+  waits for it. The test's bar moved from "all within 6 ms" to "98 % within 6, none past 16",
+  with this reason in it.
+- **One note in 864 on the eight-string sloppy lines** falls out of its window (98.84 →
+  98.73 %; the bar is 98.5): a note that was 77 ms late is 85 ms late.
+
+A string over the tracker's reach (C♯7), which both timings used to send an octave low, now
+gets no note in Steady: its test says so.
+
+**Latency by note** (the converter's report: the second of two picks, with a pick and with the
+fingers, bridge and neck pickups, median and most, before → now): every median from C♯2 to E6
+is unchanged in every range (E2 21.5, A2 17.0, D3 16.0, G3 12.5, B3 11.5, E4 10.5, A4 9.5, E5
+9.0 ms), and so is every median in the seven and eight-string ranges, because those notes go
+out on the early reading, which is not asked for a second opinion. What moved is what the
+tracker reads: a low B and C played in the six-string range (under its low E) 35.5 and 33.5 →
+37.0 and 35.0 ms; the most on E1 and F1 in the eight-string range 51.0 and 48.5 → 51.5 and
+49.0 ms; and on E2 and F2 in the eight-string range 28.5 and 27.0 → 30.0 and 28.0 ms.
+
+**Trench** shares the tracker, which gained only the accessors: 77 renders are byte-identical
+to main's (the 49 factory presets; Trench in Mono and Poly, two settings each, on the synthetic
+DI, four recordings of the set and the musician's two).
+
+**Cost.** Fastest 251 ns per sample against 208 on main (1.21 % of one core at 48 kHz, from
+1.00 %), Steady 241 against 197, in the same minute on a machine under load (load average 3.6).
+The decoder is 73 states stepped every 0.5 ms; `process()` still never allocates (the existing
+test covers the decoder, which lives inside the converter and allocates in `prepare()` only).
+
+**Left open:**
+- Legato notes are still wrong 44 times in 100 on real playing, and a neighbour semitone inside
+  a held note is the largest group of extras left. A second opinion did not help there; what
+  tells a hammer-on from a string being bent or a finger rolling is not in the period.
+- Notes under 80 ms and the lowest register (E2 to D♯3) did not gain.
+- The same note started again (706 extras) is not touched.
+- Steady did not reach the bar set for it (92 % right, 12 extra per 100): it stands at 90.0 %
+  and 19.1. What is left is not what a second opinion on a first reading removes.
+- A session that starts while a note sounds: the automatic gate takes its first 50 ms for the
+  noise floor and comes down only when the input gets quieter than that, so playing that never
+  rests gives nothing for a while. With the files as they are (no silence first) 87.6 % of the
+  notes are right, against 91.0 % with a second of silence before them (82.6 against 85.8 % on
+  main). A plug-in started in the middle of a recorded track meets this; a player who plugs in
+  and then plays does not.
+- The recordings are an acoustic guitar with a hexaphonic pickup, played with a pick. How much
+  of this carries over to the musician's guitar, pickups and fingers is not measured: his own
+  two recordings are a chromatic run and chords, and say nothing about real lines.
+- Extras in the reference's rests (663) include strings that do ring there, which the
+  annotation ends early; how many is not known.

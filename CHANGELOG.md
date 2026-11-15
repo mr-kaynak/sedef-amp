@@ -14,8 +14,30 @@ All notable changes to this project are documented here. The format follows
   with and without its last part. Turn on *Double tap stops* for the main switch and two quick
   presses (less than 0.4 s apart) stop the looper and take back what the first press started.
 
+### Changed
+
+- **Fewer notes nobody played.** A short wrong note at the moment one note gives way to the
+  next (a semitone off, for a few hundredths of a second) was Sedef MIDI's most common mistake
+  on real playing. A new note that the pitch reading names is now weighed for a few
+  milliseconds against everything else the signal could be before it is sent: on the same
+  recordings, 27 stray notes for every 100 played where there were 35 in Fastest, and 19 where
+  there were 26 in Steady, which waits a little longer and catches more. Notes shorter than
+  40 ms fall from 24 to 15 per 100 in Fastest and from 11 to 6 in Steady. A cleanly picked note
+  comes exactly as fast as before; a note picked softly over a string that still rings can
+  come 4 to 6 ms later. In Steady, a few notes in a hundred now come later than the 38 ms (up
+  to 15 ms later): a note Sedef MIDI is not yet sure of waits instead of going out on time and
+  wrong.
+- **Strummed chords give fewer notes.** Sedef MIDI plays one note at a time; a chord used to
+  come out as two or three notes as it moved between the strings, and now more often gives
+  one, or none.
+
 ### Fixed
 
+- **Sedef MIDI no longer drops a note played softer than the one before it.** A note picked
+  softly just after a louder one was damped, or hammered on after a rest, often never started:
+  nothing had told Sedef MIDI a note began. Measured on 91 minutes of real single-line playing
+  with exact reference notes, 91 of 100 notes now come out in Fastest where 86 did (90 where 85
+  did in Steady).
 - **Changing Settings > Latency in a CLAP host can't crash or garble the sound any more.** The
   engine was prepared again while the host's audio thread could still be inside it; now the audio
   is held out first: a moment of silence while it re-prepares, as VST3, AU and the standalone

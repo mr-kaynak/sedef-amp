@@ -513,3 +513,52 @@ TEST_CASE ("MonoTracker with finger picks hears the pluck, not the touch or the 
                               [] (double at) { return std::abs (at - 0.42) < 0.003; }) == 1);
     }
 }
+
+TEST_CASE ("MonoTracker lists every period its estimate finds, and reading them changes nothing",
+           "[analysis][monotracker]")
+{
+    // What a decoder over all candidate periods reads: the note's own period among them, each
+    // with how well the input repeats there. Reading is free: a tracker that is read gives the
+    // same notes, sample for sample, as one that is not (an octave divider must not move).
+    const auto sc = single ("a2", bridgePluck (kA2), kFs, 0.6);
+    MonoTracker read, plain;
+    read.prepare (kFs);
+    plain.prepare (kFs);
+    CHECK (read.keyCount() == 0);
+    std::uint32_t estimates = 0;
+    int withNote = 0, hops = 0;
+    for (std::size_t i = 0; i < sc.signal.size(); ++i)
+    {
+        read.push (sc.signal[i]);
+        plain.push (sc.signal[i]);
+        REQUIRE (read.hz() == plain.hz());
+        REQUIRE (read.voiced() == plain.voiced());
+        REQUIRE (read.fundamentalRe() == plain.fundamentalRe());
+        if (read.estimateCount() == estimates)
+            continue;
+        estimates = read.estimateCount();
+        if (i < static_cast<std::size_t> (0.1 * kFs) || i > static_cast<std::size_t> (0.4 * kFs))
+            continue;
+        ++hops;
+        float last = 0.0f;
+        bool found = false;
+        for (int k = 0; k < read.keyCount(); ++k)
+        {
+            const auto key = read.key (k);
+            REQUIRE (key.lag > last); // shortest first
+            last = key.lag;
+            REQUIRE (key.value <= 1.001f);
+            const double hz = read.analysisRate() / static_cast<double> (key.lag);
+            if (std::abs (1200.0 * std::log2 (hz / kA2)) < 30.0 && key.value > 0.9f)
+                found = true;
+        }
+        withNote += found ? 1 : 0;
+    }
+    CHECK (hops > 500); // one estimate every 0.5 ms
+    // The sounding note's period is among them, repeating better than 0.9 (measured: 570 of
+    // 600 hops; in the others the lobe's top sits a little under that).
+    CHECK (withNote * 10 >= hops * 9);
+    read.reset();
+    CHECK (read.keyCount() == 0);
+    CHECK (read.estimateCount() == 0u);
+}

@@ -126,13 +126,24 @@ public:
     /// one sample to the next sees each pick once, on the push that detected it.
     std::uint32_t pickCount() const noexcept { return pickCount_; }
 
-private:
+    /// A period the latest estimate found the input to repeat at: the top of one positive lobe
+    /// of the NSDF, placed between lags (in decimated samples), and how well the input repeats
+    /// there (1: exactly; what the period leaves unexplained is 1 - value).
     struct KeyMax
     {
         float lag;
         float value;
     };
+    /// Every period the latest estimate found, shortest first: what a decoder that weighs all
+    /// of them reads (hz() is only the one the note logic chose). Reading them changes nothing.
+    int keyCount() const noexcept { return keyCount_; }
+    KeyMax key (int index) const noexcept { return keys_[static_cast<std::size_t> (index)]; }
+    /// The rate the lags are counted at, and how many estimates there have been since reset():
+    /// a caller that compares it from one sample to the next sees each estimate once.
+    double analysisRate() const noexcept { return rate_; }
+    std::uint32_t estimateCount() const noexcept { return estimateCount_; }
 
+private:
     void updateLags (float x) noexcept;
     void estimate() noexcept;
     void track() noexcept;
@@ -177,6 +188,8 @@ private:
     std::vector<double> r_, m_;
     std::vector<float> nsdf_;
     std::array<KeyMax, 48> keys_ {};
+    int keyCount_ = 0;
+    std::uint32_t estimateCount_ = 0;
 
     // Estimate and note logic.
     float estimateHz_ = 0.0f, clarity_ = 0.0f;

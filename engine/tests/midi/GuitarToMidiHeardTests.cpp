@@ -95,3 +95,51 @@ TEST_CASE ("Guitar to MIDI plays a soft note that follows a damped louder one", 
         CHECK (heard * 5 >= static_cast<std::uint32_t> (notes));
     }
 }
+
+TEST_CASE ("Guitar to MIDI recovers when it starts while a note sounds", "[midi][gate][midnote]")
+{
+    // A host that starts in the middle of a recorded track, a plug-in loaded while the guitar
+    // rings: the first 50 ms are a note, not the noise floor, and a line whose notes ring into
+    // each other never shows the floor under it. The tracker naming two different notes under
+    // the bar says it is playing: from the third note on the line plays as if it had begun in
+    // silence. (Without that rule not one note of these lines comes out.)
+    for (const auto timing : { midi::Timing::fastest, midi::Timing::steady })
+    {
+        int expected = 0, right = 0, extra = 0;
+        for (std::uint32_t seed = 1; seed <= 3; ++seed)
+        {
+            auto sc = sloppyLine (seed, seed == 2 ? Pickup::neck : Pickup::bridge, 120.0, kFs, 32);
+            // Start 150 ms into the first note, and judge the notes from the fourth on.
+            const double cut = sc.notes.front().start + 0.15;
+            sc.signal.erase (sc.signal.begin(),
+                             sc.signal.begin() + static_cast<std::ptrdiff_t> (cut * kFs));
+            const double from = sc.notes[3].start - cut - 0.01;
+            std::vector<RefNote> later;
+            for (auto n : sc.notes)
+            {
+                n.start -= cut;
+                n.end -= cut;
+                if (n.rings >= 0.0)
+                    n.rings -= cut;
+                if (n.start >= from)
+                    later.push_back (n);
+            }
+            sc.notes = later;
+            auto o = play (sc, timing);
+            std::vector<SentNote> sent;
+            for (const auto& n : o.run.notes)
+                if (n.on >= from)
+                    sent.push_back (n);
+            o.run.notes = sent;
+            const auto st = score (o.run, sc, 0, 0.12, false);
+            expected += st.expected;
+            right += st.correct;
+            extra += st.extra;
+        }
+        INFO ((timing == midi::Timing::steady ? "Steady: " : "Fastest: ")
+              << right << " of " << expected << " right, " << extra << " extra");
+        CHECK (expected >= 80);
+        CHECK (right * 100 >= expected * 95);
+        CHECK (extra * 100 <= expected * 4);
+    }
+}

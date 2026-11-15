@@ -2007,3 +2007,82 @@ test covers the decoder, which lives inside the converter and allocates in `prep
   two recordings are a chromatic run and chords, and say nothing about real lines.
 - Extras in the reference's rests (663) include strings that do ring there, which the
   annotation ends early; how many is not known.
+
+#### After 0.10.3: a session that starts on a note, and what did not yield (2026-11-15)
+
+**Starting while a note sounds.** The automatic gate's floor is the quietest the input has
+been, and for the first 50 ms simply the level. A host that starts in the middle of a recorded
+track, or a plug-in loaded while the guitar rings, gives it a note for a floor: the gate then
+sits 20 dB over the playing, and a line whose notes ring into each other never shows anything
+quieter. Measured: bass lines cut to start 0.2 s into their first note gave no note at all, in
+48, on 0.10.3; the real set without a lead-in was 87.6 % right against 91.0 % with one.
+
+Level alone cannot tell loud noise from playing. Pitch can: noise does not change note. So
+while the floor keeps any note from starting (the level under the bar a note must pass), the
+tracker naming a note for 30 ms of agreeing estimates (`kPlayingSeconds`: the tracker's own
+hold, the longest it rides through nothing) is remembered, and a second such note that is not
+the first or its octave (a hum and its overtone are one pitch; hum, buzz and hiss never give
+two) says it is playing. The floor then drops to 50 dB under the level (the 30 dB a first note
+must stand out of the noise, and the gate's 20), so this playing and notes 20 dB softer pass,
+and the first rest shows the real floor (it rises 6 dB a second while no note sounds). The
+rule can only act while the gate is closed to everything; a session that starts in silence
+never meets it, and its events are unchanged (the pinned streams and every gate below).
+
+| | 0.10.3 | Now |
+|---|---:|---:|
+| Real set, no lead-in, Fastest: right / extra per 100 | 87.6 % / 25.2 | 90.1 % / 26.9 |
+| Real set, no lead-in, Steady | | 89.2 % / 18.7 |
+| Real set, a second of silence first, Fastest | 91.0 % / 27.3 | 91.0 % / 27.4 |
+| Real set, a second of silence first, Steady | 90.0 % / 19.1 | 90.0 % / 19.1 |
+| Sloppy lines started 150 ms into their first note, from the fourth note on (new test), Fastest / Steady | 9 of 87 | 86 / 85 of 87, no extra |
+| Bass lines cut 0.2 s in, notes out of 48 played (four lines) | 0, 0, 0, 0 | 22, 35, 42, 23 |
+| Silence, hum, buzz and hiss ("plays nothing from silence, hum or hiss") | no note | no note |
+
+The cut bass lines still lose their first seconds: their notes come one after another on one
+string, the tracker follows them as one moving note, and it takes until two notes have each
+held 30 ms under the bar. What is left without a lead-in (90.1 against 91.0 %) is that wait.
+The with-lead-in figures moved by one or two notes in 15 160 because a line can pass under a
+high floor in mid-recording too.
+
+**Legato extras: analysed, not fixed.** 44 % of the legato notes sent on the real set are
+extra (1044 of 2354), 823 of them a semitone from the note before. For each, the dump now
+holds the tracker's pitch at the note-on and how far it moves before and after. At the moment
+of the note-on nothing separates them: the pitch sits as near its semitone (11 against 8 cents
+off in the median; over 20 cents: 16 extra and 17 right, on every sixth solo), it moved as far
+in the 12 ms before (0.25 against 0.26 semitone), and the level does the same (-1.1 against
+-0.8 dB). What separates them comes afterwards: 30 ms on, the pitch has left by more than
+half a semitone for 61 of 114 extra legato notes and 18 of 170 right ones. So these are
+strings on their way through a semitone (a slide into a note, a bend, a finger rolling), and
+only a lag can keep them back: 30 ms would remove about half at the cost of one legato note in
+ten, and of 30 ms on every hammer-on and pull-off. That is a Steady-only change, with Steady's
+legato timing as its price (its lag for legato notes is counted from the move, so the
+note-on would wait inside it); it is the next thing to build, not a rule to add to Fastest.
+
+**A hammer-on taken for the fretting hand: tried, rejected.** Of the 666 notes still missed
+with nothing sounding, 262 are loud, held by the tracker, with no pick and no rise in level,
+and 232 of those follow a note the converter itself ended as "damped" or "muted" while it was
+in fact a hammer-on or pull-off on a string that had faded 10 dB (the fretting-hand rule, made
+for the musician, who frets ahead of his pluck by 25 to 60 ms). Tried: when no pick follows
+such a move, start the note it went to.
+
+| Wait for the pick | Real, every sixth solo: right / extra per 100 | Fretted-first runs (312 notes) |
+|---|---|---|
+| none (0.10.3) | 91.0 % / 31.1 | 100 %, 0 extra |
+| 80 ms | 91.7 % / 32.1 | 100 %, 3 extra (the bar is 2 per 100) |
+| 100 ms | 91.2 % / 32.0 | 100 %, 0 extra |
+
+Every note gained brings about two that nobody played (the same test passes for a string that
+simply rings on at its new fret), and at the wait that gains most the musician's own way of
+playing starts to give extra notes. Not taken.
+
+**The low register and short notes: where the limit is.** E2 to D♯3 stands at 84.0 % (1074
+notes). From silence it is 94 %, on the same string 88 %, over a ringing string 68 % (221 of
+324): the register is not what fails, the ringing string is, and low notes are more often
+played over one. Of its 76 notes missed with nothing sounding, the tracker never held the
+pitch in 45 % (33 % for the notes under 80 ms, 11 % overall before this round): a note of
+83 ms in the median needs two of its periods (24 ms at a low E) of a window that the note
+before still fills. Notes under 80 ms (389; 59.4 % right) are missed 128 times, 32 of them
+under 40 ms long, and in a third the tracker never names them. Both are the tracker's window,
+not the decision layer: reading a note from less than two periods over a ringing string is
+the early reading's problem ("Why the early reading can be trusted", 5), and there the
+mathematics gives no bound. Nothing was changed for them.

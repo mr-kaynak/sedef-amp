@@ -147,6 +147,34 @@ void GuitarToMidi::updateGate (float msLevelDb) noexcept
         noiseDb_ = msLevelDb;
     else if (note_ < 0)
         noiseDb_ = std::min (msLevelDb, noiseDb_ + noiseRisePerMs_);
+    // Playing that was there before we listened: the warm-up took a sounding note for the
+    // noise, and playing that never rests never shows the floor under it. Noise does not change
+    // note. So when the tracker has named two different notes (not an octave apart: a hum and
+    // its overtone are one pitch), each surely (kPlayingSeconds of agreeing estimates), while
+    // the floor kept any note from starting, the floor is under what is being played: it
+    // drops to kFirstNoteMarginDb + kNoiseMarginDb under the level, so that this playing and
+    // notes 20 dB softer pass the bar a first note must pass. A rest then shows the real floor
+    // (it rises kNoiseRiseDbPerSecond while no note sounds).
+    if (settings_.gateMode == GateMode::automatic && note_ < 0)
+    {
+        const float bar = noiseDb_ + (playingCount_ == 0 ? kFirstNoteMarginDb : kNoiseMarginDb);
+        const float hz = tracker_.hz();
+        if (msLevelDb < bar && hz > 0.0f && agreeSamples_ >= playingSamples_)
+        {
+            const int q = static_cast<int> (std::lround (midiPitch (hz)));
+            if (blockedNote_ < 0)
+                blockedNote_ = q;
+            else if (std::abs (q - blockedNote_) % 12 != 0)
+            {
+                noiseDb_ = std::min (noiseDb_, msLevelDb) - kFirstNoteMarginDb - kNoiseMarginDb;
+                blockedNote_ = -1;
+            }
+        }
+    }
+    else
+    {
+        blockedNote_ = -1;
+    }
     gateLevelDb_ = settings_.gateMode == GateMode::manual
                        ? settings_.gateDb
                        : std::max (kAutoGateFloorDb, noiseDb_ + kNoiseMarginDb);
@@ -237,6 +265,7 @@ void GuitarToMidi::prepare (double sampleRate)
     steadySamples_ = samples (0.01, sampleRate);
     breakWindowSamples_ = samples (0.02, sampleRate);
     warmupSamples_ = samples (kWarmupSeconds, sampleRate);
+    playingSamples_ = samples (kPlayingSeconds, sampleRate);
     touchWaitSamples_ = samples (kTouchWaitSeconds, sampleRate);
     noiseRisePerMs_ = kNoiseRiseDbPerSecond / 1000.0f;
     bendOnTicks_ =
@@ -286,6 +315,7 @@ void GuitarToMidi::reset() noexcept
     decoderNote_ = NoteDecoder::kSilence;
     agreedNote_ = -1;
     agreedAt_ = 0;
+    blockedNote_ = -1;
     decoderAttack_ = 0;
     decoderAttackAt_ = -(std::int64_t { 1 } << 40);
     decoderLevels_.fill (kFloorDb);

@@ -14,6 +14,31 @@ All notable changes to this project are documented here. The format follows
   with and without its last part. Turn on *Double tap stops* for the main switch and two quick
   presses (less than 0.4 s apart) stop the looper and take back what the first press started.
 
+## [0.10.2] - 2026-11-15
+
+Captures from the trainer's newest version (A2) load.
+
+### Fixed
+
+- **A2 captures load.** The trainer's newest captures mark every layer array `"slimmable": null`
+  (it doesn't slim), and Sedef read the field's presence as slimming it didn't know, so they were
+  still refused after 0.10.1. Every example capture the NAM core ships now loads and plays, and a
+  test checks that on every build.
+
+## [0.10.1] - 2026-11-13
+
+NAM captures trained at several sizes load, and the status bar's arrow is an arrow again.
+
+### Fixed
+
+- **Captures trained at several sizes load.** A NAM capture saved as a SlimmableContainer, or as
+  a slimmable WaveNet, was refused with "Sedef can't load yet"; it now plays at its full size, the
+  sound it was trained for.
+- **The status bar says "Mono → Stereo" again**, not "Mono â Stereo": the arrow, and the "…" in
+  three Re-amp messages, now reach the window as the UTF-8 they are.
+- Sedef MIDI's Panic button no longer leaves its flash timer running when the window closes
+  right after a press.
+
 ## [0.10.0] - 2026-11-13
 
 Practise and write in the standalone app: a looper locked to the click, drums to play along with,
@@ -633,7 +658,9 @@ The first public build: a complete guitar rig with a tuner and an intonation wor
 - Every CI build is checked with pluginval (strictness 8), clap-validator and auval, and a smoke
   test opens the editor in a real host and WebView on every OS.
 
-[Unreleased]: https://github.com/mr-kaynak/sedef-amp/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/mr-kaynak/sedef-amp/compare/v0.10.2...HEAD
+[0.10.2]: https://github.com/mr-kaynak/sedef-amp/compare/v0.10.1...v0.10.2
+[0.10.1]: https://github.com/mr-kaynak/sedef-amp/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.8.1...v0.9.0
 [0.8.1]: https://github.com/mr-kaynak/sedef-amp/compare/v0.8.0...v0.8.1

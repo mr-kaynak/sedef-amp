@@ -427,3 +427,14 @@ TEST_CASE ("The browser lists a preset's pedals in its board's order")
     CHECK (blocks.joinIntoString (",").startsWith ("ripple,tide"));
     CHECK_FALSE (blocks.contains ("gate"));
 }
+
+TEST_CASE ("The channel layout reaches the status bar as UTF-8")
+{
+    Fixture f;
+    SedefProcessor p;
+    // A plain char* literal read by juce::String turned the arrow into "â\u0086\u0092".
+    const auto text = p.layoutDescription().toStdString();
+    CHECK ((text == "Mono" || text == "Stereo" || text == "Mono \xE2\x86\x92 Stereo" ||
+            text == "Stereo \xE2\x86\x92 Mono"));
+    CHECK (p.layoutDescription().length() <= 13); // one character for the arrow, not three
+}

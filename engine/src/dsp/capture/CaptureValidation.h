@@ -34,7 +34,8 @@ struct Limits
     static constexpr long kMaxBufferFloats = 8L << 20;   ///< 32 MB of convolution history
     static constexpr int kMaxChannels = 512;
     static constexpr int kMaxLayerArrays = 8;
-    static constexpr int kMaxLayers = 64; ///< per array, and ConvNet blocks
+    static constexpr int kMaxSubmodels = 16; ///< sizes in a SlimmableContainer
+    static constexpr int kMaxLayers = 64;    ///< per array, and ConvNet blocks
     static constexpr int kMaxKernel = 64;
     static constexpr int kMaxDilation = 32768;
     static constexpr int kMaxLstmLayers = 16;

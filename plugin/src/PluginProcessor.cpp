@@ -113,9 +113,10 @@ juce::String SedefProcessor::layoutDescription() const
 {
     const int ins = getTotalNumInputChannels();
     const int outs = getTotalNumOutputChannels();
+    // juce::String reads a plain char* as ASCII: the arrow needs to be read as the UTF-8 it is.
     if (ins == 1)
-        return outs == 1 ? "Mono" : "Mono → Stereo";
-    return outs == 1 ? "Stereo → Mono" : "Stereo";
+        return juce::String::fromUTF8 (outs == 1 ? "Mono" : "Mono → Stereo");
+    return juce::String::fromUTF8 (outs == 1 ? "Stereo → Mono" : "Stereo");
 }
 
 void SedefProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)

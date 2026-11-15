@@ -34,13 +34,19 @@
 //       what sounds is from the string's pitch.
 //   sedef-midi-render trace <in.wav> <from s> <to s> [--gain dB]
 //       What the tracker reads, every millisecond, next to what is sent.
+//   sedef-midi-render score <manifest> [--steady 1] [--bend 1] [--low ...] [--gain dB]
+//                           [--lead seconds] [--files 1] [--dump notes.tsv]
+//       Real playing against reference notes (engine/tests/midi/MidiScore.h): the manifest lists
+//       "<wav> <notes>" per line, the notes "<onset s> <offset s> <pitch> <string>" per line.
 
 #include "../WavIo.h"
+#include "midi/MidiScore.h"
 #include "midi/MidiTestSignals.h"
 #include "sedef/analysis/MonoTracker.h"
 #include "sedef/midi/GuitarToMidi.h"
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
@@ -1184,6 +1190,408 @@ int bench()
     return 0;
 }
 
+// ---------------------------------------------------------------------------------------------
+// Real playing against a reference note list (engine/tests/midi/MidiScore.h has the definitions).
+
+struct ScoredNote
+{
+    scoring::Sent sent;
+    int velocity = 0;
+    std::string start, end;
+    bool early = false;
+};
+
+struct Tally
+{
+    long notes = 0, right = 0, octave = 0, wrong = 0, held = 0, other = 0, silent = 0, onTime = 0;
+    std::vector<double> onset;
+    void add (scoring::Verdict v, double onsetError, double onTime_)
+    {
+        ++notes;
+        switch (v)
+        {
+        case scoring::Verdict::right:
+            ++right;
+            onset.push_back (onsetError);
+            if (onsetError <= onTime_)
+                ++onTime;
+            break;
+        case scoring::Verdict::octave:
+            ++octave;
+            break;
+        case scoring::Verdict::wrong:
+            ++wrong;
+            break;
+        case scoring::Verdict::missedHeld:
+            ++held;
+            break;
+        case scoring::Verdict::missedOther:
+            ++other;
+            break;
+        case scoring::Verdict::missedSilent:
+            ++silent;
+            break;
+        case scoring::Verdict::chord:
+            --notes;
+            break;
+        }
+    }
+    void print (const char* label) const
+    {
+        const double n = notes > 0 ? static_cast<double> (notes) : 1.0;
+        std::printf ("| %s | %ld | %.2f %% | %ld | %ld | %ld (%ld / %ld / %ld) | %.1f / %.1f / %.1f "
+                     "| %.1f %% |\n",
+                     label, notes, 100.0 * static_cast<double> (right) / n, wrong, octave,
+                     held + other + silent, held, other, silent,
+                     1000.0 * scoring::quantile (onset, 0.5), 1000.0 * scoring::quantile (onset, 0.95),
+                     1000.0 * scoring::quantile (onset, 1.0), 100.0 * static_cast<double> (onTime) / n);
+    }
+    static void head (const char* first)
+    {
+        std::printf ("| %s | Notes | Right | Wrong | Octave | Missed (held / other pitch / silent) | "
+                     "Onset p50 / p95 / max (ms) | Right within 50 ms |\n|---|---:|---:|---:|---:|---:|---:|---:|\n",
+                     first);
+    }
+};
+
+std::vector<scoring::Truth> readTruth (const std::string& path)
+{
+    std::vector<scoring::Truth> notes;
+    std::ifstream f (path);
+    std::string line;
+    while (std::getline (f, line))
+    {
+        if (line.empty() || line[0] == '#')
+            continue;
+        scoring::Truth t;
+        char* p = line.data();
+        t.on = std::strtod (p, &p);
+        t.off = std::strtod (p, &p);
+        t.pitch = std::strtod (p, &p);
+        t.string = static_cast<int> (std::strtol (p, &p, 10));
+        if (t.off > t.on && t.pitch > 0.0)
+            notes.push_back (t);
+    }
+    std::stable_sort (notes.begin(), notes.end(),
+                      [] (const auto& a, const auto& b) { return a.on < b.on; });
+    return notes;
+}
+
+/// The converter's notes for one recording, each with how it started and ended. In Steady the
+/// lag is taken off every time, as a recording is moved by it.
+std::vector<ScoredNote> scoredNotes (const std::vector<float>& x, double fs, const midi::Settings& s,
+                                     midi::LowNote learned)
+{
+    midi::GuitarToMidi conv;
+    conv.setSettings (s);
+    conv.prepare (fs);
+    conv.setLearnedLowNote (learned);
+    const double lag = s.timing == midi::Timing::steady
+                           ? midi::GuitarToMidi::steadyLagSamples (fs) / fs
+                           : 0.0;
+    std::vector<ScoredNote> notes;
+    std::vector<int> open (128, -1);
+    midi::EventList out;
+    std::uint32_t earlyCount = 0;
+    for (std::size_t i = 0; i < x.size(); ++i)
+    {
+        out.clear();
+        conv.process (&x[i], 1, out);
+        const double t = static_cast<double> (i) / fs - lag;
+        for (const auto& e : out)
+        {
+            if (e.isNoteOn())
+            {
+                ScoredNote n;
+                n.sent = { t, -1.0, e.note() };
+                n.velocity = e.velocity();
+                n.start = whyName (conv.startWhy());
+                if (conv.startWhy() != midi::Why::legato)
+                    n.start += std::string ("/") + pickName (conv.pickKind());
+                n.early = conv.earlyNotes() != earlyCount;
+                earlyCount = conv.earlyNotes();
+                open[static_cast<std::size_t> (e.note())] = static_cast<int> (notes.size());
+                notes.push_back (n);
+            }
+            else if (e.isNoteOff())
+            {
+                auto& o = open[static_cast<std::size_t> (e.note())];
+                if (o >= 0)
+                {
+                    notes[static_cast<std::size_t> (o)].sent.off = t;
+                    notes[static_cast<std::size_t> (o)].end = whyName (conv.endWhy());
+                }
+                o = -1;
+            }
+        }
+    }
+    const double end = static_cast<double> (x.size()) / fs;
+    for (auto& n : notes)
+        if (n.sent.off < 0.0)
+        {
+            n.sent.off = end;
+            n.end = "end";
+        }
+    return notes;
+}
+
+int scoreMode (int argc, char** argv)
+{
+    // sedef-midi-render score <manifest> [--steady 1] [--bend 1] [--low ...] [--learned ...]
+    //                         [--gain dB] [--lead seconds] [--files 1] [--dump notes.tsv]
+    // The manifest has one recording per line: "<wav> <reference notes>", relative to itself.
+    if (argc < 3)
+    {
+        std::fprintf (stderr, "usage: sedef-midi-render score <manifest> [--steady 1] [--bend 1] "
+                              "[--low auto|e2|b1|f#1] [--gain dB] [--files 1] [--dump out.tsv]\n");
+        return 2;
+    }
+    const std::string manifest = argv[2];
+    const auto slash = manifest.find_last_of ('/');
+    const std::string dir = slash == std::string::npos ? "" : manifest.substr (0, slash + 1);
+    midi::Settings s;
+    s.octave = 0;
+    s.lowNote = lowNoteNamed (option (argc, argv, "--low"));
+    if (option (argc, argv, "--steady") == "1")
+        s.timing = midi::Timing::steady;
+    if (option (argc, argv, "--bend") == "1")
+        s.mode = midi::Mode::notesAndBend;
+    const auto learned = lowNoteNamed (option (argc, argv, "--learned", "e2"));
+    const auto gain =
+        static_cast<float> (std::pow (10.0, std::atof (option (argc, argv, "--gain", "0").c_str()) / 20.0));
+    const bool perFile = option (argc, argv, "--files") == "1";
+    const double lead = std::max (0.0, std::atof (option (argc, argv, "--lead", "0").c_str()));
+    const std::string dumpPath = option (argc, argv, "--dump");
+    std::ofstream dump;
+    if (!dumpPath.empty())
+    {
+        dump.open (dumpPath);
+        dump << "file\tkind\ton\toff\tpitch\tstring\tverdict\tonset_ms\toff_ms\tcontext\tstart\tend"
+                "\tearly\tvelocity\tplayed_pitch\n";
+    }
+
+    const scoring::Tolerances tol;
+    static const char* registers[] = { "E2 to D#3", "E3 to D#4", "E4 to D#5", "E5 and up" };
+    static const char* lengths[] = { "under 80 ms", "80 to 160 ms", "160 to 320 ms", "320 ms and more" };
+    Tally all, byRegister[4], byLength[4], byContext[3];
+    long extras[scoring::kExtraKinds] {}, extrasShort[scoring::kExtraKinds] {}, chordNotes = 0;
+    long sentNotes = 0, sentShort = 0, splitNotes = 0;
+    std::vector<double> extraLength[scoring::kExtraKinds], offError, covered;
+    std::array<long, 6> frames {};
+    struct Start
+    {
+        std::string name;
+        long sent = 0, extra = 0;
+    };
+    std::vector<Start> starts;
+    struct FileRow
+    {
+        std::string name;
+        long notes = 0, right = 0, extra = 0;
+    };
+    std::vector<FileRow> rows;
+    double seconds = 0.0;
+
+    std::ifstream list (manifest);
+    std::string wav, ref;
+    while (list >> wav >> ref)
+    {
+        const auto path = [&] (const std::string& p) { return p[0] == '/' ? p : dir + p; };
+        const auto audio = tools::readWav (path (wav));
+        if (!audio)
+        {
+            std::fprintf (stderr, "cannot read %s\n", path (wav).c_str());
+            return 1;
+        }
+        // --lead: digital silence first, as a session starts (the recordings begin on a note).
+        const auto leadSamples = static_cast<std::size_t> (lead * audio->sampleRate);
+        std::vector<float> x (leadSamples, 0.0f);
+        x.insert (x.end(), audio->mono.begin(), audio->mono.end());
+        for (auto& v : x)
+            v *= gain;
+        const auto truth = readTruth (path (ref));
+        auto notes = scoredNotes (x, audio->sampleRate, s, learned);
+        for (auto& n : notes)
+        {
+            n.sent.on -= static_cast<double> (leadSamples) / audio->sampleRate;
+            n.sent.off -= static_cast<double> (leadSamples) / audio->sampleRate;
+        }
+        std::vector<scoring::Sent> sent;
+        for (const auto& n : notes)
+            sent.push_back (n.sent);
+        const auto r = scoring::judge (truth, sent, tol);
+        seconds += static_cast<double> (x.size()) / audio->sampleRate;
+
+        const auto name = wav.substr (wav.find_last_of ('/') + 1);
+        FileRow row { name };
+        std::vector<int> splits (truth.size(), 0);
+        for (std::size_t k = 0; k < notes.size(); ++k)
+            if (r.extra[k] == scoring::Extra::split && r.nearest[k] >= 0)
+                ++splits[static_cast<std::size_t> (r.nearest[k])];
+        for (std::size_t i = 0; i < truth.size(); ++i)
+        {
+            const auto v = r.verdict[i];
+            const int k = r.servedBy[i];
+            const double onsetError =
+                k >= 0 ? notes[static_cast<std::size_t> (k)].sent.on - truth[i].on : 0.0;
+            const double length = r.lineEnd[i] - truth[i].on;
+            const int reg = truth[i].pitch < 51.5 ? 0 : (truth[i].pitch < 63.5 ? 1 : (truth[i].pitch < 75.5 ? 2 : 3));
+            const int len = length < 0.08 ? 0 : (length < 0.16 ? 1 : (length < 0.32 ? 2 : 3));
+            all.add (v, onsetError, tol.onTime);
+            byRegister[reg].add (v, onsetError, tol.onTime);
+            byLength[len].add (v, onsetError, tol.onTime);
+            byContext[static_cast<int> (r.context[i])].add (v, onsetError, tol.onTime);
+            double offErr = 0.0;
+            if (v == scoring::Verdict::chord)
+                ++chordNotes;
+            else
+                ++row.notes;
+            if (v == scoring::Verdict::right)
+            {
+                ++row.right;
+                const auto& n = notes[static_cast<std::size_t> (k)].sent;
+                offErr = n.off - r.lineEnd[i];
+                offError.push_back (offErr);
+                // The share of the note's time in the line during which its pitch sounds.
+                double sounded = 0.0;
+                for (const auto& m : notes)
+                    if (scoring::samePitch (m.sent.pitch, truth[i].pitch, tol))
+                        sounded += std::max (0.0, std::min (m.sent.off, r.lineEnd[i]) -
+                                                      std::max (m.sent.on, truth[i].on));
+                covered.push_back (length > 0.0 ? std::min (1.0, sounded / length) : 1.0);
+                if (splits[i] > 0)
+                    ++splitNotes;
+            }
+            if (dump.is_open())
+                dump << name << "\ttruth\t" << truth[i].on << "\t" << r.lineEnd[i] << "\t"
+                     << truth[i].pitch << "\t" << truth[i].string << "\t"
+                     << scoring::kVerdictNames[static_cast<int> (v)] << "\t" << 1000.0 * onsetError
+                     << "\t" << 1000.0 * offErr << "\t" << scoring::kContextNames[static_cast<int> (r.context[i])]
+                     << "\t"
+                     << (k >= 0 ? notes[static_cast<std::size_t> (k)].start : std::string ("-"))
+                     << "\t" << (k >= 0 ? notes[static_cast<std::size_t> (k)].end : std::string ("-"))
+                     << "\t" << (k >= 0 && notes[static_cast<std::size_t> (k)].early ? 1 : 0) << "\t"
+                     << (k >= 0 ? notes[static_cast<std::size_t> (k)].velocity : 0) << "\t"
+                     << (k >= 0 ? notes[static_cast<std::size_t> (k)].sent.pitch : 0) << "\n";
+        }
+        for (std::size_t k = 0; k < notes.size(); ++k)
+        {
+            const auto& n = notes[k];
+            const double length = n.sent.off - n.sent.on;
+            const auto kind = static_cast<int> (r.extra[k]);
+            ++sentNotes;
+            if (length < 0.04)
+                ++sentShort;
+            auto it = std::find_if (starts.begin(), starts.end(),
+                                    [&] (const Start& st) { return st.name == n.start; });
+            if (it == starts.end())
+            {
+                starts.push_back ({ n.start });
+                it = starts.end() - 1;
+            }
+            ++it->sent;
+            if (r.extra[k] != scoring::Extra::none)
+            {
+                ++extras[kind];
+                ++row.extra;
+                ++it->extra;
+                if (length < 0.04)
+                    ++extrasShort[kind];
+                extraLength[kind].push_back (length);
+            }
+            if (dump.is_open())
+                dump << name << "\tsent\t" << n.sent.on << "\t" << n.sent.off << "\t" << n.sent.pitch
+                     << "\t-1\t" << scoring::kExtraNames[kind] << "\t0\t0\t-\t" << n.start << "\t"
+                     << n.end << "\t" << (n.early ? 1 : 0) << "\t" << n.velocity << "\t"
+                     << (r.nearest[k] >= 0 ? truth[static_cast<std::size_t> (r.nearest[k])].pitch : 0.0)
+                     << "\n";
+        }
+        for (std::size_t c = 0; c < 6; ++c)
+            frames[c] += r.frames[c];
+        rows.push_back (row);
+    }
+
+    long extraTotal = 0;
+    for (int k = 1; k < scoring::kExtraKinds; ++k)
+        extraTotal += extras[k];
+    std::printf ("%zu recordings, %.0f s, %s%s; %ld reference notes scored, %ld in chords left out\n\n",
+                 rows.size(), seconds, s.timing == midi::Timing::steady ? "Steady" : "Fastest",
+                 s.mode == midi::Mode::notesAndBend ? ", Notes + Bend" : "", all.notes, chordNotes);
+    Tally::head ("Set");
+    all.print ("All");
+    std::printf ("\n");
+    Tally::head ("Register");
+    for (int k = 0; k < 4; ++k)
+        byRegister[k].print (registers[k]);
+    std::printf ("\n");
+    Tally::head ("Length in the line");
+    for (int k = 0; k < 4; ++k)
+        byLength[k].print (lengths[k]);
+    std::printf ("\n");
+    Tally::head ("How the note comes");
+    for (int k = 0; k < 3; ++k)
+        byContext[k].print (scoring::kContextNames[k]);
+
+    const double n = all.notes > 0 ? static_cast<double> (all.notes) : 1.0;
+    std::printf ("\nNotes sent: %ld (%.1f per 100 played), %ld under 40 ms (%.1f per 100). Extra: %ld "
+                 "(%.1f per 100). Right notes that also started a second time: %ld (%.1f per 100).\n\n",
+                 sentNotes, 100.0 * static_cast<double> (sentNotes) / n, sentShort,
+                 100.0 * static_cast<double> (sentShort) / n, extraTotal,
+                 100.0 * static_cast<double> (extraTotal) / n, splitNotes,
+                 100.0 * static_cast<double> (splitNotes) / n);
+    std::printf ("| Extra notes | Count | Per 100 played | Under 40 ms | Length p50 / p90 (ms) |\n"
+                 "|---|---:|---:|---:|---:|\n");
+    for (int k = 1; k < scoring::kExtraKinds; ++k)
+        std::printf ("| %s | %ld | %.1f | %ld | %.0f / %.0f |\n", scoring::kExtraNames[k], extras[k],
+                     100.0 * static_cast<double> (extras[k]) / n, extrasShort[k],
+                     1000.0 * scoring::quantile (extraLength[k], 0.5),
+                     1000.0 * scoring::quantile (extraLength[k], 0.9));
+    std::printf ("\n| Started by | Sent | Extra | Extra share |\n|---|---:|---:|---:|\n");
+    std::sort (starts.begin(), starts.end(),
+               [] (const Start& a, const Start& b) { return a.sent > b.sent || (a.sent == b.sent && a.name < b.name); });
+    for (const auto& st : starts)
+        std::printf ("| %s | %ld | %ld | %.1f %% |\n", st.name.c_str(), st.sent, st.extra,
+                     100.0 * static_cast<double> (st.extra) / static_cast<double> (st.sent));
+
+    long early = 0, late = 0;
+    for (double e : offError)
+    {
+        early += e < -0.05 ? 1 : 0;
+        late += e > 0.1 ? 1 : 0;
+    }
+    const double rn = offError.empty() ? 1.0 : static_cast<double> (offError.size());
+    std::printf ("\nNote-off against the note's end in the line (right notes): p5 %.0f, p50 %.0f, "
+                 "p95 %.0f ms; more than 50 ms early %.1f %%, more than 100 ms late %.1f %%. The "
+                 "note's pitch sounds for %.1f %% of its time in the median (p10 %.1f %%).\n",
+                 1000.0 * scoring::quantile (offError, 0.05), 1000.0 * scoring::quantile (offError, 0.5),
+                 1000.0 * scoring::quantile (offError, 0.95), 100.0 * static_cast<double> (early) / rn,
+                 100.0 * static_cast<double> (late) / rn, 100.0 * scoring::quantile (covered, 0.5),
+                 100.0 * scoring::quantile (covered, 0.1));
+    const double sounding = static_cast<double> (frames[0] + frames[1] + frames[2] + frames[4]);
+    std::printf ("\nTime (while the reference has a note): the note being played %.1f %%, an earlier "
+                 "note still ringing %.1f %%, another pitch %.1f %%, nothing %.1f %%. In the "
+                 "reference's rests a note sounds %.1f %% of the time.\n",
+                 100.0 * static_cast<double> (frames[0]) / sounding,
+                 100.0 * static_cast<double> (frames[1]) / sounding,
+                 100.0 * static_cast<double> (frames[2]) / sounding,
+                 100.0 * static_cast<double> (frames[4]) / sounding,
+                 100.0 * static_cast<double> (frames[3]) /
+                     std::max (1.0, static_cast<double> (frames[3] + frames[5])));
+    if (perFile)
+    {
+        std::stable_sort (rows.begin(), rows.end(), [] (const FileRow& a, const FileRow& b) {
+            return (a.notes - a.right + a.extra) * b.notes > (b.notes - b.right + b.extra) * a.notes;
+        });
+        std::printf ("\n| Recording | Notes | Right | Not right | Extra |\n|---|---:|---:|---:|---:|\n");
+        for (const auto& row : rows)
+            std::printf ("| %s | %ld | %.1f %% | %ld | %ld |\n", row.name.c_str(), row.notes,
+                         100.0 * static_cast<double> (row.right) /
+                             std::max (1.0, static_cast<double> (row.notes)),
+                         row.notes - row.right, row.extra);
+    }
+    return 0;
+}
+
 } // namespace
 
 int main (int argc, char** argv)
@@ -1253,6 +1661,8 @@ int main (int argc, char** argv)
         return latency (argc, argv);
     if (mode == "why")
         return why (argc, argv);
+    if (mode == "score")
+        return scoreMode (argc, argv);
     std::fprintf (stderr, "usage: sedef-midi-render wav|scenarios|bench ...\n");
     return 2;
 }

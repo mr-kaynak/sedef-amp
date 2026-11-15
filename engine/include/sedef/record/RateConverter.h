@@ -22,6 +22,14 @@ public:
     static constexpr int kZeroCrossings = 32;
     static constexpr double kKaiserBeta = 10.0;
     static constexpr double kPassband = 0.9;
+    /// The file rates re-amp reads: every rate audio hardware runs at. A header can claim any
+    /// rate, and the filter's length grows with the ratio (docs/robustness.md, section 5).
+    static constexpr double kMinRate = 8000.0;
+    static constexpr double kMaxRate = 384000.0;
+    static bool isSupportedRate (double rate) noexcept
+    {
+        return rate >= kMinRate && rate <= kMaxRate; // false for NaN
+    }
 
     using Write = std::function<bool (const float* const* planar, int frames)>;
     using Progress = std::function<bool (double fraction)>;

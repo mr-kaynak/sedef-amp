@@ -1012,8 +1012,11 @@ std::unique_ptr<ConvolutionKernel> CabSim::makeKernel (const float* ir, int leng
                                                        int /*maxBlockSize*/)
 {
     // The convolver has no latency at any block size, so the host block size does not matter.
-    if (ir == nullptr || length <= 0 || !(irSampleRate > 0.0) || !(targetRate > 0.0))
+    if (ir == nullptr || length <= 0 || !ConvolutionKernel::isSupportedIrRate (irSampleRate) ||
+        !(targetRate > 0.0) || !std::isfinite (targetRate))
         return nullptr;
+    // The work is bounded by the output: one second at targetRate, each sample a window of at
+    // most 68 x (larger rate / smaller rate) input taps, whatever the IR's length.
 
     const int maxLength =
         std::max (1, static_cast<int> (std::floor (targetRate * ConvolutionKernel::kMaxSeconds)));

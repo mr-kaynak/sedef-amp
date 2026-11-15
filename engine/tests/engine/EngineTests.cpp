@@ -19,7 +19,9 @@
 #include <catch2/generators/catch_generators.hpp>
 #include <cmath>
 #include <cstdlib>
+#include <limits>
 #include <new>
+#include <string>
 #include <vector>
 
 // -------------------------------------------------------------------------------------------------
@@ -290,7 +292,8 @@ TEST_CASE ("Switching Kelp, Urchin or Trench does not change the chain's latency
     CHECK (lagOf (render (ParamId::trenchEnabled, {})) == 0);
 }
 
-TEST_CASE ("Analysis ring is fed only while analysis is enabled; tuner mute silences", "[engine]")
+TEST_CASE ("Analysis ring is fed only while analysis is enabled; the open tuner's mute silences",
+           "[engine]")
 {
     Rig rig (48000.0, 128, 1, 2);
     test::fillSine (rig.in[0], 110.0, 48000.0, 0.3f);
@@ -301,6 +304,7 @@ TEST_CASE ("Analysis ring is fed only while analysis is enabled; tuner mute sile
     CHECK (rig.engine.analysisRing().available() == 0);
 
     rig.engine.setAnalysisEnabled (true);
+    rig.engine.setTunerOpen (true);
     p[ParamId::tunerMute] = 1.0f;
     rig.run (p, 8192, 4096);
     CHECK (rig.engine.analysisRing().available() == 8192);
@@ -1421,4 +1425,108 @@ TEST_CASE ("Deck: recording, dropping, re-amping and looping never allocate", "[
     CHECK (deck.recorder().latencyChanged());
     CHECK (deck.recorder().phase() == record::TakeRecorder::Phase::finished);
     CHECK (deck.reamp().endings() == 1);
+}
+
+// docs/robustness.md, section 2, rule 5 ---------------------------------------------------------
+
+namespace
+{
+/// Every pedal on the board and on, every post effect on: every parameter is in the signal path.
+ParamSnapshot everythingOn()
+{
+    auto p = ParamSnapshot::defaults();
+    for (const auto& pedal : kPedals)
+        p[pedal.enable] = 1.0f;
+    for (const auto id :
+         { ParamId::doublerEnabled, ParamId::driftEnabled, ParamId::fathomEnabled,
+           ParamId::eqLagoonEnabled, ParamId::eqReefEnabled, ParamId::eqAbyssEnabled,
+           ParamId::micBEnabled, ParamId::roomAEnabled, ParamId::roomBEnabled })
+        p[id] = 1.0f;
+    return p;
+}
+} // namespace
+
+TEST_CASE ("A non-finite parameter plays its default and poisons nothing", "[engine][robustness]")
+{
+    const float bad =
+        GENERATE (std::numeric_limits<float>::quiet_NaN(), std::numeric_limits<float>::infinity());
+    constexpr int kBlock = 256;
+    Rig rig (48000.0, kBlock, 1, 2);
+    test::fillSine (rig.in[0], 220.0, 48000.0, 0.3f);
+    rig.engine.setBoard (Board::legacy());
+    const auto good = everythingOn();
+    std::vector<std::string> poisoned;
+    for (std::size_t i = 0; i < kNumParams; ++i)
+    {
+        rig.engine.reset();
+        auto p = good;
+        p.values[i] = bad;
+        rig.run (p, 4 * kBlock);
+        rig.run (good, 16 * kBlock, 4 * kBlock); // and back to a finite value
+        bool finite = true;
+        for (int c = 0; c < 2; ++c)
+            for (int s = 0; s < 20 * kBlock; ++s)
+                finite = finite && std::isfinite (rig.out[c][static_cast<std::size_t> (s)]);
+        if (!finite)
+            poisoned.emplace_back (kParamSpecs[i].id);
+    }
+    std::string names;
+    for (const auto& n : poisoned)
+        names += n + " ";
+    INFO ("non-finite output from: " << names);
+    CHECK (poisoned.empty());
+}
+
+TEST_CASE ("Non-finite input samples are read as silence", "[engine][robustness]")
+{
+    const auto [ins, outs] = GENERATE (std::pair { 1, 2 }, std::pair { 2, 2 }, std::pair { 1, 1 });
+    constexpr int kBlock = 128;
+    Rig rig (48000.0, kBlock, ins, outs);
+    rig.engine.setBoard (Board::legacy());
+    for (int c = 0; c < ins; ++c)
+        test::fillSine (rig.in[c], 220.0, 48000.0, 0.3f);
+    // One block with a NaN, an infinity and a denormal-free garbage value in it.
+    for (int c = 0; c < ins; ++c)
+    {
+        rig.in[c][kBlock * 8 + 3] = std::numeric_limits<float>::quiet_NaN();
+        rig.in[c][kBlock * 8 + 70] = std::numeric_limits<float>::infinity();
+    }
+    // Everything on, and the plainest rig: no gate, the clean amp, the effects off.
+    auto plain = ParamSnapshot::defaults();
+    plain[ParamId::gateEnabled] = 0.0f;
+    const auto p = GENERATE_COPY (everythingOn(), plain);
+    rig.run (p, kBlock * 64);
+    for (int c = 0; c < outs; ++c)
+    {
+        CHECK (test::allFinite (rig.out[c]));
+        // The rig still plays after it.
+        CHECK (test::rms (rig.out[c].data() + kBlock * 48, kBlock * 16) > 1.0e-3f);
+    }
+}
+
+TEST_CASE ("The tuner's mute holds across a prepare", "[engine][robustness]")
+{
+    // docs/robustness.md, section 6: prepare() stops feeding the tracker until the plug-in starts
+    // it again; the player's mute must not wait for that.
+    Rig rig (48000.0, 128, 1, 2);
+    test::fillSine (rig.in[0], 110.0, 48000.0, 0.3f);
+    auto p = ParamSnapshot::defaults();
+    p[ParamId::gateEnabled] = 0.0f;
+    p[ParamId::tunerMute] = 1.0f;
+    rig.engine.setTunerOpen (true);
+    rig.engine.setAnalysisEnabled (true);
+    rig.run (p, 4096);
+    CHECK (test::rms (rig.out[0].data() + 2048, 2048) < 1.0e-6f);
+
+    // A device restart: the plug-in stops feeding the tracker and prepares again.
+    rig.engine.setAnalysisEnabled (false);
+    rig.engine.prepare (48000.0, 128, 1, 2);
+    rig.run (p, 4096, 4096);
+    CHECK (rig.engine.analysisRing().available() == 4096);        // fed before the prepare only
+    CHECK (test::rms (rig.out[0].data() + 4096, 4096) < 1.0e-6f); // silent from the first block
+
+    // Closing the tuner lets the guitar through again.
+    rig.engine.setTunerOpen (false);
+    rig.run (p, 8192, 8192);
+    CHECK (test::rms (rig.out[0].data() + 8192 + 4096, 4096) > 1.0e-3f);
 }

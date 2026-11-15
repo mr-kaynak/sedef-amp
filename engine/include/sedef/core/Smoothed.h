@@ -16,14 +16,25 @@ public:
         setCurrentAndTarget (target_);
     }
 
+    /// A non-finite value is ignored (docs/robustness.md, section 2, rule 5).
     void setCurrentAndTarget (float value) noexcept
     {
+        if (!std::isfinite (value))
+            return;
         current_ = target_ = value;
         countdown_ = 0;
     }
 
+    /// A non-finite target is ignored; a state that went non-finite takes the target at once.
     void setTarget (float value) noexcept
     {
+        if (!std::isfinite (value))
+            return;
+        if (!std::isfinite (current_))
+        {
+            setCurrentAndTarget (value);
+            return;
+        }
         if (value == target_)
             return;
         if (steps_ <= 0)
@@ -84,8 +95,21 @@ public:
         current_ = target_;
     }
 
-    void setCurrentAndTarget (float value) noexcept { current_ = target_ = value; }
-    void setTarget (float value) noexcept { target_ = value; }
+    /// A non-finite value is ignored (docs/robustness.md, section 2, rule 5).
+    void setCurrentAndTarget (float value) noexcept
+    {
+        if (std::isfinite (value))
+            current_ = target_ = value;
+    }
+    /// A non-finite target is ignored; a state that went non-finite takes the target at once.
+    void setTarget (float value) noexcept
+    {
+        if (!std::isfinite (value))
+            return;
+        target_ = value;
+        if (!std::isfinite (current_))
+            current_ = value;
+    }
 
     float next() noexcept
     {

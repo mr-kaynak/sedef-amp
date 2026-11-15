@@ -335,11 +335,12 @@ struct Score
     double ghostsPer20() const { return chords > 0 ? 20.0 * ghosts / chords : 0.0; }
     static double fOf (long tp, long fp, long fn)
     {
-        return 2 * tp + fp + fn > 0 ? 2.0 * tp / (2.0 * tp + fp + fn) : 1.0;
+        const auto t = static_cast<double> (tp), all = static_cast<double> (2 * tp + fp + fn);
+        return all > 0.0 ? 2.0 * t / all : 1.0;
     }
     static double pOf (long tp, long fp)
     {
-        return tp + fp > 0 ? static_cast<double> (tp) / (tp + fp) : 1.0;
+        return tp + fp > 0 ? static_cast<double> (tp) / static_cast<double> (tp + fp) : 1.0;
     }
     double median() const { return test::midi::percentile (latencyMs, 0.5); }
     double p90() const { return test::midi::percentile (latencyMs, 0.9); }
@@ -706,10 +707,11 @@ int main (int argc, char** argv)
             return 1;
         }
         const auto r = run (audio->mono, audio->sampleRate, o.cfg);
-        std::printf ("%s: %.1f s at %.0f Hz, %zu notes, %.1f %% of real time\n",
-                     o.positional[0].c_str(), audio->mono.size() / audio->sampleRate,
-                     audio->sampleRate, r.notes.size(),
-                     100.0 * r.seconds / (audio->mono.size() / audio->sampleRate));
+        std::printf (
+            "%s: %.1f s at %.0f Hz, %zu notes, %.1f %% of real time\n", o.positional[0].c_str(),
+            static_cast<double> (audio->mono.size()) / audio->sampleRate, audio->sampleRate,
+            r.notes.size(),
+            100.0 * r.seconds / (static_cast<double> (audio->mono.size()) / audio->sampleRate));
         double group = -1.0;
         for (const auto& n : r.notes)
         {
@@ -759,7 +761,7 @@ int main (int argc, char** argv)
                 continue;
             }
             const auto r = run (audio->mono, audio->sampleRate, o.cfg);
-            audioSeconds += audio->mono.size() / audio->sampleRate;
+            audioSeconds += static_cast<double> (audio->mono.size()) / audio->sampleRate;
             cpuSeconds += r.seconds;
             const auto refs = readTruth (dir + truth);
             std::string kind = wav.substr (wav.find_last_of ('/') + 1);
@@ -817,7 +819,8 @@ int main (int argc, char** argv)
             poly::Estimator est (audio->sampleRate, o.cfg);
             std::vector<poly::NoteEvent> events;
             std::size_t at = 0;
-            for (double t = 0.2; t < audio->mono.size() / audio->sampleRate; t += 0.05)
+            for (double t = 0.2; t < static_cast<double> (audio->mono.size()) / audio->sampleRate;
+                 t += 0.05)
             {
                 bool is[128] = {}, isClass[12] = {};
                 int count = 0;
@@ -929,11 +932,14 @@ int main (int argc, char** argv)
             }
         }
         std::printf ("%ld settled frames\n", frames);
-        std::printf ("root and quality (major, minor, fifth) on the %ld frames that are one: %.3f "
-                     "right, root alone %.3f\n",
-                     chordFrames,
-                     chordFrames > 0 ? static_cast<double> (chordRight) / chordFrames : 0.0,
-                     chordFrames > 0 ? static_cast<double> (rootRight) / chordFrames : 0.0);
+        std::printf (
+            "root and quality (major, minor, fifth) on the %ld frames that are one: %.3f "
+            "right, root alone %.3f\n",
+            chordFrames,
+            chordFrames > 0 ? static_cast<double> (chordRight) / static_cast<double> (chordFrames)
+                            : 0.0,
+            chordFrames > 0 ? static_cast<double> (rootRight) / static_cast<double> (chordFrames)
+                            : 0.0);
         static const char* kinds[3] = { "major", "minor", "fifth" };
         for (int a = 0; a < 3; ++a)
             std::printf ("  played %s, root right: read major %ld, minor %ld, fifth %ld\n",
@@ -1121,7 +1127,8 @@ int main (int argc, char** argv)
             poly::Estimator est (48000.0, o.cfg);
             std::printf ("window %.0f ms, block %d: %.2f %% of one core (%d atoms, %d bins, "
                          "analysis at %.0f Hz)\n",
-                         1000.0 * o.cfg.window, block, 100.0 * best / (set.signal.size() / set.fs),
+                         1000.0 * o.cfg.window, block,
+                         100.0 * best / (static_cast<double> (set.signal.size()) / set.fs),
                          est.atoms(), est.bins(), est.analysisRate());
         }
         return 0;

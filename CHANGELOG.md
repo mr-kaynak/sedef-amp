@@ -6,6 +6,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.10.3] - 2026-11-15
+
+Sedef MIDI follows real playing better, the looper works from footswitches, and a round of fixes
+from a full read of the code.
+
 ### Added
 
 - **Footswitches for the looper.** Right-click the looper's big button, Stop, Undo or Clear (or
@@ -714,7 +719,8 @@ The first public build: a complete guitar rig with a tuner and an intonation wor
 - Every CI build is checked with pluginval (strictness 8), clap-validator and auval, and a smoke
   test opens the editor in a real host and WebView on every OS.
 
-[Unreleased]: https://github.com/mr-kaynak/sedef-amp/compare/v0.10.2...HEAD
+[Unreleased]: https://github.com/mr-kaynak/sedef-amp/compare/v0.10.3...HEAD
+[0.10.3]: https://github.com/mr-kaynak/sedef-amp/compare/v0.10.2...v0.10.3
 [0.10.2]: https://github.com/mr-kaynak/sedef-amp/compare/v0.10.1...v0.10.2
 [0.10.1]: https://github.com/mr-kaynak/sedef-amp/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.9.0...v0.10.0

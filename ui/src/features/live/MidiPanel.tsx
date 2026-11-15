@@ -375,7 +375,7 @@ function BindingRow({
             Double tap stops
           </label>
           <span className={styles.tapNote} id={noteId}>
-            Two presses within {DOUBLE_TAP_S} s stop the looper and undo the first
+            Two presses within {DOUBLE_TAP_S} s act as Stop, as if the first never happened
           </span>
         </div>
       )}

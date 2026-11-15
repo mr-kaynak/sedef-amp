@@ -178,7 +178,7 @@ describe('the looper’s footswitches', () => {
     const option = within(row).getByRole('checkbox', { name: 'Double tap stops' });
     expect(option).not.toBeChecked();
     expect(option).toHaveAccessibleDescription(
-      'Two presses within 0.4 s stop the looper and undo the first',
+      'Two presses within 0.4 s act as Stop, as if the first never happened',
     );
 
     // Off: two quick presses are two presses (an overdub begins and ends).

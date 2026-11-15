@@ -310,32 +310,62 @@ describe('MicStrip', () => {
 
 describe('MicStrip with a missing IR', () => {
   let h: Harness;
-  beforeEach(async () => {
-    // A session whose IR file can't be found (docs/robustness.md, section 4).
+  const start = async (reason?: string) => {
+    // A session whose IR file can't be loaded (docs/robustness.md, section 4).
     h = await setupMock({
       initialPresetId: null,
-      missingIr: { mic: 0, cab: 0, fileName: 'Cab.wav', path: '/Volumes/Ext/IRs/Cab.wav' },
+      missingIr: {
+        mic: 0,
+        cab: 0,
+        fileName: 'Cab.wav',
+        path: '/Volumes/Ext/IRs/Cab.wav',
+        ...(reason ? { reason } : {}),
+      },
     });
-  });
+    set('micACab1Type', 10);
+    render(<MicStrip mic="A" cab={0} />);
+  };
   afterEach(() => h.dispose());
 
   it('says which file is missing and where it was, and locates it', async () => {
-    set('micACab1Type', 10);
-    render(<MicStrip mic="A" cab={0} />);
+    await start();
     expect(screen.getByText('Cab.wav is missing')).toBeInTheDocument();
     expect(
-      screen.getByText(/Not found at \/Volumes\/Ext\/IRs\/Cab\.wav\. Dyn Classic plays until/),
+      screen.getByText(
+        'Sedef can’t find it in /Volumes/Ext/IRs. Dyn Classic plays until you locate it.',
+      ),
     ).toBeInTheDocument();
+    // No IR plays, so nothing holds the placement: the note on it gives way.
+    expect(screen.queryByText(/holds its own position and distance/)).toBeNull();
     expect(screen.queryByText('No impulse response loaded')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Locate…' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Locate file…' }));
     await act(flush);
     expect(screen.queryByText('Cab.wav is missing')).toBeNull();
     expect(screen.getByRole('button', { name: 'Replace…' })).toBeInTheDocument();
+    expect(screen.getByText(/holds its own position and distance/)).toBeInTheDocument();
+  });
+
+  it('says why a file that is there was refused, in a sentence', async () => {
+    await start('Unsupported audio file');
+    expect(screen.getByText('Cab.wav can’t be loaded')).toBeInTheDocument();
+    expect(
+      screen.getByText('Unsupported audio file. Dyn Classic plays until you load another.'),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Load…' })).toBeInTheDocument();
+  });
+
+  it('keeps a reason that is already a sentence as it is', async () => {
+    await start('Cab.wav says it was recorded at 1 Hz. Sedef reads IRs recorded at 8 to 384 kHz.');
+    expect(
+      screen.getByText(
+        'Cab.wav says it was recorded at 1 Hz. Sedef reads IRs recorded at 8 to 384 kHz. ' +
+          'Dyn Classic plays until you load another.',
+      ),
+    ).toBeInTheDocument();
   });
 
   it('can forget the missing file', async () => {
-    set('micACab1Type', 10);
-    render(<MicStrip mic="A" cab={0} />);
+    await start();
     fireEvent.click(screen.getByRole('button', { name: 'Clear' }));
     await act(flush);
     expect(screen.queryByText('Cab.wav is missing')).toBeNull();

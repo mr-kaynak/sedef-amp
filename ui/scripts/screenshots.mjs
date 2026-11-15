@@ -81,6 +81,10 @@ const SHOTS = {
     query:
       'section=cab&preset=mariana&set=micAPosition:0.35,micAAzimuth:40,micAOffAxis:30,micBPosition:0.8,micBAzimuth:-150,micBDistance:0.45',
   },
+  // A session restored while its IR's drive is unplugged (docs/robustness.md, section 4).
+  'cab-ir-missing': {
+    query: 'section=cab&set=ampCabLink:0,cabModel:0,micACab1Type:10&ir=missing',
+  },
   fx: { query: 'section=fx&preset=soft-focus&set=doublerEnabled:1' },
   tuner: {
     query: 'overlay=tuner',

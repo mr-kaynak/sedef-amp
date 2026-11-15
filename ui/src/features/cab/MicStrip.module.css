@@ -96,39 +96,32 @@
   color: var(--bone-3);
 }
 
-/* A session's IR that couldn't be loaded: two lines, the path wrapped rather than cut, so the
-   player sees where it was. */
+/* A session's IR that couldn't be loaded: the row names the file, the line under it says why. */
 .ir[data-missing] {
-  align-items: flex-start;
   border-color: rgb(233 199 125 / 0.35);
 }
 
 .ir[data-missing] > svg {
   flex: none;
-  margin-top: 2px;
   color: var(--amber);
 }
 
 .irMissing {
-  display: flex;
   flex: 1;
-  flex-direction: column;
-  gap: 2px;
   min-width: 0;
-}
-
-.irMissingTitle {
   color: var(--amber);
   font-size: var(--t-12);
   font-weight: 600;
   overflow-wrap: anywhere;
 }
 
-.irMissingText {
+.irWhy {
+  margin: -4px 0 0;
   color: var(--bone-2);
   font-size: var(--t-11);
   line-height: 1.45;
   overflow-wrap: anywhere;
+  text-wrap: pretty;
 }
 
 .irNote {

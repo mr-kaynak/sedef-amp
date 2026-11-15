@@ -86,7 +86,7 @@ export interface MockOptions {
    */
   metronomePattern?: number[];
   /** A session's IR that can't be found, as the plug-in reports it (demos, screenshots, tests). */
-  missingIr?: { mic: 0 | 1; cab: 0 | 1 | 2; fileName: string; path: string };
+  missingIr?: { mic: 0 | 1; cab: 0 | 1 | 2; fileName: string; path: string; reason?: string };
   /**
    * Delays each native call's answer and each preset broadcast by a random 0..maxMs (seeded).
    * Calls still run in the order they were made, as in the plugin, but their answers can arrive
@@ -229,12 +229,10 @@ export class MockBackend implements Backend {
     this.uiState = options.uiState ?? this.loadPersistedUiState();
     this.pattern = sanitizeSteps(options.metronomePattern ?? this.uiState?.metronomeSteps);
     if (options.missingIr) {
-      const { mic, cab, fileName, path } = options.missingIr;
+      const { mic, cab, fileName, path, reason = 'The IR file was not found' } = options.missingIr;
       this.ir = {
         slots: this.ir.slots.map((s) =>
-          s.mic === mic && s.cab === cab
-            ? { ...s, missing: { fileName, path, reason: 'The IR file was not found' } }
-            : s,
+          s.mic === mic && s.cab === cab ? { ...s, missing: { fileName, path, reason } } : s,
         ),
       };
     }

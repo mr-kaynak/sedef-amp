@@ -165,8 +165,12 @@ name in one process exclude each other).
 file can't be read (a drive not mounted, the project opened on another computer) keeps the
 slot's path as a **missing** reference: the slot loads nothing (the mic plays Dyn Classic, as an
 empty Custom IR slot does), the next save writes the same path, and the Mic strip says
-"Cab.wav is missing" with where it was and a **Locate…** button that loads a file into the slot.
-When the file is back, opening the session loads it. Sessions saved before 0.10.3 load as they
+"Cab.wav is missing", the folder Sedef looked in, that Dyn Classic plays meanwhile, and a
+**Locate file…** button that loads a file into the slot. A file that is there but refused (not
+audio, or refused in section 5) says "Cab.wav can’t be loaded" and why instead, with **Load…**.
+That line takes the place of the note on the IR's placement, so the strip grows by a line or
+two at most; past that (both mics, long folders) the mic column scrolls rather than run under
+the status bar. When the file is back, opening the session loads it. Sessions saved before 0.10.3 load as they
 did; only the missing case changes.
 
 The path is kept as text and never opened unless it passes the same checks as before (absolute,

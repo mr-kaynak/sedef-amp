@@ -35,6 +35,16 @@ export async function createBackend(flags: DemoFlags): Promise<Backend> {
     ...(flags.recorder ? { recorder: flags.recorder } : {}),
     liveDemo: flags.midi,
     ...(flags.looper ? { looper: flags.looper } : {}),
+    ...(flags.irMissing
+      ? {
+          missingIr: {
+            mic: 0,
+            cab: 0,
+            fileName: 'Closed back, close.wav',
+            path: '/Volumes/Studio SSD/Impulse responses/Closed back, close.wav',
+          },
+        }
+      : {}),
   });
 }
 

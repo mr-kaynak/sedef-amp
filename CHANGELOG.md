@@ -6,6 +6,39 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **Changing Settings > Latency in a CLAP host can't crash or garble the sound any more.** The
+  engine was prepared again while the host's audio thread could still be inside it; now the audio
+  is held out first (a few milliseconds of silence, as before in VST3, AU and the standalone app).
+- **A broken value in a session or from host automation no longer silences the rig.** A
+  parameter saved as "not a number" played as noise or silence and kept the filters stuck after
+  the value was fixed; it now plays the parameter's default, is saved as the default, and the rig
+  recovers from a bad value or a bad input sample by itself. A preset value that is empty or not a
+  number loads as the default instead of 0.
+- **A session keeps its custom IR when the file isn't there.** Opening a project while the drive
+  with its IR is unplugged, and saving it, used to drop the IR for good. The Mic strip now says
+  which file is missing and where it was, with Locate file… to find it, and the session keeps asking
+  for it until it loads.
+- **Forgetting a MIDI binding while learning another one no longer changes a third.** The learnt
+  switch mode used to land on whichever binding moved into its place.
+- **A damaged session can't open the window at zero size**, and no number read from a session,
+  preset, the MIDI setup or the update check can be out of range or not a number any more.
+- **An IR file that claims an absurd sample rate is refused at once** with the reason ("…recorded
+  at 8 to 384 kHz"), instead of keeping Sedef busy for minutes; loading an IR no longer holds up
+  the audio settings or the rest of the plug-in while it is prepared.
+- **Re-amp says when a file is too long to convert** for the device's rate (its copy would pass a
+  WAV file's 4 GB limit), at once, instead of converting for minutes and then blaming disk space.
+- **Two Sedef instances in one host no longer lose each other's recent captures, favourites or
+  MIDI bindings** when both change them within a second.
+- **A session saved right after editing the metronome's beat pattern reopens with that pattern**,
+  not the one from half a second before.
+- **A dropped .nam file is kept exactly as it is on disk**, so it is recognised as the same
+  capture when loaded from its folder later.
+- **With the tuner open and muted, a device restart stays silent**; the guitar used to come
+  through for a moment.
+- The Recorder's hint says the Output file has the drums in it too when they play.
+
 ## [0.10.2] - 2026-11-15
 
 Captures from the trainer's newest version (A2) load.

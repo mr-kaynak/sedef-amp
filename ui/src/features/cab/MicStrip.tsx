@@ -11,11 +11,23 @@ import styles from './MicStrip.module.css';
 
 const NOT_FOUND = 'The IR file was not found';
 
+/** The folder a path names, for either separator. */
+function folderOf(path: string): string {
+  const cut = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
+  return cut > 0 ? path.slice(0, cut) : path;
+}
+
+/** A reason from the plug-in as a sentence: some end with a full stop, some don't. */
+const asSentence = (text: string) => (/[.!?]$/.test(text) ? text : `${text}.`);
+
+/** The custom IR's row and the line under it. */
 function IrSlot({ mic, cab }: { mic: 0 | 1; cab: number }) {
   const slot = useAppStore((s) => s.ir.slots.find((x) => x.mic === mic && x.cab === cab));
-  // A session's IR that couldn't be loaded keeps its path; the slot says where it was and
-  // offers to find it (docs/robustness.md, section 4).
+  // A session's IR that couldn't be loaded keeps its path: the row says which file, the line
+  // under it says why and what plays meanwhile (docs/robustness.md, section 4). It takes the
+  // place of the note on placement, which holds only while an IR plays.
   const missing = slot?.name ? null : (slot?.missing ?? null);
+  const notFound = missing?.reason === NOT_FOUND;
   const load = async () => {
     const ir = await invoke('sedef_ir_load', mic, cab);
     if (ir) useAppStore.setState({ ir });
@@ -25,49 +37,56 @@ function IrSlot({ mic, cab }: { mic: 0 | 1; cab: number }) {
     if (ir) useAppStore.setState({ ir });
   };
   return (
-    <div className={styles.ir} data-missing={missing ? '' : undefined}>
-      <Icon name={missing ? 'info' : 'file'} size={14} />
-      {missing ? (
-        <span className={styles.irMissing}>
-          <span className={styles.irMissingTitle}>{missing.fileName} is missing</span>
-          <span className={styles.irMissingText}>
-            {missing.reason === NOT_FOUND
-              ? `Not found at ${missing.path}.`
-              : `${missing.reason}: ${missing.path}.`}{' '}
-            Dyn Classic plays until you locate it.
+    <>
+      <div className={styles.ir} data-missing={missing ? '' : undefined}>
+        <Icon name={missing ? 'info' : 'file'} size={14} />
+        {missing ? (
+          <span className={styles.irMissing}>
+            {missing.fileName} {notFound ? 'is missing' : 'can’t be loaded'}
           </span>
-        </span>
-      ) : (
-        <span className={styles.irName}>
-          {slot?.name ? (
-            <>
-              {slot.name}
-              {slot.durationMs ? (
-                <span className={styles.irMeta}> {Math.round(slot.durationMs)} ms</span>
-              ) : null}
-            </>
-          ) : (
-            <span className={styles.irEmpty}>No impulse response loaded</span>
-          )}
-        </span>
-      )}
-      <button
-        type="button"
-        className={`${buttons.solid} ${buttons.small}`}
-        onClick={() => void load()}
-      >
-        {missing ? 'Locate…' : slot?.name ? 'Replace…' : 'Load…'}
-      </button>
-      {(slot?.name || missing) && (
+        ) : (
+          <span className={styles.irName}>
+            {slot?.name ? (
+              <>
+                {slot.name}
+                {slot.durationMs ? (
+                  <span className={styles.irMeta}> {Math.round(slot.durationMs)} ms</span>
+                ) : null}
+              </>
+            ) : (
+              <span className={styles.irEmpty}>No impulse response loaded</span>
+            )}
+          </span>
+        )}
         <button
           type="button"
-          className={`${buttons.ghost} ${buttons.small}`}
-          onClick={() => void clear()}
+          className={`${buttons.solid} ${buttons.small}`}
+          onClick={() => void load()}
         >
-          Clear
+          {notFound ? 'Locate file…' : slot?.name ? 'Replace…' : 'Load…'}
         </button>
+        {(slot?.name || missing) && (
+          <button
+            type="button"
+            className={`${buttons.ghost} ${buttons.small}`}
+            onClick={() => void clear()}
+          >
+            Clear
+          </button>
+        )}
+      </div>
+      {missing ? (
+        <p className={styles.irWhy}>
+          {notFound
+            ? `Sedef can’t find it in ${folderOf(missing.path)}. Dyn Classic plays until you locate it.`
+            : `${asSentence(missing.reason)} Dyn Classic plays until you load another.`}
+        </p>
+      ) : (
+        <p className={styles.irNote}>
+          The impulse response holds its own position and distance. Off-axis still turns the mic.
+        </p>
       )}
-    </div>
+    </>
   );
 }
 
@@ -95,14 +114,7 @@ export function MicStrip({ mic, cab }: { mic: 'A' | 'B'; cab: number }) {
         <Toggle param={`mic${mic}Phase`} label="Invert phase" />
       </header>
       <ChoiceSelect param={typeId} ariaLabel={`Mic ${mic} type`} className={styles.type} />
-      {isCustom && (
-        <>
-          <IrSlot mic={mic === 'A' ? 0 : 1} cab={cab} />
-          <p className={styles.irNote}>
-            The impulse response holds its own position and distance. Off-axis still turns the mic.
-          </p>
-        </>
-      )}
+      {isCustom && <IrSlot mic={mic === 'A' ? 0 : 1} cab={cab} />}
       <div className={styles.knobs}>
         <Knob param={`mic${mic}Position`} label="Position" size="sm" disabled={isCustom} />
         <Knob param={`mic${mic}Distance`} label="Distance" size="sm" disabled={isCustom} />

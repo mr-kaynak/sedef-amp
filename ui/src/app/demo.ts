@@ -20,6 +20,8 @@
 //                                    playing|overdubbing|stopped (docs/looper.md)
 //   ?recorder=recording              the recorder or re-amp in a state: ready|recording|saved|
 //                                    dropouts|error|reamp|converting|reamp-empty (docs/recorder.md)
+//   ?ir=missing                      Mic A's IR on the first cab is a session's file that can't
+//                                    be found (docs/robustness.md, section 4)
 import { isLooperDemo, type LooperDemo } from '../bridge/mock/looperSim';
 import { isRecorderDemo, type RecorderDemo } from '../bridge/mock/recorderSim';
 import { isInterfaceLevel, type InterfaceLevel } from '../bridge/mock/telemetrySim';
@@ -45,6 +47,8 @@ export interface DemoFlags {
   /** Seed the live layer with example bindings and scenes (docs/live.md). */
   midi: boolean;
   looper: LooperDemo | null;
+  /** Mic A's IR on the first cab missing, as after a session restored without its file. */
+  irMissing: boolean;
 }
 
 function parseOverrides(text: string | null): Record<string, number> {
@@ -95,5 +99,6 @@ export function readDemoFlags(
     input: isInterfaceLevel(q.get('input')) ? (q.get('input') as InterfaceLevel) : null,
     recorder: isRecorderDemo(q.get('recorder')) ? (q.get('recorder') as RecorderDemo) : null,
     looper: isLooperDemo(q.get('looper')) ? (q.get('looper') as LooperDemo) : null,
+    irMissing: q.get('ir') === 'missing',
   };
 }

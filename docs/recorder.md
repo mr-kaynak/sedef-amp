@@ -213,6 +213,16 @@ the file's own rate and "converted for this device". Why not refuse:
 
 The temporary file is deleted when another file loads and when the app quits.
 
+Two files are refused before any work, with the reason in the panel
+([robustness.md](robustness.md#5-files-that-lie-about-themselves)):
+
+- **One whose converted copy would pass 4 GB**, the limit of a WAV file's 32-bit sizes:
+  `frames × device rate / file rate` is checked against `WavFloatWriter::maxFrames` first (3.1
+  hours of stereo at 48 kHz). The panel says how long the file is and offers the way round: set
+  the device to the file's rate, and it plays without converting.
+- **One whose header claims a rate outside 8–384 kHz** (`RateConverter::isSupportedRate`): the
+  conversion filter grows with the ratio.
+
 ### Playing
 
 The reader thread decodes the file and keeps a FIFO of frames at the device's rate topped up

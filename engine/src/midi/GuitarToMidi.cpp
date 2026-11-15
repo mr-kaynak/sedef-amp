@@ -1538,8 +1538,14 @@ void GuitarToMidi::decoderHop() noexcept
     decoderPicks_ = tracker_.pickCount();
     decoderLevels_[static_cast<std::size_t> (decoderLevelAt_)] = levelDb_;
     decoderLevelAt_ = (decoderLevelAt_ + 1) % size;
+    // A pick the detector saw that has not started its note yet is an attack still to be
+    // answered, however long the tracker takes to read the note under what still rings. (A
+    // pick seen only as a lost period is not: half of the notes those start on real playing
+    // are notes nobody played.)
+    const bool waiting = pickFresh_ && pickKind_ == PickKind::detector && !pickWeakSource_ &&
+                         now_ - pickAt_ <= pickWindowSamples_;
     decoder_.endHop (levelDb_ - quietDb(),
-                     static_cast<double> (now_ - decoderAttackAt_) / sampleRate_);
+                     waiting ? 0.0 : static_cast<double> (now_ - decoderAttackAt_) / sampleRate_);
     decoderAttack_ = std::max (0, decoderAttack_ - 1);
     decoderNote_ = decoder_.now();
 }

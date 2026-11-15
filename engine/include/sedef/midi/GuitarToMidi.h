@@ -112,7 +112,11 @@ struct Settings
 ///   level of each millisecond): it falls at once to anything quieter and rises
 ///   kNoiseRiseDbPerSecond while no note sounds; for kWarmupSeconds after reset() it is simply
 ///   the level. The gate sits kNoiseMarginDb over the floor, never under kAutoGateFloorDb
-///   (digital silence). Manual uses Settings::gateDb as it is. Notes start only above the gate
+///   (digital silence). When Sedef MIDI starts while a note sounds, the warm-up takes that
+///   note for the noise; noise does not change note, so once the tracker has surely named two
+///   different notes (kPlayingSeconds each, not an octave apart) that the floor kept from
+///   starting, the floor drops kFirstNoteMarginDb + kNoiseMarginDb under the level. Manual uses
+///   Settings::gateDb as it is. Notes start only above the gate
 ///   and end kOffHysteresisDb under it; the tracker's detector hears picks from just under it.
 /// - **The player's level.** The average attack (dB) of the picks that started notes, over about
 ///   the latest kPlayingNotes (each weighs the same until there are that many, then each new one
@@ -392,6 +396,8 @@ public:
     static constexpr float kFirstNoteMarginDb = 30.0f;
     static constexpr float kNoiseRiseDbPerSecond = 6.0f;
     static constexpr double kWarmupSeconds = 0.05;
+    /// A note read this long under the floor's bar counts towards "this is playing, not noise".
+    static constexpr double kPlayingSeconds = 0.03;
     static constexpr double kTouchWaitSeconds = 0.06;
     static constexpr float kTouchBelowDb = 10.0f;
     // The early reading (Fastest): what a period may leave unexplained of the signal since
@@ -695,6 +701,8 @@ private:
     // The gate.
     float noiseDb_ = kAutoGateFloorDb, gateLevelDb_ = kAutoGateFloorDb, noiseRisePerMs_ = 0.006f;
     std::int64_t warmupSamples_ = 2400;
+    int playingSamples_ = 1440;
+    int blockedNote_ = -1;       ///< a note read surely while the floor kept notes from starting
     std::int64_t noteDue_ = 0;   ///< when the sounding note's note-on goes out
     std::int64_t noteStart_ = 0; ///< the sounding note's pick (or legato move)
 

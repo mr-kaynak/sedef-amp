@@ -2,7 +2,7 @@
 // The looper (docs/looper.md): one big button that records, closes and plays, overdubs and plays,
 // with the loop's ring round it and its state beside it; Stop, Undo, Redo, Clear; level,
 // feedback and count-in. Space anywhere in it is the big button, L everywhere (useShortcuts).
-import type { KeyboardEvent } from 'react';
+import type { KeyboardEvent, ReactNode } from 'react';
 import { useEffect } from 'react';
 import buttons from '../../controls/Button.module.css';
 import { Icon, ICON_STROKE_LABEL, type IconName } from '../../controls/Icon';
@@ -31,6 +31,45 @@ function onPanelKey(e: KeyboardEvent<HTMLDivElement>, disabled: boolean): void {
   if (target.closest('button, input, select, textarea, [contenteditable="true"]')) return;
   e.preventDefault();
   if (!disabled) looperPress('main');
+}
+
+/**
+ * Stop, Undo, Redo, Clear. Marked unavailable (aria-disabled) rather than disabled, so each keeps
+ * its place in the tab order and its menu (right-click, Shift+F10): a footswitch for Stop, Undo
+ * or Clear can be learnt before there is anything to stop, undo or clear (docs/live.md §4.5).
+ */
+function LoopAction({
+  enabled,
+  learn,
+  icon,
+  filled = false,
+  label,
+  onPress,
+  children,
+}: {
+  enabled: boolean;
+  learn?: string;
+  icon: IconName;
+  filled?: boolean;
+  label?: string;
+  onPress: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      className={`${buttons.ghost} ${buttons.lead}`}
+      aria-disabled={!enabled || undefined}
+      data-learn={learn}
+      aria-label={label}
+      onClick={() => {
+        if (enabled) onPress();
+      }}
+    >
+      <Icon name={icon} size={14} filled={filled} stroke={ICON_STROKE_LABEL} />
+      {children}
+    </button>
+  );
 }
 
 export function LooperPanel() {
@@ -96,47 +135,40 @@ export function LooperPanel() {
       </div>
 
       <div className={styles.actions} role="group" aria-label="Loop">
-        <button
-          type="button"
-          className={`${buttons.ghost} ${buttons.lead}`}
-          disabled={!canStop}
-          data-learn="looper:stop"
-          onClick={() => looperPress('stop')}
+        <LoopAction
+          enabled={canStop}
+          learn="looper:stop"
+          icon="stop"
+          filled
+          onPress={() => looperPress('stop')}
         >
-          <Icon name="stop" size={14} filled stroke={ICON_STROKE_LABEL} />
           Stop
-        </button>
-        <button
-          type="button"
-          className={`${buttons.ghost} ${buttons.lead}`}
-          disabled={!t.canUndo}
-          data-learn="looper:undo"
-          aria-label={t.undoIsClear ? 'Undo clear' : 'Undo the last overdub'}
-          onClick={() => looperPress('undo')}
+        </LoopAction>
+        <LoopAction
+          enabled={t.canUndo}
+          learn="looper:undo"
+          icon="undo"
+          label={t.undoIsClear ? 'Undo clear' : 'Undo the last overdub'}
+          onPress={() => looperPress('undo')}
         >
-          <Icon name="undo" size={14} stroke={ICON_STROKE_LABEL} />
           Undo
-        </button>
-        <button
-          type="button"
-          className={`${buttons.ghost} ${buttons.lead}`}
-          disabled={!t.canRedo}
-          aria-label={t.undoIsClear ? 'Redo clear' : 'Redo the last overdub'}
-          onClick={() => looperPress('redo')}
+        </LoopAction>
+        <LoopAction
+          enabled={t.canRedo}
+          icon="redo"
+          label={t.undoIsClear ? 'Redo clear' : 'Redo the last overdub'}
+          onPress={() => looperPress('redo')}
         >
-          <Icon name="redo" size={14} stroke={ICON_STROKE_LABEL} />
           Redo
-        </button>
-        <button
-          type="button"
-          className={`${buttons.ghost} ${buttons.lead}`}
-          disabled={!canClear}
-          data-learn="looper:clear"
-          onClick={() => looperPress('clear')}
+        </LoopAction>
+        <LoopAction
+          enabled={canClear}
+          learn="looper:clear"
+          icon="close"
+          onPress={() => looperPress('clear')}
         >
-          <Icon name="close" size={14} stroke={ICON_STROKE_LABEL} />
           Clear
-        </button>
+        </LoopAction>
       </div>
 
       <div className={styles.settings}>

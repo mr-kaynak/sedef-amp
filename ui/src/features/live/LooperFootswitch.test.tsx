@@ -81,6 +81,52 @@ describe('the looper’s footswitches', () => {
     expect(within(dialog).getByText('Recording', { selector: 'p' })).toBeInTheDocument();
   });
 
+  it('learn Stop, Undo and Clear from their menu by keyboard, before the first take', async () => {
+    h = await setupMock({ initialPresetId: null });
+    render(<Rig />);
+    await click(screen.getByRole('button', { name: 'Looper' }));
+    const dialog = screen.getByRole('dialog', { name: 'Looper' });
+    run(0);
+    const shiftF10 = async (el: HTMLElement) => {
+      act(() => el.focus());
+      expect(el).toHaveFocus();
+      await act(async () => {
+        fireEvent.keyDown(el, { key: 'F10', shiftKey: true });
+        await flush();
+      });
+    };
+    const cases = [
+      ['Stop', 'looper:stop', 61, 'Looper: stop'],
+      ['Undo the last overdub', 'looper:undo', 62, 'Looper: undo, redo'],
+      ['Clear', 'looper:clear', 63, 'Looper: clear'],
+    ] as const;
+    let at = 1;
+    for (const [name, target, controller, label] of cases) {
+      const button = within(dialog).getByRole('button', { name });
+      // Nothing to stop, undo or clear yet: unavailable, but it keeps its focus and its menu.
+      expect(button).toHaveAttribute('aria-disabled', 'true');
+      await shiftF10(button);
+      const menu = screen.getByRole('menu', { name: `${label}: MIDI and scenes` });
+      const learn = within(menu).getByRole('menuitem', { name: 'Learn MIDI' });
+      expect(learn).toHaveFocus();
+      await click(learn);
+      await press(controller, (at += 2));
+      expect(bindings().find((b) => b.target === target)).toMatchObject({
+        controller,
+        mode: 'toggle',
+      });
+    }
+
+    // Learnt, the menu offers to forget it.
+    await shiftF10(within(dialog).getByRole('button', { name: 'Stop' }));
+    expect(screen.getAllByRole('menuitem').map((i) => i.textContent)).toEqual([
+      'Learn MIDI again',
+      'Forget CC 61 · ch 1',
+    ]);
+    await click(screen.getByRole('menuitem', { name: 'Forget CC 61 · ch 1' }));
+    expect(bindings().map((b) => b.target)).toEqual(['looper:undo', 'looper:clear']);
+  });
+
   it('are offered in the MIDI panel of the app, not in a plug-in', async () => {
     h = await setupMock();
     render(<Rig />);
@@ -105,6 +151,16 @@ describe('the looper’s footswitches', () => {
     expect(
       within(panel).getByRole('group', { name: 'Learn a footswitch for' }),
     ).toBeInTheDocument();
+    cleanup();
+    h.dispose();
+
+    // A looper binding learnt in the app is listed in a plug-in and does nothing there.
+    h = await setupMock({ isStandalone: false, wrapperType: 'VST3', liveDemo: true });
+    render(<Rig />);
+    expect(bindings().map((b) => b.target)).toContain('looper:main');
+    await midi(26, 127, 1);
+    run(0);
+    expect(looper().state).toBe('unavailable');
   });
 
   it('take a double tap that stops, when the player switches it on', async () => {

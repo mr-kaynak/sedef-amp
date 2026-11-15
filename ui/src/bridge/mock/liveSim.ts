@@ -448,7 +448,8 @@ export class LiveSim {
         if (actionFires(b.mode, value)) this.host.stepPreset(t.kind === 'presetNext' ? 1 : -1);
         return;
       case 'looper': {
-        if (!actionFires(b.mode, value)) return;
+        // A binding learnt in the app is listed in a plug-in and does nothing there (§4.5).
+        if (!this.isStandalone || !actionFires(b.mode, value)) return;
         if (t.action !== 'main') return this.host.looper(t.action);
         // A second press less than the window after the first stops (§4.5).
         if (b.doubleTap && isDoubleTap(this.lastTap.get(b.target) ?? -1, time)) {

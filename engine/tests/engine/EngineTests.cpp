@@ -1448,33 +1448,42 @@ ParamSnapshot everythingOn()
 
 TEST_CASE ("A non-finite parameter plays its default and poisons nothing", "[engine][robustness]")
 {
-    const float bad =
-        GENERATE (std::numeric_limits<float>::quiet_NaN(), std::numeric_limits<float>::infinity());
+    // Sample for sample what the default plays, while it lasts and after a finite value comes
+    // back: a NaN from a host or a damaged session never reaches a module. NaN and infinities
+    // take the same path (std::isfinite); NaN is the one hosts send.
+    const float bad = std::numeric_limits<float>::quiet_NaN();
     constexpr int kBlock = 256;
-    Rig rig (48000.0, kBlock, 1, 2);
-    test::fillSine (rig.in[0], 220.0, 48000.0, 0.3f);
-    rig.engine.setBoard (Board::legacy());
     const auto good = everythingOn();
-    std::vector<std::string> poisoned;
+    const auto render = [&] (const ParamSnapshot& first) {
+        Rig rig (48000.0, kBlock, 1, 2); // a fresh engine each time: nothing carries over
+        test::fillSine (rig.in[0], 220.0, 48000.0, 0.3f);
+        rig.engine.setBoard (Board::legacy());
+        rig.engine.reset();
+        rig.run (first, 2 * kBlock);
+        rig.run (good, 4 * kBlock, 2 * kBlock); // and back to a finite value
+        return std::array<std::vector<float>, 2> { rig.out[0], rig.out[1] };
+    };
+    std::vector<std::string> wrong;
     for (std::size_t i = 0; i < kNumParams; ++i)
     {
-        rig.engine.reset();
-        auto p = good;
-        p.values[i] = bad;
-        rig.run (p, 4 * kBlock);
-        rig.run (good, 16 * kBlock, 4 * kBlock); // and back to a finite value
-        bool finite = true;
-        for (int c = 0; c < 2; ++c)
-            for (int s = 0; s < 20 * kBlock; ++s)
-                finite = finite && std::isfinite (rig.out[c][static_cast<std::size_t> (s)]);
-        if (!finite)
-            poisoned.emplace_back (kParamSpecs[i].id);
+        auto withBad = good;
+        withBad.values[i] = bad;
+        auto withDefault = good;
+        withDefault.values[i] = kParamSpecs[i].defaultValue;
+        const auto a = render (withBad);
+        const auto b = render (withDefault);
+        bool same = true;
+        for (std::size_t c = 0; c < 2; ++c)
+            for (std::size_t s = 0; s < 6 * kBlock; ++s)
+                same = same && a[c][s] == b[c][s];
+        if (!same)
+            wrong.emplace_back (kParamSpecs[i].id);
     }
     std::string names;
-    for (const auto& n : poisoned)
+    for (const auto& n : wrong)
         names += n + " ";
-    INFO ("non-finite output from: " << names);
-    CHECK (poisoned.empty());
+    INFO ("not played as the default: " << names);
+    CHECK (wrong.empty());
 }
 
 TEST_CASE ("Non-finite input samples are read as silence", "[engine][robustness]")

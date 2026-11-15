@@ -1522,6 +1522,10 @@ int scoreMode (int argc, char** argv)
             v *= gain;
         const auto truth = readTruth (path (ref));
         std::vector<Probe> probes;
+        const double steadyLag =
+            s.timing == midi::Timing::steady
+                ? midi::GuitarToMidi::steadyLagSamples (audio->sampleRate) / audio->sampleRate
+                : 0.0;
         auto notes = decoderLag >= 0.0 ? decodedNotes (x, audio->sampleRate, s, learned, decoderLag,
                                                        decoderPatience)
                                        : scoredNotes (x, audio->sampleRate, s, learned,
@@ -1635,6 +1639,24 @@ int scoreMode (int argc, char** argv)
                 dump << "\n";
             }
         }
+        // For a sent note (the last six columns): the tracker's pitch at its note-on against
+        // the note, how far that pitch moved over the 12 ms before and the 12 and 30 ms after
+        // (semitones), the level's rise over the 20 ms before, and the pitch 30 ms before.
+        const auto probeAt = [&] (double time) -> const Probe* {
+            if (probes.empty())
+                return nullptr;
+            const auto k = static_cast<long> ((time + lead + steadyLag) * 1000.0);
+            return &probes[static_cast<std::size_t> (
+                std::clamp (k, 0L, static_cast<long> (probes.size()) - 1))];
+        };
+        const auto probedPitch = [&] (double time) {
+            const auto* p = probeAt (time);
+            return p != nullptr ? p->trackerPitch : 0.0f;
+        };
+        const auto probedLevel = [&] (double time) {
+            const auto* p = probeAt (time);
+            return p != nullptr ? p->levelDb : 0.0f;
+        };
         for (std::size_t k = 0; k < notes.size(); ++k)
         {
             const auto& n = notes[k];
@@ -1667,7 +1689,12 @@ int scoreMode (int argc, char** argv)
                      << "\t"
                      << (r.nearest[k] >= 0 ? truth[static_cast<std::size_t> (r.nearest[k])].pitch
                                            : 0.0)
-                     << "\t0\t0\t0\t0\t0\t0\n";
+                     << "\t" << probedPitch (n.sent.on) - static_cast<float> (n.sent.pitch) << "\t"
+                     << probedPitch (n.sent.on) - probedPitch (n.sent.on - 0.012) << "\t"
+                     << probedPitch (n.sent.on + 0.012) - probedPitch (n.sent.on) << "\t"
+                     << probedPitch (n.sent.on + 0.03) - probedPitch (n.sent.on) << "\t"
+                     << probedLevel (n.sent.on) - probedLevel (n.sent.on - 0.02) << "\t"
+                     << probedPitch (n.sent.on - 0.03) << "\n";
         }
         for (std::size_t c = 0; c < 6; ++c)
             frames[c] += r.frames[c];

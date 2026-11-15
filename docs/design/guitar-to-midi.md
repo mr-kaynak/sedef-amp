@@ -79,7 +79,8 @@ another name in the marine style). It takes a mono guitar DI and sends MIDI note
 
 ## Non-goals (for this version)
 
-- Chords or polyphony.
+- Chords or polyphony. (Studied on 2026-11-15 and found not feasible to the bar a product
+  needs: [guitar-to-midi-chords.md](guitar-to-midi-chords.md).)
 - Built-in instrument sounds. He uses his own bass and piano instruments.
 - Converting recorded audio to MIDI offline. DAWs already do this.
 - MPE, per-string channels, hex pickups.

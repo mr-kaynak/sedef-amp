@@ -78,3 +78,11 @@ if(SEDEF_BUILD_TESTS)
                 -DDIR=${CMAKE_CURRENT_BINARY_DIR}/midi-render-determinism
                 -P ${CMAKE_CURRENT_SOURCE_DIR}/midi/render_determinism.cmake)
 endif()
+
+if(SEDEF_BUILD_TESTS)
+    # Chords from one pickup channel: the feasibility bench
+    # (docs/design/guitar-to-midi-chords.md). Not shipped.
+    add_executable(sedef-poly-bench poly/sedef_poly_bench.cpp)
+    target_include_directories(sedef-poly-bench PRIVATE ${PROJECT_SOURCE_DIR}/engine/tests)
+    target_link_libraries(sedef-poly-bench PRIVATE sedef::engine sedef::compiler_settings Catch2::Catch2)
+endif()

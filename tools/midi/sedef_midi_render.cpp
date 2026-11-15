@@ -1533,8 +1533,8 @@ int scoreMode (int argc, char** argv)
         // the picks the tracker saw from 30 ms before to 60 ms after.
         const auto probe = [&] (const scoring::Truth& t) {
             std::array<double, 6> v { 0.0, -1.0, -120.0, -120.0, 0.0, 0.0 };
-            const auto at = [&] (double seconds) {
-                const auto k = static_cast<long> ((seconds + lead) * 1000.0);
+            const auto at = [&] (double time) {
+                const auto k = static_cast<long> ((time + lead) * 1000.0);
                 return static_cast<std::size_t> (
                     std::clamp (k, 0L, static_cast<long> (probes.size()) - 1));
             };

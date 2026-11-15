@@ -14,7 +14,7 @@ import { applyRecorderState } from '../features/recorder/store';
 import { applyLiveActivity, applyLiveState } from '../state/liveStore';
 import { connectUpdates } from '../features/updates/updateStore';
 import { startInputLevel } from '../features/header/inputLevel';
-import { useUiStore } from '../state/uiStore';
+import { sanitizeSteps, useUiStore } from '../state/uiStore';
 import type { DemoFlags } from './demo';
 import { hydrateUiState, startPersistence } from './persistence';
 
@@ -65,8 +65,12 @@ export async function connect(backend: Backend): Promise<() => void> {
     applyHello(hello, backend.kind);
     applyRecorderState(hello.recorder ?? null);
     hydrateUiState(hello.uiState);
-    // The engine keeps no copy of the beat pattern outside the UI state; restore it.
-    if (hello.isStandalone)
+    // The beat pattern is the session's, as the plug-in holds it: the UI state's copy is saved
+    // 400 ms after an edit, so a session saved sooner has the newer pattern only there
+    // (docs/robustness.md, section 6). A plug-in that doesn't send it gets the page's copy.
+    if (hello.metronomePattern)
+      useUiStore.setState({ metronomeSteps: sanitizeSteps(hello.metronomePattern) });
+    else if (hello.isStandalone)
       void invoke('sedef_metronome_setPattern', useUiStore.getState().metronomeSteps);
     if (hello.protocol !== PROTOCOL_VERSION) {
       useAppStore.setState({

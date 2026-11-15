@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // The recorder and re-amp's calls into the plug-in (docs/recorder.md).
 import type { RecorderBridgeState } from '../../bridge/protocol';
+import { base64, bytesOf } from '../../lib/bytes';
 import { invoke } from '../../state/backendRef';
 import { applyRecorderState, recorderUi, useRecorderStore } from './store';
 
@@ -57,23 +58,6 @@ export async function reampTake(diPath: string): Promise<void> {
   recorderUi.setTab('reamp');
   await loadFile(diPath);
   void refreshFiles();
-}
-
-async function bytesOf(blob: Blob): Promise<Uint8Array> {
-  if (typeof blob.arrayBuffer === 'function') return new Uint8Array(await blob.arrayBuffer());
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(new Uint8Array(reader.result as ArrayBuffer));
-    reader.onerror = () => reject(reader.error ?? new Error('read failed'));
-    reader.readAsArrayBuffer(blob);
-  });
-}
-
-function base64(bytes: Uint8Array): string {
-  let binary = '';
-  for (let i = 0; i < bytes.length; i += 0x8000)
-    binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-  return btoa(binary);
 }
 
 /**

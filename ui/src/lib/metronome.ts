@@ -23,6 +23,18 @@ export function defaultSteps(): number[] {
   return Array.from({ length: MAX_STEPS }, (_, i) => (i === 0 ? STEP_ACCENT : STEP_NORMAL));
 }
 
+/** 13 steps from saved state or the plug-in; anything that isn't a step 0-3 is the default's. */
+export function sanitizeSteps(value: unknown): number[] {
+  const fallback = defaultSteps();
+  if (!Array.isArray(value)) return fallback;
+  return fallback
+    .map((d, i) => {
+      const v: unknown = value[i];
+      return typeof v === 'number' && v >= 0 && v <= 3 ? Math.round(v) : d;
+    })
+    .slice(0, MAX_STEPS);
+}
+
 /** Off -> Normal -> Accent -> Soft -> Off. */
 export function cycleStep(state: number): number {
   switch (state) {

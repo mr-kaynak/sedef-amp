@@ -8,6 +8,7 @@ import { Icon } from '../../controls/Icon';
 import { Knob } from '../../controls/Knob';
 import { Toggle } from '../../controls/Toggle';
 import { effectiveCab } from '../../params/schema';
+import { base64, bytesOf } from '../../lib/bytes';
 import { formatHz, signed } from '../../params/format';
 import { useParamSpec, useParamValue } from '../../params/useParam';
 import { useAppStore } from '../../state/appStore';
@@ -50,8 +51,10 @@ function useCaptureActions() {
         setDropError('This file is larger than 24 MB, so it isn’t a capture Sedef can play.');
         return;
       }
-      const text = await file.text();
-      await run(() => invoke('sedef_capture_loadData', file.name, text));
+      // The bytes as they are: text() would drop a byte-order mark and replace invalid bytes,
+      // so the copy the plug-in keeps would differ from the file (docs/robustness.md, section 6).
+      const data = base64(await bytesOf(file));
+      await run(() => invoke('sedef_capture_loadBytes', file.name, data));
     },
   };
 }

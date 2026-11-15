@@ -133,7 +133,11 @@ export class LiveSim {
           .map(([program, t]) => ({ program, ...t })),
       },
       learn: this.learn
-        ? { target: this.learn.target, phase: this.learn.phase, binding: this.learn.binding }
+        ? {
+            target: this.learn.target,
+            phase: this.learn.phase,
+            binding: this.learn.phase === 'waiting' ? -1 : this.learnBinding(),
+          }
         : null,
       midiIn,
       inputs: this.inputs.length ? this.inputs.map((i) => ({ ...i })) : null,
@@ -191,6 +195,8 @@ export class LiveSim {
   }
 
   forget(target: string): LiveState {
+    // Forgetting what a learn is listening to ends the learn; any other binding leaves it be.
+    if (this.learn?.target === target && this.learn.phase === 'listening') this.learn = null;
     this.settings.bindings = this.settings.bindings.filter((b) => b.target !== target);
     return this.state();
   }
@@ -208,9 +214,8 @@ export class LiveSim {
   }
 
   removeBinding(index: number): LiveState {
-    this.settings.bindings.splice(index, 1);
-    this.learn = null;
-    return this.state();
+    const b = this.settings.bindings[index];
+    return b ? this.forget(b.target) : this.state();
   }
 
   clearBindings(): LiveState {
@@ -452,7 +457,6 @@ export class LiveSim {
       if (at >= 0) this.settings.bindings[at] = binding;
       else if (this.settings.bindings.length < 64) this.settings.bindings.push(binding);
       else return;
-      l.binding = at >= 0 ? at : this.settings.bindings.length - 1;
       if (!isSwitchTarget(l.target, this.host.specs)) {
         this.finish(null);
         return;
@@ -464,17 +468,26 @@ export class LiveSim {
       else this.host.emit(this.state());
       return;
     }
-    const b = this.settings.bindings[l.binding];
+    const b = this.settings.bindings[this.learnBinding()];
     if (kind === 0xb0 && b && b.channel === channel && b.controller === data1) {
       const mode = l.classifier?.next(data2, time);
       if (mode) this.finish(mode);
     }
   }
 
+  /**
+   * The learn's binding, found by its target as the plug-in does: forgetting or removing another
+   * binding moves the others in the list (docs/robustness.md, section 6).
+   */
+  private learnBinding(): number {
+    const target = this.learn?.target;
+    return this.settings.bindings.findIndex((b) => b.target === target);
+  }
+
   private finish(mode: LiveSwitchMode | null): void {
     const l = this.learn;
     if (!l) return;
-    const b = this.settings.bindings[l.binding];
+    const b = this.settings.bindings[this.learnBinding()];
     if (b && mode) b.mode = mode;
     l.phase = 'done';
     this.host.emit(this.state());

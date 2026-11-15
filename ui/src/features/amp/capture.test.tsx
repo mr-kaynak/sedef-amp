@@ -38,9 +38,9 @@ function namFile(metadata: Record<string, unknown> = {}): string {
   });
 }
 
-async function drop(name: string, text: string) {
+async function drop(name: string, content: string | Uint8Array<ArrayBuffer>) {
   const panel = screen.getByRole('region', { name: 'Capture' });
-  const file = new File([text], name, { type: 'application/octet-stream' });
+  const file = new File([content], name, { type: 'application/octet-stream' });
   const dataTransfer = { types: ['Files'], files: [file], dropEffect: 'none' };
   fireEvent.dragOver(panel, { dataTransfer });
   fireEvent.drop(panel, { dataTransfer });
@@ -173,6 +173,21 @@ describe('Capture panel', () => {
     expect(screen.getByRole('heading', { name: 'Bench Amp' })).toBeInTheDocument();
     expect(screen.getByText('Tester')).toBeInTheDocument();
     expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('sends a dropped file byte for byte, a byte-order mark and odd bytes included', async () => {
+    // docs/robustness.md, section 6: File.text() decodes UTF-8, which drops a BOM and replaces
+    // invalid bytes, so the plug-in kept a copy whose hash differed from the file's.
+    const { mock } = await start();
+    await click(card('Capture'));
+    const json = new TextEncoder().encode(namFile({ name: 'Bench Amp' }));
+    const bytes = new Uint8Array([0xef, 0xbb, 0xbf, ...json]) as Uint8Array<ArrayBuffer>;
+    // An invalid UTF-8 byte inside a JSON string (Latin-1 "é" from an old tool).
+    const at = bytes.indexOf('B'.charCodeAt(0), 3);
+    bytes[at] = 0xe9;
+    await drop('Bench.nam', bytes);
+    const sent = Uint8Array.from(atob(mock.droppedBytes ?? ''), (c) => c.charCodeAt(0));
+    expect(Array.from(sent)).toEqual(Array.from(bytes));
   });
 
   it('says which capture is missing and offers to find it', async () => {

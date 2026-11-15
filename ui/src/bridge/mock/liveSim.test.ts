@@ -86,6 +86,31 @@ describe('The mock live layer', () => {
       expect((await state()).bindings).toHaveLength(0);
     });
 
+    it('keeps a learn on its own binding when another is forgotten or removed meanwhile', async () => {
+      // As LiveStateTests.cpp: the learn finds its binding by target, not by a kept index.
+      for (const [target, cc] of [
+        ['param:coralEnabled', 21],
+        ['param:pearlEnabled', 20],
+        ['param:driftEnabled', 22],
+      ] as const) {
+        await mock.call('sedef_live_learn', target);
+        mock.midi(CC, cc, 127, 0);
+        mock.midi(CC, cc, 0, 0.1);
+        await mock.call('sedef_live_cancelLearn');
+      }
+      await mock.call('sedef_live_learn', 'param:pearlEnabled');
+      mock.midi(CC, 20, 127, 1);
+      expect((await state()).learn).toMatchObject({ phase: 'listening', binding: 1 });
+      await mock.call('sedef_live_forget', 'param:coralEnabled');
+      expect((await state()).learn).toMatchObject({ phase: 'listening', binding: 0 });
+      mock.live.advance(2); // the window ends: a latching switch
+      const s = await state();
+      expect(s.bindings.map((b) => [b.target, b.mode])).toEqual([
+        ['param:pearlEnabled', 'latch'],
+        ['param:driftEnabled', 'toggle'],
+      ]);
+    });
+
     it('edits, removes and clears bindings', async () => {
       await mock.call('sedef_live_learn', 'param:conchPosition');
       mock.midi(CC, 11, 0);

@@ -307,3 +307,38 @@ describe('MicStrip', () => {
     expect(screen.getByText(/holds its own position and distance/)).toBeInTheDocument();
   });
 });
+
+describe('MicStrip with a missing IR', () => {
+  let h: Harness;
+  beforeEach(async () => {
+    // A session whose IR file can't be found (docs/robustness.md, section 4).
+    h = await setupMock({
+      initialPresetId: null,
+      missingIr: { mic: 0, cab: 0, fileName: 'Cab.wav', path: '/Volumes/Ext/IRs/Cab.wav' },
+    });
+  });
+  afterEach(() => h.dispose());
+
+  it('says which file is missing and where it was, and locates it', async () => {
+    set('micACab1Type', 10);
+    render(<MicStrip mic="A" cab={0} />);
+    expect(screen.getByText('Cab.wav is missing')).toBeInTheDocument();
+    expect(
+      screen.getByText(/Not found at \/Volumes\/Ext\/IRs\/Cab\.wav\. Dyn Classic plays until/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('No impulse response loaded')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Locate…' }));
+    await act(flush);
+    expect(screen.queryByText('Cab.wav is missing')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Replace…' })).toBeInTheDocument();
+  });
+
+  it('can forget the missing file', async () => {
+    set('micACab1Type', 10);
+    render(<MicStrip mic="A" cab={0} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Clear' }));
+    await act(flush);
+    expect(screen.queryByText('Cab.wav is missing')).toBeNull();
+    expect(screen.getByText('No impulse response loaded')).toBeInTheDocument();
+  });
+});

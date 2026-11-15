@@ -9,8 +9,13 @@ import { useAppStore } from '../../state/appStore';
 import { invoke } from '../../state/backendRef';
 import styles from './MicStrip.module.css';
 
+const NOT_FOUND = 'The IR file was not found';
+
 function IrSlot({ mic, cab }: { mic: 0 | 1; cab: number }) {
   const slot = useAppStore((s) => s.ir.slots.find((x) => x.mic === mic && x.cab === cab));
+  // A session's IR that couldn't be loaded keeps its path; the slot says where it was and
+  // offers to find it (docs/robustness.md, section 4).
+  const missing = slot?.name ? null : (slot?.missing ?? null);
   const load = async () => {
     const ir = await invoke('sedef_ir_load', mic, cab);
     if (ir) useAppStore.setState({ ir });
@@ -20,28 +25,40 @@ function IrSlot({ mic, cab }: { mic: 0 | 1; cab: number }) {
     if (ir) useAppStore.setState({ ir });
   };
   return (
-    <div className={styles.ir}>
-      <Icon name="file" size={14} />
-      <span className={styles.irName}>
-        {slot?.name ? (
-          <>
-            {slot.name}
-            {slot.durationMs ? (
-              <span className={styles.irMeta}> {Math.round(slot.durationMs)} ms</span>
-            ) : null}
-          </>
-        ) : (
-          <span className={styles.irEmpty}>No impulse response loaded</span>
-        )}
-      </span>
+    <div className={styles.ir} data-missing={missing ? '' : undefined}>
+      <Icon name={missing ? 'info' : 'file'} size={14} />
+      {missing ? (
+        <span className={styles.irMissing}>
+          <span className={styles.irMissingTitle}>{missing.fileName} is missing</span>
+          <span className={styles.irMissingText}>
+            {missing.reason === NOT_FOUND
+              ? `Not found at ${missing.path}.`
+              : `${missing.reason}: ${missing.path}.`}{' '}
+            Dyn Classic plays until you locate it.
+          </span>
+        </span>
+      ) : (
+        <span className={styles.irName}>
+          {slot?.name ? (
+            <>
+              {slot.name}
+              {slot.durationMs ? (
+                <span className={styles.irMeta}> {Math.round(slot.durationMs)} ms</span>
+              ) : null}
+            </>
+          ) : (
+            <span className={styles.irEmpty}>No impulse response loaded</span>
+          )}
+        </span>
+      )}
       <button
         type="button"
         className={`${buttons.solid} ${buttons.small}`}
         onClick={() => void load()}
       >
-        {slot?.name ? 'Replace…' : 'Load…'}
+        {missing ? 'Locate…' : slot?.name ? 'Replace…' : 'Load…'}
       </button>
-      {slot?.name && (
+      {(slot?.name || missing) && (
         <button
           type="button"
           className={`${buttons.ghost} ${buttons.small}`}

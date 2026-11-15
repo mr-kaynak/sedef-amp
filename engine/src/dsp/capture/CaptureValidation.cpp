@@ -465,7 +465,15 @@ void waveNet (const json& config, int expectIn, int expectOut, int depth, Model&
         const json* slim = member (layer, "slimmable");
         if (slim == nullptr)
             continue;
-        const json* method = slim->is_object() ? member (*slim, "method") : nullptr;
+        // Only an object makes a layer array slimmable: the trainer writes "slimmable": null on
+        // every layer array of a capture that isn't (the A2 captures do), and the core reads that,
+        // or any other non-object, as not slimmable.
+        if (!slim->is_object())
+        {
+            m.config["layers"][a].erase ("slimmable");
+            continue;
+        }
+        const json* method = member (*slim, "method");
         if (method == nullptr || !method->is_string() ||
             method->get<std::string>() != "slice_channels_uniform")
             unsupported ("This capture is a slimmable WaveNet that slims in a way Sedef doesn't "

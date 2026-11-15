@@ -6,6 +6,17 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.10.2] - 2026-11-15
+
+Captures from the trainer's newest version (A2) load.
+
+### Fixed
+
+- **A2 captures load.** The trainer's newest captures mark every layer array `"slimmable": null`
+  (it doesn't slim), and Sedef read the field's presence as slimming it didn't know, so they were
+  still refused after 0.10.1. Every example capture the NAM core ships now loads and plays, and a
+  test checks that on every build.
+
 ## [0.10.1] - 2026-11-13
 
 NAM captures trained at several sizes load, and the status bar's arrow is an arrow again.
@@ -639,7 +650,8 @@ The first public build: a complete guitar rig with a tuner and an intonation wor
 - Every CI build is checked with pluginval (strictness 8), clap-validator and auval, and a smoke
   test opens the editor in a real host and WebView on every OS.
 
-[Unreleased]: https://github.com/mr-kaynak/sedef-amp/compare/v0.10.1...HEAD
+[Unreleased]: https://github.com/mr-kaynak/sedef-amp/compare/v0.10.2...HEAD
+[0.10.2]: https://github.com/mr-kaynak/sedef-amp/compare/v0.10.1...v0.10.2
 [0.10.1]: https://github.com/mr-kaynak/sedef-amp/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.8.1...v0.9.0

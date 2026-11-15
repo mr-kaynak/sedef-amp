@@ -42,6 +42,9 @@ if(SEDEF_BUILD_TESTS)
 
     add_executable(sedef_engine_tests ${SEDEF_ENGINE_TESTS})
     target_include_directories(sedef_engine_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
+    # The example captures the pinned NAM core ships: every shape it reads must load in Sedef too.
+    target_compile_definitions(sedef_engine_tests PRIVATE
+        SEDEF_NAM_EXAMPLES_DIR="${NeuralAmpModelerCore_SOURCE_DIR}/example_models")
     target_link_libraries(sedef_engine_tests
         PRIVATE sedef::engine sedef_nam Catch2::Catch2WithMain sedef::compiler_settings)
 

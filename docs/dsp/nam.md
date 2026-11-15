@@ -28,7 +28,9 @@ for: a `SlimmableContainer` plays its last model (the one whose `max_value` reac
 core also picks unless a host asks for less), checked like any capture, with the container's
 metadata; a slimmable WaveNet plays at its full width (its config and weights are the full model,
 and its `slimmable` fields, method `slice_channels_uniform` only, are dropped after checking that
-the widest allowed width is the layer array's own). A container inside a container and the
+the widest allowed width is the layer array's own; a `slimmable` that is `null`, as the trainer's
+A2 captures write it, means the layer array doesn't slim). Every example capture the pinned core
+ships must load and play: a test reads them from the core's own `example_models`. A container inside a container and the
 `Sequential` container are refused.
 
 ## 2. Signal flow

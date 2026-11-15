@@ -8,6 +8,9 @@
 #include <Eigen/Core>
 #include <catch2/catch_test_macros.hpp>
 #include <chrono>
+#include <filesystem>
+#include <fstream>
+#include <sstream>
 #include <string>
 
 using namespace sedef;
@@ -654,4 +657,45 @@ TEST_CASE ("A slimmable WaveNet plays at full width", "[capture][untrusted]")
     j = slimmableWaveNet (plainText);
     j["config"]["layers"][0]["slimmable"].erase ("kwargs");
     CHECK (render (nt::parseOrFail (j.dump())) == render (plain));
+}
+
+TEST_CASE ("A WaveNet whose layer arrays say \"slimmable\": null plays as a plain WaveNet",
+           "[capture][untrusted]")
+{
+    // The trainer's A2 captures write the field on every layer array, null when it doesn't slim.
+    const std::string plainText = nt::smallWaveNet (9);
+    const auto plain = nt::parseOrFail (plainText);
+    json j = json::parse (plainText);
+    for (auto& layer : j["config"]["layers"])
+        layer["slimmable"] = nullptr;
+    CHECK (render (nt::parseOrFail (j.dump())) == render (plain));
+    // In a container's full-size model too.
+    CHECK (render (nt::parseOrFail (container (nt::waveNet (2, 2, 5, 0.6f), j.dump()).dump())) ==
+           render (plain));
+    // Any other non-object is not slimmable either, as the core reads it.
+    j["config"]["layers"][0]["slimmable"] = false;
+    CHECK (render (nt::parseOrFail (j.dump())) == render (plain));
+}
+
+TEST_CASE ("Every example capture the NAM core ships loads and plays", "[capture]")
+{
+    namespace fs = std::filesystem;
+    const fs::path dir = SEDEF_NAM_EXAMPLES_DIR;
+    REQUIRE (fs::is_directory (dir));
+    int files = 0;
+    for (const auto& e : fs::directory_iterator (dir))
+    {
+        if (e.path().extension() != ".nam")
+            continue;
+        ++files;
+        std::ifstream in (e.path(), std::ios::binary);
+        std::stringstream text;
+        text << in.rdbuf();
+        const auto result = dsp::CaptureFile::parse (text.str());
+        INFO (e.path().filename().string() << ": " << result.error);
+        REQUIRE (result.file != nullptr);
+        const auto out = render (result.file);
+        CHECK (std::all_of (out.begin(), out.end(), [] (float x) { return std::isfinite (x); }));
+    }
+    CHECK (files >= 9); // A2, LSTM, slimmable container and WaveNet, condition DSP and the rest
 }

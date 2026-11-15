@@ -1052,6 +1052,53 @@ inline Scenario strummedChords (std::uint32_t seed, Pickup pickup, double fs, in
     return s;
 }
 
+/// A line in which every second note is softer than the one before it and comes while that one
+/// is being damped, with no pick click. The loud note is damped the way a hand does it: its
+/// level falls 1.2 dB a millisecond for 22 ms and what is left rings on (the model's own mute
+/// is silent within 5 ms, which no hand is). The pick detector compares the level with what
+/// just rang and lets the soft note pass, and the tracker, never silent, does not lock anew.
+inline Scenario softAfterLoud (std::uint32_t seed, Pickup pickup, float softDb, double fs)
+{
+    const int pitches[] = { 57, 60, 55, 59, 52, 57, 50, 55 };
+    Scenario s;
+    s.name = "soft-after-loud";
+    s.fs = fs;
+    s.signal.assign (static_cast<std::size_t> (4.6 * fs), 0.0f);
+    std::vector<float> one;
+    double at = 0.3;
+    for (int k = 0; k < 16; ++k)
+    {
+        const bool soft = k % 2 == 1;
+        Pluck p = pluckFor (pickup, hzOf (pitches[k % 8]),
+                            soft ? 0.25f * std::pow (10.0f, softDb / 20.0f) : 0.25f,
+                            seed * 31 + static_cast<std::uint32_t> (k));
+        p.pickNoise = soft ? 0.0f : p.pickNoise;
+        const double length = soft ? 0.22 : 0.18;
+        const auto start = static_cast<std::size_t> (at * fs);
+        if (soft)
+        {
+            p.muteAt = length;
+            addPluck (s.signal, fs, start, p);
+        }
+        else
+        {
+            one.assign (static_cast<std::size_t> (0.5 * fs), 0.0f);
+            addPluck (one, fs, 0, p);
+            for (std::size_t i = 0; i < one.size() && start + i < s.signal.size(); ++i)
+            {
+                const double ms = 1000.0 * (static_cast<double> (i) / fs - length);
+                const double db = ms <= 0.0 ? 0.0 : -1.2 * std::min (ms, 22.0) - 0.15 * ms;
+                s.signal[start + i] += one[i] * static_cast<float> (std::pow (10.0, db / 20.0));
+            }
+        }
+        s.notes.push_back ({ pitches[k % 8], at, at + length, true, p.peak });
+        // The soft note 25 ms into the loud one's damping; the next loud one after a rest.
+        at += length + (soft ? 0.06 : 0.025);
+    }
+    addNoise (s.signal, -80.0f);
+    return s;
+}
+
 // ---------------------------------------------------------------------------------------------
 // Running the converter and judging its notes.
 

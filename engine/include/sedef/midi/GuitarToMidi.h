@@ -405,6 +405,9 @@ public:
     /// How many clean observations the decoder asks of a new note (NoteDecoder::Model): the
     /// one setting that trades how soon a note is believed for how often it is wrong.
     static constexpr float kFastestPatience = 1.0f, kSteadyPatience = 2.0f;
+    /// Above this the analysis band (to 1.5 kHz) holds one odd partial of a note, and its
+    /// period alone cannot tell it from the octave above.
+    static constexpr float kDecoderOctaveHz = 500.0f;
 
     void prepare (double sampleRate);
     /// Forgets the signal and every pending event, without sending anything: call allNotesOff()
@@ -749,8 +752,8 @@ private:
     std::array<float, 32> decoderLevels_ {};
     int decoderLevelAt_ = 0, decoderRiseHops_ = 20;
     void decoderHop() noexcept;
-    /// The decoder holds note `q` (a sent pitch) now.
-    bool decoded (int q) const noexcept { return decoderNote_ + 12 * settings_.octave == q; }
+    /// The decoder holds note `q` (a sent pitch) now, or a note it cannot tell from it.
+    bool decoded (int q) const noexcept;
     /// The note the decoder holds that may start without a pick: -1 if none.
     int heardNote (bool voiced, int q) const noexcept;
 

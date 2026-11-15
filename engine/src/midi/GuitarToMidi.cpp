@@ -1531,6 +1531,22 @@ void GuitarToMidi::decoderHop() noexcept
     decoderNote_ = decoder_.now();
 }
 
+bool GuitarToMidi::decoded (int q) const noexcept
+{
+    if (decoderNote_ < 0)
+        return false;
+    // The decoder weighs periods, and a period is shared: a note over a string still ringing a
+    // fifth or a fourth from it repeats only at a period a whole multiple of its own (an octave,
+    // a twelfth, two octaves under it), which is then what the decoder holds; and above
+    // kDecoderOctaveHz the band holds too little of a note to tell it from its octave. Which of
+    // those is the note is the tracker's to say (it looks at the fundamental itself). What the
+    // decoder rules out is everything else: a reading across a change of note, or in an attack.
+    const int under = q - (decoderNote_ + 12 * settings_.octave);
+    if (under == 0 || under == 12 || under == 19 || under == 24)
+        return true;
+    return under == -12 && heardHz_ > kDecoderOctaveHz;
+}
+
 int GuitarToMidi::heardNote (bool voiced, int q) const noexcept
 {
     // A note nobody saw picked: the detector compares the level with what just rang, so a note
@@ -1545,20 +1561,19 @@ int GuitarToMidi::heardNote (bool voiced, int q) const noexcept
     if (decoderAttack_ > 0 || now_ - lastPickAt_ <= lockPickGapSamples_ ||
         now_ - decoderAttackAt_ > lockPickGapSamples_)
         return -1;
-    if (q != decoderNote_ + 12 * settings_.octave)
+    if (q != decoderNote_ + 12 * settings_.octave) // the very note: nothing rang before it
         return -1;
     if (levelDb_ < gateLevelDb_ || levelDb_ < playingDb_ - kFadedDropDb || muted())
         return -1;
     // ...and it brought energy: the fretting hand taking the next fret on a ringing string
     // sounds a note too, and adds none.
-    // It stands kLockRiseDb over the loudest millisecond of the 16 before the attack (as a pick
-    // on a faded string must): a low string's level swings with its period, a tap on the fret
-    // lifts it a little.
-    float before = kFloorDb;
-    for (int k = muteWindowMs_; k < muteWindowMs_ + 16 && k < kHistoryMs; ++k)
-        before = std::max (before, levelAgo (k));
-    // (Risen already 3 ms ago: an attack that begins this moment is not the one that passed.)
-    return std::min (levelDb_, levelAgo (3)) >= before + kLockRiseDb ? q : -1;
+    // It rose kDecoderRiseDb out of the quietest millisecond of the last kMuteWindowSeconds,
+    // and had risen already 3 ms ago (an attack that begins this moment is not the one that
+    // passed).
+    float lowest = levelDb_;
+    for (int k = 1; k <= muteWindowMs_; ++k)
+        lowest = std::min (lowest, levelAgo (k));
+    return std::min (levelDb_, levelAgo (3)) >= lowest + kDecoderRiseDb ? q : -1;
 }
 
 void GuitarToMidi::decide() noexcept

@@ -1787,6 +1787,11 @@ int main (int argc, char** argv)
                                    "-" + std::to_string (after) + "ms-" + pickups[p],
                                fretAfterPick (pitch, cents, 0.001 * after, static_cast<Pickup> (p),
                                               3, fs));
+        for (int p = 0; p < 3; ++p)
+            for (int soft : { 6, 9 })
+                write (std::string ("soft-after-loud-") + pickups[p] + "-" + std::to_string (soft),
+                       softAfterLoud (soft > 8 ? 2u : 1u, static_cast<Pickup> (p),
+                                      -static_cast<float> (soft), fs));
         for (int pitch : { 30, 33, 37, 40 })
             for (std::uint32_t seed = 1; seed <= 2; ++seed)
                 write ("twice-" + std::to_string (pitch) + "-neck-" + std::to_string (seed),

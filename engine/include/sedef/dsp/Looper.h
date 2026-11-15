@@ -148,6 +148,9 @@ public:
     /// The undo on offer brings back a cleared loop.
     bool undoIsClear() const noexcept { return lastAction_ == Action::clear; }
     int maxFrames() const noexcept { return maxFrames_; }
+    /// Counts the overdub layers begun (each a new undo point): a footswitch's double tap undoes
+    /// a layer only if its first press began one (docs/live.md §4.5).
+    std::uint32_t layerSerial() const noexcept { return layerSerial_; }
 
     /// Tests: a shorter longest loop (at most LoopMemory::kMaxFrames).
     void setMaxFramesForTest (int frames) noexcept;
@@ -250,6 +253,7 @@ private:
     int numFree_ = 0;
     Action lastAction_ = Action::none;
     bool undone_ = false;
+    std::uint32_t layerSerial_ = 0;
 
     State state_ = State::unavailable;
     long long now_ = 0; ///< samples since reset, at the start of the current call

@@ -192,7 +192,8 @@ The same note picked again and again, the staple of a bass line, comes within 25
 20 ms on an A, 17 ms on a D and 15 ms on a G (it used to take 33 ms on every string).
 
 In Steady every note comes 38 ms after you play it (a note under about B1 cannot: it comes as
-soon as it is sure).
+soon as it is sure). A note Sedef MIDI is still weighing when its 38 ms are up comes when it is
+sure instead: on cleanly picked lines that is one or two notes in a hundred, up to 15 ms late.
 
 **What the delay is made of.** A string repeats itself from the moment you pick it, and Sedef
 MIDI reads the note from that: a low note goes out once its first few milliseconds have come
@@ -214,7 +215,7 @@ A note is never sent before Sedef MIDI is sure of it and corrected afterwards: t
 A note that waits for the pitch reading in this way is also weighed, for a few milliseconds
 more, against everything else the signal could be at that moment (the note before, a
 neighbouring semitone, nothing): 4 ms on a guitar's notes and up to 6 ms on a low string, and
-twice that in Steady, inside its 38 ms. That is what keeps most of the short wrong
+up to twice that in Steady, nearly always inside its 38 ms. That is what keeps most of the short wrong
 notes between two notes from being sent. A cleanly picked note is read from its own first
 periods, as the table says, and does not wait for it.
 

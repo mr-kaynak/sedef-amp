@@ -59,6 +59,14 @@ automatable as before.
 A session therefore never carries bindings. Moving a session to another computer keeps its
 scenes; the controller is learnt once per computer.
 
+**Two instances editing at once.** Every change to the MIDI setup (a learn, a mode or range, a
+forget, a program assignment) re-reads `midi.json` under a lock shared by every instance in the
+process and every process on the machine, applies that one change to what it read, and writes
+it. Two instances editing within the one-second check therefore keep both edits; before 0.10.3
+the later instance wrote its whole older copy over the earlier one's
+([robustness.md](robustness.md#3-files-several-instances-share)). An edit the panel names by
+its place in the list is carried out on the binding with the same target.
+
 ## 4. Bindings
 
 ### 4.1 Sources
@@ -492,6 +500,9 @@ records are plain structs. The engine test that counts allocations runs the live
   message that arrives after the program change wins over the preset, as it came later.
 - **The host restores a session.** The restored bank is published before the parameters change,
   so the audio thread never mistakes the restored *Scene* value for a host switch.
+- **The player forgets or removes another binding while a learn listens.** The learn finds its
+  binding by its target, never by its place in the list, so the switch mode it learns lands on
+  the right binding. Forgetting the binding being learnt ends the learn, and it stays forgotten.
 - **No audio is running** (a host that stops processing a track). Bindings and program changes
   need audio to arrive anyway. A click on the scene bar works without audio: the message thread
   writes the parameters itself, and the audio thread applies nothing stale when it starts, because
@@ -525,7 +536,9 @@ Engine (`engine/tests/live/`):
   with no allocation.
 
 Plug-in (`plugin/tests/LiveStateTests.cpp`): bindings round-trip through `midi.json` and
-across instances; presets with and without scenes round-trip; a 0.9 file loads; the active scene
+across instances; two instances editing without polling keep both edits; a learn keeps its own
+binding when another is forgotten or removed; `midi.json` numbers that are infinite, null, text
+or booleans are absent; presets with and without scenes round-trip; a 0.9 file loads; the active scene
 and the dirty rules; snapshots and A/B; sessions with and without scenes; program change → preset
 in library order and by assignment; MIDI through `processBlock` switches a scene in one block; no
 Sedef parameter id falls in JUCE's emulated-controller range. The looper's targets: they keep in

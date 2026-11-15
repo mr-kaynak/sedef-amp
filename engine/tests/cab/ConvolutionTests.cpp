@@ -8,6 +8,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
 #include <chrono>
+#include <limits>
 #include <thread>
 
 using namespace sedef;
@@ -333,6 +334,35 @@ TEST_CASE ("makeKernel rejects empty input", "[cab][convolution]")
     CHECK (CabSim::makeKernel (nullptr, 10, 48000.0, 48000.0, 64) == nullptr);
     CHECK (CabSim::makeKernel (&v, 0, 48000.0, 48000.0, 64) == nullptr);
     CHECK (CabSim::makeKernel (&v, 1, 0.0, 48000.0, 64) == nullptr);
+}
+
+TEST_CASE ("makeKernel reads IRs recorded at 8 to 384 kHz and refuses other rates",
+           "[cab][convolution]")
+{
+    // A WAV header can claim any rate up to 4 294 967 295 Hz; the resampler's work grows with
+    // the ratio, so a claimed 4 GHz kept the loader busy for minutes (docs/robustness.md,
+    // section 5). Refused before any work, whatever the IR's length.
+    std::vector<float> ir (1 << 20, 0.0f);
+    ir[0] = 1.0f;
+    const int n = static_cast<int> (ir.size());
+    for (const double rate :
+         { 4294967295.0, 1.0e7, 384001.0, 7999.0, 0.0, -48000.0,
+           std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::infinity() })
+    {
+        INFO ("IR rate " << rate);
+        CHECK_FALSE (ConvolutionKernel::isSupportedIrRate (rate));
+        CHECK (dsp::CabSim::makeKernel (ir.data(), n, rate, 48000.0, 512) == nullptr);
+    }
+    for (const double rate : { 8000.0, 44100.0, 192000.0, 384000.0 })
+    {
+        INFO ("IR rate " << rate);
+        CHECK (ConvolutionKernel::isSupportedIrRate (rate));
+        const auto k = dsp::CabSim::makeKernel (ir.data(), 4096, rate, 48000.0, 512);
+        REQUIRE (k != nullptr);
+        CHECK (k->sampleRate() == 48000.0);
+    }
+    // A host rate outside the range still gets kernels: only the IR's own rate is checked.
+    CHECK (dsp::CabSim::makeKernel (ir.data(), 4096, 48000.0, 768000.0, 512) != nullptr);
 }
 
 TEST_CASE ("A kernel for another sample rate falls back to Dyn Classic", "[cab][convolution]")

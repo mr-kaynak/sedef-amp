@@ -231,6 +231,20 @@ export interface IrSlot {
   /** File name of the loaded IR, or null when empty. */
   name: string | null;
   durationMs: number | null;
+  /**
+   * A restored session's IR that could not be loaded (a drive not mounted, the project opened on
+   * another computer): the session keeps its path and the slot plays nothing until the file is
+   * located (docs/robustness.md, section 4). Absent from plug-ins built before 0.10.3.
+   */
+  missing?: IrMissing | null;
+}
+
+export interface IrMissing {
+  fileName: string;
+  /** Where the session says it was. */
+  path: string;
+  /** Why it could not be loaded, e.g. "The IR file was not found". */
+  reason: string;
 }
 
 export interface IrState {
@@ -404,6 +418,12 @@ export interface HelloResponse {
   values: ParamValues;
   /** Opaque UI state previously stored with ui.setState (null on first run). */
   uiState: UiState | null;
+  /**
+   * The metronome's 13 steps as the plug-in plays them: the session's own pattern, which the
+   * page takes over its saved UI state's copy (that copy is saved 400 ms late). Absent from
+   * plug-ins built before 0.10.3.
+   */
+  metronomePattern?: number[];
   presets: PresetState;
   ir: IrState;
   /** Absent from plug-ins built before captures. */
@@ -479,6 +499,11 @@ export interface NativeFunctions {
   sedef_capture_load(): CaptureState;
   /** A file dropped on the editor: its name and contents (at most 24 MB). Kept by the plugin. */
   sedef_capture_loadData(fileName: string, text: string): CaptureState;
+  /**
+   * The same with the file's bytes as they are, base64 (0.10.3 on): reading the file as text
+   * would drop a byte-order mark and replace invalid bytes, so the kept copy would differ.
+   */
+  sedef_capture_loadBytes(fileName: string, base64: string): CaptureState;
   /** One of CaptureState.recent, by path. */
   sedef_capture_loadRecent(path: string): CaptureState;
   /** Unloads the capture and goes back to the amp models. */

@@ -319,6 +319,35 @@ void raisePeak (std::atomic<float>& a, float v) noexcept
     }
 }
 
+/// The snapshot itself, or, when it holds a non-finite value (a host's NaN automation, a damaged
+/// session), a copy in `scratch` with those values at their defaults (docs/robustness.md,
+/// section 2, rule 5). Finite values are left as they are.
+const ParamSnapshot& finiteParams (const ParamSnapshot& p, ParamSnapshot& scratch) noexcept
+{
+    bool finite = true;
+    for (const float v : p.values)
+        finite = finite && std::isfinite (v);
+    if (finite)
+        return p;
+    for (std::size_t i = 0; i < kNumParams; ++i)
+        scratch.values[i] = std::isfinite (p.values[i]) ? p.values[i] : kParamSpecs[i].defaultValue;
+    return scratch;
+}
+
+/// `in` itself, or, when it holds a non-finite sample (a broken driver or plug-in upstream), a
+/// copy in `scratch` with those samples silent, so they never reach a filter's state.
+const float* finiteInput (const float* in, float* scratch, int n) noexcept
+{
+    bool finite = true;
+    for (int i = 0; i < n; ++i)
+        finite = finite && std::isfinite (in[i]);
+    if (finite)
+        return in;
+    for (int i = 0; i < n; ++i)
+        scratch[i] = std::isfinite (in[i]) ? in[i] : 0.0f;
+    return scratch;
+}
+
 } // namespace
 
 // -------------------------------------------------------------------------------------------------
@@ -346,8 +375,9 @@ struct Engine::Impl
     std::array<std::vector<float>, 2> post;   // stereo post-chain buffers
     std::array<std::vector<float>, 2> chainR; // second chain's cab output in dual mode
     std::vector<float> monoIn;
-    InputFold fold;         // stereo input -> the single chain (Summed mode)
-    InputFold analysisFold; // stereo input -> the tuner in Dual mode
+    std::array<std::vector<float>, 2> finiteIn; // inputs with non-finite samples silenced
+    InputFold fold;                             // stereo input -> the single chain (Summed mode)
+    InputFold analysisFold;                     // stereo input -> the tuner in Dual mode
 
     BoardSwitch board; // takes both chains' racks to the newest pedal order
 
@@ -390,6 +420,8 @@ void Engine::prepare (double sampleRate, int maxBlockSize, int numInputs, int nu
         for (auto& b : *group)
             b.assign (static_cast<size_t> (block), 0.0f);
     d.monoIn.assign (static_cast<size_t> (block), 0.0f);
+    for (auto& b : d.finiteIn)
+        b.assign (static_cast<size_t> (block), 0.0f);
     d.fold.prepare (sampleRate);
     d.analysisFold.prepare (sampleRate);
     d.board.prepare (sampleRate, block, d.chains[0].rack.latencySamples());
@@ -551,10 +583,12 @@ dsp::CaptureStage& Engine::capture (int index) noexcept
 }
 
 void Engine::process (const float* const* inputs, float* const* outputs, int numFrames,
-                      const ParamSnapshot& p, const Transport& transport) noexcept
+                      const ParamSnapshot& params, const Transport& transport) noexcept
 {
     ScopedNoDenormals noDenormals;
     auto& d = *impl_;
+    ParamSnapshot cleaned;
+    const ParamSnapshot& p = finiteParams (params, cleaned);
 
     // Settings are derived once per host block.
     const ChainSettings chain = chainSettings (p);
@@ -646,7 +680,8 @@ void Engine::process (const float* const* inputs, float* const* outputs, int num
 
     const bool analysis = analysisEnabled_.load (std::memory_order_relaxed);
     const float outputTarget = dbToGain (p[P::outputGain]);
-    const float muteTarget = analysis && p.flag (P::tunerMute) ? 0.0f : 1.0f;
+    const bool tunerOpen = tunerOpen_.load (std::memory_order_relaxed);
+    const float muteTarget = tunerOpen && p.flag (P::tunerMute) ? 0.0f : 1.0f;
     if (d.snapGains)
     {
         d.outputGain.setCurrentAndTarget (outputTarget);
@@ -701,8 +736,9 @@ void Engine::process (const float* const* inputs, float* const* outputs, int num
         n = d.board.step (n, d.racks());
         const auto duck = d.board.duckGains (n);
 
-        const float* in0 = inputs[0] + start;
-        const float* in1 = numInputs == 2 ? inputs[1] + start : nullptr;
+        const float* in0 = finiteInput (inputs[0] + start, d.finiteIn[0].data(), n);
+        const float* in1 =
+            numInputs == 2 ? finiteInput (inputs[1] + start, d.finiteIn[1].data(), n) : nullptr;
 
         // Mono source for the single chain. In Summed mode the fold averages the two inputs, or
         // takes the live one at unity when the other carries nothing (a guitar on one input of a

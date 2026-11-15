@@ -3,6 +3,7 @@
 
 #include "ParameterLayout.h"
 #include "PluginProcessor.h"
+#include "SafeVar.h"
 
 #if defined(JucePlugin_Build_Standalone) && JucePlugin_Build_Standalone && !SEDEF_PLUGIN_TESTS
 // The standalone holder needs juce_audio_utils first; the comment keeps include sorting off.
@@ -24,11 +25,6 @@ enum class Form
     full,    ///< every value of every scene, the one in use read live
     session, ///< every value of the other scenes; the one in use {}
 };
-
-bool isNumber (const juce::var& v)
-{
-    return v.isInt() || v.isInt64() || v.isDouble() || v.isBool();
-}
 
 juce::var scenesVar (const live::SceneBank& bank, const std::function<float (ParamId)>& live,
                      Form form)
@@ -79,9 +75,8 @@ std::function<float (ParamId)> parametersOf (const juce::var& parameters)
     return [parameters] (ParamId id) {
         const auto& s = spec (id);
         const juce::Identifier key (toJuce (s.id));
-        return parameters.hasProperty (key) && isNumber (parameters[key])
-                   ? s.sanitise (static_cast<float> (static_cast<double> (parameters[key])))
-                   : s.defaultValue;
+        const auto v = parameters.hasProperty (key) ? finiteFloat (parameters[key]) : std::nullopt;
+        return v ? s.sanitise (*v) : s.defaultValue;
     };
 }
 } // namespace
@@ -111,15 +106,14 @@ live::SceneBank scenesFromVar (const juce::var& scenes, const std::function<floa
             if (const auto* o = (*list)[s].getDynamicObject())
                 for (bank.made = static_cast<std::uint8_t> (bank.made | 1u << s);
                      const auto& [key, value] : o->getProperties())
-                    if (const auto id = findParam (key.toString().toStdString());
-                        id && isNumber (value))
-                        if (const int at = bank.find (*id); at >= 0)
-                            bank.values[static_cast<std::size_t> (s)]
-                                       [static_cast<std::size_t> (at)] = spec (*id).sanitise (
-                                static_cast<float> (static_cast<double> (value)));
-    const auto& active = scenes["active"];
-    bank.active = static_cast<std::uint8_t> (
-        isNumber (active) ? juce::jlimit (0, live::kNumScenes - 1, static_cast<int> (active)) : 0);
+                    if (const auto id = findParam (key.toString().toStdString()))
+                        if (const auto v = finiteFloat (value))
+                            if (const int at = bank.find (*id); at >= 0)
+                                bank.values[static_cast<std::size_t> (s)]
+                                           [static_cast<std::size_t> (at)] =
+                                    spec (*id).sanitise (*v);
+    bank.active =
+        static_cast<std::uint8_t> (toIntIn (scenes["active"], 0, live::kNumScenes - 1, 0));
     bank.made = static_cast<std::uint8_t> (bank.made | 1u << bank.active);
     return bank;
 }
@@ -296,13 +290,17 @@ void LiveState::processLearn()
         {
             if (!msg.isControlChange() || !live::isLearnable (msg.data1))
                 continue;
-            l.binding =
-                settings_.bind (l.target, msg.channel(), msg.data1, live::SwitchMode::toggle);
-            if (l.binding < 0)
+            int bound = -1;
+            editSettings ([&] (LiveSettings& s) {
+                bound = s.bind (l.target, msg.channel(), msg.data1, live::SwitchMode::toggle);
+            });
+            if (bound < 0)
             {
                 finishLearn (std::nullopt); // the map is full
                 continue;
             }
+            l.channel = msg.channel();
+            l.controller = msg.data1;
             if (!l.target.isSwitch())
             {
                 finishLearn (std::nullopt);
@@ -314,12 +312,9 @@ void LiveState::processLearn()
             l.phase = Learn::Phase::listening;
             if (const auto mode = l.classifier->first (value, m.time))
                 finishLearn (mode);
-            else
-                settingsChanged();
             continue;
         }
-        const auto& b = settings_.bindings[static_cast<std::size_t> (l.binding)];
-        if (msg.isControlChange() && msg.channel() == b.channel && msg.data1 == b.controller)
+        if (msg.isControlChange() && msg.channel() == l.channel && msg.data1 == l.controller)
             if (const auto mode = l.classifier->next (value, m.time))
                 finishLearn (mode);
     }
@@ -332,18 +327,36 @@ void LiveState::finishLearn (std::optional<live::SwitchMode> mode)
 {
     if (!learn_)
         return;
-    if (mode && learn_->binding >= 0 &&
-        learn_->binding < static_cast<int> (settings_.bindings.size()))
-        settings_.bindings[static_cast<std::size_t> (learn_->binding)].mode = *mode;
+    const auto target = learn_->target;
     learn_->phase = Learn::Phase::done;
     control_.setLearning (false);
-    settingsChanged();
+    // By its target: the binding may have moved in the list since it was made.
+    editSettings ([&] (LiveSettings& s) {
+        if (const int at = s.find (target); mode && at >= 0)
+            s.bindings[static_cast<std::size_t> (at)].mode = *mode;
+    });
 }
 
-void LiveState::settingsChanged()
+int LiveState::learnBinding() const
 {
-    settings_.save();
-    settingsText_ = LiveSettings::file().loadFileAsString();
+    return learn_ && learn_->phase != Learn::Phase::waiting ? settings_.find (learn_->target) : -1;
+}
+
+void LiveState::editSettings (const std::function<void (LiveSettings&)>& change)
+{
+    {
+        const SharedFileLock::Scoped lock (settingsLock_);
+        // Another instance may have written since this one last read or wrote: the change goes
+        // into what it wrote, so neither edit is lost.
+        if (lock.isLocked())
+            if (auto text = LiveSettings::file().loadFileAsString(); text != settingsText_)
+                if (LiveSettings fresh; fresh.load())
+                    settings_ = std::move (fresh);
+        change (settings_);
+        if (lock.isLocked())
+            settings_.save();
+        settingsText_ = LiveSettings::file().loadFileAsString();
+    }
     control_.setMap (settings_.toMap());
     reserveLooper();
     ++revision;
@@ -609,52 +622,61 @@ void LiveState::cancelLearn()
 
 void LiveState::forget (const juce::String& target)
 {
-    if (const auto t = LiveTarget::parse (target))
-        if (const int at = settings_.find (*t); at >= 0)
-        {
-            settings_.bindings.erase (settings_.bindings.begin() + at);
-            settingsChanged();
-        }
+    const auto t = LiveTarget::parse (target);
+    if (!t || settings_.find (*t) < 0)
+        return;
+    // Forgetting what a learn is listening to ends the learn; any other binding leaves it be.
+    if (learn_ && learn_->target == *t && learn_->phase == Learn::Phase::listening)
+    {
+        learn_.reset();
+        control_.setLearning (false);
+    }
+    editSettings ([&] (LiveSettings& s) {
+        if (const int at = s.find (*t); at >= 0)
+            s.bindings.erase (s.bindings.begin() + at);
+    });
 }
 
 void LiveState::updateBinding (int index, const juce::var& changes)
 {
     if (index < 0 || index >= static_cast<int> (settings_.bindings.size()) || !changes.isObject())
         return;
-    auto& b = settings_.bindings[static_cast<std::size_t> (index)];
-    if (changes.hasProperty ("mode"))
-        b.mode = changes["mode"].toString() == "latch" ? live::SwitchMode::latch
-                                                       : live::SwitchMode::toggle;
-    const auto unit = [] (const juce::var& v, float fallback) {
-        return isNumber (v)
-                   ? juce::jlimit (0.0f, 1.0f, static_cast<float> (static_cast<double> (v)))
-                   : fallback;
-    };
-    if (changes.hasProperty ("low"))
-        b.low = unit (changes["low"], b.low);
-    if (changes.hasProperty ("high"))
-        b.high = unit (changes["high"], b.high);
-    if (changes["doubleTap"].isBool()) // present but null or not a boolean: unchanged
-        b.doubleTap = b.target.action == live::Action::looperMain && isTrue (changes["doubleTap"]);
-    settingsChanged();
+    // The panel names the binding by its place in the list it was shown; the edit finds it by
+    // its target, in case another instance's edit comes in first.
+    const auto target = settings_.bindings[static_cast<std::size_t> (index)].target;
+    editSettings ([&] (LiveSettings& s) {
+        const int at = s.find (target);
+        if (at < 0)
+            return;
+        auto& b = s.bindings[static_cast<std::size_t> (at)];
+        if (changes.hasProperty ("mode"))
+            b.mode = changes["mode"].toString() == "latch" ? live::SwitchMode::latch
+                                                           : live::SwitchMode::toggle;
+        const auto unit = [] (const juce::var& v, float fallback) {
+            return static_cast<float> (toDoubleIn (v, 0.0, 1.0, static_cast<double> (fallback)));
+        };
+        if (changes.hasProperty ("low"))
+            b.low = unit (changes["low"], b.low);
+        if (changes.hasProperty ("high"))
+            b.high = unit (changes["high"], b.high);
+        if (changes["doubleTap"].isBool()) // present but null or not a boolean: unchanged
+            b.doubleTap =
+                b.target.action == live::Action::looperMain && isTrue (changes["doubleTap"]);
+    });
 }
 
 void LiveState::removeBinding (int index)
 {
     if (index < 0 || index >= static_cast<int> (settings_.bindings.size()))
         return;
-    settings_.bindings.erase (settings_.bindings.begin() + index);
-    learn_.reset(); // a learn result pointing at it would be wrong now
-    control_.setLearning (false);
-    settingsChanged();
+    forget (settings_.bindings[static_cast<std::size_t> (index)].target.toString());
 }
 
 void LiveState::clearBindings()
 {
-    settings_.bindings.clear();
     learn_.reset();
     control_.setLearning (false);
-    settingsChanged();
+    editSettings ([] (LiveSettings& s) { s.bindings.clear(); });
 }
 
 void LiveState::setProgram (int program, const juce::var& target)
@@ -663,22 +685,22 @@ void LiveState::setProgram (int program, const juce::var& target)
         return;
     if (target.isObject() && target.hasProperty ("scene"))
     {
-        const int scene = isNumber (target["scene"]) ? static_cast<int> (target["scene"]) : -1;
+        const int scene = toIntIn (target["scene"], -1, live::kNumScenes, -1);
         if (scene < 0 || scene >= live::kNumScenes)
             return;
-        settings_.programs[program] = ProgramTarget { {}, scene };
+        editSettings ([&] (LiveSettings& s) { s.programs[program] = ProgramTarget { {}, scene }; });
     }
     else if (target.isObject() && target["preset"].toString().isNotEmpty())
-        settings_.programs[program] = ProgramTarget { target["preset"].toString(), -1 };
+        editSettings ([&] (LiveSettings& s) {
+            s.programs[program] = ProgramTarget { target["preset"].toString(), -1 };
+        });
     else
-        settings_.programs.erase (program);
-    settingsChanged();
+        editSettings ([&] (LiveSettings& s) { s.programs.erase (program); });
 }
 
 void LiveState::setProgramChannel (int channel)
 {
-    settings_.programChannel = juce::jlimit (-1, 15, channel);
-    settingsChanged();
+    editSettings ([&] (LiveSettings& s) { s.programChannel = juce::jlimit (-1, 15, channel); });
 }
 
 void LiveState::setInput (const juce::String& identifier, bool enabled)
@@ -760,7 +782,7 @@ juce::var LiveState::stateAsVar()
         o->setProperty ("target", learn_->target.toString());
         static constexpr const char* kPhases[] = { "waiting", "listening", "done" };
         o->setProperty ("phase", kPhases[static_cast<int> (learn_->phase)]);
-        o->setProperty ("binding", learn_->binding);
+        o->setProperty ("binding", learnBinding());
         learn = juce::var (o);
     }
 

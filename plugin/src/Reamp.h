@@ -63,6 +63,11 @@ public:
     /// tests call it by hand instead of starting the thread.)
     void runOnce();
 
+    /// Why a file of `frames` at `fileRate` can't be converted for a device at `deviceRate`
+    /// (its converted copy would pass the 4 GB limit of a WAV file), or empty when it can.
+    static juce::String conversionProblem (const juce::String& fileName, juce::int64 frames,
+                                           int channels, double fileRate, double deviceRate);
+
 private:
     void run() override;
     void ensureThread();

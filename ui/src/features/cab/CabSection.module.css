@@ -2,6 +2,9 @@
 .section {
   display: grid;
   grid-template-columns: 236px 420px 1fr;
+  /* One row the section's height: a column taller than that scrolls instead of running under
+     the status bar. */
+  grid-template-rows: minmax(0, 1fr);
   gap: 22px;
   height: 100%;
   padding: 16px 24px;
@@ -108,4 +111,9 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+  /* Both mics on custom IRs that are missing, with long folders, can outgrow the section: the
+     strips then scroll, the lower one cut at the edge. */
+  max-height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }

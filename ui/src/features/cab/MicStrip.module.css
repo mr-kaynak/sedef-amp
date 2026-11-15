@@ -96,6 +96,34 @@
   color: var(--bone-3);
 }
 
+/* A session's IR that couldn't be loaded: the row names the file, the line under it says why. */
+.ir[data-missing] {
+  border-color: rgb(233 199 125 / 0.35);
+}
+
+.ir[data-missing] > svg {
+  flex: none;
+  color: var(--amber);
+}
+
+.irMissing {
+  flex: 1;
+  min-width: 0;
+  color: var(--amber);
+  font-size: var(--t-12);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.irWhy {
+  margin: -4px 0 0;
+  color: var(--bone-2);
+  font-size: var(--t-11);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+
 .irNote {
   margin: -4px 0 0;
   color: var(--bone-3);

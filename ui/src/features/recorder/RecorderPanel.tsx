@@ -196,7 +196,7 @@ function RecordTab({ r }: { r: RecorderState }) {
 
       <p className={styles.hint}>
         Two WAV files that line up sample for sample: your guitar dry (DI) and the sound you hear
-        (Output, the click included when it plays).
+        (Output, with the click or the drums when they play).
       </p>
       <p className={styles.keys}>
         <kbd>R</kbd> start or stop a take

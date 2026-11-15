@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 #include "UpdateLogic.h"
 
+#include <cmath>
 #include <juce_cryptography/juce_cryptography.h>
 #include <set>
 
@@ -68,7 +69,14 @@ Origin originOf (const juce::String& url)
 juce::int64 int64Property (const juce::var& v, const char* name)
 {
     const auto& p = v[name];
-    return p.isInt() || p.isInt64() || p.isDouble() ? static_cast<juce::int64> (p) : 0;
+    if (p.isInt() || p.isInt64())
+        return static_cast<juce::int64> (p);
+    // JSON's 1e999 is infinite: converting it, NaN or anything outside int64 to an integer is
+    // undefined behaviour (docs/robustness.md, section 2).
+    if (const double d = p.isDouble() ? static_cast<double> (p) : 0.0;
+        std::isfinite (d) && std::abs (d) < 9.0e18)
+        return static_cast<juce::int64> (d);
+    return 0;
 }
 } // namespace
 

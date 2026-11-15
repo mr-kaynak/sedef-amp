@@ -53,9 +53,9 @@ device in ─► Re-amp (replace or mix) ─► [DI file] ─► Engine (gate �
   gain and before anything else, or the re-amped file in its place. Re-amping a DI through an
   unchanged rig reproduces the output file.
 - **Output** is exactly what the app sends to the device: after the pedals, amp, cab, post
-  effects, the looper, the metronome and the output gain. If the click plays, it is in the
-  output file, because that is what you heard; the DI never has it, so a take recorded with
-  the click can be re-amped without it.
+  effects, the looper, the metronome and the output gain. If the click or the drums play, they
+  are in the output file, because that is what you heard; the DI never has them, so a take
+  recorded with the click or the drums can be re-amped without them.
 
 `record::Deck::process` (engine) is the one place that runs these steps in this order, for the
 plug-in and for the tests alike.
@@ -212,6 +212,16 @@ the file's own rate and "converted for this device". Why not refuse:
   play bit-exact (section 7).
 
 The temporary file is deleted when another file loads and when the app quits.
+
+Two files are refused before any work, with the reason in the panel
+([robustness.md](robustness.md#5-files-that-lie-about-themselves)):
+
+- **One whose converted copy would pass 4 GB**, the limit of a WAV file's 32-bit sizes:
+  `frames × device rate / file rate` is checked against `WavFloatWriter::maxFrames` first (3.1
+  hours of stereo at 48 kHz). The panel says how long the file is and offers the way round: set
+  the device to the file's rate, and it plays without converting.
+- **One whose header claims a rate outside 8–384 kHz** (`RateConverter::isSupportedRate`): the
+  conversion filter grows with the ratio.
 
 ### Playing
 

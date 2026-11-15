@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <functional>
 #include <memory>
 #include <string>
 
@@ -219,6 +220,130 @@ TEST_CASE ("midi.json from elsewhere is read safely")
     REQUIRE (s.programs.size() == 2);
     CHECK (s.programs.at (2).scene == 7);
     CHECK (s.programs.at (4).scene == 1);
+}
+
+TEST_CASE ("midi.json numbers that are not numbers are absent")
+{
+    // docs/robustness.md, section 2: 1e999 parses as infinity, and converting it to int was
+    // undefined behaviour; null, text and booleans are not numbers.
+    const auto s = plugin::LiveSettings::fromVar (juce::JSON::parse (R"({
+        "bindings": [
+            { "target": "param:pearlEnabled", "channel": 1e999, "controller": 20 },
+            { "target": "param:coralEnabled", "channel": 2, "controller": -1e999 },
+            { "target": "param:driftEnabled", "channel": null, "controller": 118.6 },
+            { "target": "param:conchPosition", "channel": "3", "controller": 11,
+              "low": null, "high": "0.5" },
+            { "target": "param:anemoneSensitivity", "channel": true, "controller": 12,
+              "low": -1e999, "high": 1e999 }
+        ],
+        "programs": { "channel": -1e999, "assigned": [ { "program": 1e999, "preset": "x" },
+                                                       { "program": 3, "scene": true },
+                                                       { "program": 5, "scene": null },
+                                                       { "program": 7.6, "scene": 2.4 } ] } })"));
+    REQUIRE (s.bindings.size() == 4);
+    CHECK (s.bindings[0].target.param == ParamId::pearlEnabled);
+    CHECK (s.bindings[0].channel == 0); // the default channel 1
+    CHECK (s.bindings[1].target.param == ParamId::driftEnabled);
+    CHECK (s.bindings[1].controller == 119);
+    CHECK (s.bindings[1].channel == 0);
+    CHECK (s.bindings[2].channel == 0); // text is not a channel
+    CHECK (is (s.bindings[2].low, 0.0f));
+    CHECK (is (s.bindings[2].high, 1.0f));
+    CHECK (s.bindings[3].channel == 0);
+    CHECK (is (s.bindings[3].low, 0.0f));
+    CHECK (is (s.bindings[3].high, 1.0f));
+    CHECK (s.programChannel == -1);
+    REQUIRE (s.programs.size() == 1);
+    CHECK (s.programs.at (7).scene == 1); // 7.6 -> program 8, 2.4 -> scene 2
+}
+
+TEST_CASE ("Forgetting or removing another binding while a learn listens leaves both right")
+{
+    // docs/robustness.md, section 6 / bug scan: the learn kept its binding's index, so a binding
+    // erased before it moved the learn's result onto another binding, or past the end.
+    Fixture f;
+    SedefProcessor p;
+    prepare (p);
+    learn (p, "param:coralEnabled", 21, true); // 0
+    learn (p, "param:pearlEnabled", 20, true); // 1
+    learn (p, "param:driftEnabled", 22, true); // 2
+    const auto& b = p.live().settings().bindings;
+    REQUIRE (b.size() == 3);
+
+    const auto window = static_cast<int> (live::kLearnWindowSeconds * kRate / kBlock) + 2;
+    const auto relearnPearlForgetting = [&] (const std::function<void()>& erase) {
+        REQUIRE (p.live().learn ("param:pearlEnabled"));
+        play (p, { cc (20, 127) }); // the first press: the classifier listens for 1.5 s
+        CHECK (p.live().stateAsVar()["learn"]["binding"] ==
+               juce::var (
+                   p.live().settings().find (*plugin::LiveTarget::parse ("param:pearlEnabled"))));
+        erase();
+        for (int i = 0; i < window; ++i) // the window runs out: a latching switch
+            play (p, {}, i % 20 == 0);
+        p.live().tick();
+        CHECK (p.live().stateAsVar()["learn"]["phase"] == "done");
+        p.live().cancelLearn();
+    };
+
+    SECTION ("forget, from a control's menu")
+    {
+        relearnPearlForgetting ([&] { p.live().forget ("param:coralEnabled"); });
+        REQUIRE (b.size() == 2);
+        CHECK (b[0].target.param == ParamId::pearlEnabled);
+        CHECK (b[0].mode == live::SwitchMode::latch); // what was learnt
+        CHECK (b[1].target.param == ParamId::driftEnabled);
+        CHECK (b[1].mode == live::SwitchMode::toggle); // untouched
+    }
+    SECTION ("remove, from the bindings list")
+    {
+        relearnPearlForgetting ([&] { p.live().removeBinding (2); });
+        REQUIRE (b.size() == 2);
+        CHECK (b[0].target.param == ParamId::coralEnabled);
+        CHECK (b[0].mode == live::SwitchMode::toggle);
+        CHECK (b[1].target.param == ParamId::pearlEnabled);
+        CHECK (b[1].mode == live::SwitchMode::latch);
+    }
+    SECTION ("forgetting the binding being learnt ends the learn and leaves it forgotten")
+    {
+        REQUIRE (p.live().learn ("param:pearlEnabled"));
+        play (p, { cc (20, 127) });
+        p.live().forget ("param:pearlEnabled");
+        CHECK (p.live().stateAsVar()["learn"].isVoid());
+        for (int i = 0; i < window; ++i)
+            play (p, {}, i % 20 == 0);
+        REQUIRE (b.size() == 2);
+        CHECK (p.live().settings().find (*plugin::LiveTarget::parse ("param:pearlEnabled")) < 0);
+        CHECK (b[0].mode == live::SwitchMode::toggle);
+        CHECK (b[1].mode == live::SwitchMode::toggle);
+    }
+}
+
+TEST_CASE ("Two instances editing the MIDI setup within the one-second check keep both edits")
+{
+    // docs/robustness.md, section 3: each instance wrote its whole copy, so the later write
+    // dropped what the other had just learnt.
+    Fixture f;
+    SedefProcessor a, b;
+    prepare (a);
+    prepare (b);
+    learn (a, "param:pearlEnabled", 20, true);
+    learn (b, "param:coralEnabled", 21, true); // b has not read a's edit yet
+    auto file = plugin::LiveSettings::fromVar (juce::JSON::parse (plugin::LiveSettings::file()));
+    REQUIRE (file.bindings.size() == 2);
+    CHECK (file.find (*plugin::LiveTarget::parse ("param:pearlEnabled")) >= 0);
+    CHECK (file.find (*plugin::LiveTarget::parse ("param:coralEnabled")) >= 0);
+
+    // a's panel still shows only Pearl, at index 0: its edit reaches Pearl, not Coral.
+    REQUIRE (a.live().settings().bindings.size() == 1);
+    a.live().updateBinding (0, juce::JSON::parse (R"({ "mode": "latch" })"));
+    b.live().setProgram (3, juce::JSON::parse (R"({ "scene": 2 })"));
+    a.live().removeBinding (0); // Pearl, in a's view; Coral stays
+    file = plugin::LiveSettings::fromVar (juce::JSON::parse (plugin::LiveSettings::file()));
+    REQUIRE (file.bindings.size() == 1);
+    CHECK (file.bindings[0].target.param == ParamId::coralEnabled);
+    CHECK (file.bindings[0].mode == live::SwitchMode::toggle);
+    CHECK (file.programs.at (3).scene == 2);
+    CHECK (a.live().settings() == file);
 }
 
 TEST_CASE ("A footswitch switches a scene in one block, and the host's parameters follow")

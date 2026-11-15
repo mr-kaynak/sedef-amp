@@ -38,6 +38,11 @@ float clampUnit (const juce::var& v, float fallback)
 }
 } // namespace
 
+bool isTrue (const juce::var& v)
+{
+    return v.isBool() && static_cast<bool> (v);
+}
+
 // LiveTarget --------------------------------------------------------------------------------------
 
 std::optional<LiveTarget> LiveTarget::parse (const juce::String& text)
@@ -190,13 +195,13 @@ juce::var LiveSettings::toVar() const
         o->setProperty ("controller", b.controller);
         if (b.target.isSwitch())
             o->setProperty ("mode", kModeNames[static_cast<int> (b.mode)]);
-        if (b.doubleTap)
-            o->setProperty ("doubleTap", true);
         else
         {
             o->setProperty ("low", static_cast<double> (b.low));
             o->setProperty ("high", static_cast<double> (b.high));
         }
+        if (b.doubleTap) // only when on: a file without looper bindings reads as before
+            o->setProperty ("doubleTap", true);
         list.add (juce::var (o));
     }
     juce::Array<juce::var> assigned;
@@ -241,8 +246,7 @@ LiveSettings LiveSettings::fromVar (const juce::var& v)
                                                         : live::SwitchMode::toggle;
             b.low = clampUnit (item["low"], 0.0f);
             b.high = clampUnit (item["high"], 1.0f);
-            b.doubleTap = b.target.action == live::Action::looperMain &&
-                          static_cast<bool> (item["doubleTap"]);
+            b.doubleTap = b.target.action == live::Action::looperMain && isTrue (item["doubleTap"]);
             s.bindings.push_back (b);
         }
     const auto& programs = v["programs"];

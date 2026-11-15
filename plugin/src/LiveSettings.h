@@ -15,6 +15,10 @@
 namespace sedef::plugin
 {
 
+/// An untrusted JSON field (midi.json, the UI's calls) that is the boolean true; a string, a
+/// number or a null is not.
+bool isTrue (const juce::var& v);
+
 /// What a binding drives, as the UI and midi.json name it: "param:<id>", "scene:<1-8>",
 /// "scene:next", "scene:previous", "preset:next", "preset:previous", or the looper's
 /// "looper:main", "looper:stop", "looper:undo" and "looper:clear" (docs/live.md §4.5).

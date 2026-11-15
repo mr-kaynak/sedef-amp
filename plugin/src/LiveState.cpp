@@ -634,9 +634,8 @@ void LiveState::updateBinding (int index, const juce::var& changes)
         b.low = unit (changes["low"], b.low);
     if (changes.hasProperty ("high"))
         b.high = unit (changes["high"], b.high);
-    if (changes.hasProperty ("doubleTap"))
-        b.doubleTap =
-            b.target.action == live::Action::looperMain && static_cast<bool> (changes["doubleTap"]);
+    if (changes["doubleTap"].isBool()) // present but null or not a boolean: unchanged
+        b.doubleTap = b.target.action == live::Action::looperMain && isTrue (changes["doubleTap"]);
     settingsChanged();
 }
 

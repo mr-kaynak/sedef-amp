@@ -680,3 +680,96 @@ TEST_CASE ("A plug-in learns no looper targets, and a looper binding from the ap
     CHECK_FALSE (plugin.engine().looperReady());
     CHECK (looperState (plugin) == "unavailable");
 }
+
+TEST_CASE ("midi.json: switches keep no range, and only a boolean true turns a double tap on")
+{
+    plugin::LiveSettings s;
+    plugin::LiveTarget pearl;
+    pearl.param = ParamId::pearlEnabled;
+    plugin::LiveTarget conch;
+    conch.param = ParamId::conchPosition;
+    plugin::LiveTarget main;
+    main.action = live::Action::looperMain;
+    s.bind (pearl, 0, 20, live::SwitchMode::toggle);
+    s.bind (conch, 0, 11, live::SwitchMode::toggle);
+    s.bind (main, 0, 60, live::SwitchMode::toggle);
+
+    // As 0.10 wrote them: a switch has a mode, a continuous target a range, and a looper switch
+    // with the option off says nothing about it.
+    auto out = s.toVar();
+    CHECK (out["bindings"][0].hasProperty ("mode"));
+    CHECK_FALSE (out["bindings"][0].hasProperty ("low"));
+    CHECK_FALSE (out["bindings"][0].hasProperty ("high"));
+    CHECK (out["bindings"][1].hasProperty ("low"));
+    CHECK_FALSE (out["bindings"][1].hasProperty ("mode"));
+    CHECK_FALSE (out["bindings"][2].hasProperty ("doubleTap"));
+    CHECK_FALSE (out["bindings"][2].hasProperty ("low"));
+
+    s.bindings[2].doubleTap = true;
+    out = s.toVar();
+    CHECK (out["bindings"][2]["doubleTap"] == juce::var (true));
+    CHECK (out["bindings"][2]["mode"] == "toggle");
+    CHECK_FALSE (out["bindings"][2].hasProperty ("low"));
+    CHECK (plugin::LiveSettings::fromVar (out) == s);
+
+    // An edited file: a string, a number or a null is not a yes.
+    for (const char* value : { R"("true")", "1", "null", "[]" })
+    {
+        CAPTURE (value);
+        const auto edited = plugin::LiveSettings::fromVar (juce::JSON::parse (
+            juce::String (R"({ "bindings": [ { "target": "looper:main", "controller": 60,
+                              "doubleTap": )") +
+            value + " } ] }"));
+        REQUIRE (edited.bindings.size() == 1);
+        CHECK_FALSE (edited.bindings[0].doubleTap);
+    }
+}
+
+TEST_CASE ("A looper footswitch is forgotten and learnt again; the double tap is the player's")
+{
+    Fixture f;
+    StandaloneProcessor app;
+    auto& p = *app.p;
+    prepare (p);
+    const auto saved = [] {
+        return juce::JSON::parse (plugin::LiveSettings::file())["bindings"];
+    };
+
+    learn (p, "looper:main", 60, true);
+    p.live().updateBinding (0, juce::JSON::parse (R"({ "doubleTap": true })"));
+    REQUIRE (p.live().settings().bindings[0].doubleTap);
+    // A change that is not a boolean leaves it as it is.
+    p.live().updateBinding (0, juce::JSON::parse (R"({ "doubleTap": null })"));
+    p.live().updateBinding (0, juce::JSON::parse (R"({ "doubleTap": "false" })"));
+    CHECK (p.live().settings().bindings[0].doubleTap);
+
+    // Learnt again on another switch: the binding moves, the option stays.
+    learn (p, "looper:main", 64, false);
+    REQUIRE (p.live().settings().bindings.size() == 1);
+    CHECK (p.live().settings().bindings[0].controller == 64);
+    CHECK (p.live().settings().bindings[0].mode == live::SwitchMode::latch);
+    CHECK (p.live().settings().bindings[0].doubleTap);
+    CHECK (saved()[0]["controller"] == juce::var (64));
+
+    // Forgotten: gone from midi.json, and the old switch does nothing.
+    p.live().forget ("looper:main");
+    CHECK (p.live().settings().bindings.empty());
+    CHECK (saved().size() == 0);
+    play (p, { cc (64, 127) });
+    CHECK (looperState (p) == "empty");
+
+    // Learnt afresh: a new binding, the option off, and the switch records.
+    learn (p, "looper:main", 60, true);
+    REQUIRE (p.live().settings().bindings.size() == 1);
+    CHECK_FALSE (p.live().settings().bindings[0].doubleTap);
+    CHECK (saved()[0]["target"] == "looper:main");
+    CHECK_FALSE (saved()[0].hasProperty ("doubleTap"));
+    play (p, { cc (60, 127) });
+    CHECK (looperState (p) == "recording");
+
+    // Another instance reads the same file.
+    StandaloneProcessor other;
+    prepare (*other.p);
+    REQUIRE (other.p->live().settings().bindings.size() == 1);
+    CHECK (other.p->live().settings().bindings[0].target.action == live::Action::looperMain);
+}

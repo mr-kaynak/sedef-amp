@@ -269,6 +269,7 @@ if(SEDEF_BUILD_PLUGIN_TESTS)
     juce_add_console_app(sedef_plugin_tests PRODUCT_NAME "sedef_plugin_tests")
     target_sources(sedef_plugin_tests PRIVATE
         tests/BoardStateTests.cpp tests/LiveStateTests.cpp tests/RecorderTests.cpp
+        tests/ProcessorTests.cpp tests/SharedFileLockTests.cpp
         src/PluginProcessor.cpp src/PluginProcessor.h src/PresetManager.cpp src/PresetManager.h
         src/LiveState.cpp src/LiveState.h src/LiveSettings.cpp src/LiveSettings.h
         src/BoardText.cpp src/BoardText.h src/ParameterLayout.cpp src/ParameterLayout.h

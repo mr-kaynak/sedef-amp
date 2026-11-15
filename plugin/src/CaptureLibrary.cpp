@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 #include "CaptureLibrary.h"
 
+#include "SafeVar.h"
 #include "sedef/dsp/capture/CaptureStage.h"
 
 #include <cerrno>
@@ -626,10 +627,8 @@ void CaptureLibrary::restoreState (const juce::ValueTree& tree)
     // worker measures it again afterwards.
     if (auto bytes = decode (tree.getProperty ("data").toString()); bytes && hashOf (*bytes) == sha)
     {
-        std::optional<float> known;
-        const auto level = tree.getProperty ("normalisationDb").toString();
-        if (level.containsOnly ("-+.0123456789") && level.isNotEmpty())
-            known = level.getFloatValue();
+        // A finite number, or measured again (docs/robustness.md, section 2).
+        const std::optional<float> known = finiteFloat (tree.getProperty ("normalisationDb"), true);
         auto shared = std::make_shared<const std::string> (std::move (*bytes));
         if (loadBytes (fileName, shared, path, known, false, generation, tree).isEmpty())
         {
@@ -957,7 +956,7 @@ std::vector<CaptureLibrary::Recent> CaptureLibrary::readRecent() const
 void CaptureLibrary::writeRecent (const std::function<void (std::vector<Recent>&)>& change)
 {
     // Other instances (another host, the standalone app) share the file.
-    const juce::InterProcessLock::ScopedLockType lock (recentLock_);
+    const SharedFileLock::Scoped lock (recentLock_);
     if (!lock.isLocked())
         return;
     auto list = readRecent();

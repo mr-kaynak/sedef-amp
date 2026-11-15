@@ -6,6 +6,7 @@
 // layer did into the host's parameters.
 
 #include "LiveSettings.h"
+#include "SharedFileLock.h"
 #include "sedef/live/LiveControl.h"
 
 #include <functional>
@@ -94,8 +95,13 @@ private:
     void processLearn();
     /// Under bankLock_.
     void publish (bool applySwitch);
-    void settingsChanged();
+    /// Every change to the MIDI setup: under the shared file's lock, takes in what another
+    /// instance wrote since this one last read or wrote midi.json, applies `change` to that,
+    /// writes it and hands the map to the audio thread (docs/robustness.md, section 3).
+    void editSettings (const std::function<void (LiveSettings&)>& change);
     void finishLearn (std::optional<live::SwitchMode> mode);
+    /// The learn's binding in settings_, found by its target (one binding per target), or -1.
+    int learnBinding() const;
 
     SedefProcessor& processor_;
     live::LiveControl control_;
@@ -105,8 +111,11 @@ private:
 
     LiveSettings settings_;
     juce::String settingsText_; // midi.json as last read or written
+    SharedFileLock settingsLock_ { "SedefAmpMidiSetup" };
     int ticks_ = 0;
 
+    /// The binding a learn makes is found by its target, never kept as an index: forgetting
+    /// or removing another binding, or another instance's edit, moves the others in the list.
     struct Learn
     {
         LiveTarget target;
@@ -116,7 +125,7 @@ private:
             listening, ///< bound; watching the controller for its release
             done
         } phase = Phase::waiting;
-        int binding = -1;
+        int channel = -1, controller = -1; ///< what it bound, once listening
         std::optional<live::SwitchClassifier> classifier;
     };
     std::optional<Learn> learn_;

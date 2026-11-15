@@ -3,6 +3,7 @@
 
 #include "ParameterLayout.h"
 #include "PresetManager.h"
+#include "SafeVar.h"
 
 namespace sedef::plugin
 {
@@ -10,19 +11,20 @@ namespace
 {
 constexpr const char* kModeNames[] = { "toggle", "latch" };
 
+// midi.json is a file people edit (docs/robustness.md, section 2): a field that is null, of the
+// wrong type, or not a finite number is absent. A boolean is not a number here.
 int clampInt (const juce::var& v, int lo, int hi, int fallback)
 {
-    if (!v.isInt() && !v.isInt64() && !v.isDouble())
+    if (v.isBool())
         return fallback;
-    return juce::jlimit (lo, hi, static_cast<int> (v));
+    return toIntIn (v, lo, hi, fallback);
 }
 
 float clampUnit (const juce::var& v, float fallback)
 {
-    if (!v.isInt() && !v.isInt64() && !v.isDouble())
+    if (v.isBool())
         return fallback;
-    const auto f = static_cast<float> (static_cast<double> (v));
-    return std::isfinite (f) ? juce::jlimit (0.0f, 1.0f, f) : fallback;
+    return static_cast<float> (toDoubleIn (v, 0.0, 1.0, static_cast<double> (fallback)));
 }
 } // namespace
 

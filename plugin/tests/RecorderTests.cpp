@@ -13,6 +13,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <juce_audio_formats/juce_audio_formats.h>
 #include <juce_events/juce_events.h>
+#include <limits>
 
 using namespace sedef;
 using namespace sedef::plugin;
@@ -85,6 +86,32 @@ void writeWav (const juce::File& file, const std::vector<std::vector<float>>& ch
             interleaved.push_back (c[static_cast<std::size_t> (i)]);
     REQUIRE (w.write (0, interleaved.data(), n));
     REQUIRE (w.finish ({}));
+}
+
+/// An 8-bit mono WAV file whose header says `rate`, holding `bytes` frames: what a crafted file
+/// says about itself.
+juce::File writeClaims (const juce::File& file, std::uint32_t rate, std::uint32_t claimedBytes,
+                        int bytes = 4096)
+{
+    juce::MemoryOutputStream out;
+    out.write ("RIFF", 4);
+    out.writeInt (static_cast<int> (36u + claimedBytes));
+    out.write ("WAVEfmt ", 8);
+    out.writeInt (16);
+    out.writeShort (1); // PCM
+    out.writeShort (1); // mono
+    out.writeInt (static_cast<int> (rate));
+    out.writeInt (static_cast<int> (rate));
+    out.writeShort (1);
+    out.writeShort (8);
+    out.write ("data", 4);
+    out.writeInt (static_cast<int> (claimedBytes));
+    juce::HeapBlock<char> data (static_cast<std::size_t> (bytes));
+    for (int i = 0; i < bytes; ++i)
+        data[i] = static_cast<char> (128 + (i % 64));
+    out.write (data.get(), static_cast<std::size_t> (bytes));
+    REQUIRE (file.replaceWithData (out.getData(), out.getDataSize()));
+    return file;
 }
 } // namespace
 
@@ -262,6 +289,50 @@ TEST_CASE ("Re-amp: files load, play exactly, convert and drop in", "[recorder]"
         CHECK_FALSE (reamp.mayLoad (Recorder::folder().getChildFile ("missing.wav")));
         CHECK (reamp.importBegin ("song.mp3", 100) == 0);
         CHECK (reamp.importBegin ("huge.wav", Reamp::kMaxImportBytes + 1) == 0);
+    }
+
+    SECTION ("A file whose converted copy would pass 4 GB is refused before converting")
+    {
+        // docs/robustness.md, section 5: re-amp converted the whole file (minutes, and 4 GB of
+        // temporary file), then blamed the disk. The length is checked first.
+        CHECK (
+            Reamp::conversionProblem ("Long.wav", 11'520 * 44100, 2, 44100.0, 48000.0) ==
+            "Long.wav is 3 h 12 min long; converted to 48.0 kHz it would pass the 4 GB limit of a "
+            "WAV file. Trim it, or set the audio device to 44.1 kHz so it plays without "
+            "converting.");
+        CHECK (Reamp::conversionProblem ("Ok.wav", 3'600 * 2 * 44100, 2, 44100.0, 48000.0)
+                   .isEmpty()); // 2 h of stereo: 2.8 GB converted
+        CHECK (Reamp::conversionProblem ("Mono.wav", 3'600 * 5 * 44100, 1, 44100.0, 48000.0)
+                   .isEmpty()); // 5 h of mono: 3.5 GB
+        CHECK (Reamp::conversionProblem ("Huge.wav", std::numeric_limits<juce::int64>::max(), 2,
+                                         8000.0, 384000.0)
+                   .isNotEmpty());
+
+        // Through the reader: 8 kHz into a 384 kHz device is 48 times the frames, so a 22 MB
+        // file is enough to pass the limit.
+        reamp.prepare (384000.0, 1, 256);
+        const auto file =
+            writeClaims (fixture.root.getChildFile ("Long.wav"), 8000u, 22'400'000u, 22'400'000);
+        reamp.load (file);
+        reamp.runOnce();
+        const auto state = reamp.stateAsVar();
+        CHECK (state["status"].toString() == "error");
+        CHECK (state["error"].toString() ==
+               "Long.wav is 46 min 40 s long; converted to 384.0 kHz it would pass the 4 GB limit "
+               "of a WAV file. Trim it, or set the audio device to 8.0 kHz so it plays without "
+               "converting.");
+    }
+
+    SECTION ("A file claiming a rate outside 8 to 384 kHz is refused")
+    {
+        const auto file =
+            writeClaims (fixture.root.getChildFile ("Absurd.wav"), 4294967295u, 4096u);
+        reamp.load (file);
+        reamp.runOnce();
+        CHECK (reamp.stateAsVar()["status"].toString() == "error");
+        CHECK (reamp.stateAsVar()["error"].toString() ==
+               "Absurd.wav says it was recorded at 4294967295 Hz. Re-amp plays files recorded at "
+               "8 to 384 kHz.");
     }
 
     SECTION ("A dropped file arrives in pieces, is kept under Imported and loads")

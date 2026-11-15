@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 #pragma once
 
+#include "SharedFileLock.h"
 #include "sedef/params/Parameters.h"
 
 #include <array>
@@ -99,6 +100,9 @@ public:
     juce::String currentName() const { return currentName_; }
 
     static bool isGlobal (ParamId id) noexcept;
+    /// A preset file's value of parameter `i`, cleaned up like a load would: a value that is
+    /// null, text or not a finite number is the default (docs/robustness.md, section 2).
+    static float storedValue (const juce::var& parameters, std::size_t i);
 
     /// Something a preset refers to besides its parameters (the amp capture, CaptureLibrary; the
     /// pedalboard): saved under `key` as whatever `reference (true)` returns (void: nothing),
@@ -180,8 +184,6 @@ private:
     bool restore (const Snapshot& s);
     /// The current-preset bookkeeping for a session the host restored (the values are its own).
     void applyCurrent (const juce::String& id, const juce::String& name);
-    /// The stored preset value of parameter `i`, cleaned up like a load would.
-    static float storedValue (const juce::var& parameters, std::size_t i);
     /// Changes one parameter as a gesture, so hosts see it like a turn of the control.
     static void setWithGesture (juce::RangedAudioParameter& param, float normalised);
     /// Reads settings.json into the lists. False, leaving them as they were, when the file is
@@ -222,8 +224,8 @@ private:
 
     mutable std::recursive_mutex parametersLock_;
     mutable std::mutex hostLock_;
-    std::optional<HostRestore> hostRestore_; ///< guarded by hostLock_
-    juce::InterProcessLock settingsLock_ { "SedefAmpSettings" };
+    std::optional<HostRestore> hostRestore_;             ///< guarded by hostLock_
+    SharedFileLock settingsLock_ { "SedefAmpSettings" }; // docs/robustness.md, section 3
 };
 
 } // namespace sedef::plugin

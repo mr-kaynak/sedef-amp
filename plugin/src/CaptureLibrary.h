@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 #pragma once
 
+#include "SharedFileLock.h"
 #include "sedef/Engine.h"
 #include "sedef/dsp/capture/CaptureFile.h"
 
@@ -163,7 +164,7 @@ private:
     std::uint64_t generation_ = 0; // guarded: the newest request
     std::vector<Entry> cache_;     // guarded: most recent first
 
-    juce::InterProcessLock recentLock_ { "SedefAmpCaptures" };
+    SharedFileLock recentLock_ { "SedefAmpCaptures" }; // docs/robustness.md, section 3
     juce::ThreadPool worker_ {
         juce::ThreadPoolOptions {}.withThreadName ("Sedef capture loader").withNumberOfThreads (1)
     };

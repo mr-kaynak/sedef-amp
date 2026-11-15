@@ -10,9 +10,12 @@
 #include "Reamp.h"
 #include "Recorder.h"
 #include "sedef/Engine.h"
+#include "sedef/core/ProcessHold.h"
 #include "sedef/record/Deck.h"
 
 #include <array>
+#include <chrono>
+#include <cmath>
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <mutex>
 
@@ -79,7 +82,13 @@ public:
     juce::var uiState() const;
     void setUiState (const juce::var& s);
     double uiScale() const noexcept { return uiScale_.load (std::memory_order_relaxed); }
-    void setUiScale (double s) noexcept { uiScale_.store (s, std::memory_order_relaxed); }
+    /// The editor's size as a multiple of the base size: 0.5 to 2.5; anything else (a damaged
+    /// session's NaN) is 1.
+    void setUiScale (double s) noexcept
+    {
+        uiScale_.store (std::isfinite (s) ? juce::jlimit (0.5, 2.5, s) : 1.0,
+                        std::memory_order_relaxed);
+    }
 
     /// The pedalboard (board/Board.h): not a parameter, saved with the session and presets.
     /// Any thread.
@@ -117,13 +126,22 @@ public:
     /// current preset into what getStateInformation() saves, and tells the editor.
     void presetsChanged();
 
+    /// The 20 Hz timer's work: preset switches, garbage, Settings > Latency, latency reports
+    /// (public for the plug-in tests, which have no message loop). Message thread.
+    void tick();
+
+    /// How long a re-prepare waits for the block inside processBlock to leave
+    /// (docs/robustness.md, section 1).
+    static constexpr auto kHoldTimeout = std::chrono::milliseconds (500);
+
 private:
-    void timerCallback() override;
+    void timerCallback() override { tick(); }
     void mirrorPreset();
     /// What the `oversampling` parameter asks for.
     OversamplingMode requestedOversampling() const noexcept;
     /// Message thread: prepares the engine again at its rate and block size for the requested
-    /// oversampling, with the audio callback held off, and reports the new latency.
+    /// oversampling, with the audio thread held out (hold_), and reports the new latency. Gives
+    /// up, to try again on the next tick, if a block is still inside after kHoldTimeout.
     void applyOversampling();
 
     juce::AudioProcessorValueTreeState state_;
@@ -131,6 +149,9 @@ private:
 
     Engine engine_;
     std::mutex engineLock_; // serialises prepare() against IR installation
+    // Keeps processBlock out of the engine while it is prepared again (docs/robustness.md,
+    // section 1): JUCE's suspendProcessing() does not, in the CLAP wrapper.
+    ProcessHold hold_;
     // The recorder and re-amp around the engine; their threads (standalone only) are destroyed
     // before the deck they feed.
     record::Deck deck_;
@@ -168,7 +189,7 @@ private:
     int numTaps_ = 0;
 
     std::atomic<bool> lastPrev_ { false }, lastNext_ { false }; // also seeded by state restore
-    bool prepared_ = false;
+    std::atomic<bool> prepared_ { false };
 
     JUCE_DECLARE_WEAK_REFERENCEABLE (SedefProcessor)
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SedefProcessor)

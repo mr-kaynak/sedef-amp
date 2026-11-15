@@ -53,9 +53,9 @@ device in ─► Re-amp (replace or mix) ─► [DI file] ─► Engine (gate �
   gain and before anything else, or the re-amped file in its place. Re-amping a DI through an
   unchanged rig reproduces the output file.
 - **Output** is exactly what the app sends to the device: after the pedals, amp, cab, post
-  effects, the looper, the metronome and the output gain. If the click plays, it is in the
-  output file, because that is what you heard; the DI never has it, so a take recorded with
-  the click can be re-amped without it.
+  effects, the looper, the metronome and the output gain. If the click or the drums play, they
+  are in the output file, because that is what you heard; the DI never has them, so a take
+  recorded with the click or the drums can be re-amped without them.
 
 `record::Deck::process` (engine) is the one place that runs these steps in this order, for the
 plug-in and for the tests alike.

@@ -16,7 +16,16 @@ constexpr bool atOrAfter (std::uint32_t a, std::uint32_t b) noexcept
 }
 } // namespace
 
-LiveControl::LiveControl() = default;
+LiveControl::LiveControl()
+{
+    lastTap_.fill (-1);
+}
+
+void LiveControl::prepare (double sampleRate) noexcept
+{
+    doubleTapSamples_ = doubleTapSamples (sampleRate);
+    lastTap_.fill (-1);
+}
 
 void LiveControl::setMap (const MidiMap& map) noexcept
 {
@@ -56,7 +65,10 @@ void LiveControl::process (ParamSnapshot& snapshot, const MidiMessage* messages,
     // the parameters this block saw is visible from here on (docs/live.md §7.1).
     std::atomic_thread_fence (std::memory_order_acquire);
 
-    mapMailbox_.read (map_);
+    numLooperPresses_ = 0;
+    // A new map may move bindings to other indices: no press waits for a second one.
+    if (mapMailbox_.read (map_))
+        lastTap_.fill (-1);
 
     if (sceneMailbox_.read (incoming_))
     {
@@ -88,6 +100,7 @@ void LiveControl::process (ParamSnapshot& snapshot, const MidiMessage* messages,
 
     const bool learning = learning_.load (std::memory_order_relaxed);
     const auto now = audioTime_.load (std::memory_order_relaxed);
+    now_ = now;
     for (int k = 0; k < count; ++k)
     {
         const auto& m = messages[k];
@@ -121,7 +134,7 @@ void LiveControl::handle (const ParamSnapshot& s, const MidiMessage& m) noexcept
         {
             const auto& binding = map_.bindings[static_cast<std::size_t> (b)];
             if (binding.channel == m.channel() && binding.controller == m.data1)
-                applyBinding (s, binding, m.data2);
+                applyBinding (s, b, m.data2);
         }
         return;
     }
@@ -141,8 +154,9 @@ void LiveControl::handle (const ParamSnapshot& s, const MidiMessage& m) noexcept
     events_.push (&e, 1); // full: the message thread is stalled; the request is dropped
 }
 
-void LiveControl::applyBinding (const ParamSnapshot& s, const Binding& b, int value) noexcept
+void LiveControl::applyBinding (const ParamSnapshot& s, int index, int value) noexcept
 {
+    const auto& b = map_.bindings[static_cast<std::size_t> (index)];
     switch (b.action)
     {
     case Action::parameter:
@@ -187,7 +201,38 @@ void LiveControl::applyBinding (const ParamSnapshot& s, const Binding& b, int va
             events_.push (&e, 1);
         }
         return;
+    case Action::looperMain:
+        if (actionFires (b.mode, value))
+        {
+            // A second press less than the window after the first stops (§4.5).
+            auto& last = lastTap_[static_cast<std::size_t> (index)];
+            if (b.doubleTap && isDoubleTap (last, now_, doubleTapSamples_))
+            {
+                pressLooper (LooperPress::doubleTap);
+                last = -1; // a third press is a first press again
+            }
+            else
+            {
+                pressLooper (LooperPress::main);
+                last = b.doubleTap ? now_ : -1;
+            }
+        }
+        return;
+    case Action::looperStop:
+    case Action::looperUndo:
+    case Action::looperClear:
+        if (actionFires (b.mode, value))
+            pressLooper (b.action == Action::looperStop   ? LooperPress::stop
+                         : b.action == Action::looperUndo ? LooperPress::undo
+                                                          : LooperPress::clear);
+        return;
     }
+}
+
+void LiveControl::pressLooper (LooperPress press) noexcept
+{
+    if (numLooperPresses_ < kMaxLooperPresses) // more in one block are dropped (§7.3)
+        looperPresses_[static_cast<std::size_t> (numLooperPresses_++)] = press;
 }
 
 bool LiveControl::switchScene (const ParamSnapshot& s, int to) noexcept

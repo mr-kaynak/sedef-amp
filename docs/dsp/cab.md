@@ -288,6 +288,11 @@ nothing runs and the output is the convolution, bit for bit.
 
 ### Building a kernel (`CabSim::makeKernel`, loader thread)
 
+0. **Refuse** IRs whose rate is outside 8–384 kHz (`ConvolutionKernel::isSupportedIrRate`): a WAV
+   header can claim any rate, and the resampler's work grows with the ratio, so a claimed 4 GHz
+   took minutes. Inside the range a kernel costs at most `68 × max(IR rate, session rate)`
+   multiply-adds for its one second, whatever the file's length
+   ([robustness.md](../robustness.md#5-files-that-lie-about-themselves)).
 1. **Resample** `irSampleRate → targetRate` with a Kaiser-windowed sinc (β = 9, 32 zero crossings
    per side, pass band to 95% of the lower Nyquist, ~90 dB stop band). The tabulated kernel is
    evaluated per output sample; amplitudes are scaled by `in/out` so the IR's frequency response
@@ -333,6 +338,14 @@ at the session rate.
 | `setCustomIr (mic, cab, k)` | any non-RT | `RtHandoff::publish` into that slot (2 mics × 3 cabs). `nullptr` publishes an **empty** kernel, meaning "cleared", because `RtHandoff` cannot carry null |
 | `process` | audio | once per block, `RtHandoff::acquire` per slot, then crossfades the voices that used the old kernel |
 | `collectGarbage` | any non-RT, periodically | `RtHandoff::collect` per slot: frees retired kernels |
+
+The plug-in's `IrLibrary` builds kernels **outside the engine lock**, which `prepareToPlay` and
+the message thread's timer wait on: it reads the engine's rate and block size under the lock,
+builds without it, and publishes under it again if the rate, the block size and the slot are
+still what it built for; if the engine was prepared again meanwhile, it builds again. A session
+whose IR file can't be read keeps the slot's path as a missing reference: nothing loads (the mic
+plays Dyn Classic, as an empty slot does), the next save writes the path again, and the Mic strip
+offers Locate file… ([robustness.md](../robustness.md#4-files-that-are-not-there)).
 
 The audio thread never frees. A crossfade still needs the *retired* kernel for 35 ms, which
 `collect()` alone would free under it. Each slot therefore has a non-blocking ownership flag

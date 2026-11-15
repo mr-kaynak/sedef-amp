@@ -2,6 +2,7 @@
 #include "PluginProcessor.h"
 
 #include "ParameterLayout.h"
+#include "SafeVar.h"
 #if !SEDEF_PLUGIN_TESTS
 #include "PluginEditor.h"
 #endif
@@ -126,26 +127,31 @@ void SedefProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     // The tracker is rate-specific: stop feeding it until it is re-prepared below.
     engine_.setAnalysisEnabled (false);
     {
-        const std::scoped_lock lock (engineLock_);
+        // Hosts promise no block runs now, so the hold's wait returns at once; it still keeps out
+        // a block from a host that breaks the promise. Raised after the engine lock is taken, so a
+        // loader holding the lock doesn't silence anything (docs/robustness.md, section 1).
+        std::unique_lock lock (engineLock_);
+        const ProcessHold::Scope hold (hold_, kHoldTimeout);
         engine_.setOversampling (requestedOversampling());
         engine_.prepare (sampleRate, samplesPerBlock, ins, outs);
         live_->control().prepare (sampleRate); // the looper's double-tap window (live.md §4.5)
         engine_.expectTranspose (paramValue (ParamId::transpose));
         engine_.setMetronomeAllowed (isStandalone());
         engine_.setMetronomePattern (metronomePattern());
+        lock.unlock();
+        captures_.rebuild(); // now, so the capture plays from the first block at the new rate
+        // A take ends when the device restarts (docs/recorder.md, section 3); re-amp is rebuilt
+        // for the new rate and input channels.
+        if (recorder_ != nullptr)
+            recorder_->audioStopped();
+        if (reamp_ != nullptr)
+            reamp_->prepare (sampleRate, ins, samplesPerBlock);
+        else
+            deck_.prepare (sampleRate, ins, samplesPerBlock);
+        loadMeasurer_.reset (sampleRate, samplesPerBlock);
+        prepared_ = true;
     }
-    captures_.rebuild(); // now, so the capture plays from the first block at the new rate
-    // A take ends when the device restarts (docs/recorder.md, section 3); re-amp is rebuilt for
-    // the new rate and input channels.
-    if (recorder_ != nullptr)
-        recorder_->audioStopped();
-    if (reamp_ != nullptr)
-        reamp_->prepare (sampleRate, ins, samplesPerBlock);
-    else
-        deck_.prepare (sampleRate, ins, samplesPerBlock);
     setLatencySamples (engine_.latencySamples());
-    loadMeasurer_.reset (sampleRate, samplesPerBlock);
-    prepared_ = true;
 
     // Kernels and the pitch tracker depend on the sample rate.
     juce::MessageManager::callAsync ([safe = juce::WeakReference<SedefProcessor> (this)] {
@@ -160,21 +166,25 @@ void SedefProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 void SedefProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
 {
     const int numSamples = buffer.getNumSamples();
-    const juce::AudioProcessLoadMeasurer::ScopedTimer timer (loadMeasurer_, numSamples);
-
-    if (!prepared_)
+    // First of all: while the message thread prepares the engine again, the block stays out of
+    // it and plays silence (docs/robustness.md, section 1). Wait-free.
+    const ProcessHold::Pass pass (hold_);
+    if (!pass || !prepared_.load (std::memory_order_acquire))
     {
         buffer.clear();
         return;
     }
+    const juce::AudioProcessLoadMeasurer::ScopedTimer timer (loadMeasurer_, numSamples);
 
     // The live layer (docs/live.md §7.1): overrides the message thread acknowledged end before
     // the parameters are read; then the block's controllers and program changes, in order.
     auto& liveControl = live_->control();
     liveControl.acknowledge();
+    // Sanitised on the way in (docs/robustness.md, section 2): a host's NaN automation plays
+    // the parameter's default, never NaN.
     ParamSnapshot snapshot;
     for (std::size_t i = 0; i < kNumParams; ++i)
-        snapshot.values[i] = raw_[i]->load (std::memory_order_relaxed);
+        snapshot.values[i] = kParamSpecs[i].sanitise (raw_[i]->load (std::memory_order_relaxed));
     std::array<live::MidiMessage, 512> messages;
     int count = 0;
     for (const auto event : midi)
@@ -366,7 +376,7 @@ bool SedefProcessor::openLooper()
     return engine_.prepareLooper();
 }
 
-void SedefProcessor::timerCallback()
+void SedefProcessor::tick()
 {
 #if JucePlugin_Build_Standalone
     // The looper writes what it records the device's round trip earlier (docs/looper.md).
@@ -423,24 +433,28 @@ OversamplingMode SedefProcessor::requestedOversampling() const noexcept
 void SedefProcessor::applyOversampling()
 {
     // Like a sample-rate change: the oversamplers and the capture conversion are rebuilt, so the
-    // audio callback is held off (hosts play silence for those few milliseconds), then the host
-    // is told the new latency, which it accepts as a settings change.
-    suspendProcessing (true);
-    engine_.setAnalysisEnabled (false);
+    // audio thread is held out (it plays silence for those few milliseconds), then the host is
+    // told the new latency, which it accepts as a settings change. The hold, not
+    // suspendProcessing(): the CLAP wrapper calls processBlock without JUCE's callback lock
+    // (docs/robustness.md, section 1).
     {
-        const std::scoped_lock lock (engineLock_);
+        std::unique_lock lock (engineLock_);
+        const ProcessHold::Scope hold (hold_, kHoldTimeout);
+        if (!hold.audioIsOut())
+            return; // a block is still running: the next tick tries again
+        engine_.setAnalysisEnabled (false);
         engine_.setOversampling (requestedOversampling());
         engine_.prepare (engine_.sampleRate(), engine_.maxBlockSize(), engine_.numInputs(),
                          engine_.numOutputs());
         engine_.expectTranspose (paramValue (ParamId::transpose));
         engine_.setMetronomeAllowed (isStandalone());
         engine_.setMetronomePattern (metronomePattern());
+        lock.unlock();
+        captures_.rebuild(); // built for the old conversion: rebuilt before the audio comes back
     }
-    captures_.rebuild(); // built for the old conversion: rebuilt before the audio comes back
     irs_.rebuildAll();
     analysis_.engineWasPrepared();
     setLatencySamples (engine_.latencySamples());
-    suspendProcessing (false);
 }
 
 void SedefProcessor::captureLoaded()
@@ -477,6 +491,9 @@ void SedefProcessor::getStateInformation (juce::MemoryBlock& dest)
                 const auto i = index (*id);
                 if (loaded_[i].valid && juce::exactlyEqual (paramValue (*id), loaded_[i].applied))
                     child.setProperty ("value", loaded_[i].saved, nullptr);
+                // A host's NaN automation is never saved (docs/robustness.md, section 2).
+                else if (!finiteNumber (child.getProperty ("value"), true))
+                    child.setProperty ("value", kParamSpecs[i].defaultValue, nullptr);
             }
     }
     root.appendChild (params, nullptr);
@@ -559,10 +576,17 @@ void SedefProcessor::setStateInformation (const void* data, int size)
         if (params.isValid())
         {
             // Read the saved values first: replaceState() adopts this tree, and APVTS then writes
-            // the values it actually applied back into it.
-            for (const auto& child : params)
+            // the values it actually applied back into it. A value that is not a finite number
+            // ("nan" from a damaged session, text, nothing) becomes the default before APVTS sees
+            // it, so no parameter ever holds NaN and the next save writes the default
+            // (docs/robustness.md, section 2, rule 4).
+            for (auto child : params)
                 if (const auto id = findParam (child.getProperty ("id").toString().toStdString()))
+                {
+                    if (!finiteNumber (child.getProperty ("value"), true))
+                        child.setProperty ("value", spec (*id).defaultValue, nullptr);
                     loaded[index (*id)] = { child.getProperty ("value"), 0.0f, true };
+                }
 
             // A session saved with a preset switch held on restores it on (hosts and validators
             // expect state to round-trip exactly), but that must not count as a press. Hold the
@@ -607,17 +631,23 @@ void SedefProcessor::setStateInformation (const void* data, int size)
     if (juce::MessageManager::existsAndIsCurrentThread())
         presetsChanged();
 
-    setUiScale (juce::jlimit (0.5, 2.5, static_cast<double> (extra.getProperty ("uiScale", 1.0))));
+    // A NaN here gave the editor a 0 x 0 window (docs/robustness.md, section 2).
+    setUiScale (toDoubleIn (extra.getProperty ("uiScale"), 0.5, 2.5, 1.0, true));
 
     const auto steps =
         juce::StringArray::fromTokens (extra.getProperty ("metronomePattern").toString(), ",", "");
     if (steps.size() == 13)
     {
         std::array<std::uint8_t, 13> pattern {};
+        bool valid = true;
         for (int i = 0; i < 13; ++i)
-            pattern[static_cast<size_t> (i)] =
-                static_cast<std::uint8_t> (juce::jlimit (0, 3, steps[i].getIntValue()));
-        setMetronomePattern (pattern);
+        {
+            const int step = toIntIn (steps[i], 0, 3, -1, true);
+            valid = valid && step >= 0;
+            pattern[static_cast<size_t> (i)] = static_cast<std::uint8_t> (std::max (0, step));
+        }
+        if (valid)
+            setMetronomePattern (pattern);
     }
 
     // A capture embedded in the state (every saved session has it) is synchronous, so it plays
@@ -629,13 +659,15 @@ void SedefProcessor::setStateInformation (const void* data, int size)
     std::array<std::array<juce::File, IrLibrary::kCabs>, IrLibrary::kMics> wanted;
     for (const auto& slot : root.getChildWithName ("IRs"))
     {
-        const int m = slot.getProperty ("mic");
-        const int c = slot.getProperty ("cab");
-        // The path comes from a session someone else may have written: only an absolute path to
-        // a regular file is used (IrLibrary::checkFile), never a FIFO, device or relative path.
+        const int m = toIntIn (slot.getProperty ("mic"), -1, IrLibrary::kMics, -1, true);
+        const int c = toIntIn (slot.getProperty ("cab"), -1, IrLibrary::kCabs, -1, true);
+        // The path comes from a session someone else may have written. Any absolute path is
+        // kept, so a file that isn't there now (a drive not mounted, another computer) is saved
+        // again as a missing reference; the loader opens it only if IrLibrary::checkFile passes,
+        // never a FIFO, a device or a relative path (docs/robustness.md, section 4).
         const auto path = slot.getProperty ("path").toString();
-        if (m >= 0 && m < IrLibrary::kMics && c >= 0 && c < IrLibrary::kCabs &&
-            IrLibrary::checkFile (path).isEmpty())
+        if (m >= 0 && m < IrLibrary::kMics && c >= 0 && c < IrLibrary::kCabs && path.isNotEmpty() &&
+            juce::File::isAbsolutePath (path))
             wanted[static_cast<size_t> (m)][static_cast<size_t> (c)] = juce::File (path);
     }
     for (int m = 0; m < IrLibrary::kMics; ++m)
@@ -654,12 +686,14 @@ void SedefProcessor::setStateInformation (const void* data, int size)
                     if (f == juce::File())
                         p->irs_.clear (m, c);
                     else
-                        p->irs_.loadAsync (m, c, f,
-                                           [safeAgain = juce::WeakReference<SedefProcessor> (p)] (
-                                               const juce::String&) {
-                                               if (auto* q = safeAgain.get())
-                                                   ++q->irRevision;
-                                           });
+                        p->irs_.loadAsync (
+                            m, c, f,
+                            [safeAgain =
+                                 juce::WeakReference<SedefProcessor> (p)] (const juce::String&) {
+                                if (auto* q = safeAgain.get())
+                                    ++q->irRevision;
+                            },
+                            IrLibrary::Origin::session);
                 }
             ++p->irRevision;
         }

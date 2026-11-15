@@ -25,6 +25,24 @@ bool isAudioFile (const juce::File& f)
     return f.hasFileExtension ("wav;wave;aif;aiff;flac");
 }
 
+juce::String rateText (double rate)
+{
+    return std::isfinite (rate) && rate >= 0.0 && rate < 1.0e12
+               ? juce::String (static_cast<juce::int64> (std::llround (rate))) + " Hz"
+               : juce::String ("an impossible rate");
+}
+
+/// "3 h 7 min", "12 min 5 s", "41 s".
+juce::String durationText (double seconds)
+{
+    const auto s = static_cast<juce::int64> (std::min (seconds, 1.0e15));
+    if (s >= 3600)
+        return juce::String (s / 3600) + " h " + juce::String ((s % 3600) / 60) + " min";
+    if (s >= 60)
+        return juce::String (s / 60) + " min " + juce::String (s % 60) + " s";
+    return juce::String (s) + " s";
+}
+
 /// A decoded file through one of JUCE's readers.
 class ReaderSource final : public record::FrameSource
 {
@@ -253,6 +271,18 @@ void Reamp::unload()
     }
 }
 
+juce::String Reamp::conversionProblem (const juce::String& fileName, juce::int64 frames,
+                                       int channels, double fileRate, double deviceRate)
+{
+    if (static_cast<double> (frames) * deviceRate / fileRate <
+        static_cast<double> (record::WavFloatWriter::maxFrames (channels)))
+        return {};
+    return fileName + " is " + durationText (static_cast<double> (frames) / fileRate) +
+           " long; converted to " + juce::String (deviceRate / 1000.0, 1) +
+           " kHz it would pass the 4 GB limit of a WAV file. Trim it, or set the audio device to " +
+           juce::String (fileRate / 1000.0, 1) + " kHz so it plays without converting.";
+}
+
 void Reamp::openFile (const juce::File& file)
 {
     const int request = cancelLoad_.load();
@@ -284,6 +314,13 @@ void Reamp::openFile (const juce::File& file)
         setError (file.getFileName() + " has no audio in it. Choose another file.");
         return;
     }
+    // A header can claim any rate (docs/robustness.md, section 5).
+    if (!record::RateConverter::isSupportedRate (fileRate))
+    {
+        setError (file.getFileName() + " says it was recorded at " + rateText (fileRate) +
+                  ". Re-amp plays files recorded at 8 to 384 kHz.");
+        return;
+    }
 
     double deviceRate = 48000.0;
     {
@@ -292,6 +329,15 @@ void Reamp::openFile (const juce::File& file)
     }
     if (std::llround (fileRate) != std::llround (deviceRate))
     {
+        // The converted copy is a 32-bit float WAV, which RIFF keeps under 4 GB: checked before
+        // converting, so a long file is refused at once and for the real reason.
+        if (const auto problem =
+                conversionProblem (file.getFileName(), frames, channels, fileRate, deviceRate);
+            problem.isNotEmpty())
+        {
+            setError (problem);
+            return;
+        }
         {
             const std::scoped_lock lock (stateLock_);
             status_ = Status::converting;

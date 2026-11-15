@@ -116,7 +116,10 @@ public:
     /// while analysis is enabled. Consumer: the analysis thread.
     SpscRing<float>& analysisRing() noexcept { return analysisRing_; }
     void setAnalysisEnabled (bool enabled) noexcept { analysisEnabled_.store (enabled); }
-    /// While analysis is enabled and the tunerMute parameter is on, the output is muted.
+    /// While the tuner is open and the tunerMute parameter is on, the output is muted. Unlike
+    /// the analysis feed, which prepare() callers stop until the tracker is ready for the new
+    /// rate, the tuner stays open across a prepare, so the mute holds from its first block.
+    void setTunerOpen (bool open) noexcept { tunerOpen_.store (open); }
 
     /// The pedalboard: which pedals play, in what order (board/Board.h). Any non-real-time thread;
     /// callers serialise their calls. The newest board applies at the next block boundary: pedals
@@ -162,6 +165,7 @@ private:
     Telemetry telemetry_;
     SpscRing<float> analysisRing_ { 1 << 16 };
     std::atomic<bool> analysisEnabled_ { false };
+    std::atomic<bool> tunerOpen_ { false };
     RtMailbox<Board> board_;
     std::atomic<bool> metronomeAllowed_ { false };
     // 13 steps x 2 bits in one atomic word. Default: accented downbeat, every other step normal

@@ -80,6 +80,15 @@ class ConvolutionKernel
 {
 public:
     static constexpr double kMaxSeconds = 1.0;
+    /// The IR sample rates makeKernel accepts: every rate audio hardware runs at. A file's header
+    /// can claim any rate, and the resampler's work grows with the ratio, so a claimed 4 GHz
+    /// would keep the loader busy for minutes (docs/robustness.md, section 5).
+    static constexpr double kMinIrSampleRate = 8000.0;
+    static constexpr double kMaxIrSampleRate = 384000.0;
+    static bool isSupportedIrRate (double rate) noexcept
+    {
+        return rate >= kMinIrSampleRate && rate <= kMaxIrSampleRate; // false for NaN
+    }
 
     /// An empty kernel. CabSim uses it to mean "no IR loaded".
     ConvolutionKernel();

@@ -27,11 +27,15 @@ void AnalysisWorker::setActive (bool active)
     {
         drainRing(); // discard audio captured before the tuner opened
         tracker_.prepare (engine_.sampleRate());
+        // The tuner's mute follows "open", which a prepare doesn't change; the feed is stopped
+        // for each prepare until engineWasPrepared() (docs/robustness.md, section 6).
+        engine_.setTunerOpen (true);
         engine_.setAnalysisEnabled (true);
         startThread (juce::Thread::Priority::low);
     }
     else
     {
+        engine_.setTunerOpen (false);
         engine_.setAnalysisEnabled (false);
         signalThreadShouldExit();
         notify(); // wake the idle wait so stopping doesn't stall the message thread

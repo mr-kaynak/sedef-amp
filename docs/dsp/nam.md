@@ -233,8 +233,12 @@ crossings at 48 kHz and 14 above, and none at all next to an amp without latency
   missing file and where it was, with a Locate button. The session keeps the reference, so saving
   doesn't lose it.
 - **Recent list.** The last 12 captures loaded, shared by every instance (`captures.json` next to
-  the presets, behind an inter-process lock); files that no longer exist are not shown.
-- **Bridge.** `sedef_capture_load`, `sedef_capture_loadData(fileName, text)`,
+  the presets, behind `SharedFileLock`: a process-wide mutex before the inter-process lock, which
+  on macOS and Linux doesn't keep out a second instance in the same host); files that no longer
+  exist are not shown.
+- **Bridge.** `sedef_capture_load`, `sedef_capture_loadBytes(fileName, base64)` (a drop: the
+  file's bytes as they are; `sedef_capture_loadData(fileName, text)` before 0.10.3 sent it as
+  text, which lost a byte-order mark and changed invalid bytes),
   `sedef_capture_loadRecent(path)` (only paths the recent list offers), `sedef_capture_clear`,
   the `sedef:capture` event and `capture` in the handshake (`ui/src/bridge/protocol.ts`). The
   additions are backwards compatible, so the protocol version stays 2; a UI talking to an older

@@ -115,6 +115,15 @@ Communication:
 - **Audio ↔ recorder and re-amp:** preallocated chunks and frame FIFOs passed through
   `SpscRing` queues; the audio thread drops rather than waits when the disk falls behind, and
   counts what it dropped ([recorder.md](recorder.md#3-real-time-adr-0005)).
+- **Preparing again while the host plays** (Settings > Latency): `core/ProcessHold.h`, one
+  atomic word. `processBlock` enters it first, wait-free, or plays silence while a hold is
+  raised; the message thread raises the hold and waits, bounded, until no block is inside before
+  it prepares. JUCE's `suspendProcessing` can't do this in every format: the CLAP wrapper never
+  takes its callback lock ([robustness.md](robustness.md#1-re-preparing-while-the-host-plays-the-hold)).
+
+Values from hosts and files are sanitised before anything uses them, files several instances
+share are locked per process and per machine, and a session keeps references to files that
+aren't there: [robustness.md](robustness.md).
 
 ## 4. Parameter schema
 
@@ -133,7 +142,9 @@ Consumers:
 | UI | requests metadata over the bridge at startup; `tools/sedef-params` dumps the same table to `ui/src/generated/parameters.json` for the browser mock |
 
 Values in the snapshot are always in **real units** (dB, Hz, ms, 0–1 for
-unitless knobs, index for choices, 0/1 for bools).
+unitless knobs, index for choices, 0/1 for bools), sanitised as they are copied in: a
+non-finite value from a host or a session is the parameter's default
+([robustness.md](robustness.md#2-numbers-from-hosts-and-files)).
 
 IDs are a public contract: they appear in presets and host sessions. Never
 rename or reorder an id; deprecate and add a new one instead.
@@ -172,7 +183,9 @@ Rules:
    [dsp/oversampling.md](dsp/oversampling.md)). Modules pass `spec.oversampling`
    on and report the resulting latency, a whole number of samples.
 5. Output must be finite for any finite input and any settings. Tests enforce
-   this with randomised settings and full-scale noise.
+   this with randomised settings and full-scale noise. `Engine` reads non-finite parameters as
+   their defaults and non-finite input samples as silence, and the smoothers ignore a
+   non-finite target, so nothing that once saw a NaN stays NaN.
 6. Denormals are flushed by `ScopedNoDenormals` at the engine entry; modules
    additionally avoid producing them in feedback paths (`core/Math.h`
    `flushToZero`).

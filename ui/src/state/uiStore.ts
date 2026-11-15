@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { create } from 'zustand';
-import { defaultSteps, MAX_STEPS } from '../lib/metronome';
+import { defaultSteps } from '../lib/metronome';
 
 export const SECTIONS = ['pedals', 'amp', 'eq', 'cab', 'fx'] as const;
 export type Section = (typeof SECTIONS)[number];
@@ -51,13 +51,4 @@ export function isSection(value: unknown): value is Section {
   return typeof value === 'string' && (SECTIONS as readonly string[]).includes(value);
 }
 
-export function sanitizeSteps(value: unknown): number[] {
-  const fallback = defaultSteps();
-  if (!Array.isArray(value)) return fallback;
-  return fallback
-    .map((d, i) => {
-      const v: unknown = value[i];
-      return typeof v === 'number' && v >= 0 && v <= 3 ? Math.round(v) : d;
-    })
-    .slice(0, MAX_STEPS);
-}
+export { sanitizeSteps } from '../lib/metronome';

@@ -2,7 +2,10 @@
 #include "PluginEditor.h"
 
 #include "ParameterLayout.h"
+#include "SafeVar.h"
 #include "UiResources.h"
+
+#include <limits>
 
 #if JucePlugin_Build_Standalone
 // The standalone holder needs juce_audio_utils first; the comment keeps include sorting off.
@@ -161,7 +164,8 @@ juce::WebBrowserComponent::Options SedefEditor::makeOptions()
         if (a.size() >= 2)
             if (const auto id = paramFromVar (a[0]))
             {
-                proc.setParamValue (*id, spec (*id).sanitise (static_cast<float> (a[1])));
+                if (const auto v = finiteFloat (a[1]))
+                    proc.setParamValue (*id, spec (*id).sanitise (*v));
                 // Don't echo the UI's own change back. Read the stored value: the normalised round
                 // trip through the host can move a skewed parameter by an ULP.
                 lastSent_[index (*id)] = proc.paramValue (*id);
@@ -233,7 +237,7 @@ juce::WebBrowserComponent::Options SedefEditor::makeOptions()
                 pm.setFavorite (a[0].toString(), static_cast<bool> (a[1]));
         }));
     fn ("sedef_presets_step", presetCall ([] (PresetManager& pm, const auto& a) {
-            pm.step (a.isEmpty() ? 1 : static_cast<int> (a[0]));
+            pm.step (a.isEmpty() ? 1 : toIntIn (a[0], -1000000, 1000000, 1));
         }));
     fn ("sedef_presets_init", presetCall ([] (PresetManager& pm, const auto&) { pm.loadInit(); }));
     fn ("sedef_presets_snapshot", presetCall ([] (PresetManager& pm, const auto& a) {
@@ -262,12 +266,13 @@ juce::WebBrowserComponent::Options SedefEditor::makeOptions()
 
     // IRs ---------------------------------------------------------------------------------------
     fn ("sedef_ir_load", [this] (const juce::Array<juce::var>& a, Completion done) {
-        loadIr (a.size() > 0 ? static_cast<int> (a[0]) : 0,
-                a.size() > 1 ? static_cast<int> (a[1]) : 0, std::move (done));
+        loadIr (a.size() > 0 ? toIntIn (a[0], -1, IrLibrary::kMics, -1) : 0,
+                a.size() > 1 ? toIntIn (a[1], -1, IrLibrary::kCabs, -1) : 0, std::move (done));
     });
     fn ("sedef_ir_clear", [&proc] (const juce::Array<juce::var>& a, Completion done) {
         if (a.size() >= 2)
-            proc.irs().clear (static_cast<int> (a[0]), static_cast<int> (a[1]));
+            proc.irs().clear (toIntIn (a[0], -1, IrLibrary::kMics, -1),
+                              toIntIn (a[1], -1, IrLibrary::kCabs, -1));
         ++proc.irRevision;
         done (proc.irs().stateAsVar());
     });
@@ -297,6 +302,22 @@ juce::WebBrowserComponent::Options SedefEditor::makeOptions()
             }
             proc.captures().loadDroppedAsync (a[0].toString(), a[1].toString().toStdString(),
                                               captureDone (std::move (done), true));
+        });
+    // The dropped file's bytes as they are (base64): reading it as text would drop a byte-order
+    // mark and replace invalid bytes, so the kept copy would differ from the file
+    // (docs/robustness.md, section 6).
+    fn ("sedef_capture_loadBytes",
+        [&proc, captureDone] (const juce::Array<juce::var>& a, Completion done) {
+            juce::MemoryBlock bytes;
+            if (a.size() < 2 || !a[1].isString() || !bytes.fromBase64Encoding (a[1].toString()))
+            {
+                done (proc.captures().stateAsVar());
+                return;
+            }
+            proc.captures().loadDroppedAsync (
+                a[0].toString(),
+                std::string (static_cast<const char*> (bytes.getData()), bytes.getSize()),
+                captureDone (std::move (done), true));
         });
     fn ("sedef_capture_loadRecent",
         [&proc, captureDone] (const juce::Array<juce::var>& a, Completion done) {
@@ -345,9 +366,8 @@ juce::WebBrowserComponent::Options SedefEditor::makeOptions()
         };
     };
     const auto intArg = [] (const juce::Array<juce::var>& a, int i, int fallback) {
-        return a.size() > i && (a[i].isInt() || a[i].isInt64() || a[i].isDouble())
-                   ? static_cast<int> (a[i])
-                   : fallback;
+        return a.size() > i && !a[i].isBool() ? toIntIn (a[i], -1000000, 1000000, fallback)
+                                              : fallback;
     };
     fn ("sedef_live_get", liveCall ([] (LiveState&, const auto&) {}));
     fn ("sedef_live_selectScene",
@@ -396,7 +416,7 @@ juce::WebBrowserComponent::Options SedefEditor::makeOptions()
         if (const auto* list = a.isEmpty() ? nullptr : a[0].getArray())
             for (int i = 0; i < std::min (13, list->size()); ++i)
                 steps[static_cast<size_t> (i)] =
-                    static_cast<std::uint8_t> (juce::jlimit (0, 3, static_cast<int> ((*list)[i])));
+                    static_cast<std::uint8_t> (toIntIn ((*list)[i], 0, 3, 0));
         proc.setMetronomePattern (steps);
         done ({});
     });
@@ -476,20 +496,22 @@ juce::WebBrowserComponent::Options SedefEditor::makeOptions()
             done (0);
             return;
         }
-        done (reamp->importBegin (a[0].toString(), static_cast<juce::int64> (a[1])));
+        done (reamp->importBegin (a[0].toString(), toInt64 (a[1], -1)));
     });
     fn ("sedef_reamp_importChunk", [&proc] (const juce::Array<juce::var>& a, Completion done) {
         auto* reamp = proc.reamp();
         done (reamp != nullptr && a.size() >= 2 &&
-              reamp->importChunk (static_cast<int> (a[0]), a[1].toString()));
+              reamp->importChunk (toIntIn (a[0], 0, std::numeric_limits<int>::max(), 0),
+                                  a[1].toString()));
     });
     fn ("sedef_reamp_importEnd", [&proc] (const juce::Array<juce::var>& a, Completion done) {
         auto* reamp = proc.reamp();
-        done (reamp != nullptr && !a.isEmpty() && reamp->importEnd (static_cast<int> (a[0])));
+        done (reamp != nullptr && !a.isEmpty() &&
+              reamp->importEnd (toIntIn (a[0], 0, std::numeric_limits<int>::max(), 0)));
     });
     fn ("sedef_reamp_importCancel", [&proc] (const juce::Array<juce::var>& a, Completion done) {
         if (auto* reamp = proc.reamp(); reamp != nullptr && !a.isEmpty())
-            reamp->importCancel (static_cast<int> (a[0]));
+            reamp->importCancel (toIntIn (a[0], 0, std::numeric_limits<int>::max(), 0));
         done ({});
     });
     fn ("sedef_ui_setState", [&proc] (const juce::Array<juce::var>& a, Completion done) {
@@ -498,8 +520,7 @@ juce::WebBrowserComponent::Options SedefEditor::makeOptions()
         done ({});
     });
     fn ("sedef_ui_setScale", [this] (const juce::Array<juce::var>& a, Completion done) {
-        const double scale =
-            juce::jlimit (0.75, 2.0, a.isEmpty() ? 1.0 : static_cast<double> (a[0]));
+        const double scale = a.isEmpty() ? 1.0 : toDoubleIn (a[0], 0.75, 2.0, 1.0);
         setSize (juce::roundToInt (SedefProcessor::kBaseWidth * scale),
                  juce::roundToInt (SedefProcessor::kBaseHeight * scale));
         done ({});
@@ -536,7 +557,13 @@ void SedefEditor::loadIr (int mic, int cab, Completion completion)
         return;
     }
 
-    chooser_ = std::make_unique<juce::FileChooser> ("Load impulse response", juce::File(),
+    // Locate (a session's IR that is missing) starts where the file was, if that folder is there.
+    juce::File start;
+    if (processor_.irs().missingReason (mic, cab).isNotEmpty())
+        if (const auto folder = processor_.irs().fileFor (mic, cab).getParentDirectory();
+            folder.isDirectory())
+            start = folder;
+    chooser_ = std::make_unique<juce::FileChooser> ("Load impulse response", start,
                                                     "*.wav;*.aif;*.aiff;*.flac");
     chooser_->launchAsync (
         juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
@@ -645,6 +672,14 @@ juce::var SedefEditor::boardState()
         { { "pedals", boardToVar (processor_.board()) }, { "revision", ++boardStateRevision_ } });
 }
 
+juce::var SedefEditor::metronomePattern() const
+{
+    juce::Array<juce::var> steps;
+    for (const auto step : processor_.metronomePattern())
+        steps.add (static_cast<int> (step));
+    return steps;
+}
+
 void SedefEditor::emitBoard()
 {
     lastBoardRevision_ = processor_.boardRevision.load();
@@ -748,6 +783,7 @@ juce::var SedefEditor::hello()
                      { "schema", schema() },
                      { "values", allValues() },
                      { "uiState", processor_.uiState() },
+                     { "metronomePattern", metronomePattern() },
                      { "presets", processor_.presets().stateAsVar() },
                      { "ir", processor_.irs().stateAsVar() },
                      { "capture", processor_.captures().stateAsVar() },

@@ -3,6 +3,7 @@
 
 #include "BoardText.h"
 #include "ParameterLayout.h"
+#include "SafeVar.h"
 #include "SedefPresetData.h"
 
 #include <cmath>
@@ -217,10 +218,7 @@ void PresetManager::describe (Entry& e, const juce::var& preset)
 {
     const auto& parameters = preset["parameters"];
     const auto value = [&parameters] (ParamId id) {
-        const auto& spec = sedef::spec (id);
-        const juce::Identifier key (toJuce (spec.id));
-        return spec.sanitise (parameters.hasProperty (key) ? static_cast<float> (parameters[key])
-                                                           : spec.defaultValue);
+        return storedValue (parameters, index (id));
     };
     const auto on = [&value] (ParamId id) {
         return value (id) >= 0.5f;
@@ -272,10 +270,12 @@ std::optional<juce::var> PresetManager::read (const Entry& e) const
 
 float PresetManager::storedValue (const juce::var& parameters, std::size_t i)
 {
+    // A value that is null, text or anything but a finite number is absent: the default, not 0
+    // (docs/robustness.md, section 2).
     const auto& spec = kParamSpecs[i];
     const juce::Identifier key (toJuce (spec.id));
-    return spec.sanitise (parameters.hasProperty (key) ? static_cast<float> (parameters[key])
-                                                       : spec.defaultValue);
+    const auto v = parameters.hasProperty (key) ? finiteFloat (parameters[key]) : std::nullopt;
+    return spec.sanitise (v.value_or (spec.defaultValue));
 }
 
 void PresetManager::setWithGesture (juce::RangedAudioParameter& param, float normalised)
@@ -380,8 +380,10 @@ juce::var PresetManager::captureParameters() const
         if (isGlobal (static_cast<ParamId> (i)))
             continue;
         const auto key = toJuce (kParamSpecs[i].id);
+        // Sanitised: a host's NaN would make the file unreadable JSON (docs/robustness.md,
+        // section 2).
         if (const auto* raw = state_.getRawParameterValue (key))
-            params->setProperty (key, static_cast<double> (raw->load()));
+            params->setProperty (key, static_cast<double> (kParamSpecs[i].sanitise (raw->load())));
     }
     return juce::var (params);
 }
@@ -873,13 +875,11 @@ void PresetManager::updateSettings (const std::function<void()>& change)
 {
     // Other processes hold it for a read and a write at most, so a short wait is plenty; the
     // message thread must not hang on a stuck one.
-    const bool locked = settingsLock_.enter (500);
-    const bool read = locked && loadSettings();
+    const SharedFileLock::Scoped lock (settingsLock_, 500);
+    const bool read = lock.isLocked() && loadSettings();
     change();
     if (read)
         storeSettings();
-    if (locked)
-        settingsLock_.exit();
 }
 
 void PresetManager::storeSettings() const

@@ -21,6 +21,7 @@ import {
   type WrapperType,
 } from './protocol';
 import { cleanDetails, renameClashes, renamedPresetId, savedPresetId } from '../lib/presetFiles';
+import { sanitizeSteps } from '../lib/metronome';
 import { transposeLatencyMs } from '../lib/transpose';
 import { bundledSchema, defaultValues, indexSchema } from '../params/schema';
 import { snapValue } from '../params/normalise';
@@ -79,6 +80,13 @@ export interface MockOptions {
   liveDemo?: boolean;
   /** The looper opened in a given state (demos and screenshots). */
   looper?: LooperDemo;
+  /**
+   * The metronome pattern the session holds (Extra.metronomePattern in the plug-in). Defaults to
+   * the saved UI state's copy, so the browser preview keeps it across reloads.
+   */
+  metronomePattern?: number[];
+  /** A session's IR that can't be found, as the plug-in reports it (demos, screenshots, tests). */
+  missingIr?: { mic: 0 | 1; cab: 0 | 1 | 2; fileName: string; path: string; reason?: string };
   /**
    * Delays each native call's answer and each preset broadcast by a random 0..maxMs (seeded).
    * Calls still run in the order they were made, as in the plugin, but their answers can arrive
@@ -170,7 +178,15 @@ export class MockBackend implements Backend {
   };
   /** Captures (CaptureLibrary): the chooser offers made-up ones; nothing is played. */
   readonly captures = new CaptureSim();
+  /** The base64 of the last dropped capture, as the plug-in received it (tests). */
+  droppedBytes: string | null = null;
+  /** The beat pattern the "plug-in" plays (tests). */
+  get metronomePattern(): number[] {
+    return [...this.pattern];
+  }
   private uiState: UiState | null;
+  /** The beat pattern the "plug-in" plays and saves with the session. */
+  private pattern: number[];
   private tunerActive = false;
   private taps: number[] = [];
   private timers: ReturnType<typeof setInterval>[] = [];
@@ -216,6 +232,15 @@ export class MockBackend implements Backend {
     );
     this.jitterRandom = options.jitter ? createRandom(options.jitter.seed) : null;
     this.uiState = options.uiState ?? this.loadPersistedUiState();
+    this.pattern = sanitizeSteps(options.metronomePattern ?? this.uiState?.metronomeSteps);
+    if (options.missingIr) {
+      const { mic, cab, fileName, path, reason = 'The IR file was not found' } = options.missingIr;
+      this.ir = {
+        slots: this.ir.slots.map((s) =>
+          s.mic === mic && s.cab === cab ? { ...s, missing: { fileName, path, reason } } : s,
+        ),
+      };
+    }
     this.pitchSim = new PitchSimulator({
       getReferenceHz: () => this.value('tunerReference'),
       intonationErrors: options.intonationErrors,
@@ -389,6 +414,7 @@ export class MockBackend implements Backend {
         schema: [...this.schema],
         values: { ...this.values },
         uiState: this.uiState,
+        metronomePattern: [...this.pattern],
         presets: this.snapshotPresets(),
         ir: this.snapshotIr(),
         capture: this.captures.snapshot(),
@@ -567,7 +593,9 @@ export class MockBackend implements Backend {
       const name = IR_NAMES[(mic * 3 + cab) % IR_NAMES.length] ?? 'Impulse.wav';
       this.ir = {
         slots: this.ir.slots.map((s) =>
-          s.mic === mic && s.cab === cab ? { ...s, name, durationMs: 180 + 60 * cab } : s,
+          s.mic === mic && s.cab === cab
+            ? { ...s, name, durationMs: 180 + 60 * cab, missing: null }
+            : s,
         ),
       };
       this.emit('sedef:ir', this.snapshotIr());
@@ -576,7 +604,9 @@ export class MockBackend implements Backend {
     sedef_ir_clear: (mic, cab) => {
       this.ir = {
         slots: this.ir.slots.map((s) =>
-          s.mic === mic && s.cab === cab ? { ...s, name: null, durationMs: null } : s,
+          s.mic === mic && s.cab === cab
+            ? { ...s, name: null, durationMs: null, missing: null }
+            : s,
         ),
       };
       this.emit('sedef:ir', this.snapshotIr());
@@ -586,6 +616,11 @@ export class MockBackend implements Backend {
     sedef_capture_load: () => this.captureLoaded(this.captures.choose()),
     sedef_capture_loadData: (fileName, text) =>
       this.captureLoaded(this.captures.drop(fileName, text)),
+    sedef_capture_loadBytes: (fileName, data) => {
+      this.droppedBytes = data;
+      const bytes = Uint8Array.from(atob(data), (c) => c.charCodeAt(0));
+      return this.captureLoaded(this.captures.drop(fileName, new TextDecoder().decode(bytes)));
+    },
     sedef_capture_loadRecent: (path) => this.captureLoaded(this.captures.recent(path)),
     sedef_capture_clear: () => {
       this.captures.clear();
@@ -647,7 +682,9 @@ export class MockBackend implements Backend {
     sedef_reamp_importEnd: (token) => this.recorder.importEnd(token),
     sedef_reamp_importCancel: (token) => this.recorder.importCancel(token),
 
-    sedef_metronome_setPattern: () => undefined,
+    sedef_metronome_setPattern: (steps) => {
+      this.pattern = sanitizeSteps(steps);
+    },
     sedef_metronome_tap: () => {
       const now = Date.now();
       this.taps = [...this.taps.filter((t) => now - t < 2500), now].slice(-5);

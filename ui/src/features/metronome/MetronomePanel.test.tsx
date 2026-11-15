@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { groovesFor } from '../../lib/drums';
 import { getValue } from '../../params/paramStore';
 import { setParam } from '../../params/useParam';
+import { useUiStore } from '../../state/uiStore';
 import { flush, setupMock, type Harness } from '../../test/harness';
 import { MetronomePanel } from './MetronomePanel';
 
@@ -112,5 +113,26 @@ describe('Metronome panel: click or drums', () => {
 
     expect(screen.getByRole('slider', { name: 'Drums Level' })).toBeInTheDocument();
     expect(screen.getByRole('slider', { name: 'Drums Tone' })).toBeInTheDocument();
+  });
+});
+
+describe('Metronome pattern on connect', () => {
+  // docs/robustness.md, section 6: the page's saved UI state is written 400 ms after a step edit,
+  // so a session saved sooner holds the newer pattern only in the plug-in. On connect the page
+  // used to send its older copy back over it.
+  const older = [2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1];
+  const newer = [2, 0, 3, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1];
+  let h: Harness | null = null;
+  afterEach(() => h?.dispose());
+
+  it("takes the session's pattern and leaves the plug-in's alone", async () => {
+    h = await setupMock({
+      initialPresetId: null,
+      uiState: { metronomeSteps: older },
+      metronomePattern: newer,
+    });
+    await flush();
+    expect(useUiStore.getState().metronomeSteps).toEqual(newer);
+    expect(h.mock.metronomePattern).toEqual(newer);
   });
 });

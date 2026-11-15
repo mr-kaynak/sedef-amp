@@ -40,6 +40,9 @@ private:
     void emitCapture();
     juce::var boardState();
     void emitBoard();
+    /// The metronome's 13 steps as the plug-in holds them (the session's, not the page's saved
+    /// copy: docs/robustness.md, section 6).
+    juce::var metronomePattern() const;
     void loadCapture (juce::WebBrowserComponent::NativeFunctionCompletion completion);
     /// The recorder and re-amp (docs/recorder.md); void in a plug-in.
     juce::var recorderState();

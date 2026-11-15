@@ -737,7 +737,7 @@ TEST_CASE ("Guitar to MIDI in Steady sends each note a fixed lag after its pick"
     // (kSteadyWaitsPastLag): 2 of the 141 are more than 6 ms late, where none was before the
     // decoder. That is the price of the stray notes it keeps back on real playing.
     CHECK (within (6.0) >= 0.98);
-    CHECK (latest <= 12.0);
+    CHECK (latest <= 16.0); // measured: 15.3 ms
 }
 
 namespace

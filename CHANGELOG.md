@@ -6,16 +6,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-Sedef MIDI follows real playing better: fewer notes go missing, and fewer notes that nobody
-played come out.
+### Added
 
-### Fixed
-
-- **Sedef MIDI no longer drops a note played softer than the one before it.** A note picked
-  softly just after a louder one was damped, or hammered on after a rest, often never started:
-  nothing had told Sedef MIDI a note began. Measured on 91 minutes of real single-line playing
-  with exact reference notes, 91 of 100 notes now come out in Fastest where 86 did (90 where 85
-  did in Steady).
+- **Footswitches for the looper.** Right-click the looper's big button, Stop, Undo or Clear (or
+  use the MIDI panel) and press a footswitch: your feet now record, close the loop, overdub, stop,
+  undo and clear. The undo switch also redoes when pressed again, so one switch compares the loop
+  with and without its last part. Turn on *Double tap stops* for the main switch and two quick
+  presses (less than 0.4 s apart) stop the looper and take back what the first press started.
 
 ### Changed
 
@@ -32,6 +29,14 @@ played come out.
 - **Strummed chords give fewer notes.** Sedef MIDI plays one note at a time; a chord used to
   come out as two or three notes as it moved between the strings, and now more often gives
   one, or none.
+
+### Fixed
+
+- **Sedef MIDI no longer drops a note played softer than the one before it.** A note picked
+  softly just after a louder one was damped, or hammered on after a rest, often never started:
+  nothing had told Sedef MIDI a note began. Measured on 91 minutes of real single-line playing
+  with exact reference notes, 91 of 100 notes now come out in Fastest where 86 did (90 where 85
+  did in Steady).
 
 ## [0.10.2] - 2026-11-15
 

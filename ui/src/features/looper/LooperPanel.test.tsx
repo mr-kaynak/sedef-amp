@@ -51,8 +51,16 @@ describe('the looper panel', () => {
     tick();
     expect(within(panel).getByText('Recording')).toBeInTheDocument();
     expect(within(panel).getByRole('button', { name: 'Close the loop and play' })).toBeEnabled();
-    expect(within(panel).getByRole('button', { name: 'Stop' })).toBeEnabled();
-    expect(within(panel).getByRole('button', { name: 'Undo the last overdub' })).toBeDisabled();
+    expect(within(panel).getByRole('button', { name: 'Stop' })).not.toHaveAttribute(
+      'aria-disabled',
+    );
+    // Nothing to undo: unavailable, yet focusable, so its menu can learn a footswitch.
+    const undo = within(panel).getByRole('button', { name: 'Undo the last overdub' });
+    expect(undo).toHaveAttribute('aria-disabled', 'true');
+    expect(undo).toBeEnabled();
+    fireEvent.click(undo);
+    await flush();
+    expect(commands(call)).toEqual(['main']); // the click sent nothing
   });
 
   it('shows each state with what the big button does next', async () => {

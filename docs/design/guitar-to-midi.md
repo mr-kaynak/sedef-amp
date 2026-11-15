@@ -1792,7 +1792,7 @@ pick), every note loses 0.35 per dB, up to 3: at 9 dB under, more than a clean p
 
 | Transition | Count | Why |
 |---|---:|---|
-| A note starts, or changes, with an attack behind it (a pick the detector saw, or the level 6 dB over where it was 10 ms before, and the 12 ms after either) | 1 | after an attack a new note is as likely as not: one clean observation settles it |
+| A note starts, or changes, with an attack behind it: a pick the detector saw, or the level 6 dB over where it was 10 ms before, no longer ago than 12 ms and two of the note's periods | 1 | after an attack a new note is as likely as not: one clean observation settles it. Two periods is what the tracker needs before the note's period can show at all; with 12 ms for every note a low E1's evidence began after its attack had "passed", and it took 60 ms where 57 is the bar |
 | A note starts from silence without an attack | 2 | a string ringing on, a string in sympathy: twice the evidence |
 | A step of one or two semitones without an attack | 2 | a hammer-on, a pull-off, a slide's step: no likelier than a note from nothing, but the old note's period stops repeating at the same time, which pays half of it |
 | Any other move without an attack | 3 | the fretting hand does not leap without a pick; the tracker's reading across two strings does |
@@ -1807,7 +1807,11 @@ the multiples rule has already said which octave the evidence belongs to.
 `patience x count x W(n)`, plus what the note's period leaves: with an attack, at patience 1,
 one window (4 ms from G3 up, 6 ms at E2). The tests compute each wait from the model and hold
 the decoder to it within a hop. Every result below is one of two settings of it: **Fastest is
-patience 1, Steady is patience 2.** A fixed lag in the textbook sense (answer for the hop
+patience 1, Steady is patience 2**, cut for a low note to what the 38 ms leave once the note
+could be read at all (two periods and 5 ms): 1.45 for a low E, 2 from A2 up. In Steady a note
+the decoder has not agreed to when its lag is up still waits for it
+(`kSteadyWaitsPastLag`; see the gates below for what that costs and "Tried" for what turning
+it off costs). A fixed lag in the textbook sense (answer for the hop
 `lag` ago, by tracing the best path back) is in the class too, and tested: with a 10 ms lag a
 3 ms misreading in an attack is never in the answer, while without a lag it is, for a moment.
 
@@ -1873,6 +1877,8 @@ velocities are as they were, and no parameter was added.
 | ...measured against the loudest of the 16 ms before the attack | a soft note after a damped louder one has no rise over that: still missed | against the quietest millisecond of the last 40 |
 | Holding every Steady note-on back 12 or 20 ms more, to see more of the glitch coming | extras 33.6 to 32.0 and 30.0 per 100, 0 to 1 point fewer on time: waiting is not weighing | patience 2 |
 | A weak pick judged by the mute's slope before its 12 ms are up | no change on any set | as it was |
+| Steady sending the tracker's reading at its lag whether the decoder agrees or not (`kSteadyWaitsPastLag` off) | Steady's timing exactly as before (89 % of clean bass-line notes within 1 ms, 97 % within 3, all within 6), and most of its stray notes back: 30.6 extra per 100 on every sixth solo instead of 21.6 (main: 32.0), 10.6 under 40 ms instead of 6.7 | waiting: the design puts a wrong or extra note above a little latency. One constant turns it back |
+| Steady at patience 2 for every note | a low E is read at 27 ms and would need 12 more: clean bass-line notes 92.2 % within 3 ms of the lag and 96.5 % within 6 | the budget: 94.3 % and 98.6 % |
 
 #### What it gives
 

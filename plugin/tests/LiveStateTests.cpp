@@ -6,8 +6,11 @@
 #include "ParameterLayout.h"
 #include "PluginProcessor.h"
 
+#include <algorithm>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <memory>
+#include <string>
 
 using namespace sedef;
 using sedef::plugin::SedefProcessor;
@@ -548,4 +551,225 @@ TEST_CASE ("No Sedef parameter id falls among JUCE's VST3 controller parameters"
         CHECK (hash != 0x62797073u); // the wrapper's own bypass
         CHECK (hash != 0x70727374u); // and program parameters
     }
+}
+
+// The looper's footswitches (docs/live.md §4.5) -----------------------------------------------
+
+namespace
+{
+/// A processor made as the standalone app makes it (the looper is the app's).
+struct StandaloneProcessor
+{
+    StandaloneProcessor()
+    {
+        juce::AudioProcessor::setTypeOfNextNewPlugin (juce::AudioProcessor::wrapperType_Standalone);
+        p = std::make_unique<SedefProcessor>();
+        juce::AudioProcessor::setTypeOfNextNewPlugin (juce::AudioProcessor::wrapperType_Undefined);
+    }
+    std::unique_ptr<SedefProcessor> p;
+};
+
+/// The looper's state by the name the editor sends (in dsp::Looper::State's order).
+std::string looperState (SedefProcessor& p)
+{
+    static constexpr const char* kStates[] = { "unavailable", "empty",   "armed",       "recording",
+                                               "closing",     "playing", "overdubbing", "stopped" };
+    return kStates[std::clamp (p.engine().telemetry().looperState.load(), 0, 7)];
+}
+
+/// Blocks of silence for `seconds`.
+void wait (SedefProcessor& p, double seconds)
+{
+    for (int i = 0; i < static_cast<int> (seconds * kRate / kBlock); ++i)
+        play (p);
+}
+} // namespace
+
+TEST_CASE ("midi.json keeps the looper's targets; only the main one takes a double tap")
+{
+    const auto s = plugin::LiveSettings::fromVar (juce::JSON::parse (R"({
+        "bindings": [
+            { "target": "looper:main", "controller": 60, "mode": "toggle", "doubleTap": true },
+            { "target": "looper:stop", "controller": 61, "mode": "latch", "doubleTap": true },
+            { "target": "looper:undo", "controller": 62 },
+            { "target": "looper:clear", "controller": 63 },
+            { "target": "looper:pause", "controller": 64 }
+        ] })"));
+    REQUIRE (s.bindings.size() == 4);
+    CHECK (s.bindings[0].target.action == live::Action::looperMain);
+    CHECK (s.bindings[0].doubleTap);
+    CHECK (s.bindings[1].target.action == live::Action::looperStop);
+    CHECK (s.bindings[1].mode == live::SwitchMode::latch);
+    CHECK_FALSE (s.bindings[1].doubleTap);
+    CHECK (s.bindings[2].target.action == live::Action::looperUndo);
+    CHECK (s.bindings[3].target.action == live::Action::looperClear);
+    for (const auto& b : s.bindings)
+        CHECK (b.target.isSwitch());
+
+    const auto out = s.toVar();
+    CHECK (out["bindings"][0]["target"] == "looper:main");
+    CHECK (out["bindings"][0]["doubleTap"] == juce::var (true));
+    CHECK_FALSE (out["bindings"][1].hasProperty ("doubleTap"));
+    CHECK (plugin::LiveSettings::fromVar (out) == s);
+
+    const auto map = s.toMap();
+    REQUIRE (map.numBindings == 4);
+    CHECK (map.bindings[0].doubleTap);
+    CHECK_FALSE (map.bindings[1].doubleTap);
+}
+
+TEST_CASE ("In the standalone app a footswitch plays the looper, and a double tap stops it")
+{
+    Fixture f;
+    StandaloneProcessor app;
+    auto& p = *app.p;
+    prepare (p);
+    REQUIRE_FALSE (p.engine().looperReady()); // nothing asked for the looper yet
+
+    learn (p, "looper:main", 60, true);
+    // The binding reserves the memory, so the first press records at once.
+    CHECK (p.engine().looperReady());
+    learn (p, "looper:undo", 62, true);
+    p.live().updateBinding (0, juce::JSON::parse (R"({ "doubleTap": true })"));
+    const auto json = juce::JSON::parse (plugin::LiveSettings::file());
+    CHECK (json["bindings"][0]["target"] == "looper:main");
+    CHECK (json["bindings"][0]["doubleTap"] == juce::var (true));
+    CHECK (p.live().stateAsVar()["bindings"][0]["doubleTap"] == juce::var (true));
+
+    play (p, { cc (60, 127) });
+    CHECK (looperState (p) == "recording");
+    play (p, { cc (60, 0) }); // the release does nothing
+    wait (p, 1.0);
+    play (p, { cc (60, 127) }); // closes the loop: it plays
+    play (p, { cc (60, 0) });
+    CHECK (looperState (p) == "playing");
+    CHECK (p.engine().telemetry().looperLength.load() > 0);
+
+    wait (p, 0.6);
+    play (p, { cc (60, 127) }); // overdub
+    play (p, { cc (60, 0) });
+    CHECK (looperState (p) == "overdubbing");
+    wait (p, 0.2);
+    play (p, { cc (60, 127) }); // the second tap, 0.2 s later: stop, and the layer is undone
+    wait (p, 0.05);
+    CHECK (looperState (p) == "stopped");
+    const int flags = p.engine().telemetry().looperFlags.load();
+    CHECK ((flags & Engine::kLooperCanRedo) != 0);
+    CHECK ((flags & Engine::kLooperCanUndo) == 0);
+
+    // The undo switch puts the layer back (one switch for undo and redo).
+    play (p, { cc (62, 127) });
+    wait (p, 0.05);
+    CHECK ((p.engine().telemetry().looperFlags.load() & Engine::kLooperCanUndo) != 0);
+}
+
+TEST_CASE ("A plug-in learns no looper targets, and a looper binding from the app does nothing")
+{
+    Fixture f;
+    {
+        StandaloneProcessor app;
+        prepare (*app.p);
+        learn (*app.p, "looper:main", 60, true);
+    }
+    SedefProcessor plugin; // reads the same midi.json
+    prepare (plugin);
+    CHECK_FALSE (plugin.live().learn ("looper:stop"));
+    REQUIRE (plugin.live().settings().bindings.size() == 1);
+    CHECK (plugin.live().settings().bindings[0].target.isLooper());
+    play (plugin, { cc (60, 127) });
+    CHECK_FALSE (plugin.engine().looperReady());
+    CHECK (looperState (plugin) == "unavailable");
+}
+
+TEST_CASE ("midi.json: switches keep no range, and only a boolean true turns a double tap on")
+{
+    plugin::LiveSettings s;
+    plugin::LiveTarget pearl;
+    pearl.param = ParamId::pearlEnabled;
+    plugin::LiveTarget conch;
+    conch.param = ParamId::conchPosition;
+    plugin::LiveTarget main;
+    main.action = live::Action::looperMain;
+    s.bind (pearl, 0, 20, live::SwitchMode::toggle);
+    s.bind (conch, 0, 11, live::SwitchMode::toggle);
+    s.bind (main, 0, 60, live::SwitchMode::toggle);
+
+    // As 0.10 wrote them: a switch has a mode, a continuous target a range, and a looper switch
+    // with the option off says nothing about it.
+    auto out = s.toVar();
+    CHECK (out["bindings"][0].hasProperty ("mode"));
+    CHECK_FALSE (out["bindings"][0].hasProperty ("low"));
+    CHECK_FALSE (out["bindings"][0].hasProperty ("high"));
+    CHECK (out["bindings"][1].hasProperty ("low"));
+    CHECK_FALSE (out["bindings"][1].hasProperty ("mode"));
+    CHECK_FALSE (out["bindings"][2].hasProperty ("doubleTap"));
+    CHECK_FALSE (out["bindings"][2].hasProperty ("low"));
+
+    s.bindings[2].doubleTap = true;
+    out = s.toVar();
+    CHECK (out["bindings"][2]["doubleTap"] == juce::var (true));
+    CHECK (out["bindings"][2]["mode"] == "toggle");
+    CHECK_FALSE (out["bindings"][2].hasProperty ("low"));
+    CHECK (plugin::LiveSettings::fromVar (out) == s);
+
+    // An edited file: a string, a number or a null is not a yes.
+    for (const char* value : { R"("true")", "1", "null", "[]" })
+    {
+        CAPTURE (value);
+        const auto edited = plugin::LiveSettings::fromVar (juce::JSON::parse (
+            juce::String (R"({ "bindings": [ { "target": "looper:main", "controller": 60,
+                              "doubleTap": )") +
+            value + " } ] }"));
+        REQUIRE (edited.bindings.size() == 1);
+        CHECK_FALSE (edited.bindings[0].doubleTap);
+    }
+}
+
+TEST_CASE ("A looper footswitch is forgotten and learnt again; the double tap is the player's")
+{
+    Fixture f;
+    StandaloneProcessor app;
+    auto& p = *app.p;
+    prepare (p);
+    const auto saved = [] {
+        return juce::JSON::parse (plugin::LiveSettings::file())["bindings"];
+    };
+
+    learn (p, "looper:main", 60, true);
+    p.live().updateBinding (0, juce::JSON::parse (R"({ "doubleTap": true })"));
+    REQUIRE (p.live().settings().bindings[0].doubleTap);
+    // A change that is not a boolean leaves it as it is.
+    p.live().updateBinding (0, juce::JSON::parse (R"({ "doubleTap": null })"));
+    p.live().updateBinding (0, juce::JSON::parse (R"({ "doubleTap": "false" })"));
+    CHECK (p.live().settings().bindings[0].doubleTap);
+
+    // Learnt again on another switch: the binding moves, the option stays.
+    learn (p, "looper:main", 64, false);
+    REQUIRE (p.live().settings().bindings.size() == 1);
+    CHECK (p.live().settings().bindings[0].controller == 64);
+    CHECK (p.live().settings().bindings[0].mode == live::SwitchMode::latch);
+    CHECK (p.live().settings().bindings[0].doubleTap);
+    CHECK (saved()[0]["controller"] == juce::var (64));
+
+    // Forgotten: gone from midi.json, and the old switch does nothing.
+    p.live().forget ("looper:main");
+    CHECK (p.live().settings().bindings.empty());
+    CHECK (saved().size() == 0);
+    play (p, { cc (64, 127) });
+    CHECK (looperState (p) == "empty");
+
+    // Learnt afresh: a new binding, the option off, and the switch records.
+    learn (p, "looper:main", 60, true);
+    REQUIRE (p.live().settings().bindings.size() == 1);
+    CHECK_FALSE (p.live().settings().bindings[0].doubleTap);
+    CHECK (saved()[0]["target"] == "looper:main");
+    CHECK_FALSE (saved()[0].hasProperty ("doubleTap"));
+    play (p, { cc (60, 127) });
+    CHECK (looperState (p) == "recording");
+
+    // Another instance reads the same file.
+    StandaloneProcessor other;
+    prepare (*other.p);
+    REQUIRE (other.p->live().settings().bindings.size() == 1);
+    CHECK (other.p->live().settings().bindings[0].target.action == live::Action::looperMain);
 }

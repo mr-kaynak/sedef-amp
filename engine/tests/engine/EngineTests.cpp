@@ -1129,15 +1129,18 @@ struct LoopRig
     }
 
     /// Processes everything; `presses` are (sample, command), each acting at the first block
-    /// that starts at or after its sample.
+    /// that starts at or after its sample, and so are the footswitch presses `foot`.
     void run (const ParamSnapshot& p,
-              const std::vector<std::pair<int, LooperCommand>>& presses = {})
+              const std::vector<std::pair<int, LooperCommand>>& presses = {},
+              const std::vector<std::pair<int, live::LooperPress>>& foot = {})
     {
-        std::size_t next = 0;
+        std::size_t next = 0, nextFoot = 0;
         for (int s = 0; s < in.frames(); s += block)
         {
             while (next < presses.size() && presses[next].first <= s)
                 engine.looperCommand (presses[next++].second);
+            while (nextFoot < foot.size() && foot[nextFoot].first <= s)
+                engine.looperFootswitch (foot[nextFoot++].second);
             const int n = std::min (block, in.frames() - s);
             std::array<const float*, 2> ip { in.ptrs[0] + s, nullptr };
             std::array<float*, 2> op { out.ptrs[0] + s, out.ptrs[1] + s };
@@ -1352,6 +1355,226 @@ TEST_CASE ("Engine: an idle looper leaves the rig's output bit for bit", "[engin
 }
 
 // -------------------------------------------------------------------------------------------------
+// The looper's footswitches (docs/live.md §4.5): what the live layer's presses do in the engine.
+
+namespace
+{
+using Foot = live::LooperPress;
+using Presses = std::vector<std::pair<int, LooperCommand>>;
+using FootPresses = std::vector<std::pair<int, live::LooperPress>>;
+
+/// Two looper rigs fed the same noise, at 48 kHz in blocks of 64: one played from the screen,
+/// one by foot.
+struct FootPair
+{
+    explicit FootPair (int frames = 160000)
+        : screen (48000.0, 64, frames),
+          foot (48000.0, 64, frames)
+    {
+        test::fillNoise (screen.in[0], 0.3f, 31);
+        foot.in = screen.in;
+        REQUIRE (screen.engine.prepareLooper());
+        REQUIRE (foot.engine.prepareLooper());
+    }
+    LoopRig screen, foot;
+};
+
+int looperState (const Engine& e)
+{
+    return e.telemetry().looperState.load();
+}
+bool looperFlag (const Engine& e, int flag)
+{
+    return (e.telemetry().looperFlags.load() & flag) != 0;
+}
+constexpr int state (dsp::Looper::State s)
+{
+    return static_cast<int> (s);
+}
+} // namespace
+
+TEST_CASE ("Engine: a footswitch press acts like the same press on screen", "[engine][looper]")
+{
+    FootPair r;
+    const auto p = quietRig();
+    using C = LooperCommand;
+    // Record, close, overdub, play, stop, clear.
+    r.screen.run (p, { { 3200, C::main },
+                       { 51200, C::main },
+                       { 70400, C::main },
+                       { 90000, C::main },
+                       { 120000, C::stop },
+                       { 140000, C::clear } });
+    r.foot.run (p, {},
+                { { 3200, Foot::main },
+                  { 51200, Foot::main },
+                  { 70400, Foot::main },
+                  { 90000, Foot::main },
+                  { 120000, Foot::stop },
+                  { 140000, Foot::clear } });
+    CHECK (r.foot.out.data == r.screen.out.data);
+    CHECK (looperState (r.foot.engine) == state (dsp::Looper::State::empty));
+    CHECK (looperFlag (r.foot.engine, Engine::kLooperUndoIsClear));
+}
+
+TEST_CASE ("Engine: the undo footswitch undoes, then redoes", "[engine][looper]")
+{
+    FootPair r;
+    const auto p = quietRig();
+    using C = LooperCommand;
+    const Presses take {
+        { 3200, C::main }, { 51200, C::main }, { 60000, C::main }, { 80000, C::main }
+    };
+    auto screen = take;
+    screen.insert (screen.end(), { { 100000, C::undo }, { 120000, C::redo }, { 140000, C::undo } });
+    r.screen.run (p, screen);
+    r.foot.run (p, take,
+                { { 100000, Foot::undo }, { 120000, Foot::undo }, { 140000, Foot::undo } });
+    CHECK (r.foot.out.data == r.screen.out.data);
+    CHECK (looperFlag (r.foot.engine, Engine::kLooperCanRedo));
+    CHECK_FALSE (looperFlag (r.foot.engine, Engine::kLooperCanUndo));
+}
+
+TEST_CASE ("Engine: a double tap stops and takes back what its first press started",
+           "[engine][looper]")
+{
+    using C = LooperCommand;
+    using S = dsp::Looper::State;
+    const auto p = quietRig();
+    // A one-second loop (3200 to 51200), playing from 51200.
+    const Presses take { { 3200, C::main }, { 51200, C::main } };
+    const auto with = [&take] (Presses more) {
+        auto all = take;
+        all.insert (all.end(), more.begin(), more.end());
+        return all;
+    };
+    const int tap = 70400, second = 70400 + 12800; // 267 ms apart
+    const int play = 100000;                       // both play the loop again, to compare it
+
+    SECTION ("Playing: the overdub layer it began is undone")
+    {
+        FootPair r;
+        r.screen.run (p, with ({ { second, C::stop }, { play, C::main } }));
+        r.foot.run (p, with ({ { play, C::main } }),
+                    { { tap, Foot::main }, { second, Foot::doubleTap } });
+        // Bit for bit as if the overdub never began: the noise it recorded is gone.
+        CHECK (r.foot.out.data == r.screen.out.data);
+        CHECK (looperFlag (r.foot.engine, Engine::kLooperCanRedo));
+        CHECK_FALSE (looperFlag (r.foot.engine, Engine::kLooperCanUndo));
+
+        // The check means something: kept, the same overdub sounds.
+        LoopRig kept (48000.0, 64, r.screen.in.frames());
+        kept.in = r.screen.in;
+        REQUIRE (kept.engine.prepareLooper());
+        kept.run (p, with ({ { tap, C::main }, { second, C::stop }, { play, C::main } }));
+        CHECK (kept.out.data != r.screen.out.data);
+    }
+    SECTION ("Overdubbing: the layer the first press ended stays")
+    {
+        FootPair r;
+        r.screen.run (p, with ({ { 60000, C::main }, { tap, C::main }, { second, C::stop } }));
+        r.foot.run (p, with ({ { 60000, C::main } }),
+                    { { tap, Foot::main }, { second, Foot::doubleTap } });
+        CHECK (r.foot.out.data == r.screen.out.data);
+        CHECK (looperState (r.foot.engine) == state (S::stopped));
+        CHECK (looperFlag (r.foot.engine, Engine::kLooperCanUndo));
+    }
+    SECTION ("Recording: the loop it closed is kept, stopped")
+    {
+        FootPair r;
+        r.screen.run (p, { { 3200, C::main }, { 51200, C::main }, { 64000, C::stop } });
+        r.foot.run (p, {},
+                    { { 3200, Foot::main }, { 51200, Foot::main }, { 64000, Foot::doubleTap } });
+        CHECK (r.foot.out.data == r.screen.out.data);
+        CHECK (looperState (r.foot.engine) == state (S::stopped));
+        CHECK (r.foot.engine.telemetry().looperLength.load() == 48000);
+    }
+    SECTION ("Stopped: the playing it started stops")
+    {
+        FootPair r;
+        r.screen.run (p, with ({ { 60000, C::stop }, { tap, C::main }, { second, C::stop } }));
+        r.foot.run (p, with ({ { 60000, C::stop } }),
+                    { { tap, Foot::main }, { second, Foot::doubleTap } });
+        CHECK (r.foot.out.data == r.screen.out.data);
+        CHECK (looperState (r.foot.engine) == state (S::stopped));
+    }
+    SECTION ("Empty: the take it started is discarded")
+    {
+        FootPair r;
+        r.foot.run (p, {}, { { 3200, Foot::main }, { 3200 + 9600, Foot::doubleTap } });
+        CHECK (looperState (r.foot.engine) == state (S::empty));
+        CHECK (r.foot.engine.telemetry().looperLength.load() == 0);
+        CHECK_FALSE (looperFlag (r.foot.engine, Engine::kLooperCanUndo));
+        CHECK_FALSE (looperFlag (r.foot.engine, Engine::kLooperCanRedo));
+        // The rig sounded as with no looper at all.
+        r.screen.run (p);
+        CHECK (r.foot.out.data == r.screen.out.data);
+    }
+    SECTION ("Empty, waiting for the 1: the wait is cancelled")
+    {
+        // The click's next "1" is a bar (at least a second) after its start at 0: past the run.
+        auto clicking = p;
+        clicking[ParamId::metronomeEnabled] = 1.0f;
+        const auto waiting = [&clicking] (const FootPresses& foot) {
+            LoopRig rig (48000.0, 64, 45000);
+            REQUIRE (rig.engine.prepareLooper());
+            rig.engine.setMetronomeAllowed (true);
+            rig.run (clicking, {}, foot);
+            return looperState (rig.engine);
+        };
+        CHECK (waiting ({ { 20000, Foot::main } }) == state (S::armed));
+        CHECK (waiting ({ { 20000, Foot::main }, { 29600, Foot::doubleTap } }) == state (S::empty));
+    }
+    SECTION ("Both presses in one block: the first is never applied")
+    {
+        FootPair r;
+        // A layer is overdubbed and kept first; the double tap must not undo it.
+        const auto layered = with ({ { 60000, C::main }, { 66000, C::main } });
+        auto screen = layered;
+        screen.push_back ({ tap, C::stop });
+        r.screen.run (p, screen);
+        r.foot.run (p, layered, { { tap, Foot::main }, { tap, Foot::doubleTap } });
+        CHECK (r.foot.out.data == r.screen.out.data);
+        CHECK (looperState (r.foot.engine) == state (S::stopped));
+        CHECK (looperFlag (r.foot.engine, Engine::kLooperCanUndo));
+    }
+}
+
+TEST_CASE ("Engine: footswitch presses wait for nothing while the looper has no memory",
+           "[engine][looper]")
+{
+    LoopRig rig (48000.0, 64, 20000);
+    const auto p = quietRig();
+    rig.run (p, {}, { { 3200, Foot::main } });
+    CHECK (looperState (rig.engine) == state (dsp::Looper::State::unavailable));
+    REQUIRE (rig.engine.prepareLooper());
+    rig.run (p);
+    CHECK (looperState (rig.engine) == state (dsp::Looper::State::empty));
+}
+
+TEST_CASE ("Engine::process never allocates with footswitch presses", "[engine][looper]")
+{
+    const int block = GENERATE (1, 64, 512);
+    CAPTURE (block);
+    LoopRig rig (48000.0, block, 120000);
+    test::fillNoise (rig.in[0], 0.3f, 5);
+    REQUIRE (rig.engine.prepareLooper());
+    const FootPresses foot { { 2000, Foot::main },       { 30000, Foot::main },
+                             { 40000, Foot::main },      { 50000, Foot::doubleTap },
+                             { 60000, Foot::main },      { 70000, Foot::undo },
+                             { 75000, Foot::undo },      { 80000, Foot::clear },
+                             { 85000, Foot::undo },      { 90000, Foot::main },
+                             { 90000, Foot::doubleTap }, { 100000, Foot::stop } };
+    gAllocations = 0;
+    {
+        TrackAllocations track;
+        rig.run (quietRig(), {}, foot);
+    }
+    CHECK (gAllocations.load() == 0);
+    CHECK (test::allFinite (rig.out[0]));
+}
+
+// -------------------------------------------------------------------------------------------------
 // The recorder and re-amp around the engine (docs/recorder.md).
 
 TEST_CASE ("Deck: recording, dropping, re-amping and looping never allocate", "[engine][record]")
@@ -1421,4 +1644,104 @@ TEST_CASE ("Deck: recording, dropping, re-amping and looping never allocate", "[
     CHECK (deck.recorder().latencyChanged());
     CHECK (deck.recorder().phase() == record::TakeRecorder::Phase::finished);
     CHECK (deck.reamp().endings() == 1);
+}
+
+namespace
+{
+using Timed = std::vector<std::pair<int, live::MidiMessage>>;
+
+/// The live layer in front of the engine, as SedefProcessor::processBlock runs them: the block's
+/// controller messages, then the looper's presses handed to the engine, then process().
+struct LiveLoopRig : LoopRig
+{
+    LiveLoopRig (double fs, int blockSize, int frames, const live::MidiMap& map)
+        : LoopRig (fs, blockSize, frames)
+    {
+        control.prepare (fs);
+        control.setMap (map);
+    }
+
+    /// `messages` are (sample, message) in order; each arrives in the block holding its sample.
+    void play (const ParamSnapshot& p, const Timed& messages)
+    {
+        std::array<live::MidiMessage, 16> inBlock {};
+        std::size_t next = 0;
+        for (int s = 0; s < in.frames(); s += block)
+        {
+            const int n = std::min (block, in.frames() - s);
+            int count = 0;
+            while (next < messages.size() && messages[next].first < s + n && count < 16)
+                inBlock[static_cast<std::size_t> (count++)] = messages[next++].second;
+            control.acknowledge();
+            auto snapshot = p;
+            control.process (snapshot, inBlock.data(), count, n);
+            for (int k = 0; k < control.numLooperPresses(); ++k)
+                engine.looperFootswitch (control.looperPress (k));
+            std::array<const float*, 2> ip { in.ptrs[0] + s, nullptr };
+            std::array<float*, 2> op { out.ptrs[0] + s, out.ptrs[1] + s };
+            engine.process (ip.data(), op.data(), n, snapshot, transport);
+        }
+    }
+
+    live::LiveControl control;
+};
+} // namespace
+
+TEST_CASE ("Engine: a footswitch's message at sample n reaches the looper in that block",
+           "[engine][looper][live]")
+{
+    // docs/live.md §4.5 and §7.1: wherever in a block the message lies, the press acts at that
+    // block's start, as an L press made just before the block would. A momentary switch (Toggle)
+    // presses once per press and release, a latching one (Latch) once per message.
+    const int block = GENERATE (1, 7, 64, 333, 4096);
+    const bool latching = GENERATE (false, true);
+    CAPTURE (block, latching);
+    constexpr int frames = 110000;
+    constexpr int kMain = 60, kStop = 61;
+    const auto mode = latching ? live::SwitchMode::latch : live::SwitchMode::toggle;
+    live::MidiMap map;
+    map.add (test::bindAction (live::Action::looperMain, kMain, 0, mode));
+    map.add (test::bindAction (live::Action::looperStop, kStop, 0, mode));
+
+    // Record, close (the loop plays), overdub, play, then stop: off the block grid on purpose.
+    const std::vector<std::pair<int, int>> pressAt {
+        { 5003, kMain }, { 53011, kMain }, { 70001, kMain }, { 90107, kMain }, { 100501, kStop }
+    };
+    Timed messages;
+    std::vector<std::pair<int, LooperCommand>> screenPresses;
+    bool latched = false;
+    for (const auto& [t, controller] : pressAt)
+    {
+        if (latching) // a latching switch sends the other value on each press, nothing more
+        {
+            latched = controller == kMain ? !latched : true;
+            messages.push_back ({ t, test::cc (controller, latched ? 127 : 0) });
+        }
+        else // a momentary one sends 127, then 0 when released 50 ms later
+        {
+            messages.push_back ({ t, test::cc (controller, 127) });
+            messages.push_back ({ t + 2400, test::cc (controller, 0) });
+        }
+        // On screen: the same press at the start of the block its message falls in.
+        screenPresses.push_back (
+            { t / block * block, controller == kMain ? LooperCommand::main : LooperCommand::stop });
+    }
+
+    LoopRig screen (48000.0, block, frames);
+    LiveLoopRig foot (48000.0, block, frames, map);
+    test::fillNoise (screen.in[0], 0.3f, 17);
+    foot.in = screen.in;
+    REQUIRE (screen.engine.prepareLooper());
+    REQUIRE (foot.engine.prepareLooper());
+    screen.run (quietRig(), screenPresses);
+
+    gAllocations = 0;
+    {
+        TrackAllocations track;
+        foot.play (quietRig(), messages);
+    }
+    CHECK (gAllocations.load() == 0);
+    CHECK (foot.out.data == screen.out.data);
+    CHECK (looperState (foot.engine) == state (dsp::Looper::State::stopped));
+    CHECK (looperFlag (foot.engine, Engine::kLooperCanUndo)); // the overdub layer is there
 }

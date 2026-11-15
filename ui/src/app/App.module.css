@@ -35,6 +35,11 @@
   z-index: 30;
 }
 
+/* The control menu's layer: above the header and its popovers, an empty box in the flow. */
+.app > .menuLayer {
+  z-index: 40;
+}
+
 .body {
   flex: 1;
   min-height: 0;

@@ -9,8 +9,11 @@ import {
   activityLabel,
   canRememberInScenes,
   continuousValue,
+  DOUBLE_TAP_S,
+  isDoubleTap,
   isLearnable,
   isSwitchTarget,
+  LOOPER_TARGETS,
   parseTarget,
   rangeLabel,
   sceneTarget,
@@ -169,5 +172,28 @@ describe('targets and labels', () => {
     expect(SCENE_SWITCHES).toHaveLength(22);
     expect(new Set(SCENE_SWITCHES).size).toBe(22);
     for (const id of SCENE_SWITCHES) expect(spec(id).kind).toBe('bool');
+  });
+});
+
+describe('the looper’s footswitches (docs/live.md §4.5)', () => {
+  it('are switch targets with names of their own', () => {
+    expect(LOOPER_TARGETS.map((t) => t.target)).toEqual([
+      'looper:main',
+      'looper:stop',
+      'looper:undo',
+      'looper:clear',
+    ]);
+    expect(parseTarget('looper:main')).toEqual({ kind: 'looper', action: 'main' });
+    expect(parseTarget('looper:pause')).toBeNull();
+    expect(targetLabel('looper:main', specs)).toBe('Looper: record, play, overdub');
+    expect(targetLabel('looper:undo', specs)).toBe('Looper: undo, redo');
+    for (const t of LOOPER_TARGETS) expect(isSwitchTarget(t.target, specs)).toBe(true);
+  });
+
+  it('read a double tap when the second press comes less than 0.4 s after the first', () => {
+    expect(DOUBLE_TAP_S).toBe(0.4);
+    expect(isDoubleTap(0, 0.399)).toBe(true);
+    expect(isDoubleTap(0, 0.4)).toBe(false);
+    expect(isDoubleTap(-1, 0.1)).toBe(false); // nothing waits
   });
 });

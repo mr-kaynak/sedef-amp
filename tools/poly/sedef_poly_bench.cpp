@@ -626,7 +626,7 @@ int chordsIn (const std::vector<Ref>& refs)
 
 const char* noteName (int pitch)
 {
-    static char buf[8][8];
+    static char buf[8][16];
     static int at = 0;
     static const char* names[] = {
         "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"

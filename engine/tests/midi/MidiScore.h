@@ -230,7 +230,7 @@ inline Result judge (const std::vector<Truth>& truth, const std::vector<Sent>& s
                 break;
             }
         // A note in a chord's window is the chord's, not this note's wrong pitch.
-        const auto free = [&] (int) { return true; };
+        const auto anyPitch = [] (int) { return true; };
         bool inChord = false;
         for (std::size_t k = 0; k < ns && !inChord; ++k)
             if (!used[k] && sent[k].on >= truth[i].on - tol.early && sent[k].on <= to)
@@ -241,7 +241,7 @@ inline Result judge (const std::vector<Truth>& truth, const std::vector<Sent>& s
                         inChord = true;
                 break;
             }
-        if (!inChord && take (i, free, to))
+        if (!inChord && take (i, anyPitch, to))
         {
             r.verdict[i] = Verdict::wrong;
             continue;

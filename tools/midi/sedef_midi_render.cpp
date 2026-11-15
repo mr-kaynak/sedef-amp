@@ -1379,7 +1379,8 @@ std::vector<ScoredNote> decodedNotes (const std::vector<float>& x, double fs, co
     std::array<float, 24> levels {};
     levels.fill (-120.0f);
     std::size_t levelAt = 0;
-    int attackHops = 0, sounding = midi::NoteDecoder::kSilence;
+    double attackAt = -1.0e9;
+    int sounding = midi::NoteDecoder::kSilence;
     for (std::size_t i = 0; i < x.size(); ++i)
     {
         out.clear();
@@ -1396,15 +1397,13 @@ std::vector<ScoredNote> decodedNotes (const std::vector<float>& x, double fs, co
         }
         const float level = conv.levelDb();
         const float quiet = std::max (conv.gateLevelDb(), conv.playingLevelDb() - 26.5f);
-        // An attack: a pick the tracker saw, or the level 6 dB over where it was 10 ms ago, and
-        // the 12 ms after either.
+        // An attack: a pick the tracker saw, or the level 6 dB over where it was 10 ms ago.
         if (tracker.pickCount() != picks || level > levels[(levelAt + 4) % levels.size()] + 6.0f)
-            attackHops = 24;
+            attackAt = static_cast<double> (i) / fs;
         picks = tracker.pickCount();
         levels[levelAt] = level;
         levelAt = (levelAt + 1) % levels.size();
-        const int note = decoder.endHop (level - quiet, attackHops > 0);
-        attackHops = std::max (0, attackHops - 1);
+        const int note = decoder.endHop (level - quiet, static_cast<double> (i) / fs - attackAt);
         const double t = static_cast<double> (i) / fs - decoder.lagSeconds();
         if (note != sounding)
         {

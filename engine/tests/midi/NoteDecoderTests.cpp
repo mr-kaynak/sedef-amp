@@ -35,12 +35,13 @@ int hopsToPay (const NoteDecoder::Model& m, int note, double observations, doubl
                                         (share (m, note) * evidence (m, left))));
 }
 
+/// One hop; `attack`: an attack began this hop (and is behind every note for its span).
 int feed (NoteDecoder& d, int note, float value, bool attack, float overQuietDb = 20.0f)
 {
     d.beginHop();
     if (note >= 0)
         d.addPeriod (static_cast<float> (note), value);
-    return d.endHop (overQuietDb, attack);
+    return d.endHop (overQuietDb, attack ? 0.0 : 1.0);
 }
 
 /// Hops until the decoder first names `note`, fed a clean period of it; -1 if not within 400.
@@ -120,7 +121,7 @@ TEST_CASE ("NoteDecoder gives a period's evidence to the octave above that expla
             d.beginHop();
             d.addPeriod (static_cast<float> (kA3), 0.99f);
             d.addPeriod (static_cast<float> (kA3 + 12), upper);
-            note = d.endHop (20.0f, k < 20);
+            note = d.endHop (20.0f, k < 20 ? 0.0 : 1.0);
         }
         return note;
     };
@@ -207,4 +208,56 @@ TEST_CASE ("NoteDecoder's answer depends on its input alone", "[midi][decoder]")
     }
     CHECK (first == second);
     CHECK (first.back() == kB3);
+}
+
+TEST_CASE ("NoteDecoder keeps an attack behind a note for as long as the note needs to show",
+           "[midi][decoder]")
+{
+    // An attack is behind a note for 12 ms and two of its periods: a low E2 that shows its
+    // period 30 ms after its pick still starts on one observation; 50 ms after, it is a note
+    // without an attack and needs two. An A4 30 ms after an attack already is.
+    NoteDecoder d;
+    d.prepare (kHop, 0.0);
+    CHECK (d.attackSpan (kE2) > 0.036);
+    CHECK (d.attackSpan (kE2) < 0.037);
+    CHECK (d.attackSpan (69) < 0.017);
+    const auto hops = [&] (int note, double since) {
+        d.reset();
+        for (int k = 1; k <= 400; ++k)
+        {
+            d.beginHop();
+            d.addPeriod (static_cast<float> (note), 0.99f);
+            // The whole wait inside or outside the span: the attack does not age here.
+            if (d.endHop (20.0f, since) == note)
+                return k;
+        }
+        return -1;
+    };
+    const auto& m = d.model;
+    CHECK (hops (kE2, 0.030) <= hopsToPay (m, kE2, m.attack, 0.01) + 1);
+    CHECK (hops (kE2, 0.050) >= hopsToPay (m, kE2, m.bare, 0.01));
+    CHECK (hops (69, 0.030) >= hopsToPay (m, 69, m.bare, 0.01));
+    CHECK (hops (69, -1.0) >= hopsToPay (m, 69, m.bare, 0.01)); // no attack yet
+}
+
+TEST_CASE ("NoteDecoder cuts a low note's patience to what a budget leaves", "[midi][decoder]")
+{
+    // Patience 2 with 38 ms to spend: a note read after two periods and 5 ms has the rest. An
+    // A3 (9 ms to read, 4 ms a window) has room for all of it; a low E2 (24.3 + 5 ms to read,
+    // 6 ms a window) for (38 - 29.3) / 6 = 1.45; an E1 (53.5 ms to read) for none, and keeps 1.
+    NoteDecoder d;
+    d.prepare (kHop, 0.0);
+    d.setPatience (2.0f, 0.038);
+    CHECK (d.patienceOf (kA3) == 2.0f);
+    CHECK (std::abs (d.patienceOf (kE2) - 1.45f) < 0.02f);
+    CHECK (d.patienceOf (28) == 1.0f);
+    // And the wait follows it.
+    const auto& m = d.model;
+    const int k = hopsUntil (d, kE2, true);
+    const int model = static_cast<int> (std::ceil (d.patienceOf (kE2) * m.attack * evidence (m, 0.0) /
+                                                   (share (m, kE2) * evidence (m, 0.01))));
+    CHECK (k >= model);
+    CHECK (k <= model + 1);
+    d.setPatience (2.0f);
+    CHECK (d.patienceOf (kE2) == 2.0f);
 }

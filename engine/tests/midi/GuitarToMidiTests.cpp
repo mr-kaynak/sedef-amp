@@ -698,7 +698,8 @@ TEST_CASE ("Guitar to MIDI in Steady sends each note a fixed lag after its pick"
     // Across the bass lines the lag holds as well as each pick is dated. A pick the tracker's
     // detector or its click dates lands within 1 ms; a soft pick seen only as the previous note
     // losing its period is dated to a few milliseconds, and a mute just before a pick can be
-    // taken for it. Measured: 89 % within 1 ms of the lag, 97 % within 3 ms, none past 6 ms.
+    // taken for it. Measured: 85 % within 1 ms of the lag, 94 % within 3 ms, 98.6 % within 6 ms
+    // (89 %, 97 % and all of them before the decoder's second opinion).
     // The first note of all is not among them: nothing says yet how loud the player is, so it
     // waits kTouchWaitSeconds for a louder pick (a finger's touch comes before its pluck), and
     // goes out at once after that.
@@ -724,13 +725,19 @@ TEST_CASE ("Guitar to MIDI in Steady sends each note a fixed lag after its pick"
                    errors.begin(), errors.end(), [ms] (double e) { return std::abs (e) <= ms; })) /
                static_cast<double> (errors.size());
     };
+    const double latest = errors.empty() ? 0.0 : *std::max_element (errors.begin(), errors.end());
     std::printf ("Steady: %zu notes, %.1f %% within 1 ms of the lag, %.1f %% within 3 ms, "
-                 "%.1f %% within 6 ms\n",
-                 errors.size(), 100.0 * within (1.0), 100.0 * within (3.0), 100.0 * within (6.0));
+                 "%.1f %% within 6 ms, the latest %.1f ms after it\n",
+                 errors.size(), 100.0 * within (1.0), 100.0 * within (3.0), 100.0 * within (6.0),
+                 latest);
     REQUIRE (errors.size() >= 138);
     CHECK (within (1.0) >= 0.8);
     CHECK (within (3.0) >= 0.93);
-    CHECK (within (6.0) == 1.0);
+    // A note the decoder has not agreed to when its lag is up waits for it
+    // (kSteadyWaitsPastLag): 2 of the 141 are more than 6 ms late, where none was before the
+    // decoder. That is the price of the stray notes it keeps back on real playing.
+    CHECK (within (6.0) >= 0.98);
+    CHECK (latest <= 12.0);
 }
 
 namespace

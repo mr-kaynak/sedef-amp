@@ -6,6 +6,33 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+Sedef MIDI follows real playing better: fewer notes go missing, and fewer notes that nobody
+played come out.
+
+### Fixed
+
+- **Sedef MIDI no longer drops a note played softer than the one before it.** A note picked
+  softly just after a louder one was damped, or hammered on after a rest, often never started:
+  nothing had told Sedef MIDI a note began. Measured on 91 minutes of real single-line playing
+  with exact reference notes, 91 of 100 notes now come out in Fastest where 86 did (90 where 85
+  did in Steady).
+
+### Changed
+
+- **Fewer notes nobody played.** A short wrong note at the moment one note gives way to the
+  next (a semitone off, for a few hundredths of a second) was Sedef MIDI's most common mistake
+  on real playing. A new note that the pitch reading names is now weighed for a few
+  milliseconds against everything else the signal could be before it is sent: on the same
+  recordings, 27 stray notes for every 100 played where there were 35 in Fastest, and 19 where
+  there were 26 in Steady, which waits a little longer and catches more. Notes shorter than
+  40 ms fall from 24 to 15 per 100 in Fastest and from 11 to 6 in Steady. A cleanly picked note
+  comes exactly as fast as before; a note picked softly over a string that still rings can
+  come a few milliseconds later (4 ms on a guitar's notes, 6 ms on the lowest strings of a
+  seven or eight-string).
+- **Strummed chords give fewer notes.** Sedef MIDI plays one note at a time; a chord used to
+  come out as two or three notes as it moved between the strings, and now more often gives
+  one, or none.
+
 ## [0.10.2] - 2026-11-15
 
 Captures from the trainer's newest version (A2) load.

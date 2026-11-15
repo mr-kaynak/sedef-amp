@@ -138,7 +138,14 @@ host at their exact sample.
 - **One note at a time.** Damp the strings you aren't playing. A string left ringing under the
   next note is usually fine when the new note is clearly louder; two strings at a similar level
   (a chord, or fingerstyle with strings ringing into each other) give short wrong notes between
-  the right ones.
+  the right ones, or no note at all.
+- **What to expect on a real line.** On 91 minutes of real single-line playing (a research set
+  of solos with exact reference notes; acoustic guitar, played with a pick), 91 of 100 notes
+  come out in Fastest and 90 in Steady, and for every 100 notes played 27 come out that nobody
+  played (19 in Steady), about half of them shorter than 40 ms. Notes that start from silence
+  are right 98 times in 100; a note picked over a string that still rings, 78 times. So the
+  cleaner the line (each note damped before the next), the closer it gets to note for note,
+  and **Steady makes fewer mistakes than Fastest**: it has longer to make up its mind.
 - **Seven and eight strings, low tunings.** Leave **Lowest note** on Auto and play: the first
   note under a guitar's range comes a little later than the ones after it (Sedef MIDI makes
   sure it is a string and not two notes ringing together), and from then on the low strings
@@ -162,7 +169,7 @@ host at their exact sample.
   stops), switch the gate to Manual and drag it just above that. Too high and soft notes go
   missing.
 - **Steady for recording.** Record in Steady with a −38 ms track delay and every note sits where
-  you played it. A note played softly over a string still ringing can land a little late, and one
+  you played it, with fewer stray notes to delete than in Fastest. A note played softly over a string still ringing can land a little late, and one
   right after a mute (or a finger touching the still ringing string) a little early; damping the
   previous string a moment sooner keeps them in place. For playing
   live, Fastest feels quicker.
@@ -203,6 +210,13 @@ the note waits as before: two periods and 3 ms, or 16 ms for a high note. That h
 
 A note is never sent before Sedef MIDI is sure of it and corrected afterwards: that was measured
 (13 notes in 100 wrong first, for 2 ms) and left out.
+
+A note that waits for the pitch reading in this way is also weighed, for a few milliseconds
+more, against everything else the signal could be at that moment (the note before, a
+neighbouring semitone, nothing): 4 ms on a guitar's notes and up to 6 ms on a low string, and
+twice that in Steady, inside its 38 ms. That is what keeps most of the short wrong
+notes between two notes from being sent. A cleanly picked note is read from its own first
+periods, as the table says, and does not wait for it.
 
 **The rest is buffers, and you can shorten them.**
 

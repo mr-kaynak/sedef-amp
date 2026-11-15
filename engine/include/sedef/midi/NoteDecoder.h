@@ -30,12 +30,15 @@ namespace sedef::midi
 /// - **Level.** Under the quietest a note can be (the caller's), every note loses
 ///   Model::quietPerDb per dB, up to Model::quietMost.
 /// - **Transitions** cost a number of clean observations, times Model::patience: starting a
-///   note with an attack behind it (Model::attack), without one (bare); moving one or two
+///   note with an attack behind it (Model::attack: a pick or a rise of the level no longer
+///   ago than Model::attackSeconds and two of the note's periods, the time the tracker needs
+///   to show a period at all), without one (bare); moving one or two
 ///   semitones without an attack (step: a hammer-on, a pull-off, a slide), any other move
 ///   without one (leap). Ending costs Model::end. A note that cannot earn its start back is
 ///   never on the best path: how short a note may be, and how long a new note is doubted,
 ///   follow from the patience alone. It is the one setting: the wait for a note with an attack
-///   is patience x one window.
+///   is patience x one window. With a budget (a fixed lag the caller sends its notes at), a
+///   low note's patience is cut to what the lag leaves after the note's own two periods.
 /// - **Lag.** endHop() answers for the hop `lag` ago: the state the best path to now passes
 ///   through then. With no lag it is the best state now.
 ///
@@ -54,6 +57,8 @@ public:
         float windowMs = 4.0f, periodShare = 0.5f, longestWindowMs = 6.0f;
         float attack = 1.0f, bare = 2.0f, step = 2.0f, leap = 3.0f, end = 3.0f;
         float patience = 1.0f;
+        float attackSeconds = 0.012f; ///< how long an attack lasts
+        float readSeconds = 0.005f;   ///< what a tracker takes to read a note, beyond two periods
     };
     Model model;
 
@@ -61,7 +66,12 @@ public:
     /// The lag in effect, at most what prepare() was given. Forgets nothing.
     void setLag (double seconds) noexcept;
     /// How many clean observations a transition costs, as a multiple of the model's counts.
-    void setPatience (float patience) noexcept { model.patience = patience; }
+    /// `budgetSeconds` (0: none): the time the caller can wait for a note after its attack. A
+    /// note's patience is then no more than fits in the budget once the note has had the two
+    /// periods and Model::readSeconds a tracker needs to read it, and never under 1.
+    void setPatience (float patience, double budgetSeconds = 0.0) noexcept;
+    /// The patience in effect for this note.
+    float patienceOf (int note) const noexcept;
     double lagSeconds() const noexcept { return lag_ * hopSeconds_; }
     void reset() noexcept;
 
@@ -69,9 +79,13 @@ public:
     void beginHop() noexcept;
     /// `pitch`: the period as a fractional MIDI note; `value`: how well the input repeats there.
     void addPeriod (float pitch, float value) noexcept;
-    /// `overQuietDb`: the level over the quietest a note can be; `attack`: a pick or a rise of
-    /// the level is under way. Returns the note `lag` ago (kSilence: none).
-    int endHop (float overQuietDb, bool attack) noexcept;
+    /// `overQuietDb`: the level over the quietest a note can be; `sinceAttack`: how long ago
+    /// the latest pick or rise of the level was, in seconds (negative: none yet). An attack is
+    /// behind a note for as long as the note needs to show: Model::attackSeconds and two of
+    /// its periods. Returns the note `lag` ago (kSilence: none).
+    int endHop (float overQuietDb, double sinceAttack) noexcept;
+    /// How long after an attack a note at this pitch still starts with the attack behind it.
+    double attackSpan (int note) const noexcept;
     /// The best state now, whatever the lag.
     int now() const noexcept { return now_; }
     /// How far the best path is ahead of the runner-up state now, in nats.
@@ -83,6 +97,10 @@ private:
     double hopSeconds_ = 0.0005;
     int lag_ = 0, depth_ = 1, head_ = 0;
     std::array<float, kNotes> temper_ {};
+    std::array<float, kNotes> attackSpan_ {}; ///< seconds
+    std::array<float, kNotes> window_ {};     ///< seconds: one observation
+    std::array<float, kNotes> patience_ {};
+    double budget_ = 0.0;
     std::array<float, kNotes> left_ {};
     std::array<float, kStates> delta_ {}, next_ {};
     std::vector<std::uint8_t> from_; ///< depth_ hops of kStates back-pointers

@@ -271,7 +271,7 @@ void GuitarToMidi::prepare (double sampleRate)
     }
     settings_ = next_;
     settingsChanged_ = false;
-    decoder_.setPatience (settings_.timing == Timing::steady ? kSteadyPatience : kFastestPatience);
+    setDecoderPatience();
     reset();
     applyRange();
 }
@@ -393,7 +393,7 @@ void GuitarToMidi::applySettings (EventList& out, int offset) noexcept
     settingsChanged_ = false;
     const Settings old = settings_;
     settings_ = next_;
-    decoder_.setPatience (settings_.timing == Timing::steady ? kSteadyPatience : kFastestPatience);
+    setDecoderPatience();
     if (old.timing != settings_.timing)
     {
         // What waits goes out now, in order; the rest follows the new timing.
@@ -1507,6 +1507,16 @@ bool GuitarToMidi::pickedNoteReady (float hz) const noexcept
     return !lowerNotePossible (hz);
 }
 
+void GuitarToMidi::setDecoderPatience() noexcept
+{
+    // Steady has its lag to spend: twice the patience, where the lag leaves room for it after
+    // the note's own two periods (a low E is read at 27 ms of the 38).
+    if (settings_.timing == Timing::steady)
+        decoder_.setPatience (kSteadyPatience, kSteadyLagSeconds);
+    else
+        decoder_.setPatience (kFastestPatience);
+}
+
 void GuitarToMidi::decoderHop() noexcept
 {
     decoderEstimates_ = tracker_.estimateCount();
@@ -1528,7 +1538,8 @@ void GuitarToMidi::decoderHop() noexcept
     decoderPicks_ = tracker_.pickCount();
     decoderLevels_[static_cast<std::size_t> (decoderLevelAt_)] = levelDb_;
     decoderLevelAt_ = (decoderLevelAt_ + 1) % size;
-    decoder_.endHop (levelDb_ - quietDb(), decoderAttack_ > 0);
+    decoder_.endHop (levelDb_ - quietDb(),
+                     static_cast<double> (now_ - decoderAttackAt_) / sampleRate_);
     decoderAttack_ = std::max (0, decoderAttack_ - 1);
     decoderNote_ = decoder_.now();
 }
@@ -1682,7 +1693,7 @@ void GuitarToMidi::decide() noexcept
                 return;
             // ...and the decoder holds it too: a first reading across a change of note, or in
             // an attack, names notes nobody played.
-            if (!agreed (q))
+            if (!agreed (q) && !lagSpent())
                 return;
             start = q;
             startHz = heard;
@@ -1840,7 +1851,7 @@ void GuitarToMidi::decide() noexcept
             if (candidateSamples_ < (pickFresh_ ? confirmSamples_ : correctionConfirmSamples_) ||
                 pickChecking_ || !pickedNoteReady (heard))
                 return;
-            if (!agreed (q))
+            if (!agreed (q) && !lagSpent())
                 return;
             // A second change after one pick corrects the tracker's first reading, but never back
             // to the note before the pick, whose string may simply still ring.

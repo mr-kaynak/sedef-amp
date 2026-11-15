@@ -23,13 +23,44 @@ void NoteDecoder::prepare (double hopSeconds, double longestLagSeconds)
     for (int n = 0; n < kNotes; ++n)
     {
         const double period = 1.0 / (440.0 * std::exp2 ((n + kLowestNote - 69) / 12.0));
-        temper_[static_cast<std::size_t> (n)] = static_cast<float> (
-            hopSeconds / std::clamp (static_cast<double> (model.periodShare) * period,
-                                     0.001 * static_cast<double> (model.windowMs),
-                                     0.001 * static_cast<double> (model.longestWindowMs)));
+        attackSpan_[static_cast<std::size_t> (n)] =
+            static_cast<float> (static_cast<double> (model.attackSeconds) + 2.0 * period);
+        const double window = std::clamp (static_cast<double> (model.periodShare) * period,
+                                          0.001 * static_cast<double> (model.windowMs),
+                                          0.001 * static_cast<double> (model.longestWindowMs));
+        window_[static_cast<std::size_t> (n)] = static_cast<float> (window);
+        temper_[static_cast<std::size_t> (n)] = static_cast<float> (hopSeconds / window);
     }
     lag_ = std::min (lag_, depth_ - 1);
+    setPatience (model.patience, budget_);
     reset();
+}
+
+void NoteDecoder::setPatience (float patience, double budgetSeconds) noexcept
+{
+    model.patience = patience;
+    budget_ = budgetSeconds;
+    for (int n = 0; n < kNotes; ++n)
+    {
+        float p = patience;
+        if (budgetSeconds > 0.0)
+        {
+            // What the budget leaves once the note could be read at all: two of its periods
+            // (attackSpan_ holds them, and the attack) and the tracker's own margin.
+            const double read = static_cast<double> (attackSpan_[static_cast<std::size_t> (n)]) -
+                                static_cast<double> (model.attackSeconds) +
+                                static_cast<double> (model.readSeconds);
+            const double fits =
+                (budgetSeconds - read) / static_cast<double> (window_[static_cast<std::size_t> (n)]);
+            p = std::clamp (static_cast<float> (fits), std::min (1.0f, patience), patience);
+        }
+        patience_[static_cast<std::size_t> (n)] = p;
+    }
+}
+
+float NoteDecoder::patienceOf (int note) const noexcept
+{
+    return patience_[static_cast<std::size_t> (std::clamp (note - kLowestNote, 0, kNotes - 1))];
 }
 
 void NoteDecoder::setLag (double seconds) noexcept
@@ -62,7 +93,13 @@ void NoteDecoder::addPeriod (float pitch, float value) noexcept
     left = std::min (left, 1.0f - std::min (value, 1.0f));
 }
 
-int NoteDecoder::endHop (float overQuietDb, bool attack) noexcept
+double NoteDecoder::attackSpan (int note) const noexcept
+{
+    return static_cast<double> (
+        attackSpan_[static_cast<std::size_t> (std::clamp (note - kLowestNote, 0, kNotes - 1))]);
+}
+
+int NoteDecoder::endHop (float overQuietDb, double sinceAttack) noexcept
 {
     // Emissions.
     const float quiet =
@@ -93,12 +130,9 @@ int NoteDecoder::endHop (float overQuietDb, bool attack) noexcept
         if (delta_[static_cast<std::size_t> (s)] > delta_[static_cast<std::size_t> (best)])
             best = s;
     // A transition costs so many clean observations.
-    const float unit = model.patience * score (0.0f);
-    const float withAttack = unit * model.attack;
-    const float move = attack ? withAttack : unit * model.leap;
-    const float step = attack ? withAttack : unit * model.step;
-    const float start = attack ? withAttack : unit * model.bare;
-    const float endCost = score (0.0f) * model.end;
+    const float clean = score (0.0f);
+    const float endCost = clean * model.end;
+    const auto since = static_cast<float> (sinceAttack);
     auto* from = from_.data() + static_cast<std::size_t> (head_ * kStates);
 
     // Silence: stays, or a note ends.
@@ -125,9 +159,14 @@ int NoteDecoder::endHop (float overQuietDb, bool attack) noexcept
                 source = other;
             }
         };
-        consider (0, start);
+        const bool attack = since >= 0.0f && since <= attackSpan_[static_cast<std::size_t> (s - 1)];
+        const float unit = patience_[static_cast<std::size_t> (s - 1)] * clean;
+        const float withAttack = unit * model.attack;
+        const float step = attack ? withAttack : unit * model.step;
+        consider (0, attack ? withAttack : unit * model.bare);
         if (best != s)
-            consider (best, std::abs (best - s) <= 2 ? step : move);
+            consider (best, std::abs (best - s) <= 2 ? step
+                                                      : (attack ? withAttack : unit * model.leap));
         for (int d : { -2, -1, 1, 2 })
             if (s + d >= 1 && s + d < kStates)
                 consider (s + d, step);

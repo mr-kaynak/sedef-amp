@@ -195,6 +195,26 @@ struct Settings
 ///   next may replace the note. The early reading only starts a note for a pick the tracker's
 ///   detector saw (or, for the same note again, one seen as its lost period), as loud as this
 ///   player's picks, its level checked; Steady never uses it, and plays exactly as before.
+/// - **The decoder: a second opinion.** The tracker's note logic names one period and holds
+///   on to it; across a change of note its window holds two notes, and in an attack none, and
+///   what it names then is a note nobody played. A NoteDecoder runs beside it, fed every hop
+///   with every period the tracker's estimate finds (how well the input repeats at each), and
+///   weighs them over time: a note must earn what its start costs (one clean observation with
+///   an attack behind it, two without, times the patience: kFastestPatience, kSteadyPatience).
+///   A note the tracker names starts (from silence, over a sounding note, as a correction) only
+///   once the decoder has held it too since the pick: the same note, or one whose period is a
+///   whole multiple of it (a note over a string ringing a fifth from it repeats only at such a
+///   period, and above kDecoderOctaveHz the band cannot tell a note from its octave; which of
+///   those it is, the tracker says, from the fundamental itself). The early reading, which
+///   has its own proof, and legato are not asked.
+/// - **A note nobody saw picked.** The pick detector compares the level with what just rang:
+///   a note softer than the one damped a moment before it has no pick, and the tracker, which
+///   rides through a short silence, does not lock anew either. Such a note starts when no pick
+///   was seen for 50 ms, the tracker and the decoder name the very same note, an attack
+///   (a rise of kDecoderRiseDb in kDecoderRiseSeconds) has passed, the level is within
+///   kFadedDropDb of how this player picks, and it rose kDecoderRiseDb out of the quietest
+///   millisecond of the last kMuteWindowSeconds (the fretting hand taking a fret on a ringing
+///   string sounds a note too, and adds no energy).
 /// - **The octave up.** After a pick, a string ringing an octave (or two) under the played note,
 ///   left ringing or in sympathy, makes the input repeat at its longer period as well, and the
 ///   tracker may name it. When the input also repeats at half that period (kOctaveUpClean, over
@@ -405,6 +425,11 @@ public:
     /// How many clean observations the decoder asks of a new note (NoteDecoder::Model): the
     /// one setting that trades how soon a note is believed for how often it is wrong.
     static constexpr float kFastestPatience = 1.0f, kSteadyPatience = 2.0f;
+    /// Steady: a note the decoder has not agreed to by the time its lag is up still waits for
+    /// it, and goes out late (measured: 2 of 141 clean bass-line notes more than 6 ms late,
+    /// where none was) rather than at its lag unweighed. Off, Steady keeps its timing to the
+    /// sample and most of its stray notes (on real playing 31 per 100 instead of 22).
+    static constexpr bool kSteadyWaitsPastLag = true;
     /// Above this the analysis band (to 1.5 kHz) holds one odd partial of a note, and its
     /// period alone cannot tell it from the octave above.
     static constexpr float kDecoderOctaveHz = 500.0f;
@@ -752,11 +777,19 @@ private:
     std::array<float, 32> decoderLevels_ {};
     int decoderLevelAt_ = 0, decoderRiseHops_ = 20;
     void decoderHop() noexcept;
+    void setDecoderPatience() noexcept;
     /// The decoder holds note `q` (a sent pitch) now, or a note it cannot tell from it.
     bool decoded (int q) const noexcept;
     /// ...or has held it at some moment since the latest pick (a note that waits for another
     /// reason, the first note's wait, may have faded by the time it starts).
     bool agreed (int q) const noexcept { return agreedNote_ == q && agreedAt_ >= pickAt_; }
+    /// Steady, with kSteadyWaitsPastLag off: once the lag has passed since the pick, the
+    /// tracker's reading goes out without the decoder's agreement, as it always did.
+    bool lagSpent() const noexcept
+    {
+        return !kSteadyWaitsPastLag && settings_.timing == Timing::steady &&
+               now_ - pickAt_ >= lagSamples_;
+    }
     int agreedNote_ = -1;
     std::int64_t agreedAt_ = 0;
     /// The note the decoder holds that may start without a pick: -1 if none.

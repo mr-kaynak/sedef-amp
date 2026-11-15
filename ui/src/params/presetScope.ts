@@ -24,6 +24,12 @@ export const GLOBAL_PARAM_IDS: ReadonlySet<string> = new Set([
   'looperLevel',
   'looperFeedback',
   'looperCountIn',
+  'metronomeMode',
+  'drumsGroove',
+  'drumsIntensity',
+  'drumsFills',
+  'drumsLevel',
+  'drumsTone',
 ]);
 
 export function isGlobalParam(id: string): boolean {

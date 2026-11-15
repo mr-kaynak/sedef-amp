@@ -19,3 +19,29 @@
 .spacer {
   flex: 1;
 }
+
+.rec {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--coral);
+  font-variant-numeric: tabular-nums;
+}
+
+.recDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--coral);
+}
+
+.reamp {
+  color: var(--nacre-aqua);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (forced-colors: active) {
+  .recDot {
+    background: CanvasText;
+  }
+}

@@ -2,6 +2,7 @@
 #   build/<preset>/tools/sedef-params > ui/src/generated/parameters.json
 #   build/<preset>/tools/sedef-params --pedals > ui/src/generated/pedals.json
 #   build/<preset>/tools/sedef-params --midi > ui/src/generated/midi-parameters.json
+#   build/<preset>/tools/sedef-params --grooves > ui/src/generated/grooves.json
 execute_process(COMMAND ${TOOL} ${ARGS} OUTPUT_VARIABLE actual RESULT_VARIABLE rc)
 if(NOT rc EQUAL 0)
     message(FATAL_ERROR "sedef-params failed")

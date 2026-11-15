@@ -139,14 +139,18 @@ export function stateDetail(
   }
 }
 
-/** What to do next, in one line under the state. */
-export function stateHint(t: LooperTelemetry, clickRunning: boolean): string {
+/** What to do next, in one line under the state. `drums`: the metronome plays drums, not a click. */
+export function stateHint(t: LooperTelemetry, clickRunning: boolean, drums = false): string {
   switch (t.state) {
     case 'unavailable':
       return '';
     case 'empty':
-      return clickRunning
-        ? 'The click is on: the loop snaps to whole bars.'
+      if (clickRunning)
+        return drums
+          ? 'The drums are on: the loop snaps to whole bars.'
+          : 'The click is on: the loop snaps to whole bars.';
+      return drums
+        ? 'The loop is as long as you play. Start the drums to snap to bars.'
         : 'The loop is as long as you play. Start the click to snap to bars.';
     case 'armed':
       return 'Press again to cancel.';

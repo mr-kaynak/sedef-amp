@@ -8,6 +8,7 @@ import {
   ringProgress,
   seconds,
   stateDetail,
+  stateHint,
   stateTitle,
   toneOf,
 } from './model';
@@ -45,6 +46,15 @@ describe('the looper panel model', () => {
     expect(toneOf('playing')).toBe('play');
     expect(toneOf('armed')).toBe('wait');
     expect(toneOf('stopped')).toBe('idle');
+  });
+
+  it('names the drums, not the click, when the metronome plays drums', () => {
+    const empty = at({ state: 'empty' });
+    expect(stateHint(empty, true)).toBe('The click is on: the loop snaps to whole bars.');
+    expect(stateHint(empty, true, true)).toBe('The drums are on: the loop snaps to whole bars.');
+    expect(stateHint(empty, false, true)).toBe(
+      'The loop is as long as you play. Start the drums to snap to bars.',
+    );
   });
 
   it('says what waits: the count-in bar, then the beats to the 1', () => {

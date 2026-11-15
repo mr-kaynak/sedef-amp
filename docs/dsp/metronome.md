@@ -8,6 +8,10 @@ A practice click with odd meters and per-step accents. Every sound is
 synthesised; nothing is sampled. The metronome runs free (it is not synced to
 the host) and is added on top of the stereo output at `volumeDb`, centred.
 
+Its second sound is **drums** (`mode` 1): grooves played on the same grid by a
+synthesised kit, after the amp and cab and never into them. They have their own
+design, [docs/drums.md](../drums.md); this page is the click.
+
 ## Scheduling
 
 - Steps per bar come from `stepsFor(signature)`: 2/4 → 2, 3/4 → 3, 4/4 → 4,

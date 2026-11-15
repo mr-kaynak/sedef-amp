@@ -1,0 +1,53 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+.button {
+  position: relative;
+}
+
+/* Recording: the dot filled red, never the colour alone (filled, breathing, and its name says
+   it). */
+.button[data-recording] {
+  color: var(--coral);
+}
+
+.button[data-recording] .dot {
+  filter: drop-shadow(0 0 4px rgb(240 123 128 / 0.6));
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .button[data-recording] .dot {
+    animation: breathe 1.2s ease-in-out infinite;
+  }
+}
+
+@keyframes breathe {
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Re-amping with the panel closed: a play triangle in the corner, in nacre. */
+.badge {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 12px;
+  height: 12px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--ink-1);
+  box-shadow: 0 0 0 1px var(--line-strong);
+  color: var(--nacre-aqua);
+  pointer-events: none;
+}
+
+@media (forced-colors: active) {
+  .button[data-recording] {
+    color: Highlight;
+  }
+
+  .badge {
+    border: 1px solid CanvasText;
+    color: CanvasText;
+  }
+}

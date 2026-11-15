@@ -89,7 +89,10 @@ bool PresetManager::isGlobal (ParamId id) noexcept
         ParamId::presetNext,      ParamId::captureInterfaceLevel,
         ParamId::oversampling,    ParamId::scene, // the scenes carry it (docs/live.md §6.6)
         ParamId::looperLevel,     ParamId::looperFeedback,
-        ParamId::looperCountIn,
+        ParamId::looperCountIn,   ParamId::metronomeMode,
+        ParamId::drumsGroove,     ParamId::drumsIntensity,
+        ParamId::drumsFills,      ParamId::drumsLevel,
+        ParamId::drumsTone,
     };
     return std::find (std::begin (kGlobal), std::end (kGlobal), id) != std::end (kGlobal);
 }

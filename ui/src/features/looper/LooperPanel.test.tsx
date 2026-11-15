@@ -80,6 +80,15 @@ describe('the looper panel', () => {
     expect(panel).toHaveAttribute('data-tone', 'dub');
   });
 
+  it('says the count-in is a bar of the groove when the metronome plays drums', async () => {
+    const { panel } = await openPanel({ overrides: { metronomeEnabled: 1, metronomeMode: 1 } });
+    tick();
+    expect(within(panel).getByText('One bar of the groove first')).toBeInTheDocument();
+    expect(
+      within(panel).getByText('The drums are on: the loop snaps to whole bars.'),
+    ).toBeInTheDocument();
+  });
+
   it('presses the big button with Space anywhere in the panel but on a button', async () => {
     const { call, panel } = await openPanel();
     tick();
@@ -112,7 +121,8 @@ describe('the looper panel', () => {
     h.mock.looper.demo('recording');
     tick(0);
     const button = screen.getByRole('button', { name: 'Looper, recording' });
-    expect(screen.getByRole('status')).toHaveTextContent('Recording');
+    // The recorder's button has its own status region beside it.
+    expect(screen.getAllByRole('status').map((s) => s.textContent)).toContain('Recording');
     // A shape as well as the colour: the badge in the corner follows the state.
     expect(button.querySelector('[data-state="recording"]')).not.toBeNull();
     h.mock.looper.demo('playing');

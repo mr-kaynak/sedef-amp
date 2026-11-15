@@ -10,6 +10,9 @@ import { uiActions, useUiStore } from '../../state/uiStore';
 import { LooperButton } from '../looper/LooperButton';
 import { LooperPanel } from '../looper/LooperPanel';
 import { MetronomePanel } from '../metronome/MetronomePanel';
+import { RecorderButton } from '../recorder/RecorderButton';
+import { RecorderPanel } from '../recorder/RecorderPanel';
+import { useRecorderStore } from '../recorder/store';
 import { presetBrowser } from '../presets/session';
 import { SettingsPanel } from '../settings/SettingsPanel';
 import { UpdateSlot } from '../updates/UpdateSlot';
@@ -49,6 +52,8 @@ export function Header() {
   const standalone = useAppStore((s) => s.session.isStandalone);
   const metroRef = useRef<HTMLButtonElement>(null);
   const looperRef = useRef<HTMLButtonElement>(null);
+  const recorderRef = useRef<HTMLButtonElement>(null);
+  const recorder = useRecorderStore((s) => s.state !== null);
   const settingsRef = useRef<HTMLButtonElement>(null);
   const closePopover = useCallback(() => uiActions.setPopover(null), []);
 
@@ -76,59 +81,81 @@ export function Header() {
           <Icon name="fork" stroke={ICON_STROKE_LABEL} />
           Tuner
         </button>
+        {/* In the standalone app the transport takes the room its label had. */}
         <button
           type="button"
-          className={`${buttons.ghost} ${buttons.lead}`}
+          className={`${buttons.ghost} ${standalone ? buttons.icon : buttons.lead}`}
           aria-pressed={overlay === 'intonation'}
+          aria-label={standalone ? 'Intonation' : undefined}
+          title={standalone ? 'Intonation' : undefined}
           onClick={() => {
             presetBrowser.keep();
             uiActions.toggleOverlay('intonation');
           }}
         >
           <Icon name="ruler" stroke={ICON_STROKE_LABEL} />
-          Intonation
+          {!standalone && 'Intonation'}
         </button>
         {standalone && (
-          <div className={styles.anchor}>
-            <button
-              ref={metroRef}
-              type="button"
-              className={`${buttons.ghost} ${buttons.icon}`}
-              aria-label="Metronome"
-              title="Metronome"
-              aria-haspopup="dialog"
-              aria-expanded={popover === 'metronome'}
-              onClick={() => uiActions.togglePopover('metronome')}
-            >
-              <Icon name="metronome" />
-            </button>
-            <Popover
-              open={popover === 'metronome'}
-              onClose={closePopover}
-              anchorRef={metroRef}
-              label="Metronome"
-              className={styles.rightPopover}
-            >
-              <MetronomePanel />
-            </Popover>
-          </div>
-        )}
-        {standalone && (
-          <div className={styles.anchor}>
-            <LooperButton
-              ref={looperRef}
-              expanded={popover === 'looper'}
-              onToggle={() => uiActions.togglePopover('looper')}
-            />
-            <Popover
-              open={popover === 'looper'}
-              onClose={closePopover}
-              anchorRef={looperRef}
-              label="Looper"
-              className={styles.rightPopover}
-            >
-              <LooperPanel />
-            </Popover>
+          // What keeps time or holds your playing, together (docs/recorder.md, section 1).
+          <div className={styles.transport} role="group" aria-label="Transport">
+            <div className={styles.anchor}>
+              <button
+                ref={metroRef}
+                type="button"
+                className={`${buttons.ghost} ${buttons.icon}`}
+                aria-label="Metronome"
+                title="Metronome"
+                aria-haspopup="dialog"
+                aria-expanded={popover === 'metronome'}
+                onClick={() => uiActions.togglePopover('metronome')}
+              >
+                <Icon name="metronome" />
+              </button>
+              <Popover
+                open={popover === 'metronome'}
+                onClose={closePopover}
+                anchorRef={metroRef}
+                label="Metronome"
+                className={styles.rightPopover}
+              >
+                <MetronomePanel />
+              </Popover>
+            </div>
+            <div className={styles.anchor}>
+              <LooperButton
+                ref={looperRef}
+                expanded={popover === 'looper'}
+                onToggle={() => uiActions.togglePopover('looper')}
+              />
+              <Popover
+                open={popover === 'looper'}
+                onClose={closePopover}
+                anchorRef={looperRef}
+                label="Looper"
+                className={styles.rightPopover}
+              >
+                <LooperPanel />
+              </Popover>
+            </div>
+            {recorder && (
+              <div className={styles.anchor}>
+                <RecorderButton
+                  ref={recorderRef}
+                  expanded={popover === 'recorder'}
+                  onToggle={() => uiActions.togglePopover('recorder')}
+                />
+                <Popover
+                  open={popover === 'recorder'}
+                  onClose={closePopover}
+                  anchorRef={recorderRef}
+                  label="Recorder"
+                  className={styles.rightPopover}
+                >
+                  <RecorderPanel />
+                </Popover>
+              </div>
+            )}
           </div>
         )}
         <div className={styles.anchor}>

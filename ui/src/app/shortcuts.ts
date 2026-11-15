@@ -10,7 +10,7 @@ export interface Shortcut {
 }
 
 export function shortcuts(
-  options: { looper?: boolean } = {},
+  options: { looper?: boolean; recorder?: boolean } = {},
 ): { title: string; items: Shortcut[] }[] {
   const mod = modKey().symbol;
   const looper = options.looper
@@ -24,6 +24,9 @@ export function shortcuts(
           ],
         },
       ]
+    : [];
+  const recorder = options.recorder
+    ? [{ title: 'Recorder', items: [{ keys: ['R'], label: 'Start or stop a take' }] }]
     : [];
   return [
     {
@@ -56,5 +59,6 @@ export function shortcuts(
       ],
     },
     ...looper,
+    ...recorder,
   ];
 }

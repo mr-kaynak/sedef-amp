@@ -13,6 +13,14 @@ All notable changes to this project are documented here. The format follows
   undo and clear. The undo switch also redoes when pressed again, so one switch compares the loop
   with and without its last part. Turn on *Double tap stops* for the main switch and two quick
   presses (less than 0.4 s apart) stop the looper and take back what the first press started.
+
+## [0.10.0] - 2026-11-13
+
+Practise and write in the standalone app: a looper locked to the click, drums to play along with,
+and a recorder that saves every take dry and processed, then re-amps it through any sound.
+
+### Added
+
 - **A looper in the standalone app**, next to the metronome. One button, or the `L` key so a
   hand stays on the guitar, records, closes the loop and plays it, then lays parts on top; press
   it again to go back to playing. `Shift+L` stops. Up to two minutes at 48 kHz (one at 96).
@@ -28,6 +36,37 @@ All notable changes to this project are documented here. The format follows
   presets and solo over your rhythm part. It allows for the interface's delay and Transpose's,
   so what you play in time with the click plays back in time with it, layer after layer, and
   every start, stop, punch-in and the seam where the loop wraps is a 10 ms crossfade: no clicks.
+- **Drums to play along with**, in the standalone app's metronome: switch Click to Drums and press
+  play. Thirteen original grooves, each with a line on how it feels: straight rock, half-time, a
+  ballad, fast eighths, a shuffle and a swing in 4/4, then a two-step, a waltz, a five, a
+  six-eight, a seven, a nine and a slow twelve-eight. Intensity 1–5 goes from the bare groove to
+  the busiest, a fill ends every 2, 4 or 8 bars with a crash after it, and Level and Tone set how
+  the drums sit under the guitar. They keep the metronome's tempo and meter to the sample and play
+  after the amp and cab, never into them. With the looper, a take starts on a drum bar line (the
+  count-in is a bar of the groove), the drums are never recorded, and they stay locked to the loop
+  pass after pass. The kit is synthesised from drum physics, with no samples: drum heads with
+  their real overtones, a kick that drops in pitch as it settles, snare wires that buzz only while
+  the head is loud enough, cymbals with clashing partials and hats that choke. Every groove
+  renders bit for bit the same on every platform and at any buffer size. Presets and the plug-in
+  are unchanged: the drum settings belong to the app and are never saved in a preset
+  ([docs/drums.md](docs/drums.md)).
+- **Record your playing in the standalone app.** The Recorder button sits with the metronome and
+  the looper in the header; one press (or the R key) records the take as two WAV files: your
+  guitar dry, the way it came in, and the sound you hear, effects and click included. They start
+  on the same sample and line up sample for sample, with the rig's latency taken out. The panel
+  shows the time, the level going into each file and where they went, with a button that opens the
+  folder (Music/Sedef Amp/Recordings). Recording never interrupts the sound: if the disk falls
+  behind for more than 4 seconds the take keeps going, the panel says how much was lost, and the
+  files say so too ([docs/recorder.md](docs/recorder.md)).
+- **Re-amp**: play a recorded DI, or any WAV, AIFF or FLAC file you open or drop on the panel,
+  through the rig as if it were your guitar. Change the tone while it plays, loop it, and mute
+  your guitar or play along. A take from Sedef plays exactly as recorded; a file at another
+  sample rate is converted first. Record while re-amping to keep the new sound.
+
+### Changed
+
+- **Intonation is an icon button in the standalone app's header**, to make room for the
+  Metronome, Looper and Recorder side by side.
 
 ## [0.9.0] - 2026-11-13
 
@@ -594,7 +633,8 @@ The first public build: a complete guitar rig with a tuner and an intonation wor
 - Every CI build is checked with pluginval (strictness 8), clap-validator and auval, and a smoke
   test opens the editor in a real host and WebView on every OS.
 
-[Unreleased]: https://github.com/mr-kaynak/sedef-amp/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/mr-kaynak/sedef-amp/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.8.1...v0.9.0
 [0.8.1]: https://github.com/mr-kaynak/sedef-amp/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/mr-kaynak/sedef-amp/compare/v0.7.0...v0.8.0

@@ -223,8 +223,8 @@ midi.json, so the first press records at once instead of finding no memory.
 
 **Plug-ins.** The looper is the standalone app's, so its targets are offered only there. midi.json
 is shared, so a looper binding learnt in the app is listed in a plug-in's MIDI panel and does
-nothing there. A midi.json with looper bindings read by 0.9 loses them only if 0.9 saves it
-(unknown targets are dropped, §3).
+nothing there. A midi.json with looper bindings read by 0.10 or earlier loses them only if that
+version saves it (unknown targets are dropped, §3).
 
 ## 5. Program changes
 

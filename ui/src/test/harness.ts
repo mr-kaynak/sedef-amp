@@ -16,6 +16,7 @@ import { resetBrowserSession } from '../features/presets/session';
 import { useUiStore } from '../state/uiStore';
 import { useIntonationStore } from '../features/intonation/store';
 import { defaultSteps } from '../lib/metronome';
+import { useRecorderStore } from '../features/recorder/store';
 
 const initialIntonation = useIntonationStore.getState();
 
@@ -41,6 +42,13 @@ export function resetStores(): void {
     ir: { slots: [] },
     capture: NO_CAPTURE,
     capturesSupported: false,
+  });
+  useRecorderStore.setState({
+    state: null,
+    files: [],
+    tab: 'record',
+    importing: null,
+    dropError: null,
   });
   telemetry.clear();
   pitch.clear();

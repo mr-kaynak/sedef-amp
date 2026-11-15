@@ -4,8 +4,8 @@
   z-index: 30;
   display: grid;
   /* The meters give way first, so the tools keep the row's right padding (the standalone app adds
-     the metronome button). */
-  grid-template-columns: 176px 396px minmax(0, 1fr) auto;
+     the transport, and shows Intonation by its icon alone to make room for it). */
+  grid-template-columns: 156px 396px minmax(0, 1fr) auto;
   align-items: center;
   gap: 20px;
   height: 68px;
@@ -53,6 +53,18 @@
 
 .anchor {
   position: relative;
+}
+
+/* The transport: the metronome, the looper and the recorder in one well, apart from the tools
+   that look at the guitar (tuner, intonation) and the settings. */
+.transport {
+  display: flex;
+  align-items: center;
+  margin-inline: 4px;
+  padding: 1px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: rgb(6 17 25 / 0.35);
 }
 
 /* Under the header's bottom edge (the 36 px button sits 16 px above it), so a popover never

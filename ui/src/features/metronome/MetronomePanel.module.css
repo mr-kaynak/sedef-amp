@@ -58,6 +58,16 @@
   font-size: var(--t-12);
 }
 
+/* Click or drums, as wide as the panel. */
+.mode {
+  display: flex;
+}
+
+.mode > button {
+  flex: 1;
+  height: 28px;
+}
+
 /* Sizes only: the look is the shared tap button (controls/Button.module.css). */
 .tap {
   width: 52px;

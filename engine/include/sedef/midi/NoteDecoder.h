@@ -21,9 +21,9 @@ namespace sedef::midi
 ///   log likelihood ratio L(d) = ln ((1 - outlier) e^(-d / left) / left + outlier): +2.2 for a
 ///   clean period, -2.3 for none. Silence scores 0.
 /// - **One observation.** The tracker judges a period over a window, so hops inside one window
-///   repeat each other: each counts for its share of the window (Model::windowMs, or
-///   Model::periodShare of the note's period if longer). A clean period so earns one
-///   observation's worth, L(0), per window.
+///   repeat each other: each counts for its share of the window (Model::periodShare of the
+///   note's period, between Model::windowMs and Model::longestWindowMs: half a period of a
+///   guitar's low E). A clean period so earns one observation's worth, L(0), per window.
 /// - **A period's multiples repeat too.** A note an octave or a twelfth over n makes the input
 ///   repeat at n's period as well. When such a note explains the input as well as n does
 ///   (within Model::sameLeft), the evidence is that note's, and n is given none.
@@ -51,7 +51,7 @@ public:
     {
         float left = 0.1f, outlier = 0.1f, sameLeft = 0.08f;
         float quietPerDb = 0.35f, quietMost = 3.0f;
-        float windowMs = 4.0f, periodShare = 0.5f;
+        float windowMs = 4.0f, periodShare = 0.5f, longestWindowMs = 6.0f;
         float attack = 1.0f, bare = 2.0f, step = 2.0f, leap = 3.0f, end = 3.0f;
         float patience = 1.0f;
     };

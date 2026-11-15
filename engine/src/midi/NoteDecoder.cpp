@@ -24,8 +24,9 @@ void NoteDecoder::prepare (double hopSeconds, double longestLagSeconds)
     {
         const double period = 1.0 / (440.0 * std::exp2 ((n + kLowestNote - 69) / 12.0));
         temper_[static_cast<std::size_t> (n)] = static_cast<float> (
-            hopSeconds / std::max (static_cast<double> (model.periodShare) * period,
-                                   0.001 * static_cast<double> (model.windowMs)));
+            hopSeconds / std::clamp (static_cast<double> (model.periodShare) * period,
+                                     0.001 * static_cast<double> (model.windowMs),
+                                     0.001 * static_cast<double> (model.longestWindowMs)));
     }
     lag_ = std::min (lag_, depth_ - 1);
     reset();
@@ -67,8 +68,12 @@ int NoteDecoder::endHop (float overQuietDb, bool attack) noexcept
     const float quiet =
         overQuietDb < 0.0f ? std::min (model.quietMost, -model.quietPerDb * overQuietDb) : 0.0f;
     std::array<float, kNotes> gain;
+    // (Most notes have no period this hop: their evidence is the same number.)
+    const float none = score (1.0f);
     for (int n = 0; n < kNotes; ++n)
-        gain[static_cast<std::size_t> (n)] = score (left_[static_cast<std::size_t> (n)]);
+        gain[static_cast<std::size_t> (n)] = left_[static_cast<std::size_t> (n)] < 1.0f
+                                                 ? score (left_[static_cast<std::size_t> (n)])
+                                                 : none;
     std::array<float, kNotes> emit;
     for (int n = 0; n < kNotes; ++n)
     {

@@ -1792,6 +1792,10 @@ int main (int argc, char** argv)
                 write (std::string ("soft-after-loud-") + pickups[p] + "-" + std::to_string (soft),
                        softAfterLoud (soft > 8 ? 2u : 1u, static_cast<Pickup> (p),
                                       -static_cast<float> (soft), fs));
+        for (int pitch : { 28, 77 })
+            write ("twice-" + std::to_string (pitch) + "-bridge-1",
+                   twice (pluckFor (Pickup::bridge, hzOf (pitch), 0.25f, 1), fs, -80.0f, 1, 0.4,
+                          0.5));
         for (int pitch : { 30, 33, 37, 40 })
             for (std::uint32_t seed = 1; seed <= 2; ++seed)
                 write ("twice-" + std::to_string (pitch) + "-neck-" + std::to_string (seed),

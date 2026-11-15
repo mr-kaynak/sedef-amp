@@ -1606,3 +1606,137 @@ every string here, which is measured, not proved ("Why the early reading can be 
 and 7); and when a piezo's low F♯1 whose partials start together is damped, the tracker sends a
 D6 that ends within a millisecond and sounds nothing (0.8.0 does the same; the early reading has
 no part in it).
+
+### Real playing (2026-11-15)
+
+After 0.10.2 the musician's verdict was "a bit better, but the tracking is the problem", while
+every gate above stood at 99 % or more. Both are true, and this round shows why: the gates are
+synthetic strings and his one chromatic run, and real lines are something else. It measures real
+playing first, sorts the errors by cause, and then changes the decision layer where the errors
+are.
+
+#### The recordings, and what they are not
+
+**GuitarSet** 1.1.0 (Q. Xi, R. Bittner, J. Pauwels, X. Ye and J. P. Bello, "GuitarSet: A Dataset
+for Guitar Transcription", ISMIR 2018; https://zenodo.org/records/3371780), licensed **CC BY
+4.0**: read on the record's own page and in its metadata on 2026-11-15 (licence `cc-by-4.0`,
+open access; the page asks that the paper be cited, and states no other terms). Six players, 30
+lead sheets, each played once as a solo and once as an accompaniment, about 30 s each, on an
+acoustic guitar with a hexaphonic pickup: one channel per string, and from them a note list per
+string (onset, offset, pitch), which is as exact as ground truth for a guitar gets. The data
+stays outside the repository; only these numbers and the method are here.
+
+Used: the 180 **solos**, in the set's own "mono pickup mix" (the six string channels summed to
+one, 44.1 kHz, 16 bit), 5484 s, 16 861 annotated notes. Each recording is scored with a second
+of digital silence before it, as a session starts (the files begin on a note; see "Left open").
+Octave 0, every other setting at its default.
+
+What that signal is and is not:
+- It is one signal with every string in it, as a guitar's output is, with real fretting, real
+  damping, strings left ringing, position shifts and string noise.
+- It is not a magnetic pickup: a hexaphonic pickup sits at the bridge and hears each string
+  separately, so the sum has no pickup comb, a little of each neighbouring string in every
+  channel, and an acoustic guitar's strings and body. An electric guitar's bridge pickup is
+  brighter and sustains longer. The players use a pick; the musician this is built for plays
+  with his fingers.
+- The solos are single lines with double stops and short chords in them: 1701 notes (10 %) are
+  on two strings within 30 ms of each other. A one-note converter cannot play those; they are
+  left out of every figure, and so is whatever is sent during them. 15 160 notes are scored.
+- The annotation dates a note where its string's pitch is first read, about 11 ms after the
+  pick (Steady's median onset error, lag taken off, is −11 ms), and its offsets end where the
+  pitch is lost. Two files of the set have a known timing offset (its issue 5); both are
+  accompaniments, not used here, and every solo's most common onset difference to the
+  converter's own notes is within 10 ms.
+
+#### How a note is scored
+
+`sedef-midi-render score <manifest>` and `engine/tests/midi/MidiScore.h`, deterministic (no
+clock, no randomness, ties broken by time). The reference notes are taken in onset order.
+
+| Term | Definition | Why this much |
+|---|---|---|
+| Window | from 50 ms before the annotated onset to 120 ms after it | before: the annotation is about 11 ms late, and the fretting hand can sound the note before the pick. After: twice the slowest sure note (a soft pick over a ringing string, 60 ms); later than that it is not the note played, to a listener |
+| Right | a sent note of the reference's pitch (within 0.75 semitone of its annotated pitch: a bent or sliding note is right as either neighbour) starts in the window. One sent note serves one reference note: the earliest still free | |
+| Octave error | not right, and a free sent note 12 or 24 semitones away starts in the window | |
+| Wrong pitch | neither, and a free sent note of another pitch starts in the window (cut 50 ms before the next reference onset) | |
+| Missed | nothing starts for it: *held* (its pitch was already sounding and went on), *other pitch* (another note sounded through it), *silent* | |
+| Extra | a sent note that serves no reference note. The first that applies: *split* (the pitch of the note being played, started again), *ringing* (the pitch of an earlier note still sounding on its string), *ahead* (the next note's pitch, up to 250 ms before its window), *octave* (12 or 24 semitones from the note being played, or 19 over it), *neighbour* (one or two semitones from the note being played or the next), *silence* (no reference note sounds), *other* | |
+| Under 40 ms | sent notes shorter than 40 ms, extra or not | Steady's own measure of a glitch |
+| Onset error | sent onset minus annotated onset, right notes | |
+| Note-off error | sent note-off minus the note's end in the line (its annotated offset, or the next onset if sooner), right notes | |
+| The right pitch sounds | of the milliseconds in which the reference has a note, the share in which the note being played is what sounds | one number for "does it play what I play" |
+| By register, length, context | E2 to D♯3, E3 to D♯4, E4 to D♯5, E5 up; the note's length in the line; *from silence*, *same string* (the note before is on its string and still sounds: a new fret, or picked again), *over a ringing string* | |
+
+#### Main, as it was
+
+| 180 solos, 15 160 notes | Right | Wrong | Octave | Missed (held / other / silent) | Extra per 100 | Under 40 ms per 100 | The right pitch sounds |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Fastest | 85.80 % | 505 | 93 | 1554 (92 / 89 / 1373) | 35.3 | 23.5 | 79.4 % |
+| Steady | 84.95 % | 406 | 94 | 1781 (120 / 100 / 1561) | 26.3 | 10.6 | 79.9 % |
+| Notes + Bend (Fastest) | 85.71 % | 508 | 94 | 1564 (93 / 94 / 1377) | 34.8 | 23.5 | 79.4 % |
+
+So of 100 notes played, 86 came out, with 35 notes nobody played beside them, 23 of them
+shorter than 40 ms. That is the complaint, in numbers.
+
+Fastest, by register, length and context:
+
+| | Notes | Right | Wrong | Octave | Missed | Onset p50 / p95 |
+|---|---:|---:|---:|---:|---:|---:|
+| E2 to D♯3 | 1074 | 83.8 % | 61 | 10 | 103 | 7.6 / 60.9 ms |
+| E3 to D♯4 | 7478 | 87.2 % | 229 | 48 | 682 | 3.5 / 57.1 |
+| E4 to D♯5 | 6396 | 84.6 % | 205 | 34 | 744 | 2.4 / 54.1 |
+| E5 and up | 212 | 83.0 % | 10 | 1 | 25 | 4.3 / 52.9 |
+| Under 80 ms long | 389 | 57.8 % | 23 | 6 | 135 | 6.2 / 62.7 |
+| 80 to 160 ms | 4547 | 84.7 % | 164 | 27 | 503 | 2.9 / 50.4 |
+| 160 to 320 ms | 7628 | 86.9 % | 225 | 40 | 737 | 3.3 / 60.5 |
+| 320 ms and more | 2596 | 88.8 % | 93 | 20 | 179 | 3.5 / 59.6 |
+| From silence | 7105 | 94.1 % | 78 | 6 | 337 | 2.8 / 48.1 |
+| Same string | 4975 | 81.7 % | 171 | 23 | 715 | 3.3 / 67.3 |
+| Over a ringing string | 3080 | 73.3 % | 256 | 64 | 502 | 5.0 / 59.8 |
+
+No register stands out; what the note follows does. Onsets (right notes) are 3 ms after the
+annotation in the median (about 14 ms after the pick) and 56 ms at the 95th percentile; 5.6 %
+of all notes are right but more than 50 ms late. Note-offs are 11 ms early in the median, 7.8 %
+more than 50 ms early and 2.9 % more than 100 ms late; a right note's pitch sounds for 92 % of
+its time in the median.
+
+**The musician's own recordings**, with the same scorer (the chromatic run's reference rebuilt
+offline: each pluck the last moment the input stops repeating at the new note's period; it
+gives the nine onsets quoted above within 2 ms): 78 of 78 right in Fastest, Steady and Notes +
+Bend, 6 extra (3 in Steady), 3 under 40 ms (none in Steady); the strummed chords give 29 notes.
+His exercise is one string at a time, every note picked, from silence or over its own string.
+It measures the 94 % row, and nothing else.
+
+#### Where the errors come from
+
+For every reference note the dump (`--dump`) holds what the tracker read around it: how much of
+the time from 10 ms before its onset to 120 ms after the tracker held its pitch and from when,
+the level against the player's and the gate, the level's rise, and the picks the tracker's
+detector saw. Fastest:
+
+| Error | Count | What the tracker saw | Cause |
+|---|---:|---|---|
+| **Missed, nothing sounding** | 1373 (9.1 % of notes) | In 1068 the tracker held the right pitch, from the first millisecond in the median, and in 89 % its detector saw no pick | The pitch was known and nothing was allowed to start a note. (a) The detector compares the level's 2 ms power with its 40 ms power: a note softer than the one just damped never crosses it (level rise 12 dB in the median for the notes from silence, yet no pick). The note before had been ended by the level rule (a mute, 60 % of the cases within 50 ms before the onset), and the tracker, which rides through 30 ms of anything, never let go, so "the tracker locking with the level on the rise" did not stand in for the pick either. (b) A hammer-on, a pull-off or a slide arriving when no note sounds (level rise 1 dB in the median on the same string): legato needs a sounding note, so one lost note loses those that follow (231 of the missed follow another missed note) |
+| Missed, its pitch already sounding / another pitch through it | 92 / 89 | | The same note picked again without a break in its period; a wrong note held |
+| **Extra, within 50 ms of an onset** | 2644 (1483 under 40 ms) | | The first reading at a change of note: the tracker's window holds two notes, or an attack, and names a neighbour; a note-on goes out and is replaced 10 to 40 ms on |
+| Extra, inside a note | 1240 | | A legato "note" a semitone away as a string is bent or a finger shifts (382 over 40 ms long); the same note started again (repick, 224) |
+| Extra, at a note's end | 889 (511 under 40 ms) | | The mute's own transient breaks the period, counts as a pick in Fastest before its level has fallen, and the note dies with the mute (922 extras under 20 ms end that way) |
+| Extra, in a rest | 577 | | Strings ringing on, handling |
+| Wrong pitch | 505 | the tracker never held the pitch in 30 % | 164 a semitone off, 73 a whole tone, 49 a twelfth low |
+| Octave | 93 | | |
+| Right, but more than 50 ms late | 850 | | 365 legato, 303 a correction of a wrong first note, 150 picks |
+
+By how the extra note was started: 49 % of the notes started by a pick seen only as a lost
+period are extra (1698 of 3447), 44 % of the legato notes (994 of 2264), 38 % of the
+corrections, 49 % of the repicks, and 12 % of those the detector saw (1352 of 11 085). By kind:
+2235 a semitone or two from the note being played, 1008 in the reference's rests, 807 other,
+695 the same note again, 387 the next note early, 126 an octave, 92 a string still ringing.
+
+How many of the extras are real: the set's pitch contours (per string, every 5.8 ms) hold the
+extra note's pitch for half its length in 1246 of 5350. Those are strings that do sound it: the
+same note re-attacked (571 of the 695 splits), the next fret reached early (216 of 387), a
+neighbour passed through (359 of 2235). The other 4104 are in no string.
+
+So the errors are not in the pitch reading. For most missed notes the tracker had the pitch;
+most extra notes are a first reading taken at its word. Steady's 38 ms remove only a quarter of
+the extras, because the lag is spent waiting, not weighing: the same rules decide, later.

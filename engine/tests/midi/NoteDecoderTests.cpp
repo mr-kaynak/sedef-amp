@@ -25,7 +25,7 @@ double evidence (const NoteDecoder::Model& m, double left)
 double share (const NoteDecoder::Model& m, int note)
 {
     const double period = 1.0 / (440.0 * std::exp2 ((note - 69) / 12.0));
-    return kHop / std::max (m.periodShare * period, 0.001 * m.windowMs);
+    return kHop / std::clamp (m.periodShare * period, 0.001 * m.windowMs, 0.001 * m.longestWindowMs);
 }
 
 /// Hops of a period leaving `left` until a transition costing `observations` is paid.

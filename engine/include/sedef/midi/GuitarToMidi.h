@@ -754,6 +754,11 @@ private:
     void decoderHop() noexcept;
     /// The decoder holds note `q` (a sent pitch) now, or a note it cannot tell from it.
     bool decoded (int q) const noexcept;
+    /// ...or has held it at some moment since the latest pick (a note that waits for another
+    /// reason, the first note's wait, may have faded by the time it starts).
+    bool agreed (int q) const noexcept { return agreedNote_ == q && agreedAt_ >= pickAt_; }
+    int agreedNote_ = -1;
+    std::int64_t agreedAt_ = 0;
     /// The note the decoder holds that may start without a pick: -1 if none.
     int heardNote (bool voiced, int q) const noexcept;
 

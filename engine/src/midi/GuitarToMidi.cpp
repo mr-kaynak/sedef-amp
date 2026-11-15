@@ -282,6 +282,8 @@ void GuitarToMidi::reset() noexcept
     decoder_.reset();
     decoderEstimates_ = decoderPicks_ = 0;
     decoderNote_ = NoteDecoder::kSilence;
+    agreedNote_ = -1;
+    agreedAt_ = 0;
     decoderAttack_ = 0;
     decoderAttackAt_ = -(std::int64_t { 1 } << 40);
     decoderLevels_.fill (kFloorDb);
@@ -1625,6 +1627,11 @@ void GuitarToMidi::decide() noexcept
     heardHz_ = voiced ? heard : 0.0f;
     const float heardPitch = voiced ? pitch_ + 12.0f * std::log2 (heard / hz) : 0.0f;
     const int q = voiced ? quantise (heardPitch) : -1;
+    if (q >= 0 && decoded (q))
+    {
+        agreedNote_ = q;
+        agreedAt_ = now_;
+    }
 
     // The early reading (Fastest): the note the signal since the pick already shows, before the
     // tracker has had its two periods.
@@ -1675,7 +1682,7 @@ void GuitarToMidi::decide() noexcept
                 return;
             // ...and the decoder holds it too: a first reading across a change of note, or in
             // an attack, names notes nobody played.
-            if (!decoded (q))
+            if (!agreed (q))
                 return;
             start = q;
             startHz = heard;
@@ -1833,7 +1840,7 @@ void GuitarToMidi::decide() noexcept
             if (candidateSamples_ < (pickFresh_ ? confirmSamples_ : correctionConfirmSamples_) ||
                 pickChecking_ || !pickedNoteReady (heard))
                 return;
-            if (!decoded (q))
+            if (!agreed (q))
                 return;
             // A second change after one pick corrects the tracker's first reading, but never back
             // to the note before the pick, whose string may simply still ring.

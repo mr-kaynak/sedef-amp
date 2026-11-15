@@ -24,8 +24,9 @@ All notable changes to this project are documented here. The format follows
   there were 26 in Steady, which waits a little longer and catches more. Notes shorter than
   40 ms fall from 24 to 15 per 100 in Fastest and from 11 to 6 in Steady. A cleanly picked note
   comes exactly as fast as before; a note picked softly over a string that still rings can
-  come a few milliseconds later (4 ms on a guitar's notes, 6 ms on the lowest strings of a
-  seven or eight-string).
+  come 4 to 6 ms later. In Steady, a few notes in a hundred now come later than the 38 ms (up
+  to 15 ms later): a note Sedef MIDI is not yet sure of waits instead of going out on time and
+  wrong.
 - **Strummed chords give fewer notes.** Sedef MIDI plays one note at a time; a chord used to
   come out as two or three notes as it moved between the strings, and now more often gives
   one, or none.

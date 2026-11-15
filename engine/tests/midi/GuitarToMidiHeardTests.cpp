@@ -41,7 +41,8 @@ Outcome play (const Scenario& sc, midi::Timing timing)
         g.process (sc.signal.data() + start, n, out);
         for (const auto& e : out)
         {
-            const double t = static_cast<double> (start + static_cast<std::size_t> (e.offset)) / sc.fs;
+            const double t =
+                static_cast<double> (start + static_cast<std::size_t> (e.offset)) / sc.fs;
             if (e.isNoteOn())
             {
                 open[static_cast<std::size_t> (e.note())] = static_cast<int> (o.run.notes.size());
@@ -49,7 +50,8 @@ Outcome play (const Scenario& sc, midi::Timing timing)
             }
             else if (e.isNoteOff() && open[static_cast<std::size_t> (e.note())] >= 0)
             {
-                o.run.notes[static_cast<std::size_t> (open[static_cast<std::size_t> (e.note())])].off = t;
+                o.run.notes[static_cast<std::size_t> (open[static_cast<std::size_t> (e.note())])]
+                    .off = t;
                 open[static_cast<std::size_t> (e.note())] = -1;
             }
         }

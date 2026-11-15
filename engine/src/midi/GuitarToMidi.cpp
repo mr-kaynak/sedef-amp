@@ -216,9 +216,11 @@ void GuitarToMidi::prepare (double sampleRate)
         // The decoder steps with the tracker's estimates.
         const double hopSeconds = hop_ / rate_;
         decoder_.prepare (hopSeconds, 0.0);
-        decoderAttackHops_ = std::max (1, static_cast<int> (std::lround (kDecoderAttackSeconds / hopSeconds)));
-        decoderRiseHops_ = std::clamp (static_cast<int> (std::lround (kDecoderRiseSeconds / hopSeconds)), 1,
-                                       static_cast<int> (decoderLevels_.size()) - 1);
+        decoderAttackHops_ =
+            std::max (1, static_cast<int> (std::lround (kDecoderAttackSeconds / hopSeconds)));
+        decoderRiseHops_ =
+            std::clamp (static_cast<int> (std::lround (kDecoderRiseSeconds / hopSeconds)), 1,
+                        static_cast<int> (decoderLevels_.size()) - 1);
     }
     minWindow_ = std::max (4, static_cast<int> (std::lround (0.004 * rate_)));
     refractorySamples_ = samples (kPickRefractorySeconds, sampleRate);

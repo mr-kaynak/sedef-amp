@@ -554,7 +554,7 @@ TEST_CASE ("MonoTracker lists every period its estimate finds, and reading them 
         }
         withNote += found ? 1 : 0;
     }
-    CHECK (hops > 500);       // one estimate every 0.5 ms
+    CHECK (hops > 500); // one estimate every 0.5 ms
     // The sounding note's period is among them, repeating better than 0.9 (measured: 570 of
     // 600 hops; in the others the lobe's top sits a little under that).
     CHECK (withNote * 10 >= hops * 9);

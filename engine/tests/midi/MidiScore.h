@@ -103,30 +103,33 @@ enum class Extra : std::uint8_t
 };
 
 inline constexpr int kExtraKinds = 8;
-inline constexpr const char* kExtraNames[kExtraKinds] = { "-",      "split",     "ringing", "ahead",
-                                                          "octave", "neighbour", "silence", "other" };
-inline constexpr const char* kVerdictNames[7] = { "right",       "octave",        "wrong",
-                                                  "missed-held", "missed-other",  "missed-silent",
+inline constexpr const char* kExtraNames[kExtraKinds] = {
+    "-", "split", "ringing", "ahead", "octave", "neighbour", "silence", "other"
+};
+inline constexpr const char* kVerdictNames[7] = { "right",       "octave",       "wrong",
+                                                  "missed-held", "missed-other", "missed-silent",
                                                   "chord" };
 
 /// How a reference note comes about, for the breakdown by context.
 enum class Context : std::uint8_t
 {
     silence,    ///< nothing sounds in the reference just before it
-    sameString, ///< the note before it is on its string and still sounds: a new fret, or picked again
+    sameString, ///< the note before it is on its string and still sounds: a new fret, or picked
+                ///< again
     overRinging ///< another string still sounds
 };
-inline constexpr const char* kContextNames[3] = { "from silence", "same string", "over a ringing string" };
+inline constexpr const char* kContextNames[3] = { "from silence", "same string",
+                                                  "over a ringing string" };
 
 struct Result
 {
-    std::vector<Verdict> verdict;  ///< per reference note
-    std::vector<int> servedBy;     ///< per reference note: the sent note, -1 if none
-    std::vector<double> lineEnd;   ///< per reference note: its end in the line
-    std::vector<Context> context;  ///< per reference note
-    std::vector<Extra> extra;      ///< per sent note
-    std::vector<int> serves;       ///< per sent note: the reference note, -1 if none
-    std::vector<int> nearest;      ///< per sent note: the reference note being played at its onset, -1
+    std::vector<Verdict> verdict; ///< per reference note
+    std::vector<int> servedBy;    ///< per reference note: the sent note, -1 if none
+    std::vector<double> lineEnd;  ///< per reference note: its end in the line
+    std::vector<Context> context; ///< per reference note
+    std::vector<Extra> extra;     ///< per sent note
+    std::vector<int> serves;      ///< per sent note: the reference note, -1 if none
+    std::vector<int> nearest; ///< per sent note: the reference note being played at its onset, -1
     /// Frames (ms): [0] the note being played, [1] an earlier note still ringing, [2] a pitch
     /// the reference does not hold, [3] a note where the reference has none, [4] nothing where
     /// the reference has a note, [5] both silent.
@@ -203,20 +206,22 @@ inline Result judge (const std::vector<Truth>& truth, const std::vector<Sent>& s
     {
         if (chord[i])
             r.verdict[i] = Verdict::chord;
-        else if (take (i, [&] (int p) { return samePitch (p, truth[i].pitch, tol); },
-                       truth[i].on + tol.late))
+        else if (take (
+                     i, [&] (int p) { return samePitch (p, truth[i].pitch, tol); },
+                     truth[i].on + tol.late))
             r.verdict[i] = Verdict::right;
     }
     for (std::size_t i = 0; i < nt; ++i)
         if (r.verdict[i] == Verdict::missedSilent &&
-            take (i,
-                  [&] (int p) {
-                      return samePitch (p - 12, truth[i].pitch, tol) ||
-                             samePitch (p + 12, truth[i].pitch, tol) ||
-                             samePitch (p - 24, truth[i].pitch, tol) ||
-                             samePitch (p + 24, truth[i].pitch, tol);
-                  },
-                  truth[i].on + tol.late))
+            take (
+                i,
+                [&] (int p) {
+                    return samePitch (p - 12, truth[i].pitch, tol) ||
+                           samePitch (p + 12, truth[i].pitch, tol) ||
+                           samePitch (p - 24, truth[i].pitch, tol) ||
+                           samePitch (p + 24, truth[i].pitch, tol);
+                },
+                truth[i].on + tol.late))
             r.verdict[i] = Verdict::octave;
     for (std::size_t i = 0; i < nt; ++i)
     {
@@ -230,7 +235,9 @@ inline Result judge (const std::vector<Truth>& truth, const std::vector<Sent>& s
                 break;
             }
         // A note in a chord's window is the chord's, not this note's wrong pitch.
-        const auto anyPitch = [] (int) { return true; };
+        const auto anyPitch = [] (int) {
+            return true;
+        };
         bool inChord = false;
         for (std::size_t k = 0; k < ns && !inChord; ++k)
             if (!used[k] && sent[k].on >= truth[i].on - tol.early && sent[k].on <= to)
@@ -286,7 +293,8 @@ inline Result judge (const std::vector<Truth>& truth, const std::vector<Sent>& s
                 break;
             }
         const auto interval = [&] (int j) {
-            return static_cast<int> (std::lround (std::abs (q - truth[static_cast<std::size_t> (j)].pitch)));
+            return static_cast<int> (
+                std::lround (std::abs (q - truth[static_cast<std::size_t> (j)].pitch)));
         };
         bool sounding = false, ringing = false;
         for (std::size_t j = 0; j < nt && truth[j].on <= u; ++j)
@@ -304,9 +312,9 @@ inline Result judge (const std::vector<Truth>& truth, const std::vector<Sent>& s
         else if (next >= 0 && samePitch (q, truth[static_cast<std::size_t> (next)].pitch, tol) &&
                  truth[static_cast<std::size_t> (next)].on - tol.early - u <= tol.ahead)
             kind = Extra::ahead;
-        else if (cur >= 0 && (interval (cur) == 12 || interval (cur) == 24 ||
-                              (interval (cur) == 19 &&
-                               q > truth[static_cast<std::size_t> (cur)].pitch)))
+        else if (cur >= 0 &&
+                 (interval (cur) == 12 || interval (cur) == 24 ||
+                  (interval (cur) == 19 && q > truth[static_cast<std::size_t> (cur)].pitch)))
             kind = Extra::octave;
         else if ((cur >= 0 && interval (cur) >= 1 && interval (cur) <= 2) ||
                  (next >= 0 && interval (next) >= 1 && interval (next) <= 2 &&
@@ -346,9 +354,9 @@ inline Result judge (const std::vector<Truth>& truth, const std::vector<Sent>& s
             }
         if (inChord)
             continue;
-        const bool current =
-            cur >= 0 && out >= 0 && samePitch (out, truth[static_cast<std::size_t> (cur)].pitch, tol);
-        const int slot = out < 0 ? (any ? 4 : 5) : (! any ? 3 : (current ? 0 : (held ? 1 : 2)));
+        const bool current = cur >= 0 && out >= 0 &&
+                             samePitch (out, truth[static_cast<std::size_t> (cur)].pitch, tol);
+        const int slot = out < 0 ? (any ? 4 : 5) : (!any ? 3 : (current ? 0 : (held ? 1 : 2)));
         ++r.frames[static_cast<std::size_t> (slot)];
     }
     return r;

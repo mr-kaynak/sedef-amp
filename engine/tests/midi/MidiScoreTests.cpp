@@ -35,9 +35,9 @@ TEST_CASE ("score: octave errors, wrong pitches and missed notes", "[midi][score
         { 1.0, 1.4, 52.0, 1 }, { 2.0, 2.4, 55.0, 1 }, { 3.0, 3.4, 57.0, 1 }, { 4.0, 4.4, 59.0, 1 }
     };
     const std::vector<Sent> sent {
-        { 1.01, 1.4, 40 },  // an octave low
-        { 2.01, 2.4, 56 },  // a semitone high
-        { 2.9, 3.6, 50 },   // another pitch sounding through the third note
+        { 1.01, 1.4, 40 }, // an octave low
+        { 2.01, 2.4, 56 }, // a semitone high
+        { 2.9, 3.6, 50 },  // another pitch sounding through the third note
     };
     const auto r = judge (truth, sent);
     CHECK (r.verdict[0] == Verdict::octave);
@@ -53,17 +53,18 @@ TEST_CASE ("score: octave errors, wrong pitches and missed notes", "[midi][score
 TEST_CASE ("score: extra notes by kind", "[midi][score]")
 {
     // E3 on one string, then G3 on the next while the E3 rings on, then a rest.
-    const std::vector<Truth> truth { { 1.0, 2.0, 52.0, 1 }, { 1.5, 1.9, 55.0, 2 },
+    const std::vector<Truth> truth { { 1.0, 2.0, 52.0, 1 },
+                                     { 1.5, 1.9, 55.0, 2 },
                                      { 4.0, 4.5, 60.0, 3 } };
     const std::vector<Sent> sent {
-        { 1.0, 1.3, 52 },   // right
-        { 1.3, 1.34, 53 },  // a semitone from the note being played
-        { 1.5, 1.7, 55 },   // right
-        { 1.7, 1.8, 52 },   // the E3 that still rings under the G3
-        { 1.8, 1.85, 67 },  // an octave over the G3
-        { 3.0, 3.2, 45 },   // in a rest
-        { 3.85, 3.9, 60 },  // the next note, early (100 ms before its window)
-        { 4.0, 4.5, 60 },   // right
+        { 1.0, 1.3, 52 },  // right
+        { 1.3, 1.34, 53 }, // a semitone from the note being played
+        { 1.5, 1.7, 55 },  // right
+        { 1.7, 1.8, 52 },  // the E3 that still rings under the G3
+        { 1.8, 1.85, 67 }, // an octave over the G3
+        { 3.0, 3.2, 45 },  // in a rest
+        { 3.85, 3.9, 60 }, // the next note, early (100 ms before its window)
+        { 4.0, 4.5, 60 },  // right
     };
     const auto r = judge (truth, sent);
     CHECK (r.verdict[0] == Verdict::right);
@@ -83,7 +84,8 @@ TEST_CASE ("score: strokes on two strings at once are left out", "[midi][score]"
 {
     // Two strings 10 ms apart: a double stop. A one-note converter is not judged on it, nor
     // on what it sends there.
-    const std::vector<Truth> truth { { 1.0, 1.5, 52.0, 1 }, { 1.01, 1.5, 59.0, 3 },
+    const std::vector<Truth> truth { { 1.0, 1.5, 52.0, 1 },
+                                     { 1.01, 1.5, 59.0, 3 },
                                      { 2.0, 2.5, 60.0, 3 } };
     const std::vector<Sent> sent { { 1.02, 1.1, 47 }, { 1.1, 1.5, 59 }, { 2.0, 2.5, 60 } };
     const auto r = judge (truth, sent);
@@ -93,8 +95,8 @@ TEST_CASE ("score: strokes on two strings at once are left out", "[midi][score]"
     CHECK (r.extra[0] == Extra::none);
     CHECK (r.extra[1] == Extra::none);
     // The same string twice within 30 ms is not a chord.
-    const auto same = judge ({ { 1.0, 1.02, 52.0, 1 }, { 1.02, 1.5, 54.0, 1 } },
-                             { { 1.03, 1.5, 54 } });
+    const auto same =
+        judge ({ { 1.0, 1.02, 52.0, 1 }, { 1.02, 1.5, 54.0, 1 } }, { { 1.03, 1.5, 54 } });
     CHECK (same.verdict[1] == Verdict::right);
     CHECK (same.verdict[0] != Verdict::chord);
 }

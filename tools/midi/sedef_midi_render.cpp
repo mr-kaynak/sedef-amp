@@ -1245,18 +1245,21 @@ struct Tally
     void print (const char* label) const
     {
         const double n = notes > 0 ? static_cast<double> (notes) : 1.0;
-        std::printf ("| %s | %ld | %.2f %% | %ld | %ld | %ld (%ld / %ld / %ld) | %.1f / %.1f / %.1f "
-                     "| %.1f %% |\n",
-                     label, notes, 100.0 * static_cast<double> (right) / n, wrong, octave,
-                     held + other + silent, held, other, silent,
-                     1000.0 * scoring::quantile (onset, 0.5), 1000.0 * scoring::quantile (onset, 0.95),
-                     1000.0 * scoring::quantile (onset, 1.0), 100.0 * static_cast<double> (onTime) / n);
+        std::printf (
+            "| %s | %ld | %.2f %% | %ld | %ld | %ld (%ld / %ld / %ld) | %.1f / %.1f / %.1f "
+            "| %.1f %% |\n",
+            label, notes, 100.0 * static_cast<double> (right) / n, wrong, octave,
+            held + other + silent, held, other, silent, 1000.0 * scoring::quantile (onset, 0.5),
+            1000.0 * scoring::quantile (onset, 0.95), 1000.0 * scoring::quantile (onset, 1.0),
+            100.0 * static_cast<double> (onTime) / n);
     }
     static void head (const char* first)
     {
-        std::printf ("| %s | Notes | Right | Wrong | Octave | Missed (held / other pitch / silent) | "
-                     "Onset p50 / p95 / max (ms) | Right within 50 ms |\n|---|---:|---:|---:|---:|---:|---:|---:|\n",
-                     first);
+        std::printf (
+            "| %s | Notes | Right | Wrong | Octave | Missed (held / other pitch / silent) | "
+            "Onset p50 / p95 / max (ms) | Right within 50 ms "
+            "|\n|---|---:|---:|---:|---:|---:|---:|---:|\n",
+            first);
     }
 };
 
@@ -1294,16 +1297,16 @@ struct Probe
 
 /// The converter's notes for one recording, each with how it started and ended. In Steady the
 /// lag is taken off every time, as a recording is moved by it.
-std::vector<ScoredNote> scoredNotes (const std::vector<float>& x, double fs, const midi::Settings& s,
-                                     midi::LowNote learned, std::vector<Probe>* probes = nullptr)
+std::vector<ScoredNote> scoredNotes (const std::vector<float>& x, double fs,
+                                     const midi::Settings& s, midi::LowNote learned,
+                                     std::vector<Probe>* probes = nullptr)
 {
     midi::GuitarToMidi conv;
     conv.setSettings (s);
     conv.prepare (fs);
     conv.setLearnedLowNote (learned);
-    const double lag = s.timing == midi::Timing::steady
-                           ? midi::GuitarToMidi::steadyLagSamples (fs) / fs
-                           : 0.0;
+    const double lag =
+        s.timing == midi::Timing::steady ? midi::GuitarToMidi::steadyLagSamples (fs) / fs : 0.0;
     std::vector<ScoredNote> notes;
     std::vector<int> open (128, -1);
     midi::EventList out;
@@ -1360,8 +1363,9 @@ std::vector<ScoredNote> scoredNotes (const std::vector<float>& x, double fs, con
 
 /// The decoder alone (an experiment: --decoder <lag ms>): the notes on its best path, read
 /// from the tracker's periods and the converter's level, with the lag taken off every time.
-std::vector<ScoredNote> decodedNotes (const std::vector<float>& x, double fs, const midi::Settings& s,
-                                      midi::LowNote learned, double lagSeconds, float patience)
+std::vector<ScoredNote> decodedNotes (const std::vector<float>& x, double fs,
+                                      const midi::Settings& s, midi::LowNote learned,
+                                      double lagSeconds, float patience)
 {
     midi::GuitarToMidi conv;
     conv.setSettings (s);
@@ -1393,7 +1397,8 @@ std::vector<ScoredNote> decodedNotes (const std::vector<float>& x, double fs, co
         {
             const auto key = tracker.key (k);
             const double hz = tracker.analysisRate() / static_cast<double> (key.lag);
-            decoder.addPeriod (static_cast<float> (69.0 + 12.0 * std::log2 (hz / 440.0)), key.value);
+            decoder.addPeriod (static_cast<float> (69.0 + 12.0 * std::log2 (hz / 440.0)),
+                               key.value);
         }
         const float level = conv.levelDb();
         const float quiet = std::max (conv.gateLevelDb(), conv.playingLevelDb() - 26.5f);
@@ -1455,8 +1460,8 @@ int scoreMode (int argc, char** argv)
     if (option (argc, argv, "--bend") == "1")
         s.mode = midi::Mode::notesAndBend;
     const auto learned = lowNoteNamed (option (argc, argv, "--learned", "e2"));
-    const auto gain =
-        static_cast<float> (std::pow (10.0, std::atof (option (argc, argv, "--gain", "0").c_str()) / 20.0));
+    const auto gain = static_cast<float> (
+        std::pow (10.0, std::atof (option (argc, argv, "--gain", "0").c_str()) / 20.0));
     const bool perFile = option (argc, argv, "--files") == "1";
     const double lead = std::max (0.0, std::atof (option (argc, argv, "--lead", "0").c_str()));
     const double decoderLag = 0.001 * std::atof (option (argc, argv, "--decoder", "-1").c_str());
@@ -1468,13 +1473,15 @@ int scoreMode (int argc, char** argv)
     {
         dump.open (dumpPath);
         dump << "file\tkind\ton\toff\tpitch\tstring\tverdict\tonset_ms\toff_ms\tcontext\tstart\tend"
-                "\tearly\tvelocity\tplayed_pitch\ttracker_share\ttracker_first_ms\tover_playing_db\tover_gate_db"
+                "\tearly\tvelocity\tplayed_pitch\ttracker_share\ttracker_first_ms\tover_playing_"
+                "db\tover_gate_db"
                 "\trise_db\ttracker_picks\n";
     }
 
     const scoring::Tolerances tol;
     static const char* registers[] = { "E2 to D#3", "E3 to D#4", "E4 to D#5", "E5 and up" };
-    static const char* lengths[] = { "under 80 ms", "80 to 160 ms", "160 to 320 ms", "320 ms and more" };
+    static const char* lengths[] = { "under 80 ms", "80 to 160 ms", "160 to 320 ms",
+                                     "320 ms and more" };
     Tally all, byRegister[4], byLength[4], byContext[3];
     long extras[scoring::kExtraKinds] {}, extrasShort[scoring::kExtraKinds] {}, chordNotes = 0;
     long sentNotes = 0, sentShort = 0, splitNotes = 0;
@@ -1498,7 +1505,9 @@ int scoreMode (int argc, char** argv)
     std::string wav, ref;
     while (list >> wav >> ref)
     {
-        const auto path = [&] (const std::string& p) { return p[0] == '/' ? p : dir + p; };
+        const auto path = [&] (const std::string& p) {
+            return p[0] == '/' ? p : dir + p;
+        };
         const auto audio = tools::readWav (path (wav));
         if (!audio)
         {
@@ -1513,10 +1522,10 @@ int scoreMode (int argc, char** argv)
             v *= gain;
         const auto truth = readTruth (path (ref));
         std::vector<Probe> probes;
-        auto notes = decoderLag >= 0.0
-                         ? decodedNotes (x, audio->sampleRate, s, learned, decoderLag, decoderPatience)
-                         : scoredNotes (x, audio->sampleRate, s, learned,
-                                        dump.is_open() ? &probes : nullptr);
+        auto notes = decoderLag >= 0.0 ? decodedNotes (x, audio->sampleRate, s, learned, decoderLag,
+                                                       decoderPatience)
+                                       : scoredNotes (x, audio->sampleRate, s, learned,
+                                                      dump.is_open() ? &probes : nullptr);
         // What the tracker and the level did around a reference note (from 10 ms before its
         // onset to 120 ms after): the share of that time the tracker held the note's pitch, when
         // it first did (ms after the onset, -1 never), the loudest level against the player's
@@ -1550,7 +1559,8 @@ int scoreMode (int argc, char** argv)
                 }
             }
             v[4] = static_cast<double> (loudest - probes[a].levelDb);
-            v[5] = static_cast<double> (probes[at (t.on + 0.06)].picks - probes[at (t.on - 0.03)].picks);
+            v[5] = static_cast<double> (probes[at (t.on + 0.06)].picks -
+                                        probes[at (t.on - 0.03)].picks);
             return v;
         };
         for (auto& n : notes)
@@ -1577,7 +1587,9 @@ int scoreMode (int argc, char** argv)
             const double onsetError =
                 k >= 0 ? notes[static_cast<std::size_t> (k)].sent.on - truth[i].on : 0.0;
             const double length = r.lineEnd[i] - truth[i].on;
-            const int reg = truth[i].pitch < 51.5 ? 0 : (truth[i].pitch < 63.5 ? 1 : (truth[i].pitch < 75.5 ? 2 : 3));
+            const int reg = truth[i].pitch < 51.5
+                                ? 0
+                                : (truth[i].pitch < 63.5 ? 1 : (truth[i].pitch < 75.5 ? 2 : 3));
             const int len = length < 0.08 ? 0 : (length < 0.16 ? 1 : (length < 0.32 ? 2 : 3));
             all.add (v, onsetError, tol.onTime);
             byRegister[reg].add (v, onsetError, tol.onTime);
@@ -1608,12 +1620,13 @@ int scoreMode (int argc, char** argv)
                 dump << name << "\ttruth\t" << truth[i].on << "\t" << r.lineEnd[i] << "\t"
                      << truth[i].pitch << "\t" << truth[i].string << "\t"
                      << scoring::kVerdictNames[static_cast<int> (v)] << "\t" << 1000.0 * onsetError
-                     << "\t" << 1000.0 * offErr << "\t" << scoring::kContextNames[static_cast<int> (r.context[i])]
-                     << "\t"
+                     << "\t" << 1000.0 * offErr << "\t"
+                     << scoring::kContextNames[static_cast<int> (r.context[i])] << "\t"
                      << (k >= 0 ? notes[static_cast<std::size_t> (k)].start : std::string ("-"))
-                     << "\t" << (k >= 0 ? notes[static_cast<std::size_t> (k)].end : std::string ("-"))
-                     << "\t" << (k >= 0 && notes[static_cast<std::size_t> (k)].early ? 1 : 0) << "\t"
-                     << (k >= 0 ? notes[static_cast<std::size_t> (k)].velocity : 0) << "\t"
+                     << "\t"
+                     << (k >= 0 ? notes[static_cast<std::size_t> (k)].end : std::string ("-"))
+                     << "\t" << (k >= 0 && notes[static_cast<std::size_t> (k)].early ? 1 : 0)
+                     << "\t" << (k >= 0 ? notes[static_cast<std::size_t> (k)].velocity : 0) << "\t"
                      << (k >= 0 ? notes[static_cast<std::size_t> (k)].sent.pitch : 0);
             if (dump.is_open())
             {
@@ -1648,10 +1661,12 @@ int scoreMode (int argc, char** argv)
                 extraLength[kind].push_back (length);
             }
             if (dump.is_open())
-                dump << name << "\tsent\t" << n.sent.on << "\t" << n.sent.off << "\t" << n.sent.pitch
-                     << "\t-1\t" << scoring::kExtraNames[kind] << "\t0\t0\t-\t" << n.start << "\t"
-                     << n.end << "\t" << (n.early ? 1 : 0) << "\t" << n.velocity << "\t"
-                     << (r.nearest[k] >= 0 ? truth[static_cast<std::size_t> (r.nearest[k])].pitch : 0.0)
+                dump << name << "\tsent\t" << n.sent.on << "\t" << n.sent.off << "\t"
+                     << n.sent.pitch << "\t-1\t" << scoring::kExtraNames[kind] << "\t0\t0\t-\t"
+                     << n.start << "\t" << n.end << "\t" << (n.early ? 1 : 0) << "\t" << n.velocity
+                     << "\t"
+                     << (r.nearest[k] >= 0 ? truth[static_cast<std::size_t> (r.nearest[k])].pitch
+                                           : 0.0)
                      << "\t0\t0\t0\t0\t0\t0\n";
         }
         for (std::size_t c = 0; c < 6; ++c)
@@ -1662,9 +1677,10 @@ int scoreMode (int argc, char** argv)
     long extraTotal = 0;
     for (int k = 1; k < scoring::kExtraKinds; ++k)
         extraTotal += extras[k];
-    std::printf ("%zu recordings, %.0f s, %s%s; %ld reference notes scored, %ld in chords left out\n\n",
-                 rows.size(), seconds, s.timing == midi::Timing::steady ? "Steady" : "Fastest",
-                 s.mode == midi::Mode::notesAndBend ? ", Notes + Bend" : "", all.notes, chordNotes);
+    std::printf (
+        "%zu recordings, %.0f s, %s%s; %ld reference notes scored, %ld in chords left out\n\n",
+        rows.size(), seconds, s.timing == midi::Timing::steady ? "Steady" : "Fastest",
+        s.mode == midi::Mode::notesAndBend ? ", Notes + Bend" : "", all.notes, chordNotes);
     Tally::head ("Set");
     all.print ("All");
     std::printf ("\n");
@@ -1681,22 +1697,24 @@ int scoreMode (int argc, char** argv)
         byContext[k].print (scoring::kContextNames[k]);
 
     const double n = all.notes > 0 ? static_cast<double> (all.notes) : 1.0;
-    std::printf ("\nNotes sent: %ld (%.1f per 100 played), %ld under 40 ms (%.1f per 100). Extra: %ld "
-                 "(%.1f per 100). Right notes that also started a second time: %ld (%.1f per 100).\n\n",
-                 sentNotes, 100.0 * static_cast<double> (sentNotes) / n, sentShort,
-                 100.0 * static_cast<double> (sentShort) / n, extraTotal,
-                 100.0 * static_cast<double> (extraTotal) / n, splitNotes,
-                 100.0 * static_cast<double> (splitNotes) / n);
+    std::printf (
+        "\nNotes sent: %ld (%.1f per 100 played), %ld under 40 ms (%.1f per 100). Extra: %ld "
+        "(%.1f per 100). Right notes that also started a second time: %ld (%.1f per 100).\n\n",
+        sentNotes, 100.0 * static_cast<double> (sentNotes) / n, sentShort,
+        100.0 * static_cast<double> (sentShort) / n, extraTotal,
+        100.0 * static_cast<double> (extraTotal) / n, splitNotes,
+        100.0 * static_cast<double> (splitNotes) / n);
     std::printf ("| Extra notes | Count | Per 100 played | Under 40 ms | Length p50 / p90 (ms) |\n"
                  "|---|---:|---:|---:|---:|\n");
     for (int k = 1; k < scoring::kExtraKinds; ++k)
-        std::printf ("| %s | %ld | %.1f | %ld | %.0f / %.0f |\n", scoring::kExtraNames[k], extras[k],
-                     100.0 * static_cast<double> (extras[k]) / n, extrasShort[k],
+        std::printf ("| %s | %ld | %.1f | %ld | %.0f / %.0f |\n", scoring::kExtraNames[k],
+                     extras[k], 100.0 * static_cast<double> (extras[k]) / n, extrasShort[k],
                      1000.0 * scoring::quantile (extraLength[k], 0.5),
                      1000.0 * scoring::quantile (extraLength[k], 0.9));
     std::printf ("\n| Started by | Sent | Extra | Extra share |\n|---|---:|---:|---:|\n");
-    std::sort (starts.begin(), starts.end(),
-               [] (const Start& a, const Start& b) { return a.sent > b.sent || (a.sent == b.sent && a.name < b.name); });
+    std::sort (starts.begin(), starts.end(), [] (const Start& a, const Start& b) {
+        return a.sent > b.sent || (a.sent == b.sent && a.name < b.name);
+    });
     for (const auto& st : starts)
         std::printf ("| %s | %ld | %ld | %.1f %% |\n", st.name.c_str(), st.sent, st.extra,
                      100.0 * static_cast<double> (st.extra) / static_cast<double> (st.sent));
@@ -1708,29 +1726,33 @@ int scoreMode (int argc, char** argv)
         late += e > 0.1 ? 1 : 0;
     }
     const double rn = offError.empty() ? 1.0 : static_cast<double> (offError.size());
-    std::printf ("\nNote-off against the note's end in the line (right notes): p5 %.0f, p50 %.0f, "
-                 "p95 %.0f ms; more than 50 ms early %.1f %%, more than 100 ms late %.1f %%. The "
-                 "note's pitch sounds for %.1f %% of its time in the median (p10 %.1f %%).\n",
-                 1000.0 * scoring::quantile (offError, 0.05), 1000.0 * scoring::quantile (offError, 0.5),
-                 1000.0 * scoring::quantile (offError, 0.95), 100.0 * static_cast<double> (early) / rn,
-                 100.0 * static_cast<double> (late) / rn, 100.0 * scoring::quantile (covered, 0.5),
-                 100.0 * scoring::quantile (covered, 0.1));
+    std::printf (
+        "\nNote-off against the note's end in the line (right notes): p5 %.0f, p50 %.0f, "
+        "p95 %.0f ms; more than 50 ms early %.1f %%, more than 100 ms late %.1f %%. The "
+        "note's pitch sounds for %.1f %% of its time in the median (p10 %.1f %%).\n",
+        1000.0 * scoring::quantile (offError, 0.05), 1000.0 * scoring::quantile (offError, 0.5),
+        1000.0 * scoring::quantile (offError, 0.95), 100.0 * static_cast<double> (early) / rn,
+        100.0 * static_cast<double> (late) / rn, 100.0 * scoring::quantile (covered, 0.5),
+        100.0 * scoring::quantile (covered, 0.1));
     const double sounding = static_cast<double> (frames[0] + frames[1] + frames[2] + frames[4]);
-    std::printf ("\nTime (while the reference has a note): the note being played %.1f %%, an earlier "
-                 "note still ringing %.1f %%, another pitch %.1f %%, nothing %.1f %%. In the "
-                 "reference's rests a note sounds %.1f %% of the time.\n",
-                 100.0 * static_cast<double> (frames[0]) / sounding,
-                 100.0 * static_cast<double> (frames[1]) / sounding,
-                 100.0 * static_cast<double> (frames[2]) / sounding,
-                 100.0 * static_cast<double> (frames[4]) / sounding,
-                 100.0 * static_cast<double> (frames[3]) /
-                     std::max (1.0, static_cast<double> (frames[3] + frames[5])));
+    std::printf (
+        "\nTime (while the reference has a note): the note being played %.1f %%, an earlier "
+        "note still ringing %.1f %%, another pitch %.1f %%, nothing %.1f %%. In the "
+        "reference's rests a note sounds %.1f %% of the time.\n",
+        100.0 * static_cast<double> (frames[0]) / sounding,
+        100.0 * static_cast<double> (frames[1]) / sounding,
+        100.0 * static_cast<double> (frames[2]) / sounding,
+        100.0 * static_cast<double> (frames[4]) / sounding,
+        100.0 * static_cast<double> (frames[3]) /
+            std::max (1.0, static_cast<double> (frames[3] + frames[5])));
     if (perFile)
     {
         std::stable_sort (rows.begin(), rows.end(), [] (const FileRow& a, const FileRow& b) {
-            return (a.notes - a.right + a.extra) * b.notes > (b.notes - b.right + b.extra) * a.notes;
+            return (a.notes - a.right + a.extra) * b.notes >
+                   (b.notes - b.right + b.extra) * a.notes;
         });
-        std::printf ("\n| Recording | Notes | Right | Not right | Extra |\n|---|---:|---:|---:|---:|\n");
+        std::printf (
+            "\n| Recording | Notes | Right | Not right | Extra |\n|---|---:|---:|---:|---:|\n");
         for (const auto& row : rows)
             std::printf ("| %s | %ld | %.1f %% | %ld | %ld |\n", row.name.c_str(), row.notes,
                          100.0 * static_cast<double> (row.right) /
@@ -1792,9 +1814,9 @@ int main (int argc, char** argv)
                        softAfterLoud (soft > 8 ? 2u : 1u, static_cast<Pickup> (p),
                                       -static_cast<float> (soft), fs));
         for (int pitch : { 28, 77 })
-            write ("twice-" + std::to_string (pitch) + "-bridge-1",
-                   twice (pluckFor (Pickup::bridge, hzOf (pitch), 0.25f, 1), fs, -80.0f, 1, 0.4,
-                          0.5));
+            write (
+                "twice-" + std::to_string (pitch) + "-bridge-1",
+                twice (pluckFor (Pickup::bridge, hzOf (pitch), 0.25f, 1), fs, -80.0f, 1, 0.4, 0.5));
         for (int pitch : { 30, 33, 37, 40 })
             for (std::uint32_t seed = 1; seed <= 2; ++seed)
                 write ("twice-" + std::to_string (pitch) + "-neck-" + std::to_string (seed),

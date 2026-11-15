@@ -3,8 +3,8 @@
 // from its model alone, so every wait here is computed from the model, not measured.
 #include "sedef/midi/NoteDecoder.h"
 
-#include <catch2/catch_test_macros.hpp>
 #include <algorithm>
+#include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include <vector>
 
@@ -25,7 +25,8 @@ double evidence (const NoteDecoder::Model& m, double left)
 double share (const NoteDecoder::Model& m, int note)
 {
     const double period = 1.0 / (440.0 * std::exp2 ((note - 69) / 12.0));
-    return kHop / std::clamp (m.periodShare * period, 0.001 * m.windowMs, 0.001 * m.longestWindowMs);
+    return kHop /
+           std::clamp (m.periodShare * period, 0.001 * m.windowMs, 0.001 * m.longestWindowMs);
 }
 
 /// Hops of a period leaving `left` until a transition costing `observations` is paid.
@@ -54,7 +55,8 @@ int hopsUntil (NoteDecoder& d, int note, bool attack)
 }
 } // namespace
 
-TEST_CASE ("NoteDecoder believes a note after the observations its patience asks", "[midi][decoder]")
+TEST_CASE ("NoteDecoder believes a note after the observations its patience asks",
+           "[midi][decoder]")
 {
     for (float patience : { 1.0f, 2.0f })
         for (int note : { kE2, kA3 })
@@ -254,8 +256,8 @@ TEST_CASE ("NoteDecoder cuts a low note's patience to what a budget leaves", "[m
     // And the wait follows it.
     const auto& m = d.model;
     const int k = hopsUntil (d, kE2, true);
-    const int model = static_cast<int> (std::ceil (d.patienceOf (kE2) * m.attack * evidence (m, 0.0) /
-                                                   (share (m, kE2) * evidence (m, 0.01))));
+    const int model = static_cast<int> (std::ceil (
+        d.patienceOf (kE2) * m.attack * evidence (m, 0.0) / (share (m, kE2) * evidence (m, 0.01))));
     CHECK (k >= model);
     CHECK (k <= model + 1);
     d.setPatience (2.0f);

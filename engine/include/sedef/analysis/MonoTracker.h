@@ -144,7 +144,6 @@ public:
     std::uint32_t estimateCount() const noexcept { return estimateCount_; }
 
 private:
-
     void updateLags (float x) noexcept;
     void estimate() noexcept;
     void track() noexcept;

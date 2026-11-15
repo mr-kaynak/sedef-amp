@@ -50,8 +50,8 @@ void NoteDecoder::setPatience (float patience, double budgetSeconds) noexcept
             const double read = static_cast<double> (attackSpan_[static_cast<std::size_t> (n)]) -
                                 static_cast<double> (model.attackSeconds) +
                                 static_cast<double> (model.readSeconds);
-            const double fits =
-                (budgetSeconds - read) / static_cast<double> (window_[static_cast<std::size_t> (n)]);
+            const double fits = (budgetSeconds - read) /
+                                static_cast<double> (window_[static_cast<std::size_t> (n)]);
             p = std::clamp (static_cast<float> (fits), std::min (1.0f, patience), patience);
         }
         patience_[static_cast<std::size_t> (n)] = p;
@@ -119,8 +119,8 @@ int NoteDecoder::endHop (float overQuietDb, double sinceAttack) noexcept
             if (n + over < kNotes && left_[static_cast<std::size_t> (n + over)] <=
                                          left_[static_cast<std::size_t> (n)] + model.sameLeft)
                 away = std::max (away, gain[static_cast<std::size_t> (n + over)]);
-        emit[static_cast<std::size_t> (n)] =
-            temper_[static_cast<std::size_t> (n)] * (gain[static_cast<std::size_t> (n)] - away - quiet);
+        emit[static_cast<std::size_t> (n)] = temper_[static_cast<std::size_t> (n)] *
+                                             (gain[static_cast<std::size_t> (n)] - away - quiet);
     }
 
     // The best note to come from, for a leap; every state also looks at itself, at silence and
@@ -165,8 +165,8 @@ int NoteDecoder::endHop (float overQuietDb, double sinceAttack) noexcept
         const float step = attack ? withAttack : unit * model.step;
         consider (0, attack ? withAttack : unit * model.bare);
         if (best != s)
-            consider (best, std::abs (best - s) <= 2 ? step
-                                                      : (attack ? withAttack : unit * model.leap));
+            consider (best,
+                      std::abs (best - s) <= 2 ? step : (attack ? withAttack : unit * model.leap));
         for (int d : { -2, -1, 1, 2 })
             if (s + d >= 1 && s + d < kStates)
                 consider (s + d, step);
@@ -185,7 +185,8 @@ int NoteDecoder::endHop (float overQuietDb, double sinceAttack) noexcept
             second = std::max (second, next_[static_cast<std::size_t> (s)]);
     const float high = next_[static_cast<std::size_t> (top)];
     for (int s = 0; s < kStates; ++s)
-        delta_[static_cast<std::size_t> (s)] = std::max (next_[static_cast<std::size_t> (s)] - high, -1.0e6f);
+        delta_[static_cast<std::size_t> (s)] =
+            std::max (next_[static_cast<std::size_t> (s)] - high, -1.0e6f);
     margin_ = high - second;
     now_ = top == 0 ? kSilence : top - 1 + kLowestNote;
 

@@ -212,6 +212,14 @@ void GuitarToMidi::prepare (double sampleRate)
     earlyRing_.assign (static_cast<std::size_t> (size), 0.0f);
     ringMask_ = size - 1;
     hop_ = std::max (1, static_cast<int> (std::lround (0.0005 * rate_)));
+    {
+        // The decoder steps with the tracker's estimates.
+        const double hopSeconds = hop_ / rate_;
+        decoder_.prepare (hopSeconds, 0.0);
+        decoderAttackHops_ = std::max (1, static_cast<int> (std::lround (kDecoderAttackSeconds / hopSeconds)));
+        decoderRiseHops_ = std::clamp (static_cast<int> (std::lround (kDecoderRiseSeconds / hopSeconds)), 1,
+                                       static_cast<int> (decoderLevels_.size()) - 1);
+    }
     minWindow_ = std::max (4, static_cast<int> (std::lround (0.004 * rate_)));
     refractorySamples_ = samples (kPickRefractorySeconds, sampleRate);
     weakRefractorySamples_ = samples (0.06, sampleRate);
@@ -263,6 +271,7 @@ void GuitarToMidi::prepare (double sampleRate)
     }
     settings_ = next_;
     settingsChanged_ = false;
+    decoder_.setPatience (settings_.timing == Timing::steady ? kSteadyPatience : kFastestPatience);
     reset();
     applyRange();
 }
@@ -270,6 +279,13 @@ void GuitarToMidi::prepare (double sampleRate)
 void GuitarToMidi::reset() noexcept
 {
     tracker_.reset();
+    decoder_.reset();
+    decoderEstimates_ = decoderPicks_ = 0;
+    decoderNote_ = NoteDecoder::kSilence;
+    decoderAttack_ = 0;
+    decoderAttackAt_ = -(std::int64_t { 1 } << 40);
+    decoderLevels_.fill (kFloorDb);
+    decoderLevelAt_ = 0;
     noiseDb_ = kAutoGateFloorDb;
     gateLevelDb_ = settings_.gateMode == GateMode::manual ? settings_.gateDb
                                                           : kAutoGateFloorDb + kNoiseMarginDb;
@@ -375,6 +391,7 @@ void GuitarToMidi::applySettings (EventList& out, int offset) noexcept
     settingsChanged_ = false;
     const Settings old = settings_;
     settings_ = next_;
+    decoder_.setPatience (settings_.timing == Timing::steady ? kSteadyPatience : kFastestPatience);
     if (old.timing != settings_.timing)
     {
         // What waits goes out now, in order; the rest follows the new timing.
@@ -414,6 +431,8 @@ void GuitarToMidi::process (const float* in, int numFrames, EventList& out) noex
         const float x = in[i];
         ++now_;
         tracker_.push (x);
+        if (tracker_.estimateCount() != decoderEstimates_)
+            decoderHop();
 
         const float click = clickHp_.process (x);
         clickPower_ += clickCoeff_ * (click * click - clickPower_);
@@ -1486,6 +1505,62 @@ bool GuitarToMidi::pickedNoteReady (float hz) const noexcept
     return !lowerNotePossible (hz);
 }
 
+void GuitarToMidi::decoderHop() noexcept
+{
+    decoderEstimates_ = tracker_.estimateCount();
+    decoder_.beginHop();
+    const double rate = tracker_.analysisRate();
+    for (int k = 0; k < tracker_.keyCount(); ++k)
+    {
+        const auto key = tracker_.key (k);
+        decoder_.addPeriod (midiPitch (static_cast<float> (rate) / key.lag), key.value);
+    }
+    const auto size = static_cast<int> (decoderLevels_.size());
+    const float before = decoderLevels_[static_cast<std::size_t> (
+        (decoderLevelAt_ + size - decoderRiseHops_) % size)];
+    if (tracker_.pickCount() != decoderPicks_ || levelDb_ > before + kDecoderRiseDb)
+    {
+        decoderAttack_ = decoderAttackHops_;
+        decoderAttackAt_ = now_;
+    }
+    decoderPicks_ = tracker_.pickCount();
+    decoderLevels_[static_cast<std::size_t> (decoderLevelAt_)] = levelDb_;
+    decoderLevelAt_ = (decoderLevelAt_ + 1) % size;
+    decoder_.endHop (levelDb_ - quietDb(), decoderAttack_ > 0);
+    decoderAttack_ = std::max (0, decoderAttack_ - 1);
+    decoderNote_ = decoder_.now();
+}
+
+int GuitarToMidi::heardNote (bool voiced, int q) const noexcept
+{
+    // A note nobody saw picked: the detector compares the level with what just rang, so a note
+    // softer than the one before it, or hammered on after that one was damped, has no pick. It
+    // starts all the same when the decoder holds it (it has paid what a note without an attack
+    // costs), the tracker names the same note, and it is as loud as this player's notes are (a
+    // string left ringing, or ringing in sympathy, is not)...
+    if (decoderNote_ < 0 || !voiced || playingCount_ == 0)
+        return -1;
+    // An attack still under way, or a pick seen a moment ago, is the detector's to judge: this
+    // is for the attack it let pass.
+    if (decoderAttack_ > 0 || now_ - lastPickAt_ <= lockPickGapSamples_ ||
+        now_ - decoderAttackAt_ > lockPickGapSamples_)
+        return -1;
+    if (q != decoderNote_ + 12 * settings_.octave)
+        return -1;
+    if (levelDb_ < gateLevelDb_ || levelDb_ < playingDb_ - kFadedDropDb || muted())
+        return -1;
+    // ...and it brought energy: the fretting hand taking the next fret on a ringing string
+    // sounds a note too, and adds none.
+    // It stands kLockRiseDb over the loudest millisecond of the 16 before the attack (as a pick
+    // on a faded string must): a low string's level swings with its period, a tap on the fret
+    // lifts it a little.
+    float before = kFloorDb;
+    for (int k = muteWindowMs_; k < muteWindowMs_ + 16 && k < kHistoryMs; ++k)
+        before = std::max (before, levelAgo (k));
+    // (Risen already 3 ms ago: an attack that begins this moment is not the one that passed.)
+    return std::min (levelDb_, levelAgo (3)) >= before + kLockRiseDb ? q : -1;
+}
+
 void GuitarToMidi::decide() noexcept
 {
     const float hz = tracker_.hz();
@@ -1567,11 +1642,25 @@ void GuitarToMidi::decide() noexcept
                 sympathy || !pitchSettled())
             {
                 candidate_ = -1;
+                if (const int heardQ = recentPick ? -1 : heardNote (voiced, q); heardQ >= 0)
+                {
+                    stepDirection_ = 0;
+                    heardHz_ = heard;
+                    // Steady: it is late already; it goes out now.
+                    startNote (heardQ, velocityAt (recentPeakDb()),
+                               settings_.timing == Timing::steady ? now_ - lagSamples_ : now_,
+                               Why::heard);
+                    ++heardNotes_;
+                }
                 return;
             }
             candidateSamples_ = q == candidate_ ? candidateSamples_ + 1 : 1;
             candidate_ = q;
             if (candidateSamples_ < confirmSamples_ || !pickedNoteReady (heard))
+                return;
+            // ...and the decoder holds it too: a first reading across a change of note, or in
+            // an attack, names notes nobody played.
+            if (!decoded (q))
                 return;
             start = q;
             startHz = heard;
@@ -1728,6 +1817,8 @@ void GuitarToMidi::decide() noexcept
             // pick whose level is still to be checked starts nothing yet.
             if (candidateSamples_ < (pickFresh_ ? confirmSamples_ : correctionConfirmSamples_) ||
                 pickChecking_ || !pickedNoteReady (heard))
+                return;
+            if (!decoded (q))
                 return;
             // A second change after one pick corrects the tracker's first reading, but never back
             // to the note before the pick, whose string may simply still ring.
@@ -2008,9 +2099,10 @@ void GuitarToMidi::startNote (int note, int velocity, std::int64_t reference, Wh
     earlyNote_ = earlyUnread_ = false;
     earlyDoubt_ = false;
     // A legato note keeps the energy the pick gave the string (or what it added to it).
-    noteLevelDb_ = why == Why::legato ? std::max (noteLevelDb_, recentPeakDb())
-                   : why == Why::pick ? attackLevelDb()
-                                      : pickLevelDb();
+    noteLevelDb_ = why == Why::legato  ? std::max (noteLevelDb_, recentPeakDb())
+                   : why == Why::heard ? recentPeakDb()
+                   : why == Why::pick  ? attackLevelDb()
+                                       : pickLevelDb();
     // A pick that starts a note tells how hard this player picks (a correction reuses its pick).
     // A note started early has not reached its attack yet: it tells once the tracker reads it.
     if ((why == Why::pick || why == Why::repick) && !earlyStart_)

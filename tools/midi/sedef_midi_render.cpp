@@ -36,14 +36,18 @@
 //       What the tracker reads, every millisecond, next to what is sent.
 //   sedef-midi-render score <manifest> [--steady 1] [--bend 1] [--low ...] [--gain dB]
 //                           [--lead seconds] [--files 1] [--dump notes.tsv]
+//                           [--decoder <lag ms> [--patience p]]
 //       Real playing against reference notes (engine/tests/midi/MidiScore.h): the manifest lists
 //       "<wav> <notes>" per line, the notes "<onset s> <offset s> <pitch> <string>" per line.
+//       --decoder scores the note decoder alone, as the only decision maker, at a fixed lag
+//       (an experiment the design reports).
 
 #include "../WavIo.h"
 #include "midi/MidiScore.h"
 #include "midi/MidiTestSignals.h"
 #include "sedef/analysis/MonoTracker.h"
 #include "sedef/midi/GuitarToMidi.h"
+#include "sedef/midi/NoteDecoder.h"
 
 #include <algorithm>
 #include <array>
@@ -317,7 +321,7 @@ int trace (int argc, char** argv)
             i % static_cast<std::size_t> (ms) == 0)
         {
             std::printf ("t %.4f %s%s hz %7.2f (%5.2f) est %7.2f clar %.2f lvl %6.1f dB gate %6.1f "
-                         "early %7.2f note %3d",
+                         "early %7.2f note %3d dec %3d",
                          t, pick ? "PICK " : "",
                          ev == analysis::MonoTracker::Event::noteOn
                              ? "ON "
@@ -329,7 +333,7 @@ int trace (int argc, char** argv)
                          static_cast<double> (m.estimateHz()), static_cast<double> (m.clarity()),
                          static_cast<double> (conv.levelDb()),
                          static_cast<double> (conv.gateLevelDb()),
-                         static_cast<double> (conv.earlyHz()), conv.note());
+                         static_cast<double> (conv.earlyHz()), conv.note(), conv.decodedNote());
             for (const auto& e : out)
                 std::printf ("  [%s %d v%d]", e.isNoteOn() ? "on" : (e.isNoteOff() ? "off" : "cc"),
                              e.note(), e.velocity());
@@ -367,6 +371,8 @@ const char* whyName (midi::Why w)
         return "decayed";
     case midi::Why::other:
         return "other";
+    case midi::Why::heard:
+        return "heard";
     }
     return "?";
 }
@@ -1277,10 +1283,19 @@ std::vector<scoring::Truth> readTruth (const std::string& path)
     return notes;
 }
 
+/// What the converter saw, once a millisecond (for --dump: the cause of an error).
+struct Probe
+{
+    float trackerPitch = 0.0f; ///< the tracker's note as a fractional MIDI pitch, 0 when none
+    float levelDb = -120.0f, gateDb = -120.0f, playingDb = -120.0f;
+    std::uint32_t picks = 0; ///< the tracker's pick count
+    int note = -1;           ///< the converter's note
+};
+
 /// The converter's notes for one recording, each with how it started and ended. In Steady the
 /// lag is taken off every time, as a recording is moved by it.
 std::vector<ScoredNote> scoredNotes (const std::vector<float>& x, double fs, const midi::Settings& s,
-                                     midi::LowNote learned)
+                                     midi::LowNote learned, std::vector<Probe>* probes = nullptr)
 {
     midi::GuitarToMidi conv;
     conv.setSettings (s);
@@ -1298,6 +1313,14 @@ std::vector<ScoredNote> scoredNotes (const std::vector<float>& x, double fs, con
         out.clear();
         conv.process (&x[i], 1, out);
         const double t = static_cast<double> (i) / fs - lag;
+        if (probes != nullptr &&
+            static_cast<std::size_t> (static_cast<double> (i) * 1000.0 / fs) >= probes->size())
+        {
+            const float hz = conv.tracker().hz();
+            probes->push_back ({ hz > 0.0f ? 69.0f + 12.0f * std::log2 (hz / 440.0f) : 0.0f,
+                                 conv.levelDb(), conv.gateLevelDb(), conv.playingLevelDb(),
+                                 conv.tracker().pickCount(), conv.note() });
+        }
         for (const auto& e : out)
         {
             if (e.isNoteOn())
@@ -1323,6 +1346,82 @@ std::vector<ScoredNote> scoredNotes (const std::vector<float>& x, double fs, con
                 }
                 o = -1;
             }
+        }
+    }
+    const double end = static_cast<double> (x.size()) / fs;
+    for (auto& n : notes)
+        if (n.sent.off < 0.0)
+        {
+            n.sent.off = end;
+            n.end = "end";
+        }
+    return notes;
+}
+
+/// The decoder alone (an experiment: --decoder <lag ms>): the notes on its best path, read
+/// from the tracker's periods and the converter's level, with the lag taken off every time.
+std::vector<ScoredNote> decodedNotes (const std::vector<float>& x, double fs, const midi::Settings& s,
+                                      midi::LowNote learned, double lagSeconds, float patience)
+{
+    midi::GuitarToMidi conv;
+    conv.setSettings (s);
+    conv.prepare (fs);
+    conv.setLearnedLowNote (learned);
+    const auto& tracker = conv.tracker();
+    midi::NoteDecoder decoder;
+    const double hop = 4.0 / tracker.analysisRate();
+    decoder.setPatience (patience);
+    decoder.prepare (hop, 0.1);
+    decoder.setLag (lagSeconds);
+    std::vector<ScoredNote> notes;
+    midi::EventList out;
+    std::uint32_t estimates = 0, picks = 0;
+    std::array<float, 24> levels {};
+    levels.fill (-120.0f);
+    std::size_t levelAt = 0;
+    int attackHops = 0, sounding = midi::NoteDecoder::kSilence;
+    for (std::size_t i = 0; i < x.size(); ++i)
+    {
+        out.clear();
+        conv.process (&x[i], 1, out);
+        if (tracker.estimateCount() == estimates)
+            continue;
+        estimates = tracker.estimateCount();
+        decoder.beginHop();
+        for (int k = 0; k < tracker.keyCount(); ++k)
+        {
+            const auto key = tracker.key (k);
+            const double hz = tracker.analysisRate() / static_cast<double> (key.lag);
+            decoder.addPeriod (static_cast<float> (69.0 + 12.0 * std::log2 (hz / 440.0)), key.value);
+        }
+        const float level = conv.levelDb();
+        const float quiet = std::max (conv.gateLevelDb(), conv.playingLevelDb() - 26.5f);
+        // An attack: a pick the tracker saw, or the level 6 dB over where it was 10 ms ago, and
+        // the 12 ms after either.
+        if (tracker.pickCount() != picks || level > levels[(levelAt + 4) % levels.size()] + 6.0f)
+            attackHops = 24;
+        picks = tracker.pickCount();
+        levels[levelAt] = level;
+        levelAt = (levelAt + 1) % levels.size();
+        const int note = decoder.endHop (level - quiet, attackHops > 0);
+        attackHops = std::max (0, attackHops - 1);
+        const double t = static_cast<double> (i) / fs - decoder.lagSeconds();
+        if (note != sounding)
+        {
+            if (sounding != midi::NoteDecoder::kSilence)
+            {
+                notes.back().sent.off = t;
+                notes.back().end = note == midi::NoteDecoder::kSilence ? "silence" : "replaced";
+            }
+            if (note != midi::NoteDecoder::kSilence)
+            {
+                ScoredNote n;
+                n.sent = { t, -1.0, note };
+                n.velocity = 100;
+                n.start = sounding == midi::NoteDecoder::kSilence ? "start" : "change";
+                notes.push_back (n);
+            }
+            sounding = note;
         }
     }
     const double end = static_cast<double> (x.size()) / fs;
@@ -1361,13 +1460,17 @@ int scoreMode (int argc, char** argv)
         static_cast<float> (std::pow (10.0, std::atof (option (argc, argv, "--gain", "0").c_str()) / 20.0));
     const bool perFile = option (argc, argv, "--files") == "1";
     const double lead = std::max (0.0, std::atof (option (argc, argv, "--lead", "0").c_str()));
+    const double decoderLag = 0.001 * std::atof (option (argc, argv, "--decoder", "-1").c_str());
+    const auto decoderPatience =
+        static_cast<float> (std::atof (option (argc, argv, "--patience", "1").c_str()));
     const std::string dumpPath = option (argc, argv, "--dump");
     std::ofstream dump;
     if (!dumpPath.empty())
     {
         dump.open (dumpPath);
         dump << "file\tkind\ton\toff\tpitch\tstring\tverdict\tonset_ms\toff_ms\tcontext\tstart\tend"
-                "\tearly\tvelocity\tplayed_pitch\n";
+                "\tearly\tvelocity\tplayed_pitch\ttracker_share\ttracker_first_ms\tover_playing_db\tover_gate_db"
+                "\trise_db\ttracker_picks\n";
     }
 
     const scoring::Tolerances tol;
@@ -1410,7 +1513,47 @@ int scoreMode (int argc, char** argv)
         for (auto& v : x)
             v *= gain;
         const auto truth = readTruth (path (ref));
-        auto notes = scoredNotes (x, audio->sampleRate, s, learned);
+        std::vector<Probe> probes;
+        auto notes = decoderLag >= 0.0
+                         ? decodedNotes (x, audio->sampleRate, s, learned, decoderLag, decoderPatience)
+                         : scoredNotes (x, audio->sampleRate, s, learned,
+                                        dump.is_open() ? &probes : nullptr);
+        // What the tracker and the level did around a reference note (from 10 ms before its
+        // onset to 120 ms after): the share of that time the tracker held the note's pitch, when
+        // it first did (ms after the onset, -1 never), the loudest level against the player's
+        // and against the gate, how far the level rose over the 10 ms before the onset, and
+        // the picks the tracker saw from 30 ms before to 60 ms after.
+        const auto probe = [&] (const scoring::Truth& t) {
+            std::array<double, 6> v { 0.0, -1.0, -120.0, -120.0, 0.0, 0.0 };
+            const auto at = [&] (double seconds) {
+                const auto k = static_cast<long> ((seconds + lead) * 1000.0);
+                return static_cast<std::size_t> (
+                    std::clamp (k, 0L, static_cast<long> (probes.size()) - 1));
+            };
+            if (probes.empty())
+                return v;
+            const auto a = at (t.on - 0.01), b = at (t.on + 0.12);
+            float loudest = -120.0f;
+            for (auto k = a; k <= b; ++k)
+            {
+                const auto& p = probes[k];
+                if (p.trackerPitch > 0.0f && std::abs (p.trackerPitch - t.pitch) < 0.75)
+                {
+                    v[0] += 1.0 / static_cast<double> (b - a + 1);
+                    if (v[1] < 0.0)
+                        v[1] = static_cast<double> (k) - (t.on + lead) * 1000.0;
+                }
+                if (p.levelDb > loudest)
+                {
+                    loudest = p.levelDb;
+                    v[2] = static_cast<double> (p.levelDb - p.playingDb);
+                    v[3] = static_cast<double> (p.levelDb - p.gateDb);
+                }
+            }
+            v[4] = static_cast<double> (loudest - probes[a].levelDb);
+            v[5] = static_cast<double> (probes[at (t.on + 0.06)].picks - probes[at (t.on - 0.03)].picks);
+            return v;
+        };
         for (auto& n : notes)
         {
             n.sent.on -= static_cast<double> (leadSamples) / audio->sampleRate;
@@ -1472,7 +1615,13 @@ int scoreMode (int argc, char** argv)
                      << "\t" << (k >= 0 ? notes[static_cast<std::size_t> (k)].end : std::string ("-"))
                      << "\t" << (k >= 0 && notes[static_cast<std::size_t> (k)].early ? 1 : 0) << "\t"
                      << (k >= 0 ? notes[static_cast<std::size_t> (k)].velocity : 0) << "\t"
-                     << (k >= 0 ? notes[static_cast<std::size_t> (k)].sent.pitch : 0) << "\n";
+                     << (k >= 0 ? notes[static_cast<std::size_t> (k)].sent.pitch : 0);
+            if (dump.is_open())
+            {
+                for (double value : probe (truth[i]))
+                    dump << "\t" << value;
+                dump << "\n";
+            }
         }
         for (std::size_t k = 0; k < notes.size(); ++k)
         {
@@ -1504,7 +1653,7 @@ int scoreMode (int argc, char** argv)
                      << "\t-1\t" << scoring::kExtraNames[kind] << "\t0\t0\t-\t" << n.start << "\t"
                      << n.end << "\t" << (n.early ? 1 : 0) << "\t" << n.velocity << "\t"
                      << (r.nearest[k] >= 0 ? truth[static_cast<std::size_t> (r.nearest[k])].pitch : 0.0)
-                     << "\n";
+                     << "\t0\t0\t0\t0\t0\t0\n";
         }
         for (std::size_t c = 0; c < 6; ++c)
             frames[c] += r.frames[c];

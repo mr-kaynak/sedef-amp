@@ -4,6 +4,7 @@
 #include "sedef/analysis/MonoTracker.h"
 #include "sedef/core/Biquad.h"
 #include "sedef/midi/MidiEvent.h"
+#include "sedef/midi/NoteDecoder.h"
 
 #include <array>
 #include <cstdint>
@@ -61,7 +62,8 @@ enum class Why : std::uint8_t
     mute,       ///< ended: the level fell faster than a string decays
     damped,     ///< ended: no pick, another pitch, the level fallen (the note was damped)
     decayed,    ///< ended: the level fell kDecayOffDb under the note's attack
-    other       ///< ended by a settings change or allNotesOff()
+    other,      ///< ended by a settings change or allNotesOff()
+    heard       ///< started without a pick: the decoder and the tracker both held the note
 };
 
 /// How the latest pick was seen.
@@ -396,6 +398,13 @@ public:
     static constexpr double kEarlyFineSeconds = 0.005; ///< periods under this: read between lags
     static constexpr float kEarlyFine = 0.3f;          ///< ...when a whole lag leaves under this
     static constexpr float kEarlyDensity = 0.25f; ///< the windows hold this much of their share
+    // The decoder's attack: a pick the tracker saw, or the level this far over where it was
+    // kDecoderRiseSeconds ago, and kDecoderAttackSeconds after either.
+    static constexpr float kDecoderRiseDb = 6.0f;
+    static constexpr double kDecoderRiseSeconds = 0.01, kDecoderAttackSeconds = 0.012;
+    /// How many clean observations the decoder asks of a new note (NoteDecoder::Model): the
+    /// one setting that trades how soon a note is believed for how often it is wrong.
+    static constexpr float kFastestPatience = 1.0f, kSteadyPatience = 2.0f;
 
     void prepare (double sampleRate);
     /// Forgets the signal and every pending event, without sending anything: call allNotesOff()
@@ -449,6 +458,10 @@ public:
     int soundingCount() const noexcept;
     /// Note-ons sent on the early reading (Fastest), before the tracker had read the note.
     std::uint32_t earlyNotes() const noexcept { return earlyNotes_; }
+    /// Note-ons sent without a pick, on the decoder's reading.
+    std::uint32_t heardNotes() const noexcept { return heardNotes_; }
+    /// The note the decoder holds now, as a played pitch (before the octave), -1 if none.
+    int decodedNote() const noexcept { return decoderNote_; }
     /// The latest pick's date, in samples since reset() (diagnostics).
     std::int64_t pickedAt() const noexcept { return pickAt_; }
     /// The early reading of the latest pick, 0 when there is none (diagnostics).
@@ -727,7 +740,21 @@ private:
     std::int64_t earlyLimit_ = 0;
     int earlyGrace_ = 0; ///< the tracker has no say until this long after its own latest pick
 
-    std::uint32_t notesSent_ = 0, lateNotes_ = 0, earlyNotes_ = 0;
+    // The decoder: a second opinion on which note sounds, from every period the tracker finds.
+    NoteDecoder decoder_;
+    std::uint32_t decoderEstimates_ = 0, decoderPicks_ = 0;
+    int decoderNote_ = NoteDecoder::kSilence; ///< its best state now, as a played pitch
+    int decoderAttack_ = 0, decoderAttackHops_ = 24;
+    std::int64_t decoderAttackAt_ = 0; ///< the latest sample an attack was under way
+    std::array<float, 32> decoderLevels_ {};
+    int decoderLevelAt_ = 0, decoderRiseHops_ = 20;
+    void decoderHop() noexcept;
+    /// The decoder holds note `q` (a sent pitch) now.
+    bool decoded (int q) const noexcept { return decoderNote_ + 12 * settings_.octave == q; }
+    /// The note the decoder holds that may start without a pick: -1 if none.
+    int heardNote (bool voiced, int q) const noexcept;
+
+    std::uint32_t notesSent_ = 0, lateNotes_ = 0, earlyNotes_ = 0, heardNotes_ = 0;
     Why startWhy_ = Why::none, endWhy_ = Why::none;
     PickKind pickKind_ = PickKind::none;
 };

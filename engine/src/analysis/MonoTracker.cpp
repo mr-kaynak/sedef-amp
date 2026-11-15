@@ -172,6 +172,8 @@ void MonoTracker::reset() noexcept
     samplesSinceOnset_ = 1 << 24;
     picked_ = false;
     pickCount_ = 0;
+    keyCount_ = 0;
+    estimateCount_ = 0;
     pickPeak_ = 0.0f;
     pickWindow_ = 0;
     event_ = Event::none;
@@ -407,6 +409,8 @@ void MonoTracker::estimate() noexcept
     }
     if (inLobe && best < searchLag_ - 1)
         addKey (best);
+    keyCount_ = count;
+    ++estimateCount_;
 
     heldHz_ = 0.0f;
     heldClarity_ = 0.0f;

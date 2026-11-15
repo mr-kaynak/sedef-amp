@@ -332,15 +332,18 @@ The panel, top to bottom:
   1", "Closing at the bar line". The button names what it will do next: Record, Play,
   Overdub, Cancel.
 - The loop's **length** (bars and seconds when synced, seconds when free) and its position.
-- **Stop**, **Undo**, **Redo**, **Clear** (Clear shows "Loop cleared · Undo").
+- **Stop**, **Undo**, **Redo**, **Clear** (Clear shows "Loop cleared · Undo"). With nothing to
+  do they are dimmed and ignore a press, but stay in the tab order (`aria-disabled`, not
+  `disabled`), so their menu can learn a footswitch before the first take.
 - **Level** and **Feedback** knobs; **Count-in** switch, with a note that loops snap to bars
   while the click runs.
 
 Keys: `L` anywhere (outside text fields) is the main button, `Shift+L` is Stop; inside the panel
-Space is the main button too. The main button, Stop, Undo and Clear take a footswitch: right-click
-one (or Shift+F10 on it) and choose *Learn MIDI* ([live.md](live.md) §4.5). The panel follows [ui.md](ui.md): the shared buttons and knobs,
-visible focus, accessible names, a polite live region that announces state changes
-("Recording", "Playing, 4 bars"), and under reduced motion the ring steps instead of gliding.
+Space is the main button too. The main button, Stop, Undo and Clear take a footswitch:
+right-click one (or Shift+F10 on it) and choose *Learn MIDI* ([live.md](live.md) §4.5). The panel
+follows [ui.md](ui.md): the shared buttons and knobs, visible focus, accessible names, a polite
+live region that announces state changes ("Recording", "Playing, 4 bars"), and under reduced
+motion the ring steps instead of gliding.
 
 ## 12. Tests
 

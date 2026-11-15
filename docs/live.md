@@ -379,6 +379,8 @@ APVTS  ◄── per-parameter sync atomics ◄────  value + sequence nu
        ──► per-parameter acknowledgements ─►  an override ends once acknowledged
 bank, presets, learn ◄── SPSC rings ◄──────  scene switched (with the values left behind),
                                              program change, learn messages
+looper buttons, L ─ SPSC ring (looper) ───►  Engine::process ◄── the looper's footswitch
+                                             presses (same thread, a plain array)
 ```
 
 The audio thread never calls into JUCE's parameters: `setValueNotifyingHost` takes the listener
@@ -396,8 +398,31 @@ engine, JUCE-free) works on the parameter snapshot the processor already builds 
 5. The block's MIDI messages, in order: bindings set overrides (a switch reads the current value
    with the overrides so far, so two presses in one block cancel out); scene selections store the
    live values in the scene being left and apply the new one's; program changes select a scene at
-   once or ask the message thread for a preset.
+   once or ask the message thread for a preset. A looper action (§4.5) is noted as a press in a
+   fixed array of eight.
 6. The overrides are written over the snapshot, which goes to `Engine::process`.
+7. The processor hands the block's looper presses to `Engine::looperFootswitch`, and then calls
+   `Engine::process`, which takes the message thread's presses from the looper's command ring
+   first and the footswitches' after them, all at the block's start.
+
+**The looper's presses take no ring.** The looper's command ring has one producer, the message
+thread (the looper's buttons and the `L` key), and one consumer, the audio thread. A footswitch
+press is found on the audio thread, inside the same `processBlock` call that runs
+`Engine::process` next, so producer and consumer are the same thread and the hand-off is a plain
+array the engine reads and empties in that call: no atomics, no wait, nothing to overflow but the
+eight places (§7.3). The rejected options:
+
+- *Push into the existing ring.* It would give the ring a second producer (the audio thread next
+  to the message thread), which a single-producer ring does not allow: two pushes at once can
+  write the same slot.
+- *A second ring, audio thread to audio thread.* Safe, but a ring is for two threads; here it
+  would only add atomics and a capacity to a hand-off within one call.
+- *Through the message thread* (a report, then `looperCommand`). The press would wait for the
+  next tick, up to 20 ms or far more while the message thread is busy, and would miss the
+  looper's 50 ms grace after a "1".
+
+The double tap reads the looper's own state in `Engine::process` (what the first press acted on,
+and the looper's count of overdub layers), all on the audio thread.
 
 Every override gets the next value of one sequence counter and is published per parameter (value
 relaxed, then sequence release). The message thread, 50 times a second, writes each published value
@@ -494,19 +519,28 @@ Engine (`engine/tests/live/`):
   `W − 1` and `W` samples apart at 44.1–96 kHz, with the option off, triple taps, two presses in
   one block, a new map; through the engine, each row of §4.5's table from its looper state, the
   undo switch's undo and redo, a foot press rendering like the same `L` press, and nothing
-  without the looper's memory.
+  without the looper's memory. The live layer and the engine together: a controller message
+  anywhere in a block reaches the looper at that block's start, rendering like an `L` press made
+  just before it, for momentary (Toggle) and latching (Latch) switches at block sizes 1 to 4096,
+  with no allocation.
 
 Plug-in (`plugin/tests/LiveStateTests.cpp`): bindings round-trip through `midi.json` and
 across instances; presets with and without scenes round-trip; a 0.9 file loads; the active scene
 and the dirty rules; snapshots and A/B; sessions with and without scenes; program change → preset
 in library order and by assignment; MIDI through `processBlock` switches a scene in one block; no
-Sedef parameter id falls in JUCE's emulated-controller range.
+Sedef parameter id falls in JUCE's emulated-controller range. The looper's targets: they keep in
+`midi.json` (a switch writes no range; only a boolean `true` turns the double tap on), a footswitch
+records and double-taps through `processBlock` in the standalone app, forgetting and learning
+again (the double tap stays with a binding learnt again and starts off on a new one), and a plug-in
+neither learns them nor plays them.
 
 UI (vitest): the context menu (pointer and Shift+F10) and the learn flow against the mock, the
 bindings list (mode, range, invert, forget one and all, where the focus goes after), program
 assignments, the scene bar (select, keyboard, copy, made scenes), the format notes and the mock's
 scene bookkeeping, which mirrors the plug-in's rules; the arithmetic of `features/live/model.ts`
-against the same cases as the engine's.
+against the same cases as the engine's. The looper's footswitches (`LooperFootswitch.test.tsx`):
+learnt from the big button's menu, from Stop, Undo and Clear by Shift+F10 while the looper is
+empty, and from the MIDI panel; the double-tap option; a plug-in neither offers nor plays them.
 
 ## 9. Rejected
 

@@ -164,6 +164,9 @@ host at their exact sample.
 - **The very first note.** Until you have played a note, Sedef MIDI can't tell a finger's touch
   from a soft pluck, so the first note after it starts comes about 60 ms after you play it. Every
   note after that, after a rest or not, comes as quickly as the table below says.
+- **Starting in the middle of the music.** If Sedef MIDI starts while you are already playing
+  (a host that starts playback inside a recorded guitar track), the first two notes it hears are
+  spent telling the playing from background noise; it plays from the third.
 - **Manual gate only for noise that comes and goes.** Auto ignores steady hum and hiss. If the
   **Signal** ring still lights while you're silent (a crackling cable, a buzz that starts and
   stops), switch the gate to Manual and drag it just above that. Too high and soft notes go

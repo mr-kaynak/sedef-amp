@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **Sedef MIDI plays when it starts in the middle of the music.** Started while a note was
+  sounding (a host that starts playback inside a recorded guitar track, or the plug-in loaded
+  while the guitar rings), it took that note for background noise and could stay silent for as
+  long as the playing never paused. It now notices that what it hears changes note, which noise
+  never does, and plays from the third note on.
+
 ## [0.10.3] - 2026-11-15
 
 Sedef MIDI follows real playing better, the looper works from footswitches, and a round of fixes
